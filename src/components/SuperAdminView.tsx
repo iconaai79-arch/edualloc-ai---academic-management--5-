@@ -2857,7 +2857,27 @@ Please change it after login.`;
                                                                     <ArrowRightOnRectangleIcon className="w-3 h-3" />
                                                                     Portal
                                                                 </button>
-                                                                <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
+                                                                {inst.institutionType === 'Education' && (inst.itaxIntegrationStatus === 'requested' || inst.itaxIntegrationStatus === 'pending_activation') && (
+                                                                 <button
+                                                                     onClick={async () => {
+                                                                         if (props.onUpdateInstitution) {
+                                                                             try {
+                                                                                 await props.onUpdateInstitution(inst.id, {
+                                                                                     itaxIntegrationStatus: 'active',
+                                                                                     itaxEnabled: true
+                                                                                 });
+                                                                                 alert("KRA iTax integration activated for " + inst.name);
+                                                                             } catch (err: any) {
+                                                                                 alert("Activation failed: " + err.message);
+                                                                             }
+                                                                         }
+                                                                     }}
+                                                                     className="flex items-center gap-1 text-emerald-600 hover:text-emerald-900 font-black text-[10px] uppercase tracking-tighter bg-emerald-50 px-2 py-1 rounded-lg animate-pulse"
+                                                                 >
+                                                                     Approve iTax
+                                                                 </button>
+                                                             )}
+                                                             <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
                                                                     Edit
                                                                 </button>
                                                                 <button

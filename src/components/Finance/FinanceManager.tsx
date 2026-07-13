@@ -1185,6 +1185,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [expAmount, setExpAmount] = useState<number>(0);
     const [expDescription, setExpDescription] = useState('');
     const [isSavingExpense, setIsSavingExpense] = useState(false);
+    const [expVoteHeadId, setExpVoteHeadId] = useState('');
+    const [expBankAccountId, setExpBankAccountId] = useState('');
+    const [expPaymentMethod, setExpPaymentMethod] = useState('Cash');
+    const [expPayee, setExpPayee] = useState('');
+    const [expReference, setExpReference] = useState('');
+    const [expDate, setExpDate] = useState(new Date().toISOString().split('T')[0]);
+    const [expApprovedBy, setExpApprovedBy] = useState('');
+    const [expPreparedBy, setExpPreparedBy] = useState(props.currentUser?.name || '');
 
     const studentPendingInvoices = useMemo(() => {
         const selectedId = showPostModal ? manualPayStudentId : reconcileStudentId;
@@ -1604,20 +1612,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 console.error("Failed to generate payment voucher number:", err);
             }
 
+            const methodToSave = expReference ? `${expPaymentMethod} (${expReference})` : expPaymentMethod;
+
             await props.onAddExpense({
                 id: `exp_${Date.now()}`,
                 institutionId: instId,
                 category: expCategory,
                 amount: Number(expAmount),
                 description: expDescription,
-                date: new Date().toISOString().split('T')[0],
+                date: expDate || new Date().toISOString().split('T')[0],
                 referenceNumber: referenceNumber,
-                status: 'paid'
+                status: 'paid',
+                voteHeadId: expVoteHeadId || undefined,
+                bankAccountId: expBankAccountId || undefined,
+                payeeName: expPayee || undefined,
+                approvedBy: expApprovedBy || undefined,
+                paymentMethod: methodToSave,
+                recordedBy: expPreparedBy || props.currentUser?.name || 'Accountant'
             });
 
             alert(`Expense recorded successfully with Payment Voucher Reference: ${referenceNumber}`);
             setExpAmount(0);
             setExpDescription('');
+            setExpVoteHeadId('');
+            setExpBankAccountId('');
+            setExpPaymentMethod('Cash');
+            setExpPayee('');
+            setExpReference('');
+            setExpDate(new Date().toISOString().split('T')[0]);
+            setExpApprovedBy('');
             
             if (props.onRefreshData) {
                 await props.onRefreshData();
@@ -4674,6 +4697,34 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </select>
                                     </div>
                                     <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Vote Head Charged</label>
+                                        <select
+                                            value={expVoteHeadId}
+                                            onChange={(e) => setExpVoteHeadId(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
+                                        >
+                                            <option value="">-- Select Vote Head --</option>
+                                            {(props.voteHeads || []).map(vh => (
+                                                <option key={vh.id} value={vh.id}>{vh.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Source Bank Account</label>
+                                        <select
+                                            value={expBankAccountId}
+                                            onChange={(e) => setExpBankAccountId(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
+                                        >
+                                            <option value="">-- Select Bank Account --</option>
+                                            {(bankAccounts || []).map(ba => (
+                                                <option key={ba.id} value={ba.id}>
+                                                    {ba.bankName || ba.bank_name} - {ba.accountName || ba.account_name} ({ba.accountNumber || ba.account_number})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
                                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Amount (KES)</label>
                                         <input
                                             type="number"
@@ -4684,10 +4735,76 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Description</label>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payee Name (To)</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Recipient name..."
+                                            value={expPayee}
+                                            onChange={(e) => setExpPayee(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Method</label>
+                                            <select
+                                                value={expPaymentMethod}
+                                                onChange={(e) => setExpPaymentMethod(e.target.value)}
+                                                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-xs font-bold text-slate-700 outline-none"
+                                            >
+                                                <option>Cash</option>
+                                                <option>Cheque</option>
+                                                <option>M-Pesa</option>
+                                                <option>EFT</option>
+                                                <option>Bank Transfer</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Ref / Cheque #</label>
+                                            <input
+                                                type="text"
+                                                placeholder="N/A"
+                                                value={expReference}
+                                                onChange={(e) => setExpReference(e.target.value)}
+                                                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-xs font-bold text-slate-700 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payment Date</label>
+                                        <input
+                                            type="date"
+                                            value={expDate}
+                                            onChange={(e) => setExpDate(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Prepared By</label>
+                                            <input
+                                                type="text"
+                                                value={expPreparedBy}
+                                                onChange={(e) => setExpPreparedBy(e.target.value)}
+                                                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-xs font-bold text-slate-700 outline-none"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Approved By</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Admin name..."
+                                                value={expApprovedBy}
+                                                onChange={(e) => setExpApprovedBy(e.target.value)}
+                                                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-xs font-bold text-slate-700 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Description / Being</label>
                                         <textarea
                                             placeholder="Purpose of expenditure..."
-                                            rows={3}
+                                            rows={2}
                                             value={expDescription}
                                             onChange={(e) => setExpDescription(e.target.value)}
                                             className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none resize-none"
@@ -4707,23 +4824,59 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm min-h-full">
                                 <h3 className="text-xl font-black text-slate-900 tracking-tight mb-6">Expenditure Log</h3>
                                 <div className="space-y-4">
-                                    {(props.expenses || []).map((exp, i) => (
-                                        <div key={i} className="flex justify-between items-center p-6 bg-slate-50/50 rounded-3xl border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-100/50 transition-all group">
-                                            <div className="flex gap-4 items-center">
-                                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
-                                                    <BanknotesIcon className="w-6 h-6" />
+                                    {(props.expenses || []).map((exp, i) => {
+                                        const vh = (props.voteHeads || []).find(v => v.id === exp.voteHeadId || v.id === exp.vote_head_id);
+                                        const vhName = vh ? vh.name : 'General Expense';
+                                        const bank = (bankAccounts || []).find(b => b.id === exp.bankAccountId || b.id === exp.bank_account_id);
+                                        const bankDetails = bank ? `${bank.bankName || bank.bank_name} - A/C ${bank.accountNumber || bank.account_number}` : 'Unspecified Bank';
+                                        
+                                        return (
+                                            <div key={i} className="flex justify-between items-center p-6 bg-slate-50/50 rounded-3xl border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-100/50 transition-all group">
+                                                <div className="flex gap-4 items-center">
+                                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
+                                                        <BanknotesIcon className="w-6 h-6" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-black text-slate-900">{exp.description}</p>
+                                                        <p className="text-[9px] font-bold text-slate-500 mt-1 flex flex-wrap gap-1.5">
+                                                            <span className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
+                                                                🗳️ {vhName}
+                                                            </span>
+                                                            <span className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-350 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
+                                                                🏦 {bankDetails}
+                                                            </span>
+                                                            {exp.payeeName && (
+                                                                <span className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
+                                                                    👤 To: {exp.payeeName}
+                                                                </span>
+                                                            )}
+                                                        </p>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5">{exp.category} • {exp.date} • Method: {exp.paymentMethod || 'Cash'}</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm font-black text-slate-900">{exp.description}</p>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{exp.category} • {exp.date}</p>
+                                                <div className="text-right flex flex-col items-end gap-2">
+                                                    <div>
+                                                        <p className="text-sm font-black text-rose-600">-KES {(exp.amount ?? 0)?.toLocaleString()}</p>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Voucher: {exp.referenceNumber || 'N/A'}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => pdfService.downloadExpenseVoucherPdf(
+                                                            exp,
+                                                            vhName,
+                                                            bankDetails,
+                                                            props.institution,
+                                                            props.companyDetails,
+                                                            props.institution.logoUrl || null,
+                                                            null
+                                                        )}
+                                                        className="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center gap-1"
+                                                    >
+                                                        📄 Print Voucher
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-sm font-black text-rose-600">-KES {(exp.amount ?? 0)?.toLocaleString()}</p>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verified</p>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>

@@ -29,6 +29,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
         onLogout = () => {} 
     } = props;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'lease' | 'payments' | 'maintenance' | 'profile'>('dashboard');
+    const [paymentSubTab, setPaymentSubTab] = useState<'history' | 'invoices'>('history');
     const [loading, setLoading] = useState(true);
 
     const [showVacateModal, setShowVacateModal] = useState(false);
@@ -89,6 +90,52 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
         }
     };
 
+    const handleSubmitWhtCert = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!selectedInvoiceForWht) return;
+        if (!whtFile) {
+            alert("Please select a certificate document to upload.");
+            return;
+        }
+
+        setUploadingWht(true);
+        try {
+            const formData = new FormData(e.currentTarget);
+            const certNo = formData.get('certNo') as string;
+            const certDate = formData.get('certDate') as string;
+
+            if (!certNo.trim() || !certDate) {
+                alert("Please fill in all required fields.");
+                return;
+            }
+
+            const fileUrl = await apiService.uploadFile(
+                'eduai', 
+                `leases/wht_certs/${selectedInvoiceForWht.id}_${Date.now()}`, 
+                whtFile
+            );
+
+            const updatedInvoice: PMInvoice = {
+                ...selectedInvoiceForWht,
+                withholdingStatus: 'submitted',
+                withholdingCertificateNumber: certNo,
+                withholdingCertificateDate: certDate,
+                withholdingCertificateUrl: fileUrl
+            };
+
+            await apiService.saveModuleRecord('pm_invoices', updatedInvoice);
+            alert("Withholding Tax certificate submitted successfully! Your property manager will verify it shortly.");
+            setShowUploadWhtModal(false);
+            setSelectedInvoiceForWht(null);
+            setWhtFile(null);
+            loadTenantData();
+        } catch (err: any) {
+            alert("Failed to submit certificate: " + (err.message || err));
+        } finally {
+            setUploadingWht(false);
+        }
+    };
+
     // Data states
     const [tenant, setTenant] = useState<PMTenant | null>(null);
     const [leases, setLeases] = useState<PMLease[]>([]);
@@ -96,44 +143,50 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
     const [tickets, setTickets] = useState<PMTicket[]>([]);
     const [units, setUnits] = useState<PMUnit[]>([]);
     const [properties, setProperties] = useState<PMProperty[]>([]);
+    const [invoices, setInvoices] = useState<PMInvoice[]>([]);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
+    const [showUploadWhtModal, setShowUploadWhtModal] = useState(false);
+    const [selectedInvoiceForWht, setSelectedInvoiceForWht] = useState<PMInvoice | null>(null);
+    const [uploadingWht, setUploadingWht] = useState(false);
+    const [whtFile, setWhtFile] = useState<File | null>(null);
+
+    const loadTenantData = async () => {
+        if (!currentUser) return;
+        setLoading(true);
+        try {
+            const instId = currentInstitution.id;
+            const allTenants = await apiService.fetchModuleRecords<PMTenant>('pm_tenants', instId);
+            const myTenant = allTenants.find(t => t.email?.toLowerCase() === currentUser.email.toLowerCase());
+
+            if (myTenant) {
+                setTenant(myTenant);
+                const [leaseList, paymentList, ticketList, unitList, propList, invoiceList] = await Promise.all([
+                    apiService.fetchModuleRecords<PMLease>('pm_leases', instId),
+                    apiService.fetchModuleRecords<PMPayment>('pm_payments', instId),
+                    apiService.fetchModuleRecords<PMTicket>('pm_maintenance', instId),
+                    apiService.fetchModuleRecords<PMUnit>('pm_units', instId),
+                    apiService.fetchModuleRecords<PMProperty>('pm_properties', instId),
+                    apiService.fetchModuleRecords<PMInvoice>('pm_invoices', instId)
+                ]);
+
+                const myLeases = leaseList.filter(l => l.tenantId === myTenant.id);
+                setLeases(myLeases);
+                const myLeaseIds = new Set(myLeases.map(l => l.id));
+                setPayments(paymentList.filter(p => myLeaseIds.has(p.leaseId)));
+                setInvoices(invoiceList.filter(i => myLeaseIds.has(i.leaseId)));
+                const myUnitIds = new Set(myLeases.map(l => l.unitId));
+                setTickets(ticketList.filter(t => myUnitIds.has(t.unitId || '')));
+                setUnits(unitList);
+                setProperties(propList);
+            }
+        } catch (err) {
+            console.error("Failed to load tenant portal data:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        if (!currentUser) return;
-        const loadTenantData = async () => {
-            setLoading(true);
-            try {
-                const instId = currentInstitution.id;
-                // Find the tenant record associated with this user's email
-                const allTenants = await apiService.fetchModuleRecords<PMTenant>('pm_tenants', instId);
-                const myTenant = allTenants.find(t => t.email?.toLowerCase() === currentUser.email.toLowerCase());
-
-                if (myTenant) {
-                    setTenant(myTenant);
-                    // Fetch related records
-                    const [leaseList, paymentList, ticketList, unitList, propList] = await Promise.all([
-                        apiService.fetchModuleRecords<PMLease>('pm_leases', instId),
-                        apiService.fetchModuleRecords<PMPayment>('pm_payments', instId),
-                        apiService.fetchModuleRecords<PMTicket>('pm_maintenance', instId),
-                        apiService.fetchModuleRecords<PMUnit>('pm_units', instId),
-                        apiService.fetchModuleRecords<PMProperty>('pm_properties', instId)
-                    ]);
-
-                    setLeases(leaseList.filter(l => l.tenantId === myTenant.id));
-                    const myLeaseIds = new Set(leaseList.filter(l => l.tenantId === myTenant.id).map(l => l.id));
-                    setPayments(paymentList.filter(p => myLeaseIds.has(p.leaseId)));
-                    const myUnitIds = new Set(leaseList.filter(l => l.tenantId === myTenant.id).map(l => l.unitId));
-                    setTickets(ticketList.filter(t => myUnitIds.has(t.unitId || '')));
-                    setUnits(unitList);
-                    setProperties(propList);
-                }
-            } catch (err) {
-                console.error("Failed to load tenant portal data:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         const loadNotifications = async () => {
             if (!currentUser) return;
             try {
@@ -433,31 +486,112 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
 
                 {activeTab === 'payments' && (
                     <div className="space-y-8 animate-in fade-in duration-500">
-                        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
-                            <table className="w-full text-left">
-                                <thead className="border-b border-slate-50">
-                                    <tr>
-                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Date</th>
-                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Description</th>
-                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Method</th>
-                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {payments.map(p => (
-                                        <tr key={p.id} className="border-b border-slate-50/50 hover:bg-slate-50/50 transition-colors">
-                                            <td className="p-6 font-bold text-slate-600 text-sm">{new Date(p.paymentDate).toLocaleDateString()}</td>
-                                            <td className="p-6 font-black text-slate-800 uppercase italic text-sm">{p.paymentType}</td>
-                                            <td className="p-6">
-                                                <span className="bg-white border border-slate-100 px-3 py-1 rounded-lg text-[10px] font-black text-slate-400 uppercase">{p.paymentMethod}</span>
-                                            </td>
-                                            <td className="p-6 text-right font-black text-slate-800">KES {p.amount?.toLocaleString()}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            {payments.length === 0 && <p className="text-center py-20 text-slate-400 font-black italic">No transaction history.</p>}
+                        {/* Sub-tabs */}
+                        <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
+                            <button 
+                                onClick={() => setPaymentSubTab('history')}
+                                className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${paymentSubTab === 'history' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-400'}`}
+                            >
+                                Payment History
+                            </button>
+                            <button 
+                                onClick={() => setPaymentSubTab('invoices')}
+                                className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${paymentSubTab === 'invoices' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-400'}`}
+                            >
+                                Rent Invoices & WHT Offsets
+                            </button>
                         </div>
+
+                        {paymentSubTab === 'history' ? (
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
+                                <table className="w-full text-left">
+                                    <thead className="border-b border-slate-50">
+                                        <tr>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Date</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Description</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Method</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {payments.map(p => (
+                                            <tr key={p.id} className="border-b border-slate-50/50 hover:bg-slate-50/50 transition-colors">
+                                                <td className="p-6 font-bold text-slate-600 text-sm">{new Date(p.paymentDate).toLocaleDateString()}</td>
+                                                <td className="p-6 font-black text-slate-800 uppercase italic text-sm">{p.paymentType}</td>
+                                                <td className="p-6">
+                                                    <span className="bg-white border border-slate-100 px-3 py-1 rounded-lg text-[10px] font-black text-slate-400 uppercase">{p.paymentMethod}</span>
+                                                </td>
+                                                <td className="p-6 text-right font-black text-slate-800">KES {p.amount?.toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {payments.length === 0 && <p className="text-center py-20 text-slate-400 font-black italic">No transaction history.</p>}
+                            </div>
+                        ) : (
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
+                                <table className="w-full text-left">
+                                    <thead className="border-b border-slate-50">
+                                        <tr>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Invoice #</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Issue Date</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Due Date</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Rent (KES)</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">WHT (10%)</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-center">Status</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">WHT Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {invoices.map(inv => {
+                                            const expectedWht = inv.withholdingTaxAmount || (tenant?.isWithholdingAgent ? Math.round(inv.amount * 0.1) : 0);
+                                            return (
+                                                <tr key={inv.id} className="border-b border-slate-50/50 hover:bg-slate-50/50 transition-colors">
+                                                    <td className="p-6 font-black text-slate-800 font-mono text-sm">{inv.invoiceNumber}</td>
+                                                    <td className="p-6 font-bold text-slate-500 text-xs">{new Date(inv.issueDate).toLocaleDateString()}</td>
+                                                    <td className="p-6 font-bold text-slate-500 text-xs">{new Date(inv.dueDate).toLocaleDateString()}</td>
+                                                    <td className="p-6 text-right font-black text-slate-800">KES {inv.amount?.toLocaleString()}</td>
+                                                    <td className="p-6 text-right font-black text-amber-600">KES {expectedWht.toLocaleString()}</td>
+                                                    <td className="p-6 text-center">
+                                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic ${inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>{inv.status}</span>
+                                                    </td>
+                                                    <td className="p-6 text-right">
+                                                        {inv.withholdingStatus === 'approved' && (
+                                                            <span className="text-[10px] font-black uppercase text-emerald-600 tracking-wider">Cert Approved & Offset</span>
+                                                        )}
+                                                        {inv.withholdingStatus === 'submitted' && (
+                                                            <span className="text-[10px] font-black uppercase text-indigo-650 tracking-wider animate-pulse">Awaiting Verification</span>
+                                                        )}
+                                                        {(inv.withholdingStatus === 'rejected' || !inv.withholdingStatus || inv.withholdingStatus === 'pending') && expectedWht > 0 && (
+                                                            <div className="flex flex-col gap-1 items-end">
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setSelectedInvoiceForWht(inv);
+                                                                        setShowUploadWhtModal(true);
+                                                                    }}
+                                                                    className="px-4 py-2 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all"
+                                                                >
+                                                                    Upload Certificate
+                                                                </button>
+                                                                {inv.withholdingStatus === 'rejected' && (
+                                                                    <p className="text-[8px] text-rose-500 font-bold max-w-[200px] text-right italic">
+                                                                        Rejected: {inv.withholdingRejectionReason || 'Invalid details'}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        {expectedWht === 0 && (
+                                                            <span className="text-slate-400 font-bold italic text-xs">N/A</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                                {invoices.length === 0 && <p className="text-center py-20 text-slate-400 font-black italic">No invoices found.</p>}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -637,6 +771,83 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                                     className="w-full bg-rose-600 hover:bg-rose-700 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4 transition-colors disabled:opacity-50"
                                 >
                                     {submittingNotice ? 'Submitting Notice...' : 'Submit Vacation Notice Letter'}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {showUploadWhtModal && selectedInvoiceForWht && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-800 w-full max-w-lg p-8 relative animate-in zoom-in-95 duration-250">
+                            <button
+                                onClick={() => {
+                                    setShowUploadWhtModal(false);
+                                    setSelectedInvoiceForWht(null);
+                                    setWhtFile(null);
+                                }}
+                                className="absolute right-6 top-6 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold"
+                            >
+                                ✕
+                            </button>
+                            <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter italic mb-2">
+                                Upload KRA Withholding Certificate
+                            </h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-6">
+                                Invoice {selectedInvoiceForWht.invoiceNumber} • KES {selectedInvoiceForWht.amount.toLocaleString()}
+                            </p>
+
+                            <form onSubmit={handleSubmitWhtCert} className="space-y-6">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Certificate Number (from KRA iTax)</label>
+                                    <input
+                                        type="text"
+                                        name="certNo"
+                                        required
+                                        className="w-full bg-slate-50 dark:bg-slate-850 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white text-xs"
+                                        placeholder="E.g. WHT2026090812"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Certificate Date</label>
+                                    <input
+                                        type="date"
+                                        name="certDate"
+                                        required
+                                        className="w-full bg-slate-50 dark:bg-slate-850 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white text-xs"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Upload Certificate File (PDF or Image)</label>
+                                    <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-indigo-500 rounded-2xl p-6 text-center cursor-pointer transition-colors relative">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*,application/pdf"
+                                            required
+                                            onChange={(e) => {
+                                                if (e.target.files && e.target.files[0]) {
+                                                    setWhtFile(e.target.files[0]);
+                                                }
+                                            }}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        />
+                                        <p className="text-xs font-black text-slate-700 dark:text-slate-350 uppercase">
+                                            {whtFile ? whtFile.name : 'Select or Drop Certificate Document'}
+                                        </p>
+                                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                            Max Size: 5MB (Image or PDF)
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={uploadingWht}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest mt-4 transition-colors disabled:opacity-50"
+                                >
+                                    {uploadingWht ? 'Uploading Certificate...' : 'Submit Certificate to Manager'}
                                 </button>
                             </form>
                         </div>

@@ -572,7 +572,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'academics_officer',
                 'agrovet_admin', 'coop_admin', 'coop_chairman', 'sacco_officer', 'cooperative_manager',
                 'property_admin', 'landlord', 'his_admin', 'carwash_admin', 'transport_admin', 'mechanic_admin', 'church_admin',
-                'teacher', 'lecturer'
+                'teacher', 'lecturer', 'driving_instructor', 'director', 'manager', 'finance', 'staff'
             ];
 
             if (!adminRoles.includes(user.role) && user.id !== 'system' && !isSystemMessage) {

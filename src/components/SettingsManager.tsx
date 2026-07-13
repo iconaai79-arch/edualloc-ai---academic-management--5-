@@ -282,7 +282,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage' | 'googledrive'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba' | 'kcb' | 'coop'>('mpesa');
-    const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive'>('mpesa');
+    const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive' | 'itax'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>(isDS ? 'buildings' : 'departments');
     const [dsConfigSubTab, setDsConfigSubTab] = useState<'business_rules' | 'license_category' | 'license_groups' | 'vote_heads' | 'fee_structures'>('business_rules');
     const [newLicenseGroupForm, setNewLicenseGroupForm] = useState('');
@@ -4229,6 +4229,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     >
                                         Google Drive
                                     </button>
+                                    {isSchool && (
+                                        <button
+                                            onClick={() => setInstIntegrationTab('itax')}
+                                            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${instIntegrationTab === 'itax' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            KRA iTax
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className="space-y-8">
@@ -4441,6 +4449,101 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         placeholder="1Abc_def_Ghi..."
                                                     />
                                                 </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {instIntegrationTab === 'itax' && (
+                                        <div className="animate-fade-in space-y-8">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-3 bg-red-50 dark:bg-red-900/30 rounded-2xl text-red-600">
+                                                    <Cog8ToothIcon className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-xl font-black uppercase tracking-tight">KRA iTax Integration</h3>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Manage KRA Withholding & MRI filing activation requests</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
+                                                {props.currentInstitution?.itaxIntegrationStatus === 'active' ? (
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center gap-3 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 p-4 rounded-2xl">
+                                                            <CheckCircleIcon className="w-6 h-6" />
+                                                            <div>
+                                                                <p className="text-sm font-black uppercase tracking-wider">iTax Integration Active</p>
+                                                                <p className="text-xs text-emerald-500 font-bold uppercase mt-0.5">Your school is authorized to sync direct withholding tax certificates and file MRI.</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 mt-6">
+                                                            <div>
+                                                                <h4 className="text-xs font-black uppercase text-slate-750 dark:text-white">Enable Automated iTax Filings</h4>
+                                                                <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Synchronise invoice payments directly to KRA ledger records</p>
+                                                            </div>
+                                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    checked={props.currentInstitution?.itaxEnabled ?? false} 
+                                                                    onChange={async (e) => {
+                                                                        if (!props.onUpdateInstitution || !props.currentInstitution) return;
+                                                                        try {
+                                                                            await props.onUpdateInstitution(props.currentInstitution.id, {
+                                                                                itaxEnabled: e.target.checked
+                                                                            });
+                                                                        } catch (err: any) {
+                                                                            alert("Failed to toggle iTax: " + err.message);
+                                                                        }
+                                                                    }}
+                                                                    className="sr-only peer" 
+                                                                />
+                                                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-305 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-650"></div>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                ) : props.currentInstitution?.itaxIntegrationStatus === 'requested' || props.currentInstitution?.itaxIntegrationStatus === 'pending_activation' ? (
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center gap-3 text-amber-600 bg-amber-50 dark:bg-amber-955/20 p-4 rounded-2xl">
+                                                            <ClockIcon className="w-6 h-6 animate-pulse" />
+                                                            <div>
+                                                                <p className="text-sm font-black uppercase tracking-wider">iTax Activation Pending</p>
+                                                                <p className="text-xs text-amber-500 font-bold uppercase mt-0.5">Request has been submitted to the Super Admin for authorization.</p>
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase leading-relaxed pt-2">
+                                                            KRA iTax endpoints require official security clearance. You will be notified via email or SMS once the Super Admin completes verification of your KRA Pin and certificate credentials.
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-6">
+                                                        <div className="flex items-center gap-3 text-slate-500 bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl">
+                                                            <ExclamationTriangleIcon className="w-6 h-6" />
+                                                            <div>
+                                                                <p className="text-sm font-black uppercase tracking-wider">iTax Integration Offline</p>
+                                                                <p className="text-xs text-slate-400 font-bold uppercase mt-0.5">Integrations are disabled until requested and approved.</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="pt-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={async () => {
+                                                                    if (!props.onUpdateInstitution || !props.currentInstitution) return;
+                                                                    try {
+                                                                        await props.onUpdateInstitution(props.currentInstitution.id, {
+                                                                            itaxIntegrationStatus: 'requested'
+                                                                        });
+                                                                        alert("iTax activation request submitted successfully!");
+                                                                    } catch (err: any) {
+                                                                        alert("Failed to submit request: " + err.message);
+                                                                    }
+                                                                }}
+                                                                className="px-6 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md shadow-indigo-100"
+                                                            >
+                                                                Request Activation from Super Admin
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )}

@@ -5942,6 +5942,9 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                             invoices={invoices}
                                             receipts={receipts}
                                             expenses={expenses}
+                                            onAddExpense={async (exp) => {
+                                                await apiService.saveModuleRecord('expenses', exp);
+                                            }}
                                             goals={financialGoals}
                                             feeStructures={feeStructures}
                                             students={(users || []).filter(u => u.role === 'student')}

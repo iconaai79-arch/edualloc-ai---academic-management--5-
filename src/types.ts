@@ -134,6 +134,10 @@ export interface Expense {
     paymentMethod?: string;
     attachmentUrl?: string;
     referenceNumber?: string;
+    voteHeadId?: string;
+    bankAccountId?: string;
+    payeeName?: string;
+    approvedBy?: string;
 }
 
 export interface FinanceNumberingConfig {
@@ -434,6 +438,8 @@ export interface Institution {
     businessSubType?: string; // Legacy field, eventually merge with category
     slug?: string;
     status: 'active' | 'trial' | 'suspended';
+    itaxIntegrationStatus?: 'not_requested' | 'requested' | 'pending_activation' | 'active';
+    itaxEnabled?: boolean;
     subscriptionEndsAt?: string;
     trialEndsAt?: string;
     billingModel?: 'fixed' | 'prepaid_student' | 'postpaid_student';
@@ -2762,6 +2768,8 @@ export interface PMTenant {
     idNumber?: string;
     emergencyContactName?: string;
     emergencyContactPhone?: string;
+    taxPin?: string;
+    isWithholdingAgent?: boolean;
     institutionId: string;
     createdAt: string;
 }
@@ -2908,6 +2916,12 @@ export interface PMInvoice {
     dueDate: string;
     status: PMInvoiceStatus;
     notes?: string;
+    withholdingTaxAmount?: number;
+    withholdingCertificateUrl?: string;
+    withholdingCertificateNumber?: string;
+    withholdingCertificateDate?: string;
+    withholdingStatus?: 'pending' | 'submitted' | 'approved' | 'rejected';
+    withholdingRejectionReason?: string;
     institutionId: string;
     createdAt?: string;
 }

@@ -1,5 +1,5 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, PMExpenseVoucher, PMInspection, PMDepositRefund, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient, PayrollRecord } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, PMExpenseVoucher, PMInspection, PMDepositRefund, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient, PayrollRecord, Expense } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 
@@ -5514,6 +5514,171 @@ export const generatePMExpenseVoucherPdf = async (
 
     return doc.output('datauristring');
 };
+
+export const generateExpenseVoucherPdf = async (
+    expense: Expense,
+    voteHeadName: string,
+    bankAccountDetails: string,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    letterheadUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const headerImg = await loadImage(letterheadUrl || null);
+    const tableStartY = createPdfWithLetterhead(doc, 'PAYMENT VOUCHER', companyDetails, institution, logoImg, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    let yPos = tableStartY + 5;
+
+    // Voucher Number & Date details
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`Voucher No: ${expense.referenceNumber || expense.id}`, margin, yPos);
+    doc.text(`Date: ${new Date(expense.date).toLocaleDateString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 8;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Source Account: ${bankAccountDetails || 'N/A'}`, margin, yPos);
+    doc.text(`Status: ${(expense.status || 'paid').toUpperCase()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 12;
+
+    // Payee Box
+    doc.setDrawColor(220, 220, 220);
+    doc.setFillColor(250, 250, 250);
+    doc.rect(margin, yPos, pageWidth - (margin * 2), 22, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('PAYEE / RECIPIENT DETAILS:', margin + 4, yPos + 6);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${expense.payeeName || 'N/A'}`, margin + 4, yPos + 12);
+    doc.text(`Method: ${expense.paymentMethod || 'Cash'}`, pageWidth - margin - 60, yPos + 12);
+    
+    // Checked if cheque or transaction reference is present
+    if (expense.referenceNumber && expense.referenceNumber.startsWith('PV-')) {
+        // Prefix of voucher number, don't show as reference
+    } else if (expense.referenceNumber) {
+        doc.text(`Ref: ${expense.referenceNumber}`, pageWidth - margin - 60, yPos + 17);
+    }
+
+    yPos += 30;
+
+    // Table Header
+    doc.setFillColor(31, 41, 55); // Dark grey corporate header
+    doc.rect(margin, yPos, pageWidth - (margin * 2), 8, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text('VOTEHEAD & PARTICULARS OF EXPENDITURE', margin + 4, yPos + 5.5);
+    doc.text('AMOUNT', pageWidth - margin - 4, yPos + 5.5, { align: 'right' });
+
+    yPos += 8;
+
+    // Table Body
+    doc.setTextColor(30, 41, 59); // Dark text
+    doc.setFont('helvetica', 'normal');
+    doc.setLineWidth(0.1);
+    doc.line(margin, yPos, margin, yPos + 22);
+    doc.line(pageWidth - margin, yPos, pageWidth - margin, yPos + 22);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Votehead charged: ${voteHeadName || 'General / Unspecified'}`, margin + 4, yPos + 6);
+    doc.setFont('helvetica', 'normal');
+    const descLines = doc.splitTextToSize(expense.description || 'No description provided.', pageWidth - (margin * 2) - 30);
+    doc.text(descLines, margin + 4, yPos + 12);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`KES ${expense.amount.toLocaleString()}`, pageWidth - margin - 4, yPos + 6, { align: 'right' });
+
+    yPos += 22;
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+
+    // Total box
+    yPos += 6;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL AMOUNT:', margin, yPos + 4);
+    doc.text(`KES ${expense.amount.toLocaleString()}`, pageWidth - margin, yPos + 4, { align: 'right' });
+
+    // Amount in words
+    yPos += 12;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const amountInWords = convertNumberToWords(expense.amount);
+    const amountWordsLines = doc.splitTextToSize(`Amount in Words: ${amountInWords}`, pageWidth - (margin * 2));
+    doc.text(amountWordsLines, margin, yPos);
+
+    yPos += (amountWordsLines.length * 4.5);
+
+    // Signature Block at the bottom
+    let sigY = pageHeight - margin - 20;
+    if (yPos + 50 > sigY) {
+        doc.addPage();
+        sigY = pageHeight - margin - 20;
+    }
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setDrawColor(150, 150, 150);
+    
+    // Lines for signatures
+    const sigWidth = 38;
+    const sigSpacing = 10;
+    
+    // Prepared by
+    doc.line(margin, sigY, margin + sigWidth, sigY);
+    doc.text(`PREPARED BY: ${expense.recordedBy || 'Accountant'}`, margin + 2, sigY + 4);
+    
+    // Checked by
+    let currentX = margin + sigWidth + sigSpacing;
+    doc.line(currentX, sigY, currentX + sigWidth, sigY);
+    doc.text('CHECKED BY / ACCT', currentX + 2, sigY + 4);
+    
+    // Approved by
+    currentX = currentX + sigWidth + sigSpacing;
+    doc.line(currentX, sigY, currentX + sigWidth, sigY);
+    doc.text(`APPROVED BY: ${expense.approvedBy || 'Admin'}`, currentX + 2, sigY + 4);
+    
+    // Received by (Payee)
+    currentX = currentX + sigWidth + sigSpacing;
+    doc.line(currentX, sigY, currentX + sigWidth, sigY);
+    doc.text('RECEIVED BY: PAYEE SIGN', currentX + 2, sigY + 4);
+
+    return doc.output('datauristring');
+};
+
+export const downloadExpenseVoucherPdf = async (
+    expense: Expense,
+    voteHeadName: string,
+    bankAccountDetails: string,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    letterheadUrl?: string | null
+): Promise<void> => {
+    const dataUri = await generateExpenseVoucherPdf(
+        expense,
+        voteHeadName,
+        bankAccountDetails,
+        institution,
+        companyDetails,
+        logoUrl,
+        letterheadUrl
+    );
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = `Voucher-${expense.referenceNumber || expense.id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
 
 export const generatePMNoticeLetterPdf = async (
     notice: PMNoticeLetter,
