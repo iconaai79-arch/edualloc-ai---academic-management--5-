@@ -852,6 +852,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [bursaryStudentSearch, setBursaryStudentSearch] = useState('');
     const [bursaryStudentId, setBursaryStudentId] = useState('');
     const [bursaryConstituency, setBursaryConstituency] = useState('');
+    const [constituencyList, setConstituencyList] = useState<any[]>([]);
+    const [constituencyDropdown1Open, setConstituencyDropdown1Open] = useState(false);
+    const [constituencyDropdown2Open, setConstituencyDropdown2Open] = useState(false);
     const [bursaryAmount, setBursaryAmount] = useState('');
     const [bursaryChequeNumber, setBursaryChequeNumber] = useState('');
     const [bursaryNotes, setBursaryNotes] = useState('');
@@ -936,6 +939,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setGokInstallmentLabel('Installment 1');
         }
     }, [gokPaymentMode, gokTranche]);
+
+    useEffect(() => {
+        apiService.fetchModuleRecords('constituencies')
+            .then(res => {
+                if (Array.isArray(res)) {
+                    setConstituencyList(res);
+                }
+            })
+            .catch(err => console.error("Failed to load constituencies:", err));
+    }, []);
 
     const fetchGokCapLogs = async () => {
         setIsLoadingGokLogs(true);
@@ -4997,15 +5010,46 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
 
                                         {/* Constituency */}
-                                        <div className="space-y-1">
+                                        <div className="space-y-1 relative">
                                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">NG-CDF / Constituency Name</label>
                                             <input 
                                                 type="text" 
-                                                placeholder="e.g. Kigumo NG-CDF"
+                                                placeholder="e.g. Kigumo"
                                                 value={bursaryConstituency}
-                                                onChange={e => setBursaryConstituency(e.target.value)}
+                                                onChange={e => {
+                                                    setBursaryConstituency(e.target.value);
+                                                    setConstituencyDropdown1Open(true);
+                                                }}
+                                                onFocus={() => setConstituencyDropdown1Open(true)}
+                                                onBlur={() => setTimeout(() => setConstituencyDropdown1Open(false), 200)}
                                                 className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
                                             />
+                                            {constituencyDropdown1Open && bursaryConstituency && (
+                                                <div className="absolute z-10 left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                                                    {constituencyList.filter(c => 
+                                                        c.name?.toLowerCase().includes(bursaryConstituency.toLowerCase())
+                                                    ).length === 0 ? (
+                                                        <div className="p-4 text-xs text-slate-400 font-medium">No matching constituencies.</div>
+                                                    ) : (
+                                                        constituencyList.filter(c => 
+                                                            c.name?.toLowerCase().includes(bursaryConstituency.toLowerCase())
+                                                        ).map(con => (
+                                                            <button
+                                                                key={con.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setBursaryConstituency(con.name);
+                                                                    setConstituencyDropdown1Open(false);
+                                                                }}
+                                                                className="w-full p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-slate-700 dark:text-slate-300 flex flex-col"
+                                                            >
+                                                                <span>{con.name}</span>
+                                                                {con.code && <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Code: {con.code}</span>}
+                                                            </button>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Financial Year */}
@@ -5129,15 +5173,46 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
 
                                         {/* Target Constituency */}
-                                        <div className="space-y-1">
+                                        <div className="space-y-1 relative">
                                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Target Constituency Name</label>
                                             <input 
                                                 type="text" 
                                                 placeholder="e.g. Kigumo"
                                                 value={bursaryConstituency}
-                                                onChange={e => setBursaryConstituency(e.target.value)}
+                                                onChange={e => {
+                                                    setBursaryConstituency(e.target.value);
+                                                    setConstituencyDropdown2Open(true);
+                                                }}
+                                                onFocus={() => setConstituencyDropdown2Open(true)}
+                                                onBlur={() => setTimeout(() => setConstituencyDropdown2Open(false), 200)}
                                                 className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
                                             />
+                                            {constituencyDropdown2Open && bursaryConstituency && (
+                                                <div className="absolute z-10 left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                                                    {constituencyList.filter(c => 
+                                                        c.name?.toLowerCase().includes(bursaryConstituency.toLowerCase())
+                                                    ).length === 0 ? (
+                                                        <div className="p-4 text-xs text-slate-400 font-medium">No matching constituencies.</div>
+                                                    ) : (
+                                                        constituencyList.filter(c => 
+                                                            c.name?.toLowerCase().includes(bursaryConstituency.toLowerCase())
+                                                        ).map(con => (
+                                                            <button
+                                                                key={con.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setBursaryConstituency(con.name);
+                                                                    setConstituencyDropdown2Open(false);
+                                                                }}
+                                                                className="w-full p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-slate-700 dark:text-slate-300 flex flex-col"
+                                                            >
+                                                                <span>{con.name}</span>
+                                                                {con.code && <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Code: {con.code}</span>}
+                                                            </button>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Financial Year */}
