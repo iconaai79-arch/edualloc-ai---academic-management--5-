@@ -7463,7 +7463,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {/* Horizontal menu — switches to sub-menus when on outstanding or ledger tabs */}
                             {reportsSubTab === 'outstanding' ? (
                                 /* Outstanding Balances sub-menu */
-                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-indigo-100 dark:border-indigo-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
+                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-indigo-100 dark:border-indigo-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
                                     <button
                                         onClick={() => setReportsSubTab('collection')}
                                         className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all mr-1 border border-indigo-200 dark:border-indigo-800"
@@ -7496,7 +7496,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             ) : reportsSubTab === 'ledger' ? (
                                 /* Receipts Ledger sub-menu */
-                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-emerald-100 dark:border-emerald-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
+                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-emerald-100 dark:border-emerald-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
                                     <button
                                         onClick={() => setReportsSubTab('collection')}
                                         className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all mr-1 border border-emerald-200 dark:border-emerald-800"
@@ -7527,7 +7527,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             ) : (
                                 /* Normal Reports menu */
-                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
+                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
                                     {reportSubTabs.map(tab => (
                                         <button
                                             key={tab.id}
