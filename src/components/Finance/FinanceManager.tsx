@@ -28,8 +28,6 @@ import { apiService } from '../../services/apiService';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { AnnualReportWizard } from './AnnualReportWizard';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
-import { StudentEnrollmentManager } from '../common/StudentEnrollmentManager';
-import { CommunicationsManager } from '../CommunicationsManager';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -47,6 +45,8 @@ import { DownloadIcon } from '../icons/DownloadIcon';
 import { BuildingLibraryIcon } from '../icons/BuildingLibraryIcon';
 import { ArrowPathIcon } from '../icons/ArrowPathIcon';
 const HRManager = React.lazy(() => import('../HR/HRManager').then(m => ({ default: m.HRManager })));
+const StudentEnrollmentManager = React.lazy(() => import('../common/StudentEnrollmentManager').then(m => ({ default: m.StudentEnrollmentManager })));
+const CommunicationsManager = React.lazy(() => import('../CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
 
 interface FinanceManagerProps {
     invoices: Invoice[];
@@ -2702,41 +2702,45 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {/* View contents based on active sub-tab */}
                             {homeSubTab === 'registry' && (
                                 <div className="animate-in fade-in duration-300">
-                                    <StudentEnrollmentManager
-                                        context="academic"
-                                        currentInstitution={props.institution}
-                                        activeTab="students"
-                                        companyDetails={props.companyDetails}
-                                        currentUser={props.currentUser}
-                                        onLogAction={props.onLogAction ? async (msg) => { await props.onLogAction!(msg); } : undefined}
-                                    />
+                                    <React.Suspense fallback={<div className="p-8 text-center text-xs text-slate-400 font-medium">Loading Student Registry...</div>}>
+                                        <StudentEnrollmentManager
+                                            context="academic"
+                                            currentInstitution={props.institution}
+                                            activeTab="students"
+                                            companyDetails={props.companyDetails}
+                                            currentUser={props.currentUser}
+                                            onLogAction={props.onLogAction ? async (msg) => { await props.onLogAction!(msg); } : undefined}
+                                        />
+                                    </React.Suspense>
                                 </div>
                             )}
 
                             {homeSubTab === 'communication' && (
                                 <div className="animate-in fade-in duration-300">
-                                    <CommunicationsManager
-                                        users={props.users || []}
-                                        departments={[]}
-                                        courses={props.courses || []}
-                                        institutions={[props.institution]}
-                                        onSendSms={async (recipient, message, config, units, instId) => {
-                                            return apiService.sendSms(
-                                                Array.isArray(recipient) ? recipient.join(',') : recipient, 
-                                                message, 
-                                                config, 
-                                                units, 
-                                                instId
-                                            );
-                                        }}
-                                        currentUser={props.currentUser}
-                                        smsBalance={props.institution.smsBalance || 0}
-                                        currentInstitution={props.institution}
-                                        smsConfig={props.institution.smsConfig}
-                                        onRefreshData={props.onRefreshData}
-                                        companyDetails={props.companyDetails}
-                                        transactions={props.transactions || []}
-                                    />
+                                    <React.Suspense fallback={<div className="p-8 text-center text-xs text-slate-400 font-medium">Loading Communications...</div>}>
+                                        <CommunicationsManager
+                                            users={props.users || []}
+                                            departments={[]}
+                                            courses={props.courses || []}
+                                            institutions={[props.institution]}
+                                            onSendSms={async (recipient, message, config, units, instId) => {
+                                                return apiService.sendSms(
+                                                    Array.isArray(recipient) ? recipient.join(',') : recipient, 
+                                                    message, 
+                                                    config, 
+                                                    units, 
+                                                    instId
+                                                );
+                                            }}
+                                            currentUser={props.currentUser}
+                                            smsBalance={props.institution.smsBalance || 0}
+                                            currentInstitution={props.institution}
+                                            smsConfig={props.institution.smsConfig}
+                                            onRefreshData={props.onRefreshData}
+                                            companyDetails={props.companyDetails}
+                                            transactions={props.transactions || []}
+                                        />
+                                    </React.Suspense>
                                 </div>
                             )}
 
@@ -4175,14 +4179,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                         {studentSubTab === 'registry' && (
                             <div className="animate-in fade-in duration-300">
-                                <StudentEnrollmentManager
-                                    context="academic"
-                                    currentInstitution={props.institution}
-                                    activeTab="students"
-                                    companyDetails={props.companyDetails}
-                                    currentUser={props.currentUser}
-                                    onLogAction={props.onLogAction ? async (msg) => { await props.onLogAction!(msg); } : undefined}
-                                />
+                                <React.Suspense fallback={<div className="p-8 text-center text-xs text-slate-400 font-medium">Loading Student Registry...</div>}>
+                                    <StudentEnrollmentManager
+                                        context="academic"
+                                        currentInstitution={props.institution}
+                                        activeTab="students"
+                                        companyDetails={props.companyDetails}
+                                        currentUser={props.currentUser}
+                                        onLogAction={props.onLogAction ? async (msg) => { await props.onLogAction!(msg); } : undefined}
+                                    />
+                                </React.Suspense>
                             </div>
                         )}
 
