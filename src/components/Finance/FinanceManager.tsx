@@ -2441,11 +2441,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 <nav className="space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
                     {tabs.filter(item => {
-                        const isSchool = isSchoolInstitution(props.institution);
-                        if (item.id === 'gok_capitation') return isSchool;
-                        if (item.id === 'bursaries') return isSchool;
-                        if (item.id === 'wizard') return isSchool;
-                        if (item.id === 'goods_in_lieu') return isSchool;
+                        const isEdu = isEduInstitution(props.institution);
+                        if (item.id === 'gok_capitation') return isEdu;
+                        if (item.id === 'bursaries') return isEdu;
+                        if (item.id === 'wizard') return isEdu;
+                        if (item.id === 'goods_in_lieu') return isEdu;
                         if (item.id === 'billing') return isDrivingSchool;
                         return true;
                     }).map(item => (
