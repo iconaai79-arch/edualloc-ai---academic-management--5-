@@ -1,26 +1,11 @@
-# Task List: Property Management Enhancements
+# Task List: Expense Governance, Recipient Signatures & Salary Bank Schedules
 
-- [x] Initialize local states for academic years, semesters, and inputs in FinanceManager.tsx
-- [/] Replace simple browser prompt with inline form for Academic Years in settings
-- [/] Replace simple browser prompt with inline form for Terms/Semesters in settings and list view with search
-- [x] Implement unit-level drill-down collection status panel
-- [x] Fix duplicates in the Arrears Manager by deduplicating active leases by unit/ID
-- [x] Constrain rent arrears in Arrears Manager to only check current month plus previous month
-- [x] Fix tenant/landlord statements in PM by deduplicating records and filtering out Cancelled/Draft invoices and non-Completed payments
-- [x] Add bulk remove arrears adjustment invoices button to Arrears Manager
-- [x] Enable property-scoped arrears removal in the Arrears Manager bulk deletion handler
-- [x] Prevent arrears calculation from shooting up by excluding Cancelled/Draft invoices from totalInvoicedAmount and protecting Paid arrears invoices from removal
-- [x] Add SMS preview modal and additional text appending in Arrears Manager reminders
-- [x] Add auto-fill search in Statements Manager for tenant/landlord selection
-- [x] Hide 'Invoice Arrears' buttons (both bulk and row-level) in the Arrears Manager
-- [x] Fix modal rendering position in Arrears Manager using React Portals
-- [x] Add pagination to the Arrears Manager ledger table (10 items per page with auto-reset)
-- [x] Add option to append landlord payment details to SMS reminders
-- [x] Enable bulk split payment recording (Rent, Deposit, Utility) with live totalization in the RecordPaymentModal
-- [x] Hide the bulk 'Remove Arrears' button from the Arrears Manager action panel
-- [x] Add dynamic town list/datalist selector option for property town input field
-- [x] Display next assigned receipt number/range in the Record Transaction modal header
-- [x] Render the 3-column configuration dashboard under Settings tab
-- [x] Prepopulate bank name input with Kenyan banks datalist suggestions
-- [x] Validate compilation with Vite build check and update Capacitor android resources
-- [x] Verify the application compiles and runs without errors
+- [x] Fix Driving School Sent SMS history and broadcaster visibility
+- [x] Add detailed database migration for vote heads, bank accounts, and payee signature details in expenses
+- [x] Design Ministry of Education Capitation Grant Manual compliant payment voucher PDF
+- [x] Modernize the Record Expense form layout with vote head and bank dropdown selects
+- [x] Implement a live on-screen Payment Voucher preview card modal
+- [x] Create a hand-drawn payee signature interactive canvas pad in the preview modal
+- [x] Render recipient's canvas drawing onto the printed Payment Voucher PDF
+- [x] Generate a Salary Bank Payment Schedule advice letter detailing payments to each staff account
+- [x] Provide MoE manual compliant recommendations on school Budgeting and Tendering processes
