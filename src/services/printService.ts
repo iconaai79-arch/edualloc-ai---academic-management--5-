@@ -3,6 +3,31 @@ import { jsPDF } from 'jspdf';
 
 const Print = registerPlugin<any>('Print');
 
+function formatPrintDate(dateStr?: string): string {
+    if (!dateStr) return new Date().toLocaleString();
+    
+    // Attempt standard parsing
+    let parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+        return parsed.toLocaleString();
+    }
+    
+    // Check if it's a simple time string like "07:19 AM" or "14:25"
+    // By prepending today's date
+    try {
+        const today = new Date().toDateString(); // e.g. "Tue Jul 14 2026"
+        parsed = new Date(`${today} ${dateStr}`);
+        if (!isNaN(parsed.getTime())) {
+            return parsed.toLocaleString();
+        }
+    } catch (e) {
+        console.error("Failed to parse time-only string:", e);
+    }
+    
+    // If it is already a formatted date string, return it as-is instead of "Invalid Date"
+    return dateStr;
+}
+
 export type PrinterType = 'system' | 'bluetooth' | 'network';
 
 export interface PrinterConfig {
@@ -357,7 +382,7 @@ export const printService = {
                             ${params.visitorData.vehiclePlate ? `<div><span class="bold">VEHICLE:</span> ${params.visitorData.vehiclePlate}</div>` : ''}
                             <div><span class="bold">VISITING:</span> ${params.visitorData.hostName || 'General Administration'}</div>
                             <div><span class="bold">PURPOSE:</span> ${params.visitorData.purpose || 'Official'}</div>
-                            <div><span class="bold">TIME IN:</span> ${params.visitorData.timeIn ? new Date(params.visitorData.timeIn).toLocaleString() : new Date().toLocaleString()}</div>
+                            <div><span class="bold">TIME IN:</span> ${formatPrintDate(params.visitorData.timeIn)}</div>
                             <div class="divider"></div>
                             <div class="center" style="font-size: 9px; font-weight: bold;">PLEASE RETAIN THIS CARD</div>
                             <div class="center" style="font-size: 9px; font-weight: bold;">SURRENDER AT EXIT GATE</div>
@@ -601,7 +626,7 @@ export function formatVisitorPassEscPos(
     addText(`Purpose: ${visitorData.purpose || 'Official'}`);
     feed();
 
-    const timeInStr = visitorData.timeIn ? new Date(visitorData.timeIn).toLocaleString() : new Date().toLocaleString();
+    const timeInStr = formatPrintDate(visitorData.timeIn);
     addText(`Time In: ${timeInStr}`);
     feed();
     line();
@@ -731,10 +756,11 @@ export function formatEventPassEscPos(
 }
 
 function generateVisitorPassPdfBase64(visitorData: any, institution: any): string {
+    const pdfHeight = 72 + (visitorData.idNumber ? 5 : 0) + (visitorData.vehiclePlate ? 5 : 0);
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: [80, 140]
+        format: [80, pdfHeight]
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -774,7 +800,7 @@ function generateVisitorPassPdfBase64(visitorData: any, institution: any): strin
     doc.text(`Visiting: ${visitorData.hostName || 'General Office'}`, margin, yPos); yPos += 5;
     doc.text(`Purpose: ${visitorData.purpose || 'Official'}`, margin, yPos); yPos += 5;
     
-    const timeIn = visitorData.timeIn ? new Date(visitorData.timeIn).toLocaleString() : new Date().toLocaleString();
+    const timeIn = formatPrintDate(visitorData.timeIn);
     doc.text(`Time In: ${timeIn}`, margin, yPos); yPos += 6;
 
     doc.setLineDashPattern([1, 1], 0);
@@ -791,10 +817,22 @@ function generateVisitorPassPdfBase64(visitorData: any, institution: any): strin
 }
 
 function generateEventPassPdfBase64(pin: any, parent: any, event: any, institution: any): string {
+    const guests = (() => {
+        try {
+            const parsed = JSON.parse(pin?.guests || '[]');
+            return Array.isArray(parsed) ? parsed.filter((g: any) => typeof g === 'string' && g.trim()) : [];
+        } catch (e) {
+            return pin?.guests && typeof pin.guests === 'string' && pin.guests.trim() ? [pin.guests.trim()] : [];
+        }
+    })();
+
+    const vehicle = pin?.vehicleRegistration || pin?.vehicle_registration;
+    const pdfHeight = 85 + (guests.length * 4) + (vehicle ? 5 : 0);
+
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: [80, 150]
+        format: [80, pdfHeight]
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -826,7 +864,7 @@ function generateEventPassPdfBase64(pin: any, parent: any, event: any, instituti
     doc.text(`Event: ${event?.title || 'School Event'}`, margin, yPos); yPos += 5;
     doc.text(`Holder: ${parent?.name || 'Invited Guest'}`, margin, yPos); yPos += 5;
     doc.text(`Phone: ${parent?.phoneNumber || parent?.phone_number || 'N/A'}`, margin, yPos); yPos += 5;
-    const vehicle = pin?.vehicleRegistration || pin?.vehicle_registration;
+    // Use pre-computed vehicle and guests to render:
     if (vehicle) {
         doc.text(`Vehicle: ${vehicle}`, margin, yPos); yPos += 5;
     }
@@ -838,15 +876,6 @@ function generateEventPassPdfBase64(pin: any, parent: any, event: any, instituti
     doc.line(margin, yPos, pageWidth - margin, yPos);
     doc.setLineDashPattern([], 0);
     yPos += 6;
-
-    const guests = (() => {
-        try {
-            const parsed = JSON.parse(pin?.guests || '[]');
-            return Array.isArray(parsed) ? parsed.filter((g: any) => typeof g === 'string' && g.trim()) : [];
-        } catch (e) {
-            return pin?.guests && typeof pin.guests === 'string' && pin.guests.trim() ? [pin.guests.trim()] : [];
-        }
-    })();
 
     doc.setFont('helvetica', 'bold');
     doc.text(`Guests (${guests.length}):`, margin, yPos); yPos += 5;
