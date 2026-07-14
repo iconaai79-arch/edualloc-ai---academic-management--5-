@@ -747,7 +747,9 @@ export const App: React.FC = () => {
                 'cooperative_manager': 'Coop Manager',
                 'tenant': 'Tenant Portal',
                 'landlord': 'Landlord Portal',
-                'event_manager': 'Event Command Desk'
+                'event_manager': 'Event Command Desk',
+                'security': 'SentinelPass Security',
+                'info_desk': 'SentinelPass Reception'
             };
             suffix = roleNames[activeRole] || activeRole.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }

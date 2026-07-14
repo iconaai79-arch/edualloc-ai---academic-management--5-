@@ -1202,9 +1202,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [scheduleStaffAccounts, setScheduleStaffAccounts] = useState<any[]>([]);
 
     useEffect(() => {
-        if (showBankScheduleModal && props.payrollRecords) {
-            const currentPeriod = schedulePeriod || (props.payrollRecords[0]?.period || '');
-            const currentRecords = props.payrollRecords.filter(r => r.period === currentPeriod || r.payPeriod === currentPeriod);
+        if (showBankScheduleModal) {
+            const currentPeriod = schedulePeriod || (props.payrollRecords && props.payrollRecords[0]?.period) || '';
+            const currentRecords = (props.payrollRecords || []).filter(r => r.period === currentPeriod || r.payPeriod === currentPeriod);
             const mapped = currentRecords.map(r => {
                 const u = (props.users || []).find(user => user.id === r.staffId || user.name === r.staffName);
                 return {
@@ -1217,7 +1217,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     accountNumber: u?.metadata?.bankAccountNumber || '1234567890'
                 };
             });
-            setScheduleStaffAccounts(mapped);
+            
+            if (mapped.length === 0 && props.users) {
+                const staffUsers = props.users.filter(u => ['teacher', 'staff', 'admin', 'lecturer'].includes(u.role));
+                const fallbackMapped = staffUsers.map((u, i) => ({
+                    payrollId: `man_${Date.now()}_${i}`,
+                    staffId: u.id,
+                    staffName: u.name,
+                    netPay: 0,
+                    bankName: u.metadata?.bankName || 'Equity Bank',
+                    bankBranch: u.metadata?.bankBranch || 'Main Branch',
+                    accountNumber: u.metadata?.bankAccountNumber || '1234567890'
+                }));
+                setScheduleStaffAccounts(fallbackMapped);
+            } else {
+                setScheduleStaffAccounts(mapped);
+            }
         }
     }, [showBankScheduleModal, schedulePeriod, props.payrollRecords, props.users]);
 
@@ -10138,19 +10153,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Payroll Summary</h3>
                                             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">{(props.payrollRecords||[]).length} payroll records</p>
                                         </div>
-                                        {(props.payrollRecords || []).length > 0 && (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const firstRec = (props.payrollRecords || [])[0];
-                                                    setSchedulePeriod(firstRec?.period || firstRec?.payPeriod || '');
-                                                    setShowBankScheduleModal(true);
-                                                }}
-                                                className="px-5 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-650 transition-all shadow-md flex items-center gap-1.5"
-                                            >
-                                                🏦 Export Bank Advice PDF
-                                            </button>
-                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const firstRec = (props.payrollRecords || [])[0];
+                                                const currentMonthYear = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+                                                setSchedulePeriod(firstRec?.period || firstRec?.payPeriod || currentMonthYear);
+                                                setShowBankScheduleModal(true);
+                                            }}
+                                            className="px-5 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-650 transition-all shadow-md flex items-center gap-1.5"
+                                        >
+                                            🏦 Export Bank Advice PDF
+                                        </button>
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left text-xs">

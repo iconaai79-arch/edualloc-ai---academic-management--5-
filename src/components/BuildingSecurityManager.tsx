@@ -430,8 +430,8 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
             {/* Header */}
             <div className="flex justify-between items-end mb-8">
                 <div>
-                    <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Visitor & Security Center</h2>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Manage Building Directory, Front-desk Check-ins & Guard Checkpoint Logs</p>
+                    <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">SentinelPass Security</h2>
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">SentinelPass - Automated Building Directory, Receptionist check-in, and Guard checkpoint logs</p>
                 </div>
                 <div className="flex gap-3">
                     <button 
