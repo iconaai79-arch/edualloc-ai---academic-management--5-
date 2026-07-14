@@ -756,7 +756,7 @@ export function formatEventPassEscPos(
 }
 
 function generateVisitorPassPdfBase64(visitorData: any, institution: any): string {
-    const pdfHeight = 72 + (visitorData.idNumber ? 5 : 0) + (visitorData.vehiclePlate ? 5 : 0);
+    const pdfHeight = 70 + (visitorData.idNumber ? 5 : 0) + (visitorData.vehiclePlate ? 5 : 0);
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -765,53 +765,61 @@ function generateVisitorPassPdfBase64(visitorData: any, institution: any): strin
 
     const pageWidth = doc.internal.pageSize.getWidth();
     let yPos = 10;
-    const margin = 5;
+    const margin = 8;
 
-    const centerText = (text: string, y: number) => {
+    const centerText = (text: string, y: number, isBold: boolean = false) => {
+        doc.setFont('courier', isBold ? 'bold' : 'normal');
         const textWidth = doc.getTextWidth(text);
         doc.text(text, (pageWidth - textWidth) / 2, y);
     };
 
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    centerText(institution.name || 'Learning Institution', yPos);
-    yPos += 6;
+    const drawKeyValue = (label: string, value: string, y: number) => {
+        doc.setFont('courier', 'bold');
+        doc.text(label, margin, y);
+        const labelWidth = doc.getTextWidth(label);
+        doc.setFont('courier', 'normal');
+        doc.text(value, margin + labelWidth, y);
+    };
 
-    doc.setFontSize(10);
-    centerText("SECURITY VISIT PASS", yPos);
+    // Header
+    doc.setFontSize(11);
+    centerText(institution.name || 'Learning Institution', yPos, true);
     yPos += 5;
 
-    doc.setLineDashPattern([1, 1], 0);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    doc.setLineDashPattern([], 0);
-    yPos += 6;
+    doc.setFontSize(9);
+    centerText("SECURITY VISIT PASS", yPos, true);
+    yPos += 4;
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
+    // Dashed Divider line
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(9);
+    centerText("-".repeat(32), yPos);
+    yPos += 5;
+
+    // Body Fields
+    doc.setFontSize(8.5);
+    drawKeyValue("VISITOR:  ", visitorData.name || visitorData.fullName, yPos); yPos += 5;
+    drawKeyValue("PHONE:    ", visitorData.phoneNumber || visitorData.phone || 'N/A', yPos); yPos += 5;
     
-    doc.text(`Visitor: ${visitorData.name || visitorData.fullName}`, margin, yPos); yPos += 5;
-    doc.text(`Phone: ${visitorData.phoneNumber || visitorData.phone || 'N/A'}`, margin, yPos); yPos += 5;
     if (visitorData.idNumber) {
-        doc.text(`ID No: ${visitorData.idNumber}`, margin, yPos); yPos += 5;
+        drawKeyValue("ID NO:    ", visitorData.idNumber, yPos); yPos += 5;
     }
     if (visitorData.vehiclePlate) {
-        doc.text(`Vehicle: ${visitorData.vehiclePlate}`, margin, yPos); yPos += 5;
+        drawKeyValue("VEHICLE:  ", visitorData.vehiclePlate, yPos); yPos += 5;
     }
-    doc.text(`Visiting: ${visitorData.hostName || 'General Office'}`, margin, yPos); yPos += 5;
-    doc.text(`Purpose: ${visitorData.purpose || 'Official'}`, margin, yPos); yPos += 5;
-    
-    const timeIn = formatPrintDate(visitorData.timeIn);
-    doc.text(`Time In: ${timeIn}`, margin, yPos); yPos += 6;
+    drawKeyValue("VISITING: ", visitorData.hostName || 'General Office', yPos); yPos += 5;
+    drawKeyValue("PURPOSE:  ", visitorData.purpose || 'Official', yPos); yPos += 5;
+    drawKeyValue("TIME IN:  ", formatPrintDate(visitorData.timeIn), yPos); yPos += 6;
 
-    doc.setLineDashPattern([1, 1], 0);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    doc.setLineDashPattern([], 0);
-    yPos += 6;
+    // Dashed Divider line
+    centerText("-".repeat(32), yPos);
+    yPos += 5;
 
-    doc.setFont('helvetica', 'bold');
-    centerText("PLEASE KEEP THIS PASS SECURE", yPos);
+    // Footer
+    doc.setFontSize(8.5);
+    centerText("PLEASE RETAIN THIS CARD", yPos, true);
     yPos += 4;
-    centerText("SURRENDER AT EXIT GATE", yPos);
+    centerText("SURRENDER AT EXIT GATE", yPos, true);
 
     return doc.output('datauristring');
 }
@@ -827,7 +835,7 @@ function generateEventPassPdfBase64(pin: any, parent: any, event: any, instituti
     })();
 
     const vehicle = pin?.vehicleRegistration || pin?.vehicle_registration;
-    const pdfHeight = 85 + (guests.length * 4) + (vehicle ? 5 : 0);
+    const pdfHeight = 85 + (guests.length * 4.5) + (vehicle ? 5 : 0);
 
     const doc = new jsPDF({
         orientation: 'portrait',
@@ -837,63 +845,73 @@ function generateEventPassPdfBase64(pin: any, parent: any, event: any, instituti
 
     const pageWidth = doc.internal.pageSize.getWidth();
     let yPos = 10;
-    const margin = 5;
+    const margin = 8;
 
-    const centerText = (text: string, y: number) => {
+    const centerText = (text: string, y: number, isBold: boolean = false) => {
+        doc.setFont('courier', isBold ? 'bold' : 'normal');
         const textWidth = doc.getTextWidth(text);
         doc.text(text, (pageWidth - textWidth) / 2, y);
     };
 
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    centerText(institution.name || 'Learning Institution', yPos);
-    yPos += 6;
+    const drawKeyValue = (label: string, value: string, y: number) => {
+        doc.setFont('courier', 'bold');
+        doc.text(label, margin, y);
+        const labelWidth = doc.getTextWidth(label);
+        doc.setFont('courier', 'normal');
+        doc.text(value, margin + labelWidth, y);
+    };
 
-    doc.setFontSize(10);
-    centerText("EVENT CHECK-IN PASS", yPos);
+    // Header
+    doc.setFontSize(11);
+    centerText(institution.name || 'Learning Institution', yPos, true);
     yPos += 5;
 
-    doc.setLineDashPattern([1, 1], 0);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    doc.setLineDashPattern([], 0);
-    yPos += 6;
+    doc.setFontSize(9);
+    centerText("EVENT CHECK-IN PASS", yPos, true);
+    yPos += 4;
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
+    // Divider
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(9);
+    centerText("-".repeat(32), yPos);
+    yPos += 5;
 
-    doc.text(`Event: ${event?.title || 'School Event'}`, margin, yPos); yPos += 5;
-    doc.text(`Holder: ${parent?.name || 'Invited Guest'}`, margin, yPos); yPos += 5;
-    doc.text(`Phone: ${parent?.phoneNumber || parent?.phone_number || 'N/A'}`, margin, yPos); yPos += 5;
-    // Use pre-computed vehicle and guests to render:
+    // Body Fields
+    doc.setFontSize(8.5);
+    drawKeyValue("EVENT:    ", event?.title || 'School Event', yPos); yPos += 5;
+    drawKeyValue("HOLDER:   ", parent?.name || 'Invited Guest', yPos); yPos += 5;
+    drawKeyValue("PHONE:    ", parent?.phoneNumber || parent?.phone_number || 'N/A', yPos); yPos += 5;
+    
     if (vehicle) {
-        doc.text(`Vehicle: ${vehicle}`, margin, yPos); yPos += 5;
+        drawKeyValue("VEHICLE:  ", vehicle, yPos); yPos += 5;
     }
+    
     const timestamp = new Date().toLocaleString();
-    doc.text(`Time: ${timestamp}`, margin, yPos); yPos += 5;
-    doc.text(`PIN Code: ${pin?.pin || 'N/A'}`, margin, yPos); yPos += 6;
+    drawKeyValue("TIME:     ", timestamp, yPos); yPos += 5;
+    drawKeyValue("PIN CODE: ", pin?.pin || 'N/A', yPos); yPos += 6;
 
-    doc.setLineDashPattern([1, 1], 0);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    doc.setLineDashPattern([], 0);
-    yPos += 6;
+    // Divider
+    centerText("-".repeat(32), yPos);
+    yPos += 5;
 
-    doc.setFont('helvetica', 'bold');
+    // Guests
+    doc.setFontSize(8.5);
+    doc.setFont('courier', 'bold');
     doc.text(`Guests (${guests.length}):`, margin, yPos); yPos += 5;
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('courier', 'normal');
+    
     guests.forEach((g: string, idx: number) => {
         doc.text(`${idx + 1}. ${g}`, margin, yPos);
-        yPos += 4;
+        yPos += 4.5;
     });
-    yPos += 2;
+    yPos += 1.5;
 
-    doc.setLineDashPattern([1, 1], 0);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    doc.setLineDashPattern([], 0);
-    yPos += 6;
+    // Divider
+    centerText("-".repeat(32), yPos);
+    yPos += 5;
 
-    doc.setFont('helvetica', 'bold');
-    centerText("ENTRY APPROVED", yPos);
-    
+    // Footer
+    centerText("ENTRY APPROVED", yPos, true);
+
     return doc.output('datauristring');
 }
-
