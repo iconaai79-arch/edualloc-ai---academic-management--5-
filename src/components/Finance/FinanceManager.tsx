@@ -96,6 +96,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [enrollments, setEnrollments] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchEnrollments = async () => {
+            try {
+                const res = await apiService.fetchModuleRecords('student_enrollments', props.institution.id);
+                setEnrollments(res || []);
+            } catch (e) {
+                console.error("Failed to load student enrollments for FinanceManager:", e);
+            }
+        };
+        fetchEnrollments();
+    }, [props.institution.id]);
 
     // Reports sub-tab states
     const [stmtStudentId, setStmtStudentId] = useState('');
@@ -753,10 +766,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // Financial calculations for students grouped by class
     function studentClassGroup(student: User) {
-        const metaGrade = student.metadata?.gradeLevel || student.metadata?.stream;
+        const enrollment = enrollments.find(e => e.userId === student.id);
+        const metaGrade = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || student.metadata?.gradeLevel || student.metadata?.stream;
         if (metaGrade) return metaGrade;
         
-        const invClass = props.invoices.find(i => i.studentId === student.id && i.className)?.className;
+        const invClass = mappedInvoices.find(i => i.studentId === student.id && i.className)?.className;
         if (invClass) return invClass;
         
         const courseName = props.courses?.find(c => c.id === student.courseId)?.name;
@@ -784,23 +798,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const studentFinanceData = useMemo(() => {
         return props.students.map(s => {
-            const studentInvoices = props.invoices.filter(inv => 
+            const enrollment = enrollments.find(e => e.userId === s.id);
+            const adm = enrollment?.admissionNumber || s.admissionNumber || s.admission_number || '—';
+            const cls = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || studentClassGroup(s);
+
+            const studentInvoices = mappedInvoices.filter(inv => 
                 (inv.studentId === s.id || inv.student_id === s.id) && 
                 inv.status !== 'cancelled' && 
                 inv.status !== 'quote'
             );
-            const invoiced = studentInvoices.reduce((sum, inv) => sum + Number(inv.totalAmount || inv.total_amount || 0), 0);
+            const invoiced = studentInvoices.reduce((sum, inv) => {
+                const amt = inv.totalAmount || inv.total_amount || 0;
+                const numAmt = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                return sum + (isNaN(numAmt) ? 0 : numAmt);
+            }, 0);
             
-            const studentReceipts = props.receipts.filter(rec => 
+            const studentReceipts = mappedReceipts.filter(rec => 
                 rec.studentId === s.id || rec.student_id === s.id
             );
-            const paid = studentReceipts.reduce((sum, rec) => sum + Number(rec.amountPaid || rec.amount_paid || 0), 0);
+            const paid = studentReceipts.reduce((sum, rec) => {
+                const amt = rec.amountPaid || rec.amount_paid || 0;
+                const numAmt = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                return sum + (isNaN(numAmt) ? 0 : numAmt);
+            }, 0);
             
             const balance = Math.max(0, invoiced - paid);
             const prepayment = Math.max(0, paid - invoiced);
             
             return {
                 ...s,
+                admissionNumber: adm,
+                className: cls,
                 totals: {
                     invoiced,
                     paid,
@@ -809,7 +837,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             };
         });
-    }, [props.students, props.invoices, props.receipts]);
+    }, [props.students, mappedInvoices, mappedReceipts, enrollments]);
 
     const filteredFinanceStudents = useMemo(() => {
         return studentFinanceData.filter(s => {
@@ -4142,7 +4170,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
                                         {paginatedStudentInvoices.map(inv => {
                                             const studentId = inv.studentId || inv.student_id;
-                                            const student = studentId ? props.students.find(s => s.id === studentId) : null;
+                                            const student = studentId ? studentFinanceData.find(s => s.id === studentId) : null;
                                             const admNum = student?.admissionNumber || student?.admission_number || '—';
                                             const studentName = student?.name || 'Unknown Student';
                                             const gradeName = student ? studentClassGroup(student) : '—';

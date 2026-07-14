@@ -80,14 +80,28 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         return bedAllocations.some(a => a.studentId === student.id && a.status === 'Active');
     };
 
+    const studentClassMap = useMemo(() => {
+        const map = new Map<string, string>();
+        enrollments.forEach(enr => {
+            if (enr.userId) {
+                const cls = enr.metadata?.gradeLevel || enr.metadata?.stream;
+                if (cls) {
+                    map.set(enr.userId, cls);
+                }
+            }
+        });
+        return map;
+    }, [enrollments]);
+
     // Extract unique classes/grade levels from student registry
     const classes = useMemo(() => {
-        return Array.from(
-            new Set(
-                students.map(s => s.metadata?.gradeLevel || s.metadata?.stream).filter(Boolean)
-            )
-        ) as string[];
-    }, [students]);
+        const set = new Set<string>();
+        enrollments.forEach(enr => {
+            const cls = enr.metadata?.gradeLevel || enr.metadata?.stream;
+            if (cls) set.add(cls);
+        });
+        return Array.from(set);
+    }, [enrollments]);
 
     // Filter students target pool based on target selection
     const billingStudents = useMemo(() => {
@@ -95,13 +109,13 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             return students.filter(s => s.id === selectedStudentId);
         }
         if (targetType === 'class') {
-            return students.filter(s => (s.metadata?.gradeLevel || s.metadata?.stream) === selectedClass);
+            return students.filter(s => studentClassMap.get(s.id) === selectedClass);
         }
         if (targetType === 'course') {
             return students.filter(s => s.courseId === selectedCourseId);
         }
         return students;
-    }, [students, targetType, selectedStudentId, selectedClass, selectedCourseId]);
+    }, [students, targetType, selectedStudentId, selectedClass, selectedCourseId, studentClassMap]);
 
     // Resolve selected semester to its name (fee structures store the human-readable name e.g. "Term 1")
     const selectedSemName = useMemo(() => {
@@ -230,14 +244,23 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
                 return true;
             });
-            const baseAmount = studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
             
-            const invoiceItems = studentFeeStructures.map(f => ({
-                description: f.name,
-                quantity: 1,
-                unitPrice: Number(f.amount || (f as any).allocatedAmount || 0),
-                amount: Number(f.amount || (f as any).allocatedAmount || 0)
-            }));
+            const baseAmount = studentFeeStructures.reduce((acc, f) => {
+                const amt = f.amount || (f as any).allocatedAmount || 0;
+                const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                return acc + (isNaN(parsed) ? 0 : parsed);
+            }, 0);
+            
+            const invoiceItems = studentFeeStructures.map(f => {
+                const amt = f.amount || (f as any).allocatedAmount || 0;
+                const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                return {
+                    description: f.name,
+                    quantity: 1,
+                    unitPrice: isNaN(parsed) ? 0 : parsed,
+                    amount: isNaN(parsed) ? 0 : parsed
+                };
+            });
 
             let transportAmount = 0;
             if (includeTransport) {
@@ -262,6 +285,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             const invoiceNumber = `${invoicePrefix}${currentNum}`;
             currentNum += 1;
 
+            const studentClass = studentClassMap.get(s.id) || '';
+
             return {
                 id: `inv_auto_${Date.now()}_${s.id}`,
                 invoiceNumber: invoiceNumber,
@@ -272,7 +297,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 items: invoiceItems,
-                institutionId: institution.id
+                institutionId: institution.id,
+                className: studentClass
             };
         });
 
