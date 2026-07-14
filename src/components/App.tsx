@@ -5951,6 +5951,7 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                         onUpdateVisitorLog={handleUpdateBuildingVisitorLog}
                                         onVerifyAsset={handleVerifyVisitorAsset}
                                         onRefreshData={async () => await loadData(false, true)}
+                                        onAddUser={async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); }}
                                     />
                                 ) : activeRole === 'info_desk' ? (
                                     <BuildingSecurityManager
@@ -5968,6 +5969,7 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                         onUpdateVisitorLog={handleUpdateBuildingVisitorLog}
                                         onVerifyAsset={handleVerifyVisitorAsset}
                                         onRefreshData={async () => await loadData(false, true)}
+                                        onAddUser={async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); }}
                                     />
                                 ) : activeRole === 'store' ? (
                                     <ModuleAccessGuard

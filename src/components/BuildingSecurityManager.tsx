@@ -37,6 +37,7 @@ interface BuildingSecurityManagerProps {
     onUpdateVisitorLog: (id: string, data: Partial<BuildingVisitorLog>) => Promise<void>;
     onVerifyAsset: (assetId: string, verified: boolean) => Promise<void>;
     onRefreshData?: () => Promise<void>;
+    onAddUser?: (user: any) => Promise<void>;
 }
 
 export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = ({
@@ -53,9 +54,26 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
     onAddVisitorLog,
     onUpdateVisitorLog,
     onVerifyAsset,
-    onRefreshData
+    onRefreshData,
+    onAddUser
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'directory' | 'visitors' | 'checkpoint'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'directory' | 'visitors' | 'checkpoint' | 'office_portal'>('dashboard');
+    const [selectedPortalOfficeId, setSelectedPortalOfficeId] = useState('');
+    const [portalSubTab, setPortalSubTab] = useState<'visitors' | 'staff'>('visitors');
+    
+    // Portal Staff Form States
+    const [portalStaffName, setPortalStaffName] = useState('');
+    const [portalStaffPhone, setPortalStaffPhone] = useState('');
+    const [portalStaffEmail, setPortalStaffEmail] = useState('');
+    const [isSavingPortalStaff, setIsSavingPortalStaff] = useState(false);
+
+    // Portal Expected Visitor Form States
+    const [portalPreName, setPortalPreName] = useState('');
+    const [portalPrePhone, setPortalPrePhone] = useState('');
+    const [portalPreIdCard, setPortalPreIdCard] = useState('');
+    const [portalPrePlate, setPortalPrePlate] = useState('');
+    const [portalPrePurpose, setPortalPrePurpose] = useState('Official Meeting');
+    const [isSavingPortalPre, setIsSavingPortalPre] = useState(false);
 
     // Search and Filter states
     const [directorySearch, setDirectorySearch] = useState('');
@@ -210,6 +228,82 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
         }
     };
 
+    const handlePortalAddStaff = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const officeId = currentUser?.metadata?.officeId || selectedPortalOfficeId;
+        if (!officeId) {
+            alert("No active office workspace selected!");
+            return;
+        }
+        if (!portalStaffName || !portalStaffPhone || !portalStaffEmail) {
+            alert("Please fill in staff name, phone, and email.");
+            return;
+        }
+        setIsSavingPortalStaff(true);
+        try {
+            if (onAddUser) {
+                await onAddUser({
+                    name: portalStaffName,
+                    email: portalStaffEmail,
+                    phoneNumber: portalStaffPhone,
+                    role: 'staff',
+                    metadata: { officeId }
+                });
+                alert("Office staff member registered successfully!");
+                setPortalStaffName('');
+                setPortalStaffPhone('');
+                setPortalStaffEmail('');
+                if (onRefreshData) await onRefreshData();
+            } else {
+                alert("User creation interface is not linked. Contact building admin.");
+            }
+        } catch (err: any) {
+            alert(err.message || "Failed to create staff member");
+        } finally {
+            setIsSavingPortalStaff(false);
+        }
+    };
+
+    const handlePortalPreAuthVisitor = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const officeId = currentUser?.metadata?.officeId || selectedPortalOfficeId;
+        if (!officeId) {
+            alert("No active office workspace selected!");
+            return;
+        }
+        if (!portalPreName || !portalPrePhone || !portalPreIdCard || !portalPrePurpose) {
+            alert("Please fill in visitor name, phone, ID card number, and purpose.");
+            return;
+        }
+        setIsSavingPortalPre(true);
+        try {
+            await onAddVisitorLog({
+                institutionId: institution?.id || 'default_inst',
+                officeId,
+                visitorName: portalPreName,
+                phoneNumber: portalPrePhone,
+                idNumber: portalPreIdCard,
+                vehiclePlate: portalPrePlate || undefined,
+                purpose: portalPrePurpose,
+                status: 'registered',
+                authorizedByHost: true,
+                notifiedAt: new Date().toISOString()
+            }, []);
+            
+            alert("Visitor pre-authorized successfully! They are logged in the checkpoint queue.");
+            setPortalPreName('');
+            setPortalPrePhone('');
+            setPortalPreIdCard('');
+            setPortalPrePlate('');
+            setPortalPrePurpose('Official Meeting');
+            if (onRefreshData) await onRefreshData();
+        } catch (err: any) {
+            alert(err.message || "Failed to pre-authorize visitor");
+        } finally {
+            setIsSavingPortalPre(false);
+        }
+    };
+
     const handleSimulateHostApproval = async (logId: string, approve: boolean) => {
         try {
             await onUpdateVisitorLog(logId, {
@@ -356,7 +450,8 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
                     { id: 'dashboard', label: 'Security Dashboard', icon: '📊' },
                     { id: 'directory', label: 'Office Directory', icon: '🏢' },
                     { id: 'visitors', label: 'Visitor Logs', icon: '🛋️' },
-                    { id: 'checkpoint', label: 'Guard Checkpoint', icon: '🚧' }
+                    { id: 'checkpoint', label: 'Guard Checkpoint', icon: '🚧' },
+                    { id: 'office_portal', label: 'Office Workspace', icon: '🚪' }
                 ].map(tab => (
                     <button
                         key={tab.id}
@@ -772,6 +867,360 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
                             )}
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* --- OFFICE PORTAL TAB --- */}
+            {activeTab === 'office_portal' && (
+                <div className="space-y-6">
+                    {/* Workspace Selector */}
+                    <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div>
+                            <h3 className="text-md font-black text-slate-900 dark:text-white uppercase tracking-tight">Active Office Workspace Portal</h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Authorized suite representatives can manage their expected visitors, approve walk-ins, and register office staff</p>
+                        </div>
+                        <div>
+                            {currentUser?.metadata?.officeId ? (
+                                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-150 rounded-2xl text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white font-mono">
+                                    🏢 Suite {offices.find(o => o.id === currentUser?.metadata?.officeId)?.officeNumber || 'N/A'} - {offices.find(o => o.id === currentUser?.metadata?.officeId)?.tenantName || 'Authorized office occupant'}
+                                </div>
+                            ) : (
+                                <select
+                                    value={selectedPortalOfficeId}
+                                    onChange={(e) => setSelectedPortalOfficeId(e.target.value)}
+                                    className="px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-800"
+                                >
+                                    <option value="">-- Switch Managed Office Workspace --</option>
+                                    {offices.map(o => (
+                                        <option key={o.id} value={o.id}>Suite {o.officeNumber} ({o.tenantName})</option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+                    </div>
+
+                    {(currentUser?.metadata?.officeId || selectedPortalOfficeId) ? (
+                        <div className="space-y-6">
+                            
+                            {/* Inner portal subtabs */}
+                            <div className="flex gap-4 border-b border-slate-200 dark:border-slate-800 pb-1">
+                                {[
+                                    { id: 'visitors', label: 'Manage Office Visitors', icon: '🛋️' },
+                                    { id: 'staff', label: 'Manage Office Staff', icon: '👥' }
+                                ].map(sub => (
+                                    <button
+                                        key={sub.id}
+                                        onClick={() => setPortalSubTab(sub.id as any)}
+                                        className={`pb-2 border-b-2 font-black uppercase text-[9px] tracking-wider transition-all ${
+                                            portalSubTab === sub.id 
+                                                ? 'border-indigo-600 text-indigo-600' 
+                                                : 'border-transparent text-slate-400 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        <span className="mr-1.5">{sub.icon}</span>
+                                        {sub.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* PORTAL VISITORS VIEW */}
+                            {portalSubTab === 'visitors' && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    
+                                    {/* Pre-Authorization Visitor Form */}
+                                    <div className="md:col-span-1 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-6 self-start">
+                                        <div>
+                                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Pre-Authorize Expected Visitor</h3>
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Pre-approve visits to skip receptionist gate verification calls</p>
+                                        </div>
+                                        <form onSubmit={handlePortalPreAuthVisitor} className="space-y-4 text-xs font-bold text-slate-800">
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Visitor Full Name *</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="John Doe"
+                                                    value={portalPreName}
+                                                    onChange={(e) => setPortalPreName(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Visitor Phone *</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="0712345678"
+                                                    value={portalPrePhone}
+                                                    onChange={(e) => setPortalPrePhone(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">National ID / Passport No *</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="34567890"
+                                                    value={portalPreIdCard}
+                                                    onChange={(e) => setPortalPreIdCard(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Vehicle Plate (If driving)</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="e.g. KCD 123A"
+                                                    value={portalPrePlate}
+                                                    onChange={(e) => setPortalPrePlate(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Purpose *</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={portalPrePurpose}
+                                                    onChange={(e) => setPortalPrePurpose(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs"
+                                                    required
+                                                />
+                                            </div>
+                                            <button 
+                                                type="submit" 
+                                                disabled={isSavingPortalPre}
+                                                className="w-full py-3.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md hover:bg-slate-850"
+                                            >
+                                                {isSavingPortalPre ? 'Saving...' : 'Pre-Authorize Visitor'}
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    {/* Incoming visitor logs list & visitor history */}
+                                    <div className="md:col-span-2 space-y-6">
+                                        {/* Awaiting office approvals */}
+                                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                                            <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight font-black">Pending Arrivals (Awaiting Action)</h4>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead>
+                                                        <tr className="border-b border-slate-100 text-[9px] text-slate-400 uppercase font-black tracking-wider">
+                                                            <th className="py-2.5 px-3">Visitor Name</th>
+                                                            <th className="py-2.5 px-3">Purpose</th>
+                                                            <th className="py-2.5 px-3 text-right">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {visitorLogs.filter(log => log.officeId === (currentUser?.metadata?.officeId || selectedPortalOfficeId) && log.status === 'registered' && !log.authorizedByHost).map((log, idx) => (
+                                                            <tr key={idx} className="border-b border-slate-50">
+                                                                <td className="py-3 px-3 font-bold text-slate-800 dark:text-white">{log.visitorName} <span className="text-[10px] text-slate-400">({log.phoneNumber})</span></td>
+                                                                <td className="py-3 px-3 text-slate-500">{log.purpose}</td>
+                                                                <td className="py-3 px-3 text-right flex justify-end gap-2">
+                                                                    <button
+                                                                        onClick={() => handleSimulateHostApproval(log.id, true)}
+                                                                        className="px-2.5 py-1 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider rounded"
+                                                                    >
+                                                                        Approve
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleSimulateHostApproval(log.id, false)}
+                                                                        className="px-2.5 py-1 bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider rounded"
+                                                                    >
+                                                                        Decline
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                        {visitorLogs.filter(log => log.officeId === (currentUser?.metadata?.officeId || selectedPortalOfficeId) && log.status === 'registered' && !log.authorizedByHost).length === 0 && (
+                                                            <tr>
+                                                                <td colSpan={3} className="py-6 text-center text-slate-400 font-medium text-xs">No pending arrivals seeking entrance authorization.</td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        {/* General office visitors history */}
+                                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                                            <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight font-black">Active & Historical Office Guests</h4>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead>
+                                                        <tr className="border-b border-slate-100 text-[9px] text-slate-400 uppercase font-black tracking-wider">
+                                                            <th className="py-2.5 px-3">Visitor</th>
+                                                            <th className="py-2.5 px-3">Timestamps</th>
+                                                            <th className="py-2.5 px-3">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {visitorLogs.filter(log => log.officeId === (currentUser?.metadata?.officeId || selectedPortalOfficeId)).map((log, idx) => (
+                                                            <tr key={idx} className="border-b border-slate-50">
+                                                                <td className="py-3 px-3 font-bold text-slate-800 dark:text-white">
+                                                                    <p>{log.visitorName}</p>
+                                                                    <p className="text-[9px] text-slate-400 font-mono mt-0.5">{log.idNumber}</p>
+                                                                </td>
+                                                                <td className="py-3 px-3">
+                                                                    <p className="text-slate-700 dark:text-slate-350">In: {log.timeIn || '—'}</p>
+                                                                    <p className="text-[10px] text-slate-400">Out: {log.timeOut || '—'}</p>
+                                                                </td>
+                                                                <td className="py-3 px-3">
+                                                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
+                                                                        log.status === 'checked_in' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                                                        log.status === 'checked_out' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                                                        'bg-slate-50 text-slate-600'
+                                                                    }`}>
+                                                                        {log.status.replace('_', ' ')}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                        {visitorLogs.filter(log => log.officeId === (currentUser?.metadata?.officeId || selectedPortalOfficeId)).length === 0 && (
+                                                            <tr>
+                                                                <td colSpan={3} className="py-6 text-center text-slate-400 font-medium text-xs">No guest records for this office workspace suite.</td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* PORTAL STAFF VIEW */}
+                            {portalSubTab === 'staff' && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    
+                                    {/* Register Staff Member Form */}
+                                    <div className="md:col-span-1 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-6 self-start">
+                                        <div>
+                                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Register Office Staff Member</h3>
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Register office employees to enable security gate check-in logs</p>
+                                        </div>
+                                        <form onSubmit={handlePortalAddStaff} className="space-y-4 text-xs font-bold text-slate-800">
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Staff Full Name *</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Jane Smith"
+                                                    value={portalStaffName}
+                                                    onChange={(e) => setPortalStaffName(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Contact Phone *</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="0722000111"
+                                                    value={portalStaffPhone}
+                                                    onChange={(e) => setPortalStaffPhone(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address *</label>
+                                                <input 
+                                                    type="email" 
+                                                    placeholder="jane@tenant.com"
+                                                    value={portalStaffEmail}
+                                                    onChange={(e) => setPortalStaffEmail(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs"
+                                                    required
+                                                />
+                                            </div>
+                                            <button 
+                                                type="submit" 
+                                                disabled={isSavingPortalStaff}
+                                                className="w-full py-3.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md hover:bg-slate-850"
+                                            >
+                                                {isSavingPortalStaff ? 'Registering...' : 'Register Staff Member'}
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    {/* Staff list and check-in logs history */}
+                                    <div className="md:col-span-2 space-y-6">
+                                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                                            <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight font-black">Active Office Staff Members</h4>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead>
+                                                        <tr className="border-b border-slate-100 text-[9px] text-slate-400 uppercase font-black tracking-wider">
+                                                            <th className="py-2.5 px-3">Name</th>
+                                                            <th className="py-2.5 px-3">Phone</th>
+                                                            <th className="py-2.5 px-3">Email Address</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {users.filter(u => u.metadata?.officeId === (currentUser?.metadata?.officeId || selectedPortalOfficeId)).map((staff, idx) => (
+                                                            <tr key={idx} className="border-b border-slate-50">
+                                                                <td className="py-3 px-3 font-bold text-slate-850 dark:text-white">{staff.name}</td>
+                                                                <td className="py-3 px-3 text-slate-600 dark:text-slate-350">{staff.phoneNumber || 'N/A'}</td>
+                                                                <td className="py-3 px-3 text-slate-500 font-mono">{staff.email}</td>
+                                                            </tr>
+                                                        ))}
+                                                        {users.filter(u => u.metadata?.officeId === (currentUser?.metadata?.officeId || selectedPortalOfficeId)).length === 0 && (
+                                                            <tr>
+                                                                <td colSpan={3} className="py-6 text-center text-slate-400 font-medium text-xs">No registered staff members found for this office suite.</td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        {/* Security Gate Check-in Logs for staff */}
+                                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                                            <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight font-black">Staff Entry & Exit Check-in History</h4>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead>
+                                                        <tr className="border-b border-slate-100 text-[9px] text-slate-400 uppercase font-black tracking-wider">
+                                                            <th className="py-2.5 px-3">Staff Name</th>
+                                                            <th className="py-2.5 px-3">Gate In Time</th>
+                                                            <th className="py-2.5 px-3">Gate Out Time</th>
+                                                            <th className="py-2.5 px-3">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {visitorLogs.filter(log => log.officeId === (currentUser?.metadata?.officeId || selectedPortalOfficeId) && log.purpose === 'Staff Entry').map((log, idx) => (
+                                                            <tr key={idx} className="border-b border-slate-50">
+                                                                <td className="py-3 px-3 font-bold text-slate-800 dark:text-white">{log.visitorName}</td>
+                                                                <td className="py-3 px-3 font-mono">{log.timeIn || '—'}</td>
+                                                                <td className="py-3 px-3 font-mono">{log.timeOut || '—'}</td>
+                                                                <td className="py-3 px-3">
+                                                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                                                                        log.status === 'checked_in' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'
+                                                                    }`}>
+                                                                        {log.status === 'checked_in' ? 'Inside Building' : 'Left Building'}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                        {visitorLogs.filter(log => log.officeId === (currentUser?.metadata?.officeId || selectedPortalOfficeId) && log.purpose === 'Staff Entry').length === 0 && (
+                                                            <tr>
+                                                                <td colSpan={4} className="py-6 text-center text-slate-400 font-medium text-xs">No entry logs registered for office employees.</td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                        </div>
+                    ) : (
+                        <div className="bg-white dark:bg-slate-900 py-16 text-center rounded-[2.5rem] border border-slate-100 dark:border-slate-800 text-slate-400 font-medium text-xs">
+                            Select an office workspace from the dropdown list above to access visitor approval pings and staff registration databases.
+                        </div>
+                    )}
                 </div>
             )}
 
