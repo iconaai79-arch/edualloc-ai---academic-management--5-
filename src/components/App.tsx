@@ -3616,7 +3616,7 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
         try {
             const receipt: Receipt = {
                 id: `rcpt_${Date.now()}`,
-                receiptNumber: `RCPT-${Date.now()}`,
+                receiptNumber: `${(companyDetails?.globalReceiptPrefix || 'RCPT-').trim()}${Date.now()}`,
                 institutionId: txn.institutionId,
                 paymentDate: new Date().toISOString(),
                 amountPaid: txn.amount,
@@ -4292,6 +4292,7 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
         transactions,
         demoRequests,
         onUpdateDemoStatus,
+        onGenerateReceipt: handleGenerateReceipt,
         receipts,
         activityLogLimit,
         setActivityLogLimit,
@@ -5594,6 +5595,7 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                         currentUser={currentUser!}
                                         institutions={institutions}
                                         users={users}
+                                        companyDetails={companyDetails}
                                         onLogout={handleLogout}
                                         onLogAction={handleLogAction}
                                         onAddUser={async (userData: any) => {

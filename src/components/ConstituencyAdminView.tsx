@@ -23,6 +23,7 @@ interface ConstituencyAdminViewProps {
     onSendSms?: (recipient: string | string[], message: string) => Promise<any>;
     onAddUser?: (userData: any) => Promise<void>;
     onSaveInstitution?: (data: any) => Promise<void>;
+    companyDetails?: CompanyDetails;
 }
 
 export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
@@ -33,7 +34,8 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
     onLogAction,
     onSendSms,
     onAddUser,
-    onSaveInstitution
+    onSaveInstitution,
+    companyDetails
 }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [ngCdfFunds, setNgCdfFunds] = useState<NGCdfFund[]>([]);
@@ -306,7 +308,7 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                 const amount = bur.amountApproved || bur.amountRequested || 0;
                 const receipt = {
                     id: `rcpt_bursary_approved_${Date.now()}`,
-                    receiptNumber: `B-RCPT-${Date.now().toString().slice(-6)}`,
+                    receiptNumber: `B-${(companyDetails?.globalReceiptPrefix || 'RCPT-').trim()}${Date.now().toString().slice(-6)}`,
                     institutionId: bur.institutionId,
                     studentId: bur.studentId,
                     amountPaid: amount,

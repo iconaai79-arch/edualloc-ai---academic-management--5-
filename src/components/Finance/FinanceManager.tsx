@@ -2306,7 +2306,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
         try {
             const amountPaid = Number(dsPayAmount);
-            const recNumber = `RCPT-${Date.now().toString().slice(-6)}`;
+            const recNumber = `${(props.companyDetails?.globalReceiptPrefix || 'RCPT-').trim()}${Date.now().toString().slice(-6)}`;
             
             // Priority-based distribution Strategy
             let remainingAmount = amountPaid;
@@ -2501,7 +2501,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             // 1. Save standard receipt to student ledger
             const receipt = {
                 id: `rcpt_bursary_${Date.now()}`,
-                receiptNumber: `B-RCPT-${Date.now().toString().slice(-6)}`,
+                receiptNumber: `B-${(props.companyDetails?.globalReceiptPrefix || 'RCPT-').trim()}${Date.now().toString().slice(-6)}`,
                 institutionId: instId,
                 studentId: bursaryStudentId,
                 amountPaid: amount,

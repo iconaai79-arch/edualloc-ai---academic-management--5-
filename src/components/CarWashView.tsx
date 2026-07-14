@@ -994,8 +994,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             // ── Billing Integration: Invoice & Receipt ──
             const invoiceId = `inv_${Date.now()}`;
             const receiptId = `rcpt_${Date.now()}`;
-            const invNumber = `INV-${Date.now().toString().slice(-6)}`;
-            const rcptNumber = `RCPT-${Date.now().toString().slice(-6)}`;
+            const invNumber = `${(companyDetails?.globalInvoicePrefix || 'INV-').trim()}${Date.now().toString().slice(-6)}`;
+            const rcptNumber = `${(companyDetails?.globalReceiptPrefix || 'RCPT-').trim()}${Date.now().toString().slice(-6)}`;
 
             const pkgPrice = packages.find(p => p.id === job.packageId)?.pricing[job.vehicleType] || 0;
             const items: any[] = [{
