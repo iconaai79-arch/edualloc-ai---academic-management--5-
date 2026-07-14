@@ -839,6 +839,17 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
 
 
+        if (isCampaign) {
+            return [
+                { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
+                { id: 'community', label: 'Campaign Strategy', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'users', label: 'Campaign Staff', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+                { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            ];
+        }
+
         if (isAutoMarket) {
             return [
                 { id: 'auto_marketplace', label: 'Car Sales Hub', icon: <CarIcon className="w-5 h-5 mr-2" /> },
@@ -3403,7 +3414,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </ModuleAccessGuard>
                 )}
 
-                {activeTab === 'campaign' && (
+                {(activeTab === 'campaign' || (activeTab === 'dashboard' && isCampaign)) && (
                     <div className="animate-fade-in">
                         <CampaignCommandView user={props.currentUser!} />
                     </div>
