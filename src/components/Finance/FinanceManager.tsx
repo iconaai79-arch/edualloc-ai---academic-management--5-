@@ -1195,6 +1195,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [expPreparedBy, setExpPreparedBy] = useState(props.currentUser?.name || '');
     const [showVoucherPreviewModal, setShowVoucherPreviewModal] = useState(false);
     const [showBankScheduleModal, setShowBankScheduleModal] = useState(false);
+    const [showRecordExpenseModal, setShowRecordExpenseModal] = useState(false);
     const [scheduleChequeNumber, setScheduleChequeNumber] = useState('');
     const [scheduleSourceBankId, setScheduleSourceBankId] = useState('');
     const [schedulePeriod, setSchedulePeriod] = useState('');
@@ -4805,228 +4806,86 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'expenses' && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        <div className="md:col-span-1 space-y-6">
-                            <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-6">
-                                <h3 className="text-xl font-black text-slate-900 tracking-tight">Record Expense</h3>
-                                <div className="space-y-4">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Category</label>
-                                        <select
-                                            value={expCategory}
-                                            onChange={(e) => setExpCategory(e.target.value)}
-                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
-                                        >
-                                            <option>Salaries</option>
-                                            <option>Utilities</option>
-                                            <option>Maintenance</option>
-                                            <option>Supplies</option>
-                                            <option>Marketing</option>
-                                            <option>Taxes</option>
-                                            <option>Other</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Vote Head Charged</label>
-                                        <select
-                                            value={expVoteHeadId}
-                                            onChange={(e) => setExpVoteHeadId(e.target.value)}
-                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
-                                        >
-                                            <option value="">-- Select Vote Head --</option>
-                                            {(props.voteHeads || []).map(vh => (
-                                                <option key={vh.id} value={vh.id}>{vh.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Source Bank Account</label>
-                                        <select
-                                            value={expBankAccountId}
-                                            onChange={(e) => setExpBankAccountId(e.target.value)}
-                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
-                                        >
-                                            <option value="">-- Select Bank Account --</option>
-                                            {(bankAccounts || []).map(ba => (
-                                                <option key={ba.id} value={ba.id}>
-                                                    {ba.bankName || ba.bank_name} - {ba.accountName || ba.account_name} ({ba.accountNumber || ba.account_number})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Amount (KES)</label>
-                                        <input
-                                            type="number"
-                                            placeholder="0.00"
-                                            value={expAmount || ''}
-                                            onChange={(e) => setExpAmount(Number(e.target.value) || 0)}
-                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payee Name (To)</label>
-                                        <input
-                                            type="text"
-                                            placeholder="Recipient name..."
-                                            value={expPayee}
-                                            onChange={(e) => setExpPayee(e.target.value)}
-                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Method</label>
-                                            <select
-                                                value={expPaymentMethod}
-                                                onChange={(e) => setExpPaymentMethod(e.target.value)}
-                                                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-xs font-bold text-slate-700 outline-none"
-                                            >
-                                                <option>Cash</option>
-                                                <option>Cheque</option>
-                                                <option>M-Pesa</option>
-                                                <option>EFT</option>
-                                                <option>Bank Transfer</option>
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Ref / Cheque #</label>
-                                            <input
-                                                type="text"
-                                                placeholder="N/A"
-                                                value={expReference}
-                                                onChange={(e) => setExpReference(e.target.value)}
-                                                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-xs font-bold text-slate-700 outline-none"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payment Date</label>
-                                        <input
-                                            type="date"
-                                            value={expDate}
-                                            onChange={(e) => setExpDate(e.target.value)}
-                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Prepared By</label>
-                                            <input
-                                                type="text"
-                                                value={expPreparedBy}
-                                                onChange={(e) => setExpPreparedBy(e.target.value)}
-                                                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-xs font-bold text-slate-700 outline-none"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Approved By</label>
-                                            <select
-                                                value={expApprovedBy}
-                                                onChange={(e) => setExpApprovedBy(e.target.value)}
-                                                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                                            >
-                                                <option value="">-- Select Approver --</option>
-                                                {approvalOfficers.map(u => (
-                                                    <option key={u.id} value={u.id}>{u.name} ({u.role?.replace('_', ' ')})</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Description / Being</label>
-                                        <textarea
-                                            placeholder="Purpose of expenditure..."
-                                            rows={2}
-                                            value={expDescription}
-                                            onChange={(e) => setExpDescription(e.target.value)}
-                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none resize-none"
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3 pt-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowVoucherPreviewModal(true)}
-                                            disabled={expAmount <= 0 || !expDescription}
-                                            className="py-4 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-1 shadow-sm"
-                                        >
-                                            👁️ Preview Voucher
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleAddExpense}
-                                            disabled={isSavingExpense}
-                                            className="py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg disabled:opacity-50"
-                                        >
-                                            {isSavingExpense ? 'Saving...' : 'Submit Record'}
-                                        </button>
-                                    </div>
+                    <div className="space-y-6 animate-in fade-in duration-300">
+                        {/* Expenditure Log takes full width */}
+                        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm min-h-full">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Expenditure Log</h3>
+                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">{(props.expenses || []).length} expense records</p>
                                 </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowRecordExpenseModal(true)}
+                                    className="px-6 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-650 transition-all shadow-md flex items-center gap-1.5"
+                                >
+                                    💸 Post Expense
+                                </button>
                             </div>
-                        </div>
-                        <div className="md:col-span-2">
-                            <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm min-h-full">
-                                <h3 className="text-xl font-black text-slate-900 tracking-tight mb-6">Expenditure Log</h3>
-                                <div className="space-y-4">
-                                    {(props.expenses || []).map((exp, i) => {
-                                        const vh = (props.voteHeads || []).find(v => v.id === exp.voteHeadId || v.id === exp.vote_head_id);
-                                        const vhName = vh ? vh.name : 'General Expense';
-                                        const bank = (bankAccounts || []).find(b => b.id === exp.bankAccountId || b.id === exp.bank_account_id);
-                                        const bankDetails = bank ? `${bank.bankName || bank.bank_name} - A/C ${bank.accountNumber || bank.account_number}` : 'Unspecified Bank';
-                                        
-                                        return (
-                                            <div key={i} className="flex justify-between items-center p-6 bg-slate-50/50 rounded-3xl border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-100/50 transition-all group">
-                                                <div className="flex gap-4 items-center">
-                                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
-                                                        <BanknotesIcon className="w-6 h-6" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-black text-slate-900">{exp.description}</p>
-                                                        <p className="text-[9px] font-bold text-slate-500 mt-1 flex flex-wrap gap-1.5">
-                                                            <span className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
-                                                                🗳️ {vhName}
-                                                            </span>
-                                                            <span className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-350 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
-                                                                🏦 {bankDetails}
-                                                            </span>
-                                                            {exp.payeeName && (
-                                                                <span className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
-                                                                    👤 To: {exp.payeeName}
-                                                                </span>
-                                                            )}
-                                                            {(exp.signatureData || (exp as any).signature_data) && (
-                                                                <span className="bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
-                                                                    ✍️ Signed
-                                                                </span>
-                                                            )}
-                                                        </p>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5">{exp.category} • {exp.date} • Method: {exp.paymentMethod || 'Cash'}</p>
-                                                    </div>
+                            <div className="space-y-4">
+                                {(props.expenses || []).map((exp, i) => {
+                                    const vh = (props.voteHeads || []).find(v => v.id === exp.voteHeadId || v.id === exp.vote_head_id);
+                                    const vhName = vh ? vh.name : 'General Expense';
+                                    const bank = (bankAccounts || []).find(b => b.id === exp.bankAccountId || b.id === exp.bank_account_id);
+                                    const bankDetails = bank ? `${bank.bankName || bank.bank_name} - A/C ${bank.accountNumber || bank.account_number}` : 'Unspecified Bank';
+                                    
+                                    return (
+                                        <div key={i} className="flex justify-between items-center p-6 bg-slate-50/50 rounded-3xl border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-100/50 transition-all group">
+                                            <div className="flex gap-4 items-center">
+                                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
+                                                    <BanknotesIcon className="w-6 h-6" />
                                                 </div>
-                                                <div className="text-right flex flex-col items-end gap-2">
-                                                    <div>
-                                                        <p className="text-sm font-black text-rose-600">-KES {(exp.amount ?? 0)?.toLocaleString()}</p>
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Voucher: {exp.referenceNumber || 'N/A'}</p>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => pdfService.downloadExpenseVoucherPdf(
-                                                            exp,
-                                                            vhName,
-                                                            bankDetails,
-                                                            props.institution,
-                                                            props.companyDetails,
-                                                            props.institution.logoUrl || null,
-                                                            null
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-900">{exp.description}</p>
+                                                    <p className="text-[9px] font-bold text-slate-500 mt-1 flex flex-wrap gap-1.5">
+                                                        <span className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
+                                                            🗳️ {vhName}
+                                                        </span>
+                                                        <span className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-350 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
+                                                            🏦 {bankDetails}
+                                                        </span>
+                                                        {exp.payeeName && (
+                                                            <span className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
+                                                                👤 To: {exp.payeeName}
+                                                            </span>
                                                         )}
-                                                        className="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center gap-1"
-                                                    >
-                                                        📄 Print Voucher
-                                                    </button>
+                                                        {(exp.signatureData || (exp as any).signature_data) && (
+                                                            <span className="bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
+                                                                ✍️ Signed
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5">{exp.category} • {exp.date} • Method: {exp.paymentMethod || 'Cash'}</p>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                            <div className="text-right flex flex-col items-end gap-2">
+                                                <div>
+                                                    <p className="text-sm font-black text-rose-600">-KES {(exp.amount ?? 0)?.toLocaleString()}</p>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Voucher: {exp.referenceNumber || 'N/A'}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => pdfService.downloadExpenseVoucherPdf(
+                                                        exp,
+                                                        vhName,
+                                                        bankDetails,
+                                                        props.institution,
+                                                        props.companyDetails,
+                                                        props.institution.logoUrl || null,
+                                                        null
+                                                    )}
+                                                    className="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center gap-1"
+                                                >
+                                                    📄 Print Voucher
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {(props.expenses || []).length === 0 && (
+                                    <div className="py-12 text-center text-slate-400 font-medium">
+                                        No expenses recorded. Click "Post Expense" to add your first transaction.
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -8401,6 +8260,202 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md disabled:opacity-50"
                                 >
                                     Download Bank Advice
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+                )}
+
+                {/* Record Expense Modal */}
+                {showRecordExpenseModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 text-left animate-in zoom-in-95 duration-200">
+                            
+                            {/* Modal Header */}
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Record Expense</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Record a new payment voucher, utility payment, or general expense</p>
+                                </div>
+                                <button 
+                                    onClick={() => setShowRecordExpenseModal(false)}
+                                    className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    <XIcon className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            {/* Modal Body */}
+                            <div className="p-8 space-y-4 max-h-[60vh] overflow-y-auto bg-slate-50 dark:bg-slate-950">
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Category</label>
+                                        <select
+                                            value={expCategory}
+                                            onChange={(e) => setExpCategory(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        >
+                                            <option>Salaries</option>
+                                            <option>Utilities</option>
+                                            <option>Maintenance</option>
+                                            <option>Supplies</option>
+                                            <option>Marketing</option>
+                                            <option>Taxes</option>
+                                            <option>Other</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Vote Head Charged</label>
+                                        <select
+                                            value={expVoteHeadId}
+                                            onChange={(e) => setExpVoteHeadId(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        >
+                                            <option value="">-- Select Vote Head --</option>
+                                            {(props.voteHeads || []).map(vh => (
+                                                <option key={vh.id} value={vh.id}>{vh.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Source Bank Account *</label>
+                                        <select
+                                            value={expBankAccountId}
+                                            onChange={(e) => setExpBankAccountId(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        >
+                                            <option value="">-- Select Bank Account --</option>
+                                            {(bankAccounts || []).map(ba => (
+                                                <option key={ba.id} value={ba.id}>
+                                                    {ba.bankName || ba.bank_name} - {ba.accountName || ba.account_name} ({ba.accountNumber || ba.account_number})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Amount (KES) *</label>
+                                        <input
+                                            type="number"
+                                            placeholder="0.00"
+                                            value={expAmount || ''}
+                                            onChange={(e) => setExpAmount(Number(e.target.value) || 0)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payee Name (To) *</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Recipient name..."
+                                            value={expPayee}
+                                            onChange={(e) => setExpPayee(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payment Method</label>
+                                        <select
+                                            value={expPaymentMethod}
+                                            onChange={(e) => setExpPaymentMethod(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        >
+                                            <option>Cash</option>
+                                            <option>Cheque</option>
+                                            <option>M-Pesa</option>
+                                            <option>EFT</option>
+                                            <option>Bank Transfer</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Ref / Cheque #</label>
+                                        <input
+                                            type="text"
+                                            placeholder="N/A"
+                                            value={expReference}
+                                            onChange={(e) => setExpReference(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payment Date</label>
+                                        <input
+                                            type="date"
+                                            value={expDate}
+                                            onChange={(e) => setExpDate(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Prepared By</label>
+                                        <input
+                                            type="text"
+                                            value={expPreparedBy}
+                                            onChange={(e) => setExpPreparedBy(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Approved By</label>
+                                        <select
+                                            value={expApprovedBy}
+                                            onChange={(e) => setExpApprovedBy(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white cursor-pointer"
+                                        >
+                                            <option value="">-- Select Approver --</option>
+                                            {approvalOfficers.map(u => (
+                                                <option key={u.id} value={u.id}>{u.name} ({u.role?.replace('_', ' ')})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Description / Being *</label>
+                                    <textarea
+                                        placeholder="Purpose of expenditure..."
+                                        rows={2}
+                                        value={expDescription}
+                                        onChange={(e) => setExpDescription(e.target.value)}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-xs font-bold text-slate-700 dark:text-white resize-none"
+                                    />
+                                </div>
+
+                            </div>
+
+                            {/* Modal Actions */}
+                            <div className="p-8 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/50 dark:bg-slate-950/20">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowVoucherPreviewModal(true)}
+                                    disabled={expAmount <= 0 || !expDescription}
+                                    className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-1 shadow-sm"
+                                >
+                                    👁️ Preview Voucher
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        await handleAddExpense();
+                                        setShowRecordExpenseModal(false);
+                                    }}
+                                    disabled={isSavingExpense || expAmount <= 0 || !expDescription}
+                                    className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-650 transition-all shadow-md disabled:opacity-50"
+                                >
+                                    {isSavingExpense ? 'Saving...' : 'Submit Record'}
                                 </button>
                             </div>
 
