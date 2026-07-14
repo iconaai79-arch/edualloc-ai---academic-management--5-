@@ -5938,41 +5938,82 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                         />
                                     </ModuleAccessGuard>
                                 ) : activeRole === 'security' ? (
-                                    <BuildingSecurityManager
-                                        floors={buildingFloors}
-                                        offices={buildingOffices}
-                                        visitorLogs={buildingVisitorLogs}
-                                        visitorAssets={buildingVisitorAssets}
-                                        institution={activeInstitution!}
-                                        companyDetails={companyDetails}
-                                        users={users}
-                                        currentUser={currentUser}
-                                        onAddFloor={handleAddBuildingFloor}
-                                        onAddOffice={handleAddBuildingOffice}
-                                        onAddVisitorLog={handleAddBuildingVisitorLog}
-                                        onUpdateVisitorLog={handleUpdateBuildingVisitorLog}
-                                        onVerifyAsset={handleVerifyVisitorAsset}
-                                        onRefreshData={async () => await loadData(false, true)}
-                                        onAddUser={async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); }}
-                                    />
+                                    activeInstitution && ['Building', 'Property', 'Rental', 'Real Estate', 'Apartment', 'Mall', 'Office Block', 'Office'].includes(activeInstitution.institutionType || '') ? (
+                                        <BuildingSecurityManager
+                                            floors={buildingFloors}
+                                            offices={buildingOffices}
+                                            visitorLogs={buildingVisitorLogs}
+                                            visitorAssets={buildingVisitorAssets}
+                                            institution={activeInstitution!}
+                                            companyDetails={companyDetails}
+                                            users={users}
+                                            currentUser={currentUser}
+                                            onAddFloor={handleAddBuildingFloor}
+                                            onAddOffice={handleAddBuildingOffice}
+                                            onAddVisitorLog={handleAddBuildingVisitorLog}
+                                            onUpdateVisitorLog={handleUpdateBuildingVisitorLog}
+                                            onVerifyAsset={handleVerifyVisitorAsset}
+                                            onRefreshData={async () => await loadData(false, true)}
+                                            onAddUser={async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); }}
+                                        />
+                                    ) : (
+                                        <SecurityView
+                                            {...{
+                                                currentUser,
+                                                currentInstitution: activeInstitution!,
+                                                securityAlerts,
+                                                visitors,
+                                                vehicles,
+                                                vehicleLogs,
+                                                onCheckoutVisitor: handleCheckoutVisitor,
+                                                appointments,
+                                                onUpdateAppointmentStatus: handleUpdateAppointmentStatus,
+                                                users,
+                                                onAddVisitor: async (v: any) => { const newVis = { ...v, id: `vis_${Date.now()}`, status: v.status || 'pending', entryTime: new Date().toISOString(), institutionId: currentUser.institutionId }; await apiService.saveModuleRecord('visitors', newVis); loadData(); return newVis; },
+                                                onUpdateVisitor: async (id: string, data: any) => { const existing = visitors.find(v => v.id === id); if (existing) { await apiService.saveModuleRecord('visitors', { ...existing, ...data }); loadData(); } },
+                                                onLogGateAction: handleLogGateAction,
+                                                onAddAlert: async (a: any) => { await apiService.saveModuleRecord('security_alerts', { ...a, id: `alt_${Date.now()}`, status: 'active', timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
+                                                onResolveAlert: async (id: string) => { const existing = securityAlerts.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('security_alerts', { ...existing, status: 'resolved' }); loadData(); } },
+                                                onDeleteAlert: async (id: string) => { if (currentUser?.role === 'super_admin') { await apiService.deleteModuleRecord('security_alerts', id); loadData(); } },
+                                                onLogAction: handleLogAction,
+                                                onTeacherGateCheckIn: handleTeacherGateCheckIn,
+                                                teacherCheckIns
+                                            } as any}
+                                        />
+                                    )
                                 ) : activeRole === 'info_desk' ? (
-                                    <BuildingSecurityManager
-                                        floors={buildingFloors}
-                                        offices={buildingOffices}
-                                        visitorLogs={buildingVisitorLogs}
-                                        visitorAssets={buildingVisitorAssets}
-                                        institution={activeInstitution!}
-                                        companyDetails={companyDetails}
-                                        users={users}
-                                        currentUser={currentUser}
-                                        onAddFloor={handleAddBuildingFloor}
-                                        onAddOffice={handleAddBuildingOffice}
-                                        onAddVisitorLog={handleAddBuildingVisitorLog}
-                                        onUpdateVisitorLog={handleUpdateBuildingVisitorLog}
-                                        onVerifyAsset={handleVerifyVisitorAsset}
-                                        onRefreshData={async () => await loadData(false, true)}
-                                        onAddUser={async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); }}
-                                    />
+                                    activeInstitution && ['Building', 'Property', 'Rental', 'Real Estate', 'Apartment', 'Mall', 'Office Block', 'Office'].includes(activeInstitution.institutionType || '') ? (
+                                        <BuildingSecurityManager
+                                            floors={buildingFloors}
+                                            offices={buildingOffices}
+                                            visitorLogs={buildingVisitorLogs}
+                                            visitorAssets={buildingVisitorAssets}
+                                            institution={activeInstitution!}
+                                            companyDetails={companyDetails}
+                                            users={users}
+                                            currentUser={currentUser}
+                                            onAddFloor={handleAddBuildingFloor}
+                                            onAddOffice={handleAddBuildingOffice}
+                                            onAddVisitorLog={handleAddBuildingVisitorLog}
+                                            onUpdateVisitorLog={handleUpdateBuildingVisitorLog}
+                                            onVerifyAsset={handleVerifyVisitorAsset}
+                                            onRefreshData={async () => await loadData(false, true)}
+                                            onAddUser={async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); }}
+                                        />
+                                    ) : (
+                                        <InfoDeskView
+                                            {...{
+                                                currentUser,
+                                                currentInstitution: activeInstitution!,
+                                                visitors,
+                                                appointments,
+                                                onAddVisitor: async (v: any) => { await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}`, status: 'pending', entryTime: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
+                                                onAddAppointment: async (a: any) => { await apiService.saveModuleRecord('appointments', { ...a, id: `apt_${Date.now()}`, status: 'scheduled', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
+                                                onUpdateAppointment: async (id: string, status: any) => { const existing = appointments.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('appointments', { ...existing, status }); loadData(); } },
+                                                onLogAction: handleLogAction
+                                            } as any}
+                                        />
+                                    )
                                 ) : activeRole === 'store' ? (
                                     <ModuleAccessGuard
                                         moduleId="school_store"
