@@ -568,11 +568,18 @@ export const apiService = {
             if (error) {
                 console.error(`[Storage] Supabase upload error (${bucket}/${path}):`, error);
 
+                if (error.message === 'Failed to fetch') {
+                    console.warn(`[Storage] Supabase host unreachable. Falling back to local Base64 storage.`);
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result as string);
+                        reader.readAsDataURL(file);
+                    });
+                }
+
                 // Specifically alert for common policy issues
                 if ((error as any).status === 403 || error.message.toLowerCase().includes('denied') || error.message.includes('row-level security')) {
                     alert(`Storage Error: Access Denied. Please ensure your '${bucket}' bucket has appropriate RLS policies for 'INSERT' and 'UPDATE' operations for the 'anon' role.`);
-                } else if (error.message === 'Failed to fetch') {
-                    alert(`Storage Error: Failed to fetch. This usually means your Supabase URL is unreachable or CORS is blocked. Please check your Supabase URL in your settings.`);
                 } else {
                     alert(`Storage Error: ${error.message}`);
                 }
@@ -591,6 +598,15 @@ export const apiService = {
             return null;
         } catch (err: any) {
             console.error("Upload Service Exception:", err);
+            const errMsg = String(err.message || err);
+            if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('fetch failed')) {
+                console.warn(`[Storage] Supabase host unreachable during upload exception. Falling back to local Base64 storage.`);
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(file);
+                });
+            }
             alert(`Upload Service Exception: ${err.message || 'Unknown error'}`);
             return null;
         }
