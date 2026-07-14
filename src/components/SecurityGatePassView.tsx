@@ -209,7 +209,13 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
 
 export const printEposWalkInGatePass = (visitor: any, host: any, institution: any, hostSignature?: string, visitorSignature?: string) => {
     if (Capacitor.isNativePlatform()) {
-        printService.printVisitorPass({ visitorData: visitor, institution }).catch(err => {
+        printService.printVisitorPass({ 
+            visitorData: visitor, 
+            institution,
+            host,
+            hostSignature,
+            visitorSignature
+        }).catch(err => {
             console.error("Native visitor gatepass printing failed:", err);
             alert("Print failed: " + (err.message || err));
         });

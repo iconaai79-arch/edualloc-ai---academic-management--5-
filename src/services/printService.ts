@@ -28,6 +28,20 @@ function formatPrintDate(dateStr?: string): string {
     return dateStr;
 }
 
+const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | null> => {
+    return new Promise((resolve) => {
+        if (!url) return resolve(null);
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.src = url;
+        img.onload = () => resolve(img);
+        img.onerror = () => {
+            console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url);
+            resolve(null);
+        };
+    });
+};
+
 export type PrinterType = 'system' | 'bluetooth' | 'network';
 
 export interface PrinterConfig {
@@ -344,13 +358,22 @@ export const printService = {
     async printVisitorPass(params: {
         visitorData: any;
         institution: any;
+        host?: any;
+        hostSignature?: string;
+        visitorSignature?: string;
     }): Promise<void> {
         const config = getPrinterConfig();
 
         if (config.type === 'system') {
             if (Capacitor.isNativePlatform()) {
                 try {
-                    const base64Pdf = generateVisitorPassPdfBase64(params.visitorData, params.institution);
+                    const base64Pdf = await generateVisitorPassPdfBase64(
+                        params.visitorData, 
+                        params.institution,
+                        params.host,
+                        params.hostSignature,
+                        params.visitorSignature
+                    );
                     await this.printPdf(base64Pdf, "Visitor Pass");
                 } catch (err) {
                     console.error("Failed to generate/print native visitor pass PDF:", err);
@@ -755,8 +778,24 @@ export function formatEventPassEscPos(
     return new Uint8Array(bytes);
 }
 
-function generateVisitorPassPdfBase64(visitorData: any, institution: any): string {
-    const pdfHeight = 70 + (visitorData.idNumber ? 5 : 0) + (visitorData.vehiclePlate ? 5 : 0);
+async function generateVisitorPassPdfBase64(
+    visitorData: any,
+    institution: any,
+    host?: any,
+    hostSignature?: string,
+    visitorSignature?: string
+): Promise<string> {
+    const logoUrl = institution?.logoUrl || institution?.logo_url || null;
+    const [logoImg, visitorSigImg, hostSigImg] = await Promise.all([
+        loadImage(logoUrl),
+        loadImage(visitorSignature),
+        loadImage(hostSignature)
+    ]);
+
+    const hasId = !!visitorData.idNumber;
+    const hasVehicle = !!visitorData.vehiclePlate;
+    const pdfHeight = 110 + (logoImg ? 15 : 0) + (hasId ? 5 : 0) + (hasVehicle ? 5 : 0);
+
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -776,50 +815,103 @@ function generateVisitorPassPdfBase64(visitorData: any, institution: any): strin
     const drawKeyValue = (label: string, value: string, y: number) => {
         doc.setFont('courier', 'bold');
         doc.text(label, margin, y);
-        const labelWidth = doc.getTextWidth(label);
         doc.setFont('courier', 'normal');
-        doc.text(value, margin + labelWidth, y);
+        doc.text(value, margin + 22, y);
     };
 
-    // Header
+    // 1. Draw Logo
+    if (logoImg) {
+        const logoWidth = 15;
+        const logoHeight = (logoImg.height * logoWidth) / logoImg.width;
+        doc.addImage(logoImg, 'PNG', (pageWidth - logoWidth) / 2, yPos, logoWidth, logoHeight);
+        yPos += logoHeight + 4;
+    }
+
+    // 2. Header
     doc.setFontSize(11);
     centerText(institution.name || 'Learning Institution', yPos, true);
     yPos += 5;
 
     doc.setFontSize(9);
-    centerText("SECURITY VISIT PASS", yPos, true);
+    centerText("GATE ENTRY PASS", yPos, false);
     yPos += 4;
 
-    // Dashed Divider line
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(9);
-    centerText("-".repeat(32), yPos);
+    // Divider
+    centerText("-".repeat(36), yPos);
+    yPos += 5;
+
+    // Subheading
+    doc.setFontSize(9.5);
+    centerText("WALK-IN VISITOR PASS", yPos, true);
+    yPos += 4;
+
+    // Divider
+    centerText("-".repeat(36), yPos);
     yPos += 5;
 
     // Body Fields
     doc.setFontSize(8.5);
-    drawKeyValue("VISITOR:  ", visitorData.name || visitorData.fullName, yPos); yPos += 5;
+    drawKeyValue("VISITOR:  ", visitorData.name || visitorData.fullName || 'Unknown Visitor', yPos); yPos += 5;
     drawKeyValue("PHONE:    ", visitorData.phoneNumber || visitorData.phone || 'N/A', yPos); yPos += 5;
     
-    if (visitorData.idNumber) {
-        drawKeyValue("ID NO:    ", visitorData.idNumber, yPos); yPos += 5;
+    if (hasId) {
+        drawKeyValue("ID/REF:   ", visitorData.idNumber, yPos); yPos += 5;
     }
-    if (visitorData.vehiclePlate) {
-        drawKeyValue("VEHICLE:  ", visitorData.vehiclePlate, yPos); yPos += 5;
-    }
-    drawKeyValue("VISITING: ", visitorData.hostName || 'General Office', yPos); yPos += 5;
     drawKeyValue("PURPOSE:  ", visitorData.purpose || 'Official', yPos); yPos += 5;
-    drawKeyValue("TIME IN:  ", formatPrintDate(visitorData.timeIn), yPos); yPos += 6;
+    drawKeyValue("HOST:     ", visitorData.hostName || (host && host.name) || 'N/A', yPos); yPos += 5;
+    
+    if (hasVehicle) {
+        drawKeyValue("VEHICLE:  ", visitorData.vehiclePlate + (visitorData.vehicleModel ? ` (${visitorData.vehicleModel})` : ''), yPos); yPos += 5;
+    }
+    
+    const timestamp = new Date().toLocaleString();
+    drawKeyValue("TIME:     ", timestamp, yPos); yPos += 6;
 
-    // Dashed Divider line
-    centerText("-".repeat(32), yPos);
+    // Divider
+    centerText("-".repeat(36), yPos);
+    yPos += 5;
+
+    // Signatures Section
+    doc.setFontSize(8);
+    doc.setFont('courier', 'bold');
+    doc.text("VISITOR SIGNATURE:", margin, yPos);
+    doc.text("HOST SIGNATURE:", margin + 34, yPos);
+    yPos += 2;
+
+    const sigHeight = 10;
+    if (visitorSigImg) {
+        doc.addImage(visitorSigImg, 'PNG', margin, yPos, 30, sigHeight);
+    }
+    if (hostSigImg) {
+        doc.addImage(hostSigImg, 'PNG', margin + 34, yPos, 30, sigHeight);
+    }
+    yPos += sigHeight + 1;
+
+    doc.setFont('courier', 'normal');
+    doc.text("_".repeat(15), margin, yPos - 1);
+    doc.text("_".repeat(15), margin + 34, yPos - 1);
+    yPos += 4;
+
+    doc.setFontSize(7.5);
+    doc.text(visitorData.name || visitorData.fullName || '', margin, yPos);
+    doc.text((host && host.name) || visitorData.hostName || '', margin + 34, yPos);
+    yPos += 5;
+
+    // Divider
+    doc.setFontSize(9);
+    centerText("-".repeat(36), yPos);
     yPos += 5;
 
     // Footer
     doc.setFontSize(8.5);
-    centerText("PLEASE RETAIN THIS CARD", yPos, true);
+    centerText("VISITOR APPROVED ENTRY", yPos, true);
     yPos += 4;
-    centerText("SURRENDER AT EXIT GATE", yPos, true);
+    centerText("Please keep this pass visible.", yPos, false);
+    yPos += 4;
+    doc.setFontSize(7.5);
+    centerText("Eduai OS Support: 0723348912", yPos, false);
+    yPos += 4;
+    centerText("Powered by Edualloc-AI", yPos, false);
 
     return doc.output('datauristring');
 }
