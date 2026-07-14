@@ -1,11 +1,7 @@
-# Task List: Expense Governance, Recipient Signatures & Salary Bank Schedules
+# Task Checklist: Building Security & Visitor Management System
 
-- [x] Fix Driving School Sent SMS history and broadcaster visibility
-- [x] Add detailed database migration for vote heads, bank accounts, and payee signature details in expenses
-- [x] Design Ministry of Education Capitation Grant Manual compliant payment voucher PDF
-- [x] Modernize the Record Expense form layout with vote head and bank dropdown selects
-- [x] Implement a live on-screen Payment Voucher preview card modal
-- [x] Create a hand-drawn payee signature interactive canvas pad in the preview modal
-- [x] Render recipient's canvas drawing onto the printed Payment Voucher PDF
-- [x] Generate a Salary Bank Payment Schedule advice letter detailing payments to each staff account
-- [x] Provide MoE manual compliant recommendations on school Budgeting and Tendering processes
+- [x] Create database migration for building security tables (`272_create_building_security_tables.sql`)
+- [x] Define TypeScript type interfaces in `src/types.ts`
+- [x] Create frontend component `BuildingSecurityManager.tsx`
+- [x] Connect state and callback handlers inside `App.tsx`
+- [x] Run production compilation check to verify correctness
