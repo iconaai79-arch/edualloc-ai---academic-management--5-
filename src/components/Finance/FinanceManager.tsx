@@ -1078,6 +1078,45 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [selectedDsInvoice, setSelectedDsInvoice] = useState<any | null>(null);
     const [isRecordingDsPayment, setIsRecordingDsPayment] = useState(false);
 
+    // Translate DS structures to standard Dashboard Invoice models dynamically
+    const mappedInvoices = useMemo(() => {
+        if (!isDrivingSchool) return props.invoices;
+        return dsInvoices.map((dsInv: any) => ({
+            id: dsInv.id,
+            invoiceNumber: dsInv.invoiceNumber || dsInv.invoice_number || dsInv.id,
+            institutionId: dsInv.institutionId,
+            issueDate: dsInv.createdAt || new Date().toISOString(),
+            dueDate: dsInv.dueDate || dsInv.due_date || '',
+            due_date: dsInv.dueDate || dsInv.due_date || '',
+            items: (dsInv.items || []).map((it: any) => ({
+                description: it.name || it.voteName || 'Fee Item',
+                quantity: 1,
+                unitPrice: it.amount || 0,
+                amount: it.amount || 0
+            })),
+            totalAmount: dsInv.totalAmount || 0,
+            status: dsInv.status === 'Fully Paid' ? 'paid' as const : 'pending' as const,
+            studentId: dsInv.studentId
+        }));
+    }, [props.invoices, dsInvoices, isDrivingSchool]);
+
+    // Translate DS payments to standard Dashboard Receipt models dynamically
+    const mappedReceipts = useMemo(() => {
+        if (!isDrivingSchool) return props.receipts;
+        return dsPayments.map((dsPay: any) => ({
+            id: dsPay.id,
+            receiptNumber: dsPay.receiptNumber || dsPay.receipt_number || dsPay.id,
+            institutionId: dsPay.institutionId,
+            paymentDate: dsPay.paymentDate || new Date().toISOString(),
+            amountPaid: dsPay.amount || 0,
+            paidFor: `Payment for DS Invoice ${dsPay.invoiceNumber || dsPay.invoiceId}`,
+            paymentMethod: dsPay.paymentMethod || 'Cash',
+            relatedTransactionId: dsPay.transactionReference || '',
+            invoiceId: dsPay.invoiceId,
+            studentId: dsPay.studentId
+        }));
+    }, [props.receipts, dsPayments, isDrivingSchool]);
+
     const fetchDsFeeStructures = async () => {
         try {
             const res = await apiService.fetchModuleRecords<any>('ds_fee_structures', props.institution.id);
@@ -2146,44 +2185,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [activeTab, props.institution.id]);
 
 
-    // Translate DS structures to standard Dashboard Invoice models dynamically
-    const mappedInvoices = useMemo(() => {
-        if (!isDrivingSchool) return props.invoices;
-        return dsInvoices.map((dsInv: any) => ({
-            id: dsInv.id,
-            invoiceNumber: dsInv.invoiceNumber || dsInv.invoice_number || dsInv.id,
-            institutionId: dsInv.institutionId,
-            issueDate: dsInv.createdAt || new Date().toISOString(),
-            dueDate: dsInv.dueDate || dsInv.due_date || '',
-            due_date: dsInv.dueDate || dsInv.due_date || '',
-            items: (dsInv.items || []).map((it: any) => ({
-                description: it.name || it.voteName || 'Fee Item',
-                quantity: 1,
-                unitPrice: it.amount || 0,
-                amount: it.amount || 0
-            })),
-            totalAmount: dsInv.totalAmount || 0,
-            status: dsInv.status === 'Fully Paid' ? 'paid' as const : 'pending' as const,
-            studentId: dsInv.studentId
-        }));
-    }, [props.invoices, dsInvoices, isDrivingSchool]);
 
-    // Translate DS payments to standard Dashboard Receipt models dynamically
-    const mappedReceipts = useMemo(() => {
-        if (!isDrivingSchool) return props.receipts;
-        return dsPayments.map((dsPay: any) => ({
-            id: dsPay.id,
-            receiptNumber: dsPay.receiptNumber || dsPay.receipt_number || dsPay.id,
-            institutionId: dsPay.institutionId,
-            paymentDate: dsPay.paymentDate || new Date().toISOString(),
-            amountPaid: dsPay.amount || 0,
-            paidFor: `Payment for DS Invoice ${dsPay.invoiceNumber || dsPay.invoiceId}`,
-            paymentMethod: dsPay.paymentMethod || 'Cash',
-            relatedTransactionId: dsPay.transactionReference || '',
-            invoiceId: dsPay.invoiceId,
-            studentId: dsPay.studentId
-        }));
-    }, [props.receipts, dsPayments, isDrivingSchool]);
 
     // Voteheads save handlers
     const handleSaveVoteHead = async (voteHead: Partial<VoteHead>) => {
