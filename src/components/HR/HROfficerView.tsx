@@ -22,6 +22,7 @@ interface HROfficerViewProps {
     onDeleteDepartment?: (id: string) => void;
     letterheadConfig?: LetterheadConfig;
     footerImageUrl?: string | null;
+    companyDetails?: any;
 }
 
 export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
@@ -94,6 +95,7 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
                         onDeleteUser={onDeleteUser}
                         letterheadConfig={props.letterheadConfig}
                         footerImageUrl={props.footerImageUrl}
+                        companyDetails={props.companyDetails}
                     />
 
                 ) : (

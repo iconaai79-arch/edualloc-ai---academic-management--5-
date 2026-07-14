@@ -6077,7 +6077,8 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                                 onDeleteUser: onDeleteUser,
                                                 onLogAction: handleLogAction,
                                                 letterheadConfig: activeLetterheadConfig,
-                                                footerImageUrl: activeFooterImageUrl
+                                                footerImageUrl: activeFooterImageUrl,
+                                                companyDetails: companyDetails
                                             } as any}
                                         />
                                     </ModuleAccessGuard>

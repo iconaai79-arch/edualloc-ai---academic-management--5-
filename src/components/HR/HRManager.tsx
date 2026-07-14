@@ -10,10 +10,12 @@ import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { XIcon } from '../icons/XIcon';
 import { ClockIcon } from '../icons/ClockIcon';
 import TeacherCheckInAdminView from '../TeacherCheckInAdminView';
+import { apiService } from '../../services/apiService';
 import { 
     generateStaffPayslipPdf, 
     generateStaffP9Pdf, 
-    generateStatutoryDeductionsPdf 
+    generateStatutoryDeductionsPdf,
+    downloadBankAdvicePdf
 } from '../../services/pdfService';
 
 interface HRManagerProps {
@@ -31,6 +33,7 @@ interface HRManagerProps {
     footerImageUrl?: string | null;
     activeTab?: 'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics';
     setActiveTab?: (tab: 'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics') => void;
+    companyDetails?: any;
 }
 
 export const HRManager: React.FC<HRManagerProps> = ({
@@ -47,7 +50,8 @@ export const HRManager: React.FC<HRManagerProps> = ({
     letterheadConfig,
     footerImageUrl,
     activeTab: propActiveTab,
-    setActiveTab: propSetActiveTab
+    setActiveTab: propSetActiveTab,
+    companyDetails
 }) => {
     const staff = (rawStaff || []).filter(member => {
         if (!member || !member.role) return false;
@@ -80,6 +84,58 @@ export const HRManager: React.FC<HRManagerProps> = ({
     // Preview State
     const [selectedReportUrl, setSelectedReportUrl] = useState<string | null>(null);
     const [previewTitle, setPreviewTitle] = useState('');
+
+    // Salary Bank Disbursement Advice States
+    const [showBankScheduleModal, setShowBankScheduleModal] = useState(false);
+    const [schedulePeriod, setSchedulePeriod] = useState('');
+    const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
+    const [scheduleStaffAccounts, setScheduleStaffAccounts] = useState<any[]>([]);
+    const [scheduleSourceBankId, setScheduleSourceBankId] = useState('');
+    const [scheduleChequeNumber, setScheduleChequeNumber] = useState('');
+    const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+
+    React.useEffect(() => {
+        if (showBankScheduleModal) {
+            apiService.fetchModuleRecords<any>('school_bank_accounts', institution.id)
+                .then(data => setBankAccounts(data || []))
+                .catch(() => {});
+        }
+    }, [showBankScheduleModal, institution.id]);
+
+    React.useEffect(() => {
+        if (showBankScheduleModal) {
+            const currentPeriod = schedulePeriod || selectedStatutoryMonth || '';
+            const currentRecords = (payrollRecords || []).filter(r => r.period === currentPeriod || r.payPeriod === currentPeriod);
+            const mapped = currentRecords.map(r => {
+                const u = (staff || []).find(user => user.id === r.staffId || user.name === r.staffName);
+                return {
+                    payrollId: r.id,
+                    staffId: r.staffId,
+                    staffName: r.staffName || u?.name || 'Unknown Staff',
+                    netPay: r.netPay || r.netSalary || 0,
+                    bankName: u?.metadata?.bankName || 'Equity Bank',
+                    bankBranch: u?.metadata?.bankBranch || 'Main Branch',
+                    accountNumber: u?.metadata?.bankAccountNumber || '1234567890'
+                };
+            });
+            
+            if (mapped.length === 0 && staff) {
+                const staffUsers = staff.filter(u => ['teacher', 'staff', 'admin', 'lecturer'].includes(u.role));
+                const fallbackMapped = staffUsers.map((u, i) => ({
+                    payrollId: `man_${Date.now()}_${i}`,
+                    staffId: u.id,
+                    staffName: u.name,
+                    netPay: 0,
+                    bankName: u.metadata?.bankName || 'Equity Bank',
+                    bankBranch: u.metadata?.bankBranch || 'Main Branch',
+                    accountNumber: u.metadata?.bankAccountNumber || '1234567890'
+                }));
+                setScheduleStaffAccounts(fallbackMapped);
+            } else {
+                setScheduleStaffAccounts(mapped);
+            }
+        }
+    }, [showBankScheduleModal, schedulePeriod, selectedStatutoryMonth, payrollRecords, staff]);
 
     const tabs = [
         { id: 'roster', label: 'Staff Roster', icon: UserGroupIcon },
@@ -320,7 +376,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 )}
 
                 {activeTab === 'reports' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-500">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 animate-in fade-in duration-500">
                         {/* Payslip Card */}
                         <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-between space-y-6">
                             <div>
@@ -460,6 +516,51 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                 Generate Statutory Summary
                             </button>
                         </div>
+
+                        {/* Bank Advice Card */}
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-between space-y-6">
+                            <div>
+                                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-2xl w-fit mb-4">
+                                    <BanknotesIcon className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white">Bank Advice Letter</h3>
+                                <p className="text-xs text-slate-400 mt-2">Generate bank disbursement instruction letters to process salary payments for all staff members.</p>
+                                
+                                <div className="mt-6 space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Select Month</label>
+                                        <select 
+                                            value={selectedStatutoryMonth} 
+                                            onChange={e => setSelectedStatutoryMonth(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-750 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="January 2026">January 2026</option>
+                                            <option value="February 2026">February 2026</option>
+                                            <option value="March 2026">March 2026</option>
+                                            <option value="April 2026">April 2026</option>
+                                            <option value="May 2026">May 2026</option>
+                                            <option value="June 2026">June 2026</option>
+                                            <option value="July 2026">July 2026</option>
+                                            <option value="August 2026">August 2026</option>
+                                            <option value="September 2026">September 2026</option>
+                                            <option value="October 2026">October 2026</option>
+                                            <option value="November 2026">November 2026</option>
+                                            <option value="December 2026">December 2026</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setSchedulePeriod(selectedStatutoryMonth);
+                                    setShowBankScheduleModal(true);
+                                }}
+                                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
+                            >
+                                Generate Bank Advice
+                            </button>
+                        </div>
+
                     </div>
                 )}
 
@@ -643,6 +744,209 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Salary Bank Disbursement Advice Modal */}
+            {showBankScheduleModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 text-left animate-in zoom-in-95 duration-200">
+                        
+                        {/* Modal Header */}
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Salary Bank Payment Schedule</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Generate bank advice letter detailing payments to each staff account</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowBankScheduleModal(false)}
+                                className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                <XIcon className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body / Inputs */}
+                        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto bg-slate-50 dark:bg-slate-950">
+                            
+                            {/* Parameter Fields */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                
+                                {/* Period Select */}
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Payroll Period *</label>
+                                    <select
+                                        value={schedulePeriod}
+                                        onChange={(e) => setSchedulePeriod(e.target.value)}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                    >
+                                        <option value={selectedStatutoryMonth}>{selectedStatutoryMonth}</option>
+                                        {Array.from(new Set((payrollRecords || []).map(r => r.period || r.payPeriod || ''))).filter(p => p !== selectedStatutoryMonth).map(p => (
+                                            <option key={p} value={p}>{p}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Source Account Select */}
+                                <div className="space-y-1 md:col-span-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Debit Bank Account *</label>
+                                    <select
+                                        value={scheduleSourceBankId}
+                                        onChange={(e) => setScheduleSourceBankId(e.target.value)}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                    >
+                                        <option value="">-- Choose School Debit Account --</option>
+                                        {(bankAccounts || []).map(ba => (
+                                            <option key={ba.id} value={ba.id}>
+                                                {ba.bankName || ba.bank_name} - {ba.accountName || ba.account_name} ({ba.accountNumber || ba.account_number})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Cheque # */}
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Cheque Number / Ref</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. CHQ-00123"
+                                        value={scheduleChequeNumber}
+                                        onChange={(e) => setScheduleChequeNumber(e.target.value)}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                    />
+                                </div>
+
+                            </div>
+
+                            {/* Datepicker Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Date</label>
+                                    <input
+                                        type="date"
+                                        value={scheduleDate}
+                                        onChange={(e) => setScheduleDate(e.target.value)}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Schedule Table */}
+                            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden text-xs bg-white dark:bg-slate-900">
+                                <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-between items-center">
+                                    <span className="font-black uppercase tracking-wider text-[10px] text-slate-500">Beneficiary Accounts</span>
+                                    <span className="text-[10px] font-bold text-indigo-650 bg-indigo-50 px-2.5 py-1 rounded-full">{scheduleStaffAccounts.length} Staff Members</span>
+                                </div>
+                                <div className="overflow-x-auto max-h-[30vh]">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 text-slate-400 font-bold uppercase tracking-widest text-[9px]">
+                                                <th className="py-2.5 px-3">Staff Name</th>
+                                                <th className="py-2.5 px-3">Bank Name</th>
+                                                <th className="py-2.5 px-3">Branch</th>
+                                                <th className="py-2.5 px-3">Account Number</th>
+                                                <th className="py-2.5 px-3 text-right">Net Salary</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {scheduleStaffAccounts.map((item, idx) => (
+                                                <tr key={item.payrollId || idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-950/10">
+                                                    <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200">{item.staffName}</td>
+                                                    <td className="py-2.5 px-3">
+                                                        <input
+                                                            type="text"
+                                                            value={item.bankName}
+                                                            onChange={(e) => {
+                                                                const updated = [...scheduleStaffAccounts];
+                                                                updated[idx].bankName = e.target.value;
+                                                                setScheduleStaffAccounts(updated);
+                                                            }}
+                                                            className="px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none font-medium w-full"
+                                                        />
+                                                    </td>
+                                                    <td className="py-2.5 px-3">
+                                                        <input
+                                                            type="text"
+                                                            value={item.bankBranch}
+                                                            onChange={(e) => {
+                                                                const updated = [...scheduleStaffAccounts];
+                                                                updated[idx].bankBranch = e.target.value;
+                                                                setScheduleStaffAccounts(updated);
+                                                            }}
+                                                            className="px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none font-medium w-full"
+                                                        />
+                                                    </td>
+                                                    <td className="py-2.5 px-3">
+                                                        <input
+                                                            type="text"
+                                                            value={item.accountNumber}
+                                                            onChange={(e) => {
+                                                                const updated = [...scheduleStaffAccounts];
+                                                                updated[idx].accountNumber = e.target.value;
+                                                                setScheduleStaffAccounts(updated);
+                                                            }}
+                                                            className="px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none font-medium w-full"
+                                                        />
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-right">
+                                                        <input
+                                                            type="number"
+                                                            value={item.netPay || ''}
+                                                            onChange={(e) => {
+                                                                const updated = [...scheduleStaffAccounts];
+                                                                updated[idx].netPay = parseFloat(e.target.value) || 0;
+                                                                setScheduleStaffAccounts(updated);
+                                                            }}
+                                                            className="px-2 py-1 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded outline-none font-bold text-right w-24 text-emerald-600"
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {scheduleStaffAccounts.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
+                                                        No payroll records found for the selected period
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {/* Modal Actions */}
+                        <div className="p-8 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/50 dark:bg-slate-950/20">
+                            <button
+                                onClick={() => setShowBankScheduleModal(false)}
+                                className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                disabled={!scheduleSourceBankId || scheduleStaffAccounts.length === 0}
+                                onClick={() => {
+                                    const bankObj = (bankAccounts || []).find(ba => ba.id === scheduleSourceBankId);
+                                    downloadBankAdvicePdf({
+                                        period: schedulePeriod,
+                                        chequeNumber: scheduleChequeNumber,
+                                        paymentDate: scheduleDate,
+                                        sourceBankAccount: bankObj,
+                                        staffDetails: scheduleStaffAccounts,
+                                        institution: institution,
+                                        companyDetails: companyDetails,
+                                        logoUrl: null,
+                                        letterheadUrl: null
+                                    });
+                                    setShowBankScheduleModal(false);
+                                }}
+                                className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-650 transition-all shadow-md disabled:opacity-50"
+                            >
+                                Download Bank Advice
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
