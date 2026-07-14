@@ -14,6 +14,8 @@ import { PlusIcon } from '../icons/PlusIcon';
 import { TrashIcon } from '../icons/TrashIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { XIcon } from '../icons/XIcon';
+import { EyeIcon } from '../icons/EyeIcon';
+import { XCircleIcon } from '../icons/XCircleIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { CheckIcon } from '../icons/CheckIcon';
 import { Trash2Icon } from '../icons/Trash2Icon';
@@ -88,7 +90,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers'>('home');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
@@ -847,6 +849,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
+        { id: 'student_invoices', label: 'Invoices', icon: ClipboardListIcon },
         { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
         { id: 'gok_capitation', label: 'GoK Capitation', icon: BuildingLibraryIcon },
         { id: 'bursaries', label: 'NG-CDF Bursaries', icon: ScaleIcon },
@@ -1131,6 +1134,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Receipts states
     const [searchReceiptQuery, setSearchReceiptQuery] = useState('');
     const [receiptSourceFilter, setReceiptSourceFilter] = useState('All');
+
+    // Invoices states
+    const [searchInvoiceQuery, setSearchInvoiceQuery] = useState('');
+    const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All');
+    const [invoiceClassFilter, setInvoiceClassFilter] = useState('All');
+    const [selectedInvoiceForDetails, setSelectedInvoiceForDetails] = useState<any | null>(null);
+    const [isPrintingInvoiceId, setIsPrintingInvoiceId] = useState<string | null>(null);
     const [unreconciledFeeds, setUnreconciledFeeds] = useState<any[]>([]);
     const [loadingFeeds, setLoadingFeeds] = useState(false);
     const [selectedFeedTx, setSelectedFeedTx] = useState<any | null>(null);
@@ -1486,6 +1496,52 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     useEffect(() => {
         setReceiptCurrentPage(1);
     }, [searchReceiptQuery, receiptSourceFilter]);
+
+    // Invoices filtering and pagination
+    const filteredStudentInvoices = useMemo(() => {
+        return mappedInvoices.filter((inv: any) => {
+            const studentId = inv.studentId || inv.student_id;
+            const student = studentId ? props.students.find(s => s.id === studentId) : null;
+            const adm = student?.admissionNumber || student?.admission_number || '—';
+            const sName = student?.name || 'Unknown Student';
+            const sClass = student ? studentClassGroup(student) : '—';
+            const invNo = inv.invoiceNumber || inv.invoice_number || '—';
+
+            let matchesQuery = true;
+            if (searchInvoiceQuery) {
+                const query = searchInvoiceQuery.toLowerCase();
+                matchesQuery = 
+                    invNo.toLowerCase().includes(query) ||
+                    sName.toLowerCase().includes(query) ||
+                    adm.toLowerCase().includes(query);
+            }
+
+            let matchesStatus = true;
+            if (invoiceStatusFilter !== 'All') {
+                matchesStatus = String(inv.status).toLowerCase() === invoiceStatusFilter.toLowerCase();
+            }
+
+            let matchesClass = true;
+            if (invoiceClassFilter !== 'All') {
+                matchesClass = sClass === invoiceClassFilter;
+            }
+
+            return matchesQuery && matchesStatus && matchesClass;
+        });
+    }, [mappedInvoices, props.students, searchInvoiceQuery, invoiceStatusFilter, invoiceClassFilter]);
+
+    const [invoiceCurrentPage, setInvoiceCurrentPage] = useState(1);
+
+    const paginatedStudentInvoices = useMemo(() => {
+        const startIndex = (invoiceCurrentPage - 1) * 10;
+        return filteredStudentInvoices.slice(startIndex, startIndex + 10);
+    }, [filteredStudentInvoices, invoiceCurrentPage]);
+
+    const totalInvoicePages = Math.ceil(filteredStudentInvoices.length / 10) || 1;
+
+    useEffect(() => {
+        setInvoiceCurrentPage(1);
+    }, [searchInvoiceQuery, invoiceStatusFilter, invoiceClassFilter]);
 
     const fetchBankFeeds = async () => {
         try {
@@ -3982,6 +4038,356 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         )}
                     </div>
                 )}
+
+                {activeTab === 'student_invoices' && (
+                    <div className="space-y-6 text-left animate-in fade-in duration-300">
+                        {/* Header stats block */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total Invoices</span>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{filteredStudentInvoices.length}</h3>
+                                <p className="text-[10px] text-slate-500 font-semibold mt-1">Generated and loaded records</p>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                                <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Total Invoiced</span>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                                    KES {filteredStudentInvoices.reduce((sum, inv) => sum + Number(inv.totalAmount || inv.total_amount || 0), 0).toLocaleString()}
+                                </h3>
+                                <p className="text-[10px] text-slate-500 font-semibold mt-1">Cumulative student billings</p>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                                <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-450 tracking-wider">Collected / Paid</span>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                                    KES {filteredStudentInvoices.reduce((sum, inv) => {
+                                        const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
+                                        return sum + allocations.reduce((s, r) => s + Number(r.amountPaid || r.amount_paid || 0), 0);
+                                    }, 0).toLocaleString()}
+                                </h3>
+                                <p className="text-[10px] text-slate-500 font-semibold mt-1">Amount cleared from receipts</p>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                                <span className="text-[10px] font-black uppercase text-rose-650 tracking-wider">Outstanding Balance</span>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                                    KES {Math.max(0, filteredStudentInvoices.reduce((sum, inv) => {
+                                        const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
+                                        const paid = allocations.reduce((s, r) => s + Number(r.amountPaid || r.amount_paid || 0), 0);
+                                        return sum + Math.max(0, Number(inv.totalAmount || inv.total_amount || 0) - paid);
+                                    }, 0)).toLocaleString()}
+                                </h3>
+                                <p className="text-[10px] text-slate-500 font-semibold mt-1">Unpaid billing totals</p>
+                            </div>
+                        </div>
+
+                        {/* Invoice List & Filters */}
+                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Invoices Ledger</h3>
+                                    <p className="text-xs text-slate-500 font-semibold mt-0.5">Track, audit, print and manage all academic billing invoices issued to students.</p>
+                                </div>
+                            </div>
+
+                            {/* Filters Bar */}
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="relative flex-1">
+                                    <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search by student name, admission number, or invoice reference..."
+                                        value={searchInvoiceQuery}
+                                        onChange={(e) => setSearchInvoiceQuery(e.target.value)}
+                                        className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                                <select
+                                    value={invoiceStatusFilter}
+                                    onChange={(e) => setInvoiceStatusFilter(e.target.value)}
+                                    className="px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-300 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="All">All Statuses</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="partial">Partial</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                                <select
+                                    value={invoiceClassFilter}
+                                    onChange={(e) => setInvoiceClassFilter(e.target.value)}
+                                    className="px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-300 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="All">All Classes</option>
+                                    {Array.from(new Set(props.students.map(s => studentClassGroup(s)))).map(cls => (
+                                        <option key={cls} value={cls}>{cls}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Invoices Table */}
+                            <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
+                                <table className="w-full border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/60">
+                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoice Number</th>
+                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Class / Grade</th>
+                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Amount</th>
+                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid Amount</th>
+                                            <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Date Issued</th>
+                                            <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
+                                        {paginatedStudentInvoices.map(inv => {
+                                            const studentId = inv.studentId || inv.student_id;
+                                            const student = studentId ? props.students.find(s => s.id === studentId) : null;
+                                            const admNum = student?.admissionNumber || student?.admission_number || '—';
+                                            const studentName = student?.name || 'Unknown Student';
+                                            const gradeName = student ? studentClassGroup(student) : '—';
+                                            
+                                            const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
+                                            const paidAmount = allocations.reduce((sum, r) => sum + Number(r.amountPaid || r.amount_paid || 0), 0);
+                                            const totalAmount = Number(inv.totalAmount || inv.total_amount || 0);
+
+                                            return (
+                                                <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                                                    <td className="px-6 py-4 text-xs font-black text-slate-800 dark:text-slate-100">{inv.invoiceNumber || inv.invoice_number || '—'}</td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-xs font-extrabold text-slate-800 dark:text-slate-200">{studentName}</div>
+                                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">ADM: {admNum}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-400">{gradeName}</td>
+                                                    <td className="px-6 py-4 text-right text-xs font-black text-slate-900 dark:text-white">KES {totalAmount.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right text-xs font-bold text-emerald-600">KES {paidAmount.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                                            inv.status === 'paid'
+                                                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-455 border-emerald-200 dark:border-emerald-500/20'
+                                                                : inv.status === 'partial'
+                                                                ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-455 border-blue-200 dark:border-blue-500/20'
+                                                                : inv.status === 'cancelled'
+                                                                ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-450 border-rose-200 dark:border-rose-500/20'
+                                                                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-450 border-amber-200 dark:border-amber-500/20'
+                                                        }`}>
+                                                            {inv.status || 'pending'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                                                        {inv.issueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '—')}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <div className="flex justify-center items-center gap-1">
+                                                            <button
+                                                                onClick={() => setSelectedInvoiceForDetails(inv)}
+                                                                title="View Details"
+                                                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                                            >
+                                                                <EyeIcon className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    setIsPrintingInvoiceId(inv.id);
+                                                                    try {
+                                                                        const dataUri = await pdfService.generateInvoicePdfDataUri(inv, props.companyDetails, props.institution);
+                                                                        const printWindow = window.open();
+                                                                        if (printWindow) {
+                                                                            printWindow.document.write(`<iframe src="${dataUri}" style="width:100%; height:100%; border:none;"></iframe>`);
+                                                                        }
+                                                                    } catch (err) {
+                                                                        console.error("Failed to print invoice PDF:", err);
+                                                                        alert("Failed to generate PDF for printing.");
+                                                                    } finally {
+                                                                        setIsPrintingInvoiceId(null);
+                                                                    }
+                                                                }}
+                                                                disabled={isPrintingInvoiceId === inv.id}
+                                                                title="Print PDF Invoice"
+                                                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50"
+                                                            >
+                                                                {isPrintingInvoiceId === inv.id ? (
+                                                                    <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                                                ) : (
+                                                                    <PrinterIcon className="w-4 h-4" />
+                                                                )}
+                                                            </button>
+                                                            {inv.status !== 'cancelled' && (
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (!confirm("Are you sure you want to cancel this invoice? This will remove its due outstanding balance from the student's ledger.")) return;
+                                                                        try {
+                                                                            await apiService.updateModuleRecord('invoices', inv.id, { status: 'cancelled' });
+                                                                            if (props.onRefreshData) {
+                                                                                await props.onRefreshData();
+                                                                            }
+                                                                            alert("Invoice cancelled successfully!");
+                                                                        } catch (err) {
+                                                                            console.error(err);
+                                                                            alert("Failed to cancel invoice.");
+                                                                        }
+                                                                    }}
+                                                                    title="Cancel Invoice"
+                                                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                                                                >
+                                                                    <XCircleIcon className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {filteredStudentInvoices.length === 0 && (
+                                            <tr>
+                                                <td colSpan={8} className="py-12 text-center text-xs text-slate-450 italic font-semibold">
+                                                    No student invoices matched the filter criteria.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination Controls */}
+                            {totalInvoicePages > 1 && (
+                                <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Page {invoiceCurrentPage} of {totalInvoicePages}</span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setInvoiceCurrentPage(prev => Math.max(1, prev - 1))}
+                                            disabled={invoiceCurrentPage === 1}
+                                            className="px-4 py-2 bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 dark:text-slate-350 dark:hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50"
+                                        >
+                                            Prev
+                                        </button>
+                                        <button
+                                            onClick={() => setInvoiceCurrentPage(prev => Math.min(totalInvoicePages, prev + 1))}
+                                            disabled={invoiceCurrentPage === totalInvoicePages}
+                                            className="px-4 py-2 bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 dark:text-slate-350 dark:hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Invoice Details Modal */}
+                {selectedInvoiceForDetails && (() => {
+                    const inv = selectedInvoiceForDetails;
+                    const studentId = inv.studentId || inv.student_id;
+                    const student = studentId ? props.students.find(s => s.id === studentId) : null;
+                    const sName = student?.name || 'Unknown Student';
+                    const admNum = student?.admissionNumber || student?.admission_number || '—';
+                    const sClass = student ? studentClassGroup(student) : '—';
+                    
+                    let items: any[] = [];
+                    if (typeof inv.items === 'string') {
+                        try { items = JSON.parse(inv.items); } catch(e) {}
+                    } else if (Array.isArray(inv.items)) {
+                        items = inv.items;
+                    }
+
+                    return (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/80 shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col text-left animate-in zoom-in-95 duration-200">
+                                {/* Modal Header */}
+                                <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase text-indigo-650 tracking-wider">Invoice Overview</span>
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">Invoice: {inv.invoiceNumber || inv.invoice_number || '—'}</h3>
+                                    </div>
+                                    <button 
+                                        onClick={() => setSelectedInvoiceForDetails(null)}
+                                        className="p-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-850 rounded-xl text-slate-400 hover:text-slate-650 transition-colors"
+                                    >
+                                        <XIcon className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                {/* Modal Body */}
+                                <div className="p-8 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
+                                    {/* Student Card */}
+                                    <div className="bg-slate-50/50 dark:bg-slate-950/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-850 grid grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="text-[9px] font-black uppercase text-slate-450 tracking-wider">Student Name</span>
+                                            <p className="text-sm font-black text-slate-800 dark:text-white mt-0.5">{sName}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-[9px] font-black uppercase text-slate-450 tracking-wider">Admission Number</span>
+                                            <p className="text-sm font-black text-slate-800 dark:text-white mt-0.5">{admNum}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-[9px] font-black uppercase text-slate-450 tracking-wider">Class / Grade</span>
+                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-0.5">{sClass}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-[9px] font-black uppercase text-slate-450 tracking-wider">Issue Date</span>
+                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-0.5">
+                                                {inv.issueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '—')}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Items Table */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-450 pb-1 border-b border-slate-100 dark:border-slate-800">Fee Votehead Allocation</h4>
+                                        <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800">
+                                                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Votehead / Item</th>
+                                                        <th className="px-4 py-3 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest w-24">Priority</th>
+                                                        <th className="px-4 py-3 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest w-32">Total Billed</th>
+                                                        <th className="px-4 py-3 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest w-32">Amount Paid</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
+                                                    {items.map((item, idx) => {
+                                                        const name = item.name || item.voteheadName || 'Unnamed Item';
+                                                        const amount = Number(item.amount || item.unitPrice || 0);
+                                                        const paid = Number(item.paid || 0);
+                                                        const prio = item.priority !== undefined ? item.priority : '—';
+                                                        return (
+                                                            <tr key={idx} className="hover:bg-slate-50/20 dark:hover:bg-slate-900/5 transition-colors">
+                                                                <td className="px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-200">{name}</td>
+                                                                <td className="px-4 py-3 text-center text-xs font-semibold text-slate-450">{prio}</td>
+                                                                <td className="px-4 py-3 text-right text-xs font-black text-slate-900 dark:text-white">KES {amount.toLocaleString()}</td>
+                                                                <td className="px-4 py-3 text-right text-xs font-bold text-emerald-600">KES {paid.toLocaleString()}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {items.length === 0 && (
+                                                        <tr>
+                                                            <td colSpan={4} className="py-6 text-center text-xs text-slate-400 italic">No items found on this invoice.</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex justify-between items-center rounded-b-[2.5rem]">
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total Invoice Balance</span>
+                                        <span className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
+                                            KES {Math.max(0, Number(inv.totalAmount || inv.total_amount || 0) - items.reduce((s, it) => s + Number(it.paid || 0), 0)).toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <button 
+                                        onClick={() => setSelectedInvoiceForDetails(null)}
+                                        className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-850 dark:text-white rounded-xl text-xs font-bold transition-all"
+                                    >
+                                        Close Details
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {activeTab === 'wizard' && (
                     <AutomatedBilling 
