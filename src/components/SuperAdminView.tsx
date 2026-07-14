@@ -941,6 +941,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isTestingDriveUpload, setIsTestingDriveUpload] = useState(false);
 
     const [isSavingConfigs, setIsSavingConfigs] = useState(false);
+    const [isAligningInvoices, setIsAligningInvoices] = useState(false);
+    const [isAligningReceipts, setIsAligningReceipts] = useState(false);
 
     useEffect(() => {
         fetch('/api/coop-b2b/ip')
@@ -1073,6 +1075,76 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             alert("Failed to save configurations.");
         } finally {
             setIsSavingConfigs(false);
+        }
+    };
+
+    const handleBulkAlignInvoices = async () => {
+        if (!window.confirm("Are you sure you want to bulk update all system invoices to use the current numbering sequence starting from the oldest? This action will overwrite existing invoice numbers.")) {
+            return;
+        }
+        setIsAligningInvoices(true);
+        try {
+            const allInvoices = await apiService.fetchInvoices();
+            const sortedInvoices = [...allInvoices].sort((a, b) => {
+                const dateA = new Date(a.createdAt || a.issueDate || 0).getTime();
+                const dateB = new Date(b.createdAt || b.issueDate || 0).getTime();
+                return dateA - dateB;
+            });
+
+            const prefix = (localCompanyInfo.globalInvoicePrefix || 'INV-').trim();
+            let successCount = 0;
+            for (let i = 0; i < sortedInvoices.length; i++) {
+                const invoice = sortedInvoices[i];
+                const newInvoiceNumber = `${prefix}${1001 + i}`;
+                await apiService.saveModuleRecord('invoices', {
+                    ...invoice,
+                    invoiceNumber: newInvoiceNumber,
+                    updatedAt: new Date().toISOString()
+                });
+                successCount++;
+            }
+            alert(`Successfully aligned ${successCount} invoices in sequential order!`);
+            if (props.onRefreshData) await props.onRefreshData();
+        } catch (err: any) {
+            console.error("Failed to bulk align invoices:", err);
+            alert("Alignment failed: " + (err.message || err));
+        } finally {
+            setIsAligningInvoices(false);
+        }
+    };
+
+    const handleBulkAlignReceipts = async () => {
+        if (!window.confirm("Are you sure you want to bulk update all system receipts to use the current numbering sequence starting from the oldest? This action will overwrite existing receipt numbers.")) {
+            return;
+        }
+        setIsAligningReceipts(true);
+        try {
+            const allReceipts = await apiService.fetchReceipts();
+            const sortedReceipts = [...allReceipts].sort((a, b) => {
+                const dateA = new Date(a.createdAt || a.paymentDate || 0).getTime();
+                const dateB = new Date(b.createdAt || b.paymentDate || 0).getTime();
+                return dateA - dateB;
+            });
+
+            const prefix = (localCompanyInfo.globalReceiptPrefix || 'RCPT-').trim();
+            let successCount = 0;
+            for (let i = 0; i < sortedReceipts.length; i++) {
+                const receipt = sortedReceipts[i];
+                const newReceiptNumber = `${prefix}${1001 + i}`;
+                await apiService.saveModuleRecord('receipts', {
+                    ...receipt,
+                    receiptNumber: newReceiptNumber,
+                    updatedAt: new Date().toISOString()
+                });
+                successCount++;
+            }
+            alert(`Successfully aligned ${successCount} receipts in sequential order!`);
+            if (props.onRefreshData) await props.onRefreshData();
+        } catch (err: any) {
+            console.error("Failed to bulk align receipts:", err);
+            alert("Alignment failed: " + (err.message || err));
+        } finally {
+            setIsAligningReceipts(false);
         }
     };
 
@@ -4764,6 +4836,33 @@ Please change it after login.`;
 
                                         <div className="mt-8 flex justify-end">
                                             <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save Branding Map</button>
+                                        </div>
+                                    </div>
+
+                                    {/* Bulk Align Sequences Card */}
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm mt-8 animate-fade-in">
+                                        <div className="flex items-center gap-2 mb-6">
+                                            <Cog8ToothIcon className="w-5 h-5 text-indigo-500" />
+                                            <h4 className="font-bold text-lg">Document Numbering Maintenance</h4>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                                            If you have updated the Tenant Invoice or Receipt Prefix, you can bulk align previous documents to follow the new numbering scheme. This process updates existing invoice or receipt numbers sequentially starting from the oldest records.
+                                        </p>
+                                        <div className="flex flex-wrap gap-4">
+                                            <button
+                                                onClick={handleBulkAlignInvoices}
+                                                disabled={isAligningInvoices}
+                                                className="px-6 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                            >
+                                                {isAligningInvoices ? 'Aligning Invoices...' : 'Align Invoices Sequentially'}
+                                            </button>
+                                            <button
+                                                onClick={handleBulkAlignReceipts}
+                                                disabled={isAligningReceipts}
+                                                className="px-6 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                            >
+                                                {isAligningReceipts ? 'Aligning Receipts...' : 'Align Receipts Sequentially'}
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
