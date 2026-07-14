@@ -104,6 +104,7 @@ const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m =
 
 
 import { apiService, initSupabaseClient } from '../services/apiService';
+import { BuildingSecurityManager } from './BuildingSecurityManager';
 import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
@@ -135,6 +136,7 @@ import type {
     AcademicsOfficerProps, LecturerProps, ParentProps,
     CountyAdminProps, HROfficerProps, FinanceOfficerProps, SupportStaffProps
 } from '../types';
+import type { BuildingFloor, BuildingOffice, BuildingVisitorLog, BuildingVisitorAsset } from '../types';
 import { XIcon } from './icons/XIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
@@ -251,6 +253,10 @@ export const App: React.FC = () => {
     const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
     const [financialPeriods, setFinancialPeriods] = useState<FinancialPeriod[]>([]);
     const [visitors, setVisitors] = useState<Visitor[]>([]);
+    const [buildingFloors, setBuildingFloors] = useState<BuildingFloor[]>([]);
+    const [buildingOffices, setBuildingOffices] = useState<BuildingOffice[]>([]);
+    const [buildingVisitorLogs, setBuildingVisitorLogs] = useState<BuildingVisitorLog[]>([]);
+    const [buildingVisitorAssets, setBuildingVisitorAssets] = useState<BuildingVisitorAsset[]>([]);
     const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
     const [requisitions, setRequisitions] = useState<Requisition[]>([]);
     const [retailExpenses, setRetailExpenses] = useState<RetailExpense[]>([]);
@@ -1292,6 +1298,10 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                         apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstIdFinal).catch(() => []),
                         currentUser.role === 'super_admin' ? apiService.fetchDemoRequests().catch(() => []) : Promise.resolve([]),
                         apiService.fetchModuleRecords<any>('integration_logs').catch(() => []),
+                        apiService.fetchModuleRecords<BuildingFloor>('building_floors', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<BuildingOffice>('building_offices').catch(() => []),
+                        apiService.fetchModuleRecords<BuildingVisitorLog>('building_visitor_logs', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<BuildingVisitorAsset>('building_visitor_assets').catch(() => []),
                     ])
                 ]) as any[];
                 
@@ -1307,7 +1317,11 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
 
                 if ((isBusiness || isHigherEd) && carResults) [csList, csTest, csAppr, cInvs, cPay] = carResults;
                 let rawPayloads: any[] = [];
-                if (systemResults) [csBank, sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, fExps, fGoals, fPayroll, demoLeads, rawPayloads] = systemResults;
+                let bFloors: any[] = [];
+                let bOffices: any[] = [];
+                let bVLogs: any[] = [];
+                let bVAssets: any[] = [];
+                if (systemResults) [csBank, sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, fExps, fGoals, fPayroll, demoLeads, rawPayloads, bFloors, bOffices, bVLogs, bVAssets] = systemResults;
 
                 console.log("[Data Refresh] Optimized Batches Resolved");
 
@@ -1355,6 +1369,10 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                 setLeaveOutRequests(lo || []);
                 setObservationNotes(obs || []);
                 setVisitors(vis || []);
+                setBuildingFloors(bFloors || []);
+                setBuildingOffices(bOffices || []);
+                setBuildingVisitorLogs(bVLogs || []);
+                setBuildingVisitorAssets(bVAssets || []);
                 setSecurityAlerts(sec || []);
                 setRequisitions(reqRecords || []);
                 
@@ -1915,6 +1933,52 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
             loadData();
         }
     }, [visitors, loadData]);
+
+    const handleAddBuildingFloor = useCallback(async (f: Omit<BuildingFloor, 'id'>) => {
+        const id = `floor_${Date.now()}`;
+        await apiService.saveModuleRecord('building_floors', { ...f, id });
+        loadData();
+    }, [loadData]);
+
+    const handleAddBuildingOffice = useCallback(async (o: Omit<BuildingOffice, 'id'>) => {
+        const id = `office_${Date.now()}`;
+        await apiService.saveModuleRecord('building_offices', { ...o, id });
+        loadData();
+    }, [loadData]);
+
+    const handleAddBuildingVisitorLog = useCallback(async (v: Omit<BuildingVisitorLog, 'id'>, assets: Omit<BuildingVisitorAsset, 'id' | 'visitorLogId'>[]) => {
+        const logId = `vlog_${Date.now()}`;
+        await apiService.saveModuleRecord('building_visitor_logs', { ...v, id: logId });
+        
+        if (assets && assets.length > 0) {
+            for (let i = 0; i < assets.length; i++) {
+                const assetId = `vasset_${Date.now()}_${i}`;
+                await apiService.saveModuleRecord('building_visitor_assets', {
+                    ...assets[i],
+                    id: assetId,
+                    visitorLogId: logId,
+                    verifiedAtExit: false
+                });
+            }
+        }
+        loadData();
+    }, [loadData]);
+
+    const handleUpdateBuildingVisitorLog = useCallback(async (id: string, data: Partial<BuildingVisitorLog>) => {
+        const existing = (buildingVisitorLogs || []).find(v => v.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('building_visitor_logs', { ...existing, ...data });
+            loadData();
+        }
+    }, [buildingVisitorLogs, loadData]);
+
+    const handleVerifyVisitorAsset = useCallback(async (assetId: string, verified: boolean) => {
+        const existing = (buildingVisitorAssets || []).find(a => a.id === assetId);
+        if (existing) {
+            await apiService.saveModuleRecord('building_visitor_assets', { ...existing, verifiedAtExit: verified });
+            loadData();
+        }
+    }, [buildingVisitorAssets, loadData]);
 
     const handleAddAlert = useCallback(async (a: Omit<SecurityAlert, 'id' | 'status' | 'timestamp' | 'institutionId'>) => {
         await apiService.saveModuleRecord('security_alerts', { 
@@ -5094,8 +5158,17 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
         onRefreshData: async () => await loadData(false, true),
         onAccessAlumnaPortal: handleAccessAlumnaPortal,
         schoolRegistry,
-        onTeacherGateCheckIn: handleTeacherGateCheckIn
-    }), [currentUser, activeInstitution, users, visitors, handleAddVisitor, handleCheckoutVisitor, handleAddAppointment, handleUpdateVisitor, generatedTimetable, timetableSettings, rooms, subjects, getSubjectById, getRoomById, getLecturerById, securityAlerts, handleAddAlert, handleResolveAlert, appointments, handleUpdateAppointmentStatus, retailInventory, stockTransactions, suppliers, handleAddStoreItem, handleAddSupplier, handleImportStoreItems, handleAddStoreTransaction, transactions, invoices, handleAddInvoice, receipts, handleAddReceipt, requisitions, handleVerifyRequisition, handleMarkInventoryReceived, handleLogAction, vehicles, vehicleLogs, transportOnboarding, handleLogGateAction, companyDetails, courses, onUpdateInstitution, voteHeads, feeStructures, financialPeriods, countyInventory, academicYears, semesters, departments, teacherCheckIns, timeOffRequests, studentAbsenceRequests, leaveOutRequests, bulletinItems, documentCollections, watchlist, maintenanceRequests, studentAttendances, handleOnboardStudent, handleOffboardStudent, onEditUser, onDeleteUser, activeLetterheadConfig, activeBranding, activeFooterImageUrl, schoolRegistry, onImportStudents, onImportUsers, handleTeacherGateCheckIn]);
+        onTeacherGateCheckIn: handleTeacherGateCheckIn,
+        buildingFloors,
+        buildingOffices,
+        buildingVisitorLogs,
+        buildingVisitorAssets,
+        onAddBuildingFloor: handleAddBuildingFloor,
+        onAddBuildingOffice: handleAddBuildingOffice,
+        onAddBuildingVisitorLog: handleAddBuildingVisitorLog,
+        onUpdateBuildingVisitorLog: handleUpdateBuildingVisitorLog,
+        onVerifyBuildingVisitorAsset: handleVerifyVisitorAsset
+    }), [currentUser, activeInstitution, users, visitors, handleAddVisitor, handleCheckoutVisitor, handleAddAppointment, handleUpdateVisitor, generatedTimetable, timetableSettings, rooms, subjects, getSubjectById, getRoomById, getLecturerById, securityAlerts, handleAddAlert, handleResolveAlert, appointments, handleUpdateAppointmentStatus, retailInventory, stockTransactions, suppliers, handleAddStoreItem, handleAddSupplier, handleImportStoreItems, handleAddStoreTransaction, transactions, invoices, handleAddInvoice, receipts, handleAddReceipt, requisitions, handleVerifyRequisition, handleMarkInventoryReceived, handleLogAction, vehicles, vehicleLogs, transportOnboarding, handleLogGateAction, companyDetails, courses, onUpdateInstitution, voteHeads, feeStructures, financialPeriods, countyInventory, academicYears, semesters, departments, teacherCheckIns, timeOffRequests, studentAbsenceRequests, leaveOutRequests, bulletinItems, documentCollections, watchlist, maintenanceRequests, studentAttendances, handleOnboardStudent, handleOffboardStudent, onEditUser, onDeleteUser, activeLetterheadConfig, activeBranding, activeFooterImageUrl, schoolRegistry, onImportStudents, onImportUsers, handleTeacherGateCheckIn, buildingFloors, buildingOffices, buildingVisitorLogs, buildingVisitorAssets, handleAddBuildingFloor, handleAddBuildingOffice, handleAddBuildingVisitorLog, handleUpdateBuildingVisitorLog, handleVerifyVisitorAsset]);
 
     const boardingMasterProps = useMemo(() => ({
         currentUser: currentUser || undefined,
@@ -5863,41 +5936,38 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                         />
                                     </ModuleAccessGuard>
                                 ) : activeRole === 'security' ? (
-                                    <SecurityView
-                                        {...{
-                                            currentUser,
-                                            currentInstitution: activeInstitution!,
-                                            securityAlerts,
-                                            visitors,
-                                            vehicles,
-                                            vehicleLogs,
-                                            onCheckoutVisitor: handleCheckoutVisitor,
-                                            appointments,
-                                            onUpdateAppointmentStatus: handleUpdateAppointmentStatus,
-                                            users,
-                                            onAddVisitor: async (v: any) => { const newVis = { ...v, id: `vis_${Date.now()}`, status: v.status || 'pending', entryTime: new Date().toISOString(), institutionId: currentUser.institutionId }; await apiService.saveModuleRecord('visitors', newVis); loadData(); return newVis; },
-                                            onUpdateVisitor: async (id: string, data: any) => { const existing = visitors.find(v => v.id === id); if (existing) { await apiService.saveModuleRecord('visitors', { ...existing, ...data }); loadData(); } },
-                                            onLogGateAction: handleLogGateAction,
-                                            onAddAlert: async (a: any) => { await apiService.saveModuleRecord('security_alerts', { ...a, id: `alt_${Date.now()}`, status: 'active', timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
-                                            onResolveAlert: async (id: string) => { const existing = securityAlerts.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('security_alerts', { ...existing, status: 'resolved' }); loadData(); } },
-                                            onDeleteAlert: async (id: string) => { if (currentUser?.role === 'super_admin') { await apiService.deleteModuleRecord('security_alerts', id); loadData(); } },
-                                            onLogAction: handleLogAction,
-                                            onTeacherGateCheckIn: handleTeacherGateCheckIn,
-                                            teacherCheckIns
-                                        } as any}
+                                    <BuildingSecurityManager
+                                        floors={buildingFloors}
+                                        offices={buildingOffices}
+                                        visitorLogs={buildingVisitorLogs}
+                                        visitorAssets={buildingVisitorAssets}
+                                        institution={activeInstitution!}
+                                        companyDetails={companyDetails}
+                                        users={users}
+                                        currentUser={currentUser}
+                                        onAddFloor={handleAddBuildingFloor}
+                                        onAddOffice={handleAddBuildingOffice}
+                                        onAddVisitorLog={handleAddBuildingVisitorLog}
+                                        onUpdateVisitorLog={handleUpdateBuildingVisitorLog}
+                                        onVerifyAsset={handleVerifyVisitorAsset}
+                                        onRefreshData={async () => await loadData(false, true)}
                                     />
                                 ) : activeRole === 'info_desk' ? (
-                                    <InfoDeskView
-                                        {...{
-                                            currentUser,
-                                            currentInstitution: activeInstitution!,
-                                            visitors,
-                                            appointments,
-                                            onAddVisitor: async (v: any) => { await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}`, status: 'pending', entryTime: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
-                                            onAddAppointment: async (a: any) => { await apiService.saveModuleRecord('appointments', { ...a, id: `apt_${Date.now()}`, status: 'scheduled', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
-                                            onUpdateAppointment: async (id: string, status: any) => { const existing = appointments.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('appointments', { ...existing, status }); loadData(); } },
-                                            onLogAction: handleLogAction
-                                        } as any}
+                                    <BuildingSecurityManager
+                                        floors={buildingFloors}
+                                        offices={buildingOffices}
+                                        visitorLogs={buildingVisitorLogs}
+                                        visitorAssets={buildingVisitorAssets}
+                                        institution={activeInstitution!}
+                                        companyDetails={companyDetails}
+                                        users={users}
+                                        currentUser={currentUser}
+                                        onAddFloor={handleAddBuildingFloor}
+                                        onAddOffice={handleAddBuildingOffice}
+                                        onAddVisitorLog={handleAddBuildingVisitorLog}
+                                        onUpdateVisitorLog={handleUpdateBuildingVisitorLog}
+                                        onVerifyAsset={handleVerifyVisitorAsset}
+                                        onRefreshData={async () => await loadData(false, true)}
                                     />
                                 ) : activeRole === 'store' ? (
                                     <ModuleAccessGuard

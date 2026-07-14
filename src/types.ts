@@ -5721,3 +5721,53 @@ export interface RemedialPayout {
     signedAt?: string;
     institutionId: string;
 }
+
+export interface BuildingFloor {
+    id: string;
+    institutionId: string;
+    floorNumber: number;
+    floorName: string;
+    description?: string;
+    createdAt?: string;
+}
+
+export interface BuildingOffice {
+    id: string;
+    floorId: string;
+    officeNumber: string;
+    tenantName: string;
+    contactPersonName: string;
+    contactPhone: string;
+    contactEmail?: string;
+    createdAt?: string;
+}
+
+export interface BuildingVisitorLog {
+    id: string;
+    institutionId: string;
+    officeId?: string;
+    visitorName: string;
+    phoneNumber: string;
+    idNumber: string;
+    vehiclePlate?: string;
+    purpose: string;
+    status: 'registered' | 'checked_in' | 'checked_out' | 'declined';
+    notifiedAt?: string;
+    authorizedByHost?: boolean;
+    entryLoggedBy?: string;
+    timeIn?: string;
+    securityNotes?: string;
+    exitLoggedBy?: string;
+    timeOut?: string;
+    createdAt?: string;
+}
+
+export interface BuildingVisitorAsset {
+    id: string;
+    visitorLogId: string;
+    itemName: string;
+    serialNumber?: string;
+    notes?: string;
+    verifiedAtExit?: boolean;
+    createdAt?: string;
+}
