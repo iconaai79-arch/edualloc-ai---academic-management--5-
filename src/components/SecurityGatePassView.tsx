@@ -227,7 +227,7 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
     const innerHtml = `
         <div style="text-align:center;">
             ${institution?.logoUrl || institution?.logo_url ? `
-                <img src="${institution.logoUrl || institution.logo_url}" style="max-height: 40px; max-width: 120px; object-fit: contain; margin-bottom: 6px;" alt="Logo" /><br/>
+                <img src="${institution.logoUrl || institution.logo_url}" style="max-height: 40px; max-width: 120px; object-fit: contain; margin: 0 auto 6px auto; display: block;" alt="Logo" /><br/>
             ` : ''}
             <div style="font-weight:bold;font-size:14px;text-transform:uppercase;margin:4px 0;">${institution?.name || 'Academic Institution'}</div>
             <div style="font-size:11px;text-transform:uppercase;margin-bottom:8px;">Gate Entry Pass</div>

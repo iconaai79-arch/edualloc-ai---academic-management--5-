@@ -470,7 +470,7 @@ export const printService = {
         if (config.type === 'system') {
             if (Capacitor.isNativePlatform()) {
                 try {
-                    const base64Pdf = generateEventPassPdfBase64(params.pin, params.parent, params.event, params.institution);
+                    const base64Pdf = await generateEventPassPdfBase64(params.pin, params.parent, params.event, params.institution);
                     await this.printPdf(base64Pdf, "Event Pass");
                 } catch (err) {
                     console.error("Failed to generate/print native event pass PDF:", err);
@@ -916,7 +916,10 @@ async function generateVisitorPassPdfBase64(
     return doc.output('datauristring');
 }
 
-function generateEventPassPdfBase64(pin: any, parent: any, event: any, institution: any): string {
+async function generateEventPassPdfBase64(pin: any, parent: any, event: any, institution: any): Promise<string> {
+    const logoUrl = institution?.logoUrl || institution?.logo_url || null;
+    const logoImg = await loadImage(logoUrl);
+
     const guests = (() => {
         try {
             const parsed = JSON.parse(pin?.guests || '[]');
@@ -927,7 +930,7 @@ function generateEventPassPdfBase64(pin: any, parent: any, event: any, instituti
     })();
 
     const vehicle = pin?.vehicleRegistration || pin?.vehicle_registration;
-    const pdfHeight = 85 + (guests.length * 4.5) + (vehicle ? 5 : 0);
+    const pdfHeight = 85 + (guests.length * 4.5) + (vehicle ? 5 : 0) + (logoImg ? 15 : 0);
 
     const doc = new jsPDF({
         orientation: 'portrait',
@@ -953,7 +956,15 @@ function generateEventPassPdfBase64(pin: any, parent: any, event: any, instituti
         doc.text(value, margin + labelWidth, y);
     };
 
-    // Header
+    // 1. Draw Centered Logo
+    if (logoImg) {
+        const logoWidth = 15;
+        const logoHeight = (logoImg.height * logoWidth) / logoImg.width;
+        doc.addImage(logoImg, 'PNG', (pageWidth - logoWidth) / 2, yPos, logoWidth, logoHeight);
+        yPos += logoHeight + 4;
+    }
+
+    // 2. Header
     doc.setFontSize(11);
     centerText(institution.name || 'Learning Institution', yPos, true);
     yPos += 5;
