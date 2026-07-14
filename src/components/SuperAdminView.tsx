@@ -1096,8 +1096,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             for (let i = 0; i < sortedInvoices.length; i++) {
                 const invoice = sortedInvoices[i];
                 const newInvoiceNumber = `${prefix}${1001 + i}`;
-                await apiService.saveModuleRecord('invoices', {
-                    ...invoice,
+                await apiService.updateModuleRecord('invoices', invoice.id, {
                     invoiceNumber: newInvoiceNumber,
                     updatedAt: new Date().toISOString()
                 });
@@ -1126,13 +1125,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 return dateA - dateB;
             });
 
-            const prefix = (localCompanyInfo.globalReceiptPrefix || 'RCPT-').trim();
+            const prefix = (localCompanyInfo.globalReceiptPrefix || 'RCT-').trim();
             let successCount = 0;
             for (let i = 0; i < sortedReceipts.length; i++) {
                 const receipt = sortedReceipts[i];
                 const newReceiptNumber = `${prefix}${1001 + i}`;
-                await apiService.saveModuleRecord('receipts', {
-                    ...receipt,
+                await apiService.updateModuleRecord('receipts', receipt.id, {
                     receiptNumber: newReceiptNumber,
                     updatedAt: new Date().toISOString()
                 });

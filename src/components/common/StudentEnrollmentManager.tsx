@@ -955,7 +955,23 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 preferredLessonHours: enr.metadata?.preferredLessonHours || 'Morning',
                 priorAttendedDays: enr.metadata?.priorAttendedDays || 0,
                 gradeLevel: enr.metadata?.gradeLevel || '',
-                stream: enr.metadata?.stream || '',
+                stream: (() => {
+                    const currentStream = enr.metadata?.stream || '';
+                    const gradeVal = enr.metadata?.gradeLevel || '';
+                    if (gradeVal && currentStream) {
+                        const course = courses.find(c => c.name === gradeVal);
+                        if (course?.levels && course.levels.length > 0) {
+                            const levelNames = course.levels.map(lvl => lvl.name);
+                            const matched = levelNames.find(name => 
+                                name.toLowerCase() === currentStream.toLowerCase() ||
+                                currentStream.toLowerCase().endsWith(name.toLowerCase()) ||
+                                name.toLowerCase().endsWith(currentStream.toLowerCase())
+                            );
+                            if (matched) return matched;
+                        }
+                    }
+                    return currentStream;
+                })(),
                 boardingStatus: enr.metadata?.boardingStatus || enr.metadata?.residenceType || associatedUser?.metadata?.boardingStatus || associatedUser?.metadata?.residenceType || 'day_scholar',
                 subjects: enr.metadata?.subjects || [],
                 parentName: enr.metadata?.parentName || '',
@@ -3422,14 +3438,36 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     // Available Streams for the Enrollment Form
     const formStreamsList = useMemo(() => {
+        let list: string[] = [];
         if (formData.metadata.gradeLevel) {
             const selectedCourse = courses.find(c => c.name === formData.metadata.gradeLevel);
             if (selectedCourse?.levels && selectedCourse.levels.length > 0) {
-                return selectedCourse.levels.map(lvl => lvl.name);
+                list = selectedCourse.levels.map(lvl => lvl.name);
             }
         }
-        return streamsList;
-    }, [formData.metadata.gradeLevel, courses, streamsList]);
+        if (list.length === 0) {
+            list = streamsList;
+        }
+        // Force include current stream if not present to avoid select element fallback mismatch
+        if (formData.metadata.stream && !list.includes(formData.metadata.stream)) {
+            const matched = list.find(name => 
+                name.toLowerCase() === formData.metadata.stream.toLowerCase() ||
+                formData.metadata.stream.toLowerCase().endsWith(name.toLowerCase()) ||
+                name.toLowerCase().endsWith(formData.metadata.stream.toLowerCase())
+            );
+            if (matched) {
+                setTimeout(() => {
+                    setFormData(prev => ({
+                        ...prev,
+                        metadata: { ...prev.metadata, stream: matched }
+                    }));
+                }, 0);
+            } else {
+                list = [...list, formData.metadata.stream];
+            }
+        }
+        return list;
+    }, [formData.metadata.gradeLevel, formData.metadata.stream, courses, streamsList]);
 
     // Available Streams for the registry filter
     const filterStreamsList = useMemo(() => {

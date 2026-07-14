@@ -50,12 +50,27 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
     // Boarding student registry status mapping
     const [bedAllocations, setBedAllocations] = useState<any[]>([]);
+    const [enrollments, setEnrollments] = useState<any[]>([]);
 
     useEffect(() => {
         apiService.fetchBedAllocations(institution.id)
             .then(res => setBedAllocations(res || []))
             .catch(err => console.error("Failed to load bed allocations for billing:", err));
+
+        apiService.fetchModuleRecords('student_enrollments', institution.id)
+            .then(res => setEnrollments(res || []))
+            .catch(err => console.error("Failed to load student enrollments for billing:", err));
     }, [institution.id]);
+
+    const admissionNumberMap = useMemo(() => {
+        const map = new Map<string, string>();
+        enrollments.forEach(enr => {
+            if (enr.userId && enr.admissionNumber) {
+                map.set(enr.userId, enr.admissionNumber);
+            }
+        });
+        return map;
+    }, [enrollments]);
 
     const isStudentBoarder = (student: User) => {
         const metaResidence = student?.metadata?.boardingStatus || student?.metadata?.residenceType;
@@ -359,11 +374,14 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                 className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
                             >
                                 <option value="">Select a student...</option>
-                                {students.map(s => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.name} ({s.admissionNumber || s.admission_number || 'No Adm'})
-                                    </option>
-                                ))}
+                                {students.map(s => {
+                                    const adm = s.admissionNumber || s.admission_number || admissionNumberMap.get(s.id) || 'No Adm';
+                                    return (
+                                        <option key={s.id} value={s.id}>
+                                            {s.name} ({adm})
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
                     )}
