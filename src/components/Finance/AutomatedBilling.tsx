@@ -180,7 +180,11 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
             return true;
         });
-        let studentSum = studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
+        let studentSum = studentFeeStructures.reduce((acc, f) => {
+            const amt = f.amount || (f as any).allocatedAmount || 0;
+            const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+            return acc + (isNaN(parsed) ? 0 : parsed);
+        }, 0);
         
         if (includeTransport) {
             const pref = studentCommutePrefs[s.id];

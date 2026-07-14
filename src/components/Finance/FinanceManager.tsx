@@ -4080,10 +4080,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{filteredStudentInvoices.length}</h3>
                                 <p className="text-[10px] text-slate-500 font-semibold mt-1">Generated and loaded records</p>
                             </div>
-                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                             <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
                                 <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Total Invoiced</span>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                                    KES {filteredStudentInvoices.reduce((sum, inv) => sum + Number(inv.totalAmount || inv.total_amount || 0), 0).toLocaleString()}
+                                    KES {filteredStudentInvoices.reduce((sum, inv) => {
+                                        const amt = inv.totalAmount || inv.total_amount || 0;
+                                        const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                                        return sum + (isNaN(parsed) ? 0 : parsed);
+                                    }, 0).toLocaleString()}
                                 </h3>
                                 <p className="text-[10px] text-slate-500 font-semibold mt-1">Cumulative student billings</p>
                             </div>
@@ -4092,7 +4096,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
                                     KES {filteredStudentInvoices.reduce((sum, inv) => {
                                         const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
-                                        return sum + allocations.reduce((s, r) => s + Number(r.amountPaid || r.amount_paid || 0), 0);
+                                        const paid = allocations.reduce((s, r) => {
+                                            const amt = r.amountPaid || r.amount_paid || 0;
+                                            const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                                            return s + (isNaN(parsed) ? 0 : parsed);
+                                        }, 0);
+                                        return sum + paid;
                                     }, 0).toLocaleString()}
                                 </h3>
                                 <p className="text-[10px] text-slate-500 font-semibold mt-1">Amount cleared from receipts</p>
@@ -4102,8 +4111,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
                                     KES {Math.max(0, filteredStudentInvoices.reduce((sum, inv) => {
                                         const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
-                                        const paid = allocations.reduce((s, r) => s + Number(r.amountPaid || r.amount_paid || 0), 0);
-                                        return sum + Math.max(0, Number(inv.totalAmount || inv.total_amount || 0) - paid);
+                                        const paid = allocations.reduce((s, r) => {
+                                            const amt = r.amountPaid || r.amount_paid || 0;
+                                            const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                                            return s + (isNaN(parsed) ? 0 : parsed);
+                                        }, 0);
+                                        const totalAmt = inv.totalAmount || inv.total_amount || 0;
+                                        const parsedTotal = typeof totalAmt === 'string' ? parseFloat(totalAmt.replace(/,/g, '')) : Number(totalAmt);
+                                        return sum + Math.max(0, (isNaN(parsedTotal) ? 0 : parsedTotal) - paid);
                                     }, 0)).toLocaleString()}
                                 </h3>
                                 <p className="text-[10px] text-slate-500 font-semibold mt-1">Unpaid billing totals</p>
