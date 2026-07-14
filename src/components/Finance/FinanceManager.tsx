@@ -3,6 +3,7 @@ import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeSt
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
+import { AcademicCapIcon } from '../icons/AcademicCapIcon';
 import { ZapIcon } from '../icons/ZapIcon';
 import { CheckBadgeIcon } from '../icons/CheckBadgeIcon';
 import { BarChart3Icon } from '../icons/BarChart3Icon';
@@ -115,7 +116,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [expandedInstallmentStudentIds, setExpandedInstallmentStudentIds] = useState<string[]>([]);
 
     // State for settings sub-tabs
-    const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding' | 'numbering'>('opening_balance');
+    const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'grades_streams' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding' | 'numbering'>('opening_balance');
+
+    // Grades & Streams local states
+    const [localCourses, setLocalCourses] = useState<Course[]>([]);
+    const [selectedGradeForStreams, setSelectedGradeForStreams] = useState<Course | null>(null);
+    const [newGradeName, setNewGradeName] = useState('');
+    const [newGradeCode, setNewGradeCode] = useState('');
+    const [isCreatingGrade, setIsCreatingGrade] = useState(false);
+    const [editingGradeId, setEditingGradeId] = useState<string | null>(null);
+    const [editGradeName, setEditGradeName] = useState('');
+    const [editGradeCode, setEditGradeCode] = useState('');
+    const [newStreamName, setNewStreamName] = useState('');
+    const [editingStreamId, setEditingStreamId] = useState<string | null>(null);
+    const [editStreamName, setEditStreamName] = useState('');
 
     // State for audit sub-tabs
     const [auditSubTab, setAuditSubTab] = useState<'audit_dashboard' | 'annual_report'>('audit_dashboard');
@@ -134,6 +148,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
         return [
             { id: 'opening_balance', label: 'Opening Balance', icon: WalletIcon },
+            { id: 'grades_streams', label: 'Grades & Streams', icon: AcademicCapIcon },
             { id: 'academic_calendar', label: 'Academic Year & Calendar', icon: CalendarDaysIcon },
             { id: 'financial_year', label: 'Financial Year', icon: ClockIcon },
             { id: 'accounts_grants', label: 'Voteheads, Banks & Grants', icon: ScaleIcon },
@@ -767,11 +782,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const studentFinanceData = useMemo(() => {
         return props.students.map(s => {
-            const studentInvoices = props.invoices.filter(inv => inv.studentId === s.id && inv.status !== 'cancelled' && inv.status !== 'quote');
-            const invoiced = studentInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+            const studentInvoices = props.invoices.filter(inv => 
+                (inv.studentId === s.id || inv.student_id === s.id) && 
+                inv.status !== 'cancelled' && 
+                inv.status !== 'quote'
+            );
+            const invoiced = studentInvoices.reduce((sum, inv) => sum + Number(inv.totalAmount || inv.total_amount || 0), 0);
             
-            const studentReceipts = props.receipts.filter(rec => rec.studentId === s.id || rec.student_id === s.id);
-            const paid = studentReceipts.reduce((sum, rec) => sum + (rec.amountPaid || 0), 0);
+            const studentReceipts = props.receipts.filter(rec => 
+                rec.studentId === s.id || rec.student_id === s.id
+            );
+            const paid = studentReceipts.reduce((sum, rec) => sum + Number(rec.amountPaid || rec.amount_paid || 0), 0);
             
             const balance = Math.max(0, invoiced - paid);
             const prepayment = Math.max(0, paid - invoiced);
@@ -2052,6 +2073,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 fetchSchoolGrants();
             } else if (settingsSubTab === 'numbering') {
                 fetchNumberingConfigs();
+            } else if (settingsSubTab === 'grades_streams') {
+                apiService.fetchModuleRecords<Course>('courses', props.institution.id)
+                    .then(res => setLocalCourses(res || []))
+                    .catch(err => console.error("Failed to load courses:", err));
             }
         }
     }, [activeTab, settingsSubTab, props.institution.id]);
@@ -5774,6 +5799,352 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             )}
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Subtab content: Grades & Streams */}
+                        {settingsSubTab === 'grades_streams' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-left animate-in fade-in duration-300">
+                                {/* Left Column: Grades / Courses */}
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Grade Levels (Courses)</h3>
+                                        <button 
+                                            onClick={() => {
+                                                setIsCreatingGrade(!isCreatingGrade);
+                                                setNewGradeName('');
+                                                setNewGradeCode('');
+                                                setEditingGradeId(null);
+                                            }}
+                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                        >
+                                            {isCreatingGrade ? 'Cancel' : 'Add Grade'}
+                                        </button>
+                                    </div>
+
+                                    {/* Add Grade Form */}
+                                    {isCreatingGrade && (
+                                        <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-4">
+                                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">New Grade Level Details</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Grade Name</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="e.g. Grade 3" 
+                                                        value={newGradeName}
+                                                        onChange={e => setNewGradeName(e.target.value)}
+                                                        className="w-full mt-1 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-xl outline-none focus:ring-2 focus:ring-indigo-550 text-xs font-bold text-slate-855 dark:text-white"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Code</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="e.g. G3" 
+                                                        value={newGradeCode}
+                                                        onChange={e => setNewGradeCode(e.target.value)}
+                                                        className="w-full mt-1 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-855 rounded-xl outline-none focus:ring-2 focus:ring-indigo-550 text-xs font-bold text-slate-855 dark:text-white"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={async () => {
+                                                    if (!newGradeName || !newGradeCode) return alert("Please fill in both fields.");
+                                                    const newCourse: Course = {
+                                                        id: `course_${Date.now()}`,
+                                                        name: newGradeName,
+                                                        code: newGradeCode,
+                                                        institutionId: props.institution.id,
+                                                        departmentId: '',
+                                                        academicLevelId: '',
+                                                        levels: []
+                                                    };
+                                                    try {
+                                                        await apiService.saveModuleRecord('courses', newCourse);
+                                                        const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                        setLocalCourses(updated || []);
+                                                        setIsCreatingGrade(false);
+                                                        setNewGradeName('');
+                                                        setNewGradeCode('');
+                                                        alert("Grade added successfully!");
+                                                    } catch (err) {
+                                                        console.error("Failed to add grade:", err);
+                                                        alert("Failed to add grade.");
+                                                    }
+                                                }}
+                                                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20"
+                                            >
+                                                Create Grade Level
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Grades List */}
+                                    <div className="space-y-3">
+                                        {localCourses.map(course => {
+                                            const isEditing = editingGradeId === course.id;
+                                            const isSelected = selectedGradeForStreams?.id === course.id;
+                                            return (
+                                                <div 
+                                                    key={course.id}
+                                                    onClick={() => setSelectedGradeForStreams(course)}
+                                                    className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col gap-3 ${
+                                                        isSelected 
+                                                        ? 'bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-800/60 shadow-sm'
+                                                        : 'bg-slate-50/50 dark:bg-slate-950/30 border-slate-100 dark:border-slate-850 hover:bg-slate-100/30 dark:hover:bg-slate-900/20'
+                                                    }`}
+                                                >
+                                                    <div className="flex justify-between items-start">
+                                                        {isEditing ? (
+                                                            <div className="flex-1 space-y-3 pr-4" onClick={e => e.stopPropagation()}>
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={editGradeName}
+                                                                        onChange={e => setEditGradeName(e.target.value)}
+                                                                        className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                    />
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={editGradeCode}
+                                                                        onChange={e => setEditGradeCode(e.target.value)}
+                                                                        className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex gap-2">
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            if (!editGradeName || !editGradeCode) return alert("Fill in fields.");
+                                                                            try {
+                                                                                await apiService.updateModuleRecord('courses', course.id, { name: editGradeName, code: editGradeCode });
+                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                                                setLocalCourses(updated || []);
+                                                                                setEditingGradeId(null);
+                                                                                if (selectedGradeForStreams?.id === course.id) {
+                                                                                    setSelectedGradeForStreams(updated.find(c => c.id === course.id) || null);
+                                                                                }
+                                                                            } catch (err) {
+                                                                                console.error(err);
+                                                                            }
+                                                                        }}
+                                                                        className="px-3 py-1 bg-emerald-600 text-white rounded text-[10px] font-bold"
+                                                                    >
+                                                                        Save
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => setEditingGradeId(null)}
+                                                                        className="px-3 py-1 bg-slate-300 text-slate-700 rounded text-[10px] font-bold"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div>
+                                                                <p className="text-sm font-black text-slate-800 dark:text-white">{course.name}</p>
+                                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Code: {course.code}</p>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setEditingGradeId(course.id);
+                                                                    setEditGradeName(course.name);
+                                                                    setEditGradeCode(course.code || '');
+                                                                }}
+                                                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                                            >
+                                                                <PencilIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button 
+                                                                onClick={async () => {
+                                                                    if (!window.confirm("Are you sure you want to delete this grade?")) return;
+                                                                    try {
+                                                                        await apiService.deleteModuleRecord('courses', course.id);
+                                                                        const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                                        setLocalCourses(updated || []);
+                                                                        if (selectedGradeForStreams?.id === course.id) {
+                                                                            setSelectedGradeForStreams(null);
+                                                                        }
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                    }
+                                                                }}
+                                                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                                                            >
+                                                                <TrashIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-wrap gap-1.5 mt-1">
+                                                        {(course.levels || []).map(lvl => (
+                                                            <span key={lvl.id} className="text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-750">
+                                                                {lvl.name}
+                                                            </span>
+                                                        ))}
+                                                        {(course.levels || []).length === 0 && (
+                                                            <span className="text-[9px] text-slate-400 font-bold italic">No streams allocated</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+
+                                        {localCourses.length === 0 && (
+                                            <div className="py-12 text-center text-slate-400 text-xs font-medium">
+                                                No grade levels registered. Click "Add Grade" to set one up.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Streams management */}
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                    {selectedGradeForStreams ? (
+                                        <div className="space-y-6">
+                                            <div className="pb-2 border-b border-slate-100 dark:border-slate-800">
+                                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Streams for {selectedGradeForStreams.name}</h3>
+                                                <p className="text-xs text-slate-500 font-semibold mt-0.5">Define stream names or divisions assigned to this grade level.</p>
+                                            </div>
+
+                                            {/* Add Stream Section */}
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Add new stream (e.g. East)"
+                                                    value={newStreamName}
+                                                    onChange={e => setNewStreamName(e.target.value)}
+                                                    className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-800 dark:text-white"
+                                                />
+                                                <button 
+                                                    onClick={async () => {
+                                                        if (!newStreamName) return alert("Enter stream name.");
+                                                        const newLevel = {
+                                                            id: `lvl_${Date.now()}`,
+                                                            name: newStreamName,
+                                                            subjectIds: [],
+                                                            subjectMetadata: []
+                                                        };
+                                                        const updatedLevels = [...(selectedGradeForStreams.levels || []), newLevel];
+                                                        try {
+                                                            await apiService.updateModuleRecord('courses', selectedGradeForStreams.id, { levels: updatedLevels });
+                                                            const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                            setLocalCourses(updated || []);
+                                                            const activeCourse = updated.find(c => c.id === selectedGradeForStreams.id);
+                                                            if (activeCourse) setSelectedGradeForStreams(activeCourse);
+                                                            setNewStreamName('');
+                                                        } catch (err) {
+                                                            console.error(err);
+                                                        }
+                                                    }}
+                                                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20 whitespace-nowrap"
+                                                >
+                                                    Add Stream
+                                                </button>
+                                            </div>
+
+                                            {/* Streams List */}
+                                            <div className="space-y-2">
+                                                {(selectedGradeForStreams.levels || []).map(lvl => {
+                                                    const isEditingStream = editingStreamId === lvl.id;
+                                                    return (
+                                                        <div key={lvl.id} className="flex justify-between items-center p-4 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-850 rounded-xl">
+                                                            {isEditingStream ? (
+                                                                <div className="flex items-center gap-2 flex-1 pr-4">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={editStreamName}
+                                                                        onChange={e => setEditStreamName(e.target.value)}
+                                                                        className="flex-1 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                    />
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            if (!editStreamName) return;
+                                                                            const updatedLevels = (selectedGradeForStreams.levels || []).map(l => 
+                                                                                l.id === lvl.id ? { ...l, name: editStreamName } : l
+                                                                            );
+                                                                            try {
+                                                                                await apiService.updateModuleRecord('courses', selectedGradeForStreams.id, { levels: updatedLevels });
+                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                                                setLocalCourses(updated || []);
+                                                                                const activeCourse = updated.find(c => c.id === selectedGradeForStreams.id);
+                                                                                if (activeCourse) setSelectedGradeForStreams(activeCourse);
+                                                                                setEditingStreamId(null);
+                                                                            } catch (err) {
+                                                                                console.error(err);
+                                                                            }
+                                                                        }}
+                                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all"
+                                                                    >
+                                                                        Save
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => setEditingStreamId(null)}
+                                                                        className="px-3 py-1.5 bg-slate-300 hover:bg-slate-400 text-slate-700 rounded-lg text-[10px] font-bold transition-all"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{lvl.name}</span>
+                                                                    <div className="flex gap-1">
+                                                                        <button 
+                                                                            onClick={() => {
+                                                                                setEditingStreamId(lvl.id);
+                                                                                setEditStreamName(lvl.name);
+                                                                            }}
+                                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                                                        >
+                                                                            <PencilIcon className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={async () => {
+                                                                                if (!window.confirm("Are you sure you want to delete this stream?")) return;
+                                                                                const updatedLevels = (selectedGradeForStreams.levels || []).filter(l => l.id !== lvl.id);
+                                                                                try {
+                                                                                    await apiService.updateModuleRecord('courses', selectedGradeForStreams.id, { levels: updatedLevels });
+                                                                                    const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                                                    setLocalCourses(updated || []);
+                                                                                    const activeCourse = updated.find(c => c.id === selectedGradeForStreams.id);
+                                                                                    if (activeCourse) setSelectedGradeForStreams(activeCourse);
+                                                                                } catch (err) {
+                                                                                    console.error(err);
+                                                                                }
+                                                                            }}
+                                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                                                                        >
+                                                                            <TrashIcon className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+
+                                                {(selectedGradeForStreams.levels || []).length === 0 && (
+                                                    <div className="py-8 text-center text-slate-450 text-xs font-semibold italic">
+                                                        No streams configured for this grade level.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="h-full min-h-[300px] flex flex-col justify-center items-center text-center p-6 space-y-3">
+                                            <div className="w-12 h-12 bg-slate-50 dark:bg-slate-950/60 rounded-full flex justify-center items-center">
+                                                <AcademicCapIcon className="w-6 h-6 text-slate-400" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200">No Grade Selected</p>
+                                                <p className="text-xs text-slate-450 mt-1 max-w-[240px]">Select a grade level from the list on the left to manage and view its allocated streams.</p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
