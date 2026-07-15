@@ -114,14 +114,14 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
 
     // --- INVENTORY Calculations ---
     const totalInventoryItems = inventory.length;
-    const totalInventoryUnits = inventory.reduce((sum, item) => sum + item.quantity, 0);
+    const totalInventoryUnits = inventory.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
     // Calculate values (Cost VS SRP)
-    const totalCostValue = inventory.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
-    const totalRetailValue = inventory.reduce((sum, item) => sum + (item.srpPrice * item.quantity), 0);
+    const totalCostValue = inventory.reduce((sum, item) => sum + ((item.costPrice || 0) * (item.quantity || 0)), 0);
+    const totalRetailValue = inventory.reduce((sum, item) => sum + ((item.srpPrice || 0) * (item.quantity || 0)), 0);
     const projectedProfit = totalRetailValue - totalCostValue;
 
-    const lowStockItems = inventory.filter(item => item.quantity <= item.reorderLevel);
+    const lowStockItems = inventory.filter(item => (item.quantity || 0) <= (item.reorderLevel || 5));
 
     // --- AGENT Calculations ---
     const agentStats: Record<string, { name: string, salesCount: number, totalRevenue: number, totalCommission: number, pendingCommission: number }> = {};
@@ -477,10 +477,10 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                                 {item.quantity} {item.unit}
                                             </span>
                                         </td>
-                                        <td className="p-6 text-right text-xs font-bold text-slate-400 italic">KES {item.costPrice?.toLocaleString()}</td>
-                                        <td className="p-6 text-right text-xs font-bold text-indigo-600 italic">KES {item.srpPrice?.toLocaleString()}</td>
-                                        <td className="p-6 text-right text-xs font-bold text-slate-900 dark:text-white italic">KES {(item.costPrice * item.quantity)?.toLocaleString()}</td>
-                                        <td className="p-6 text-right text-sm font-black text-indigo-650 dark:text-indigo-400 italic">KES {(item.srpPrice * item.quantity)?.toLocaleString()}</td>
+                                        <td className="p-6 text-right text-xs font-bold text-slate-400 italic">KES {(item.costPrice || 0)?.toLocaleString()}</td>
+                                        <td className="p-6 text-right text-xs font-bold text-indigo-600 italic">KES {(item.srpPrice || 0)?.toLocaleString()}</td>
+                                        <td className="p-6 text-right text-xs font-bold text-slate-900 dark:text-white italic">KES {((item.costPrice || 0) * (item.quantity || 0))?.toLocaleString()}</td>
+                                        <td className="p-6 text-right text-sm font-black text-indigo-650 dark:text-indigo-400 italic">KES {((item.srpPrice || 0) * (item.quantity || 0))?.toLocaleString()}</td>
                                     </tr>
                                 ))}
                             </tbody>

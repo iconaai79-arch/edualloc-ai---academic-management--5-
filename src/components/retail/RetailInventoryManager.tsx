@@ -258,10 +258,10 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 22, 3, 3, 'D');
 
             // Calculation statistics
-            const totalStockCount = sourceItems.reduce((acc, i) => acc + i.quantity, 0);
-            const totalCostBasis = sourceItems.reduce((acc, i) => acc + (i.costPrice * i.quantity), 0);
-            const totalRetailValue = sourceItems.reduce((acc, i) => acc + (i.srpPrice * i.quantity), 0);
-            const lowStockCount = sourceItems.filter(i => i.quantity <= (i.reorderLevel || 5)).length;
+            const totalStockCount = sourceItems.reduce((acc, i) => acc + (i.quantity || 0), 0);
+            const totalCostBasis = sourceItems.reduce((acc, i) => acc + ((i.costPrice || 0) * (i.quantity || 0)), 0);
+            const totalRetailValue = sourceItems.reduce((acc, i) => acc + ((i.srpPrice || 0) * (i.quantity || 0)), 0);
+            const lowStockCount = sourceItems.filter(i => (i.quantity || 0) <= (i.reorderLevel || 5)).length;
 
             // Metrics layout
             const colWidth = (pageWidth - (margin * 2)) / 4;
@@ -336,12 +336,12 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 row.push(item.procurementAccountName || 'Not Assigned');
                 row.push(`${item.quantity} ${item.unit || 'pcs'}`);
                 if (pdfIncludeCostPrice || isEducation) {
-                    row.push(`KES ${item.costPrice?.toLocaleString()}`);
-                    row.push(`KES ${(item.costPrice * item.quantity)?.toLocaleString()}`);
+                    row.push(`KES ${(item.costPrice || 0)?.toLocaleString()}`);
+                    row.push(`KES ${((item.costPrice || 0) * (item.quantity || 0))?.toLocaleString()}`);
                 }
                 if (!isEducation) {
-                    row.push(`KES ${item.srpPrice?.toLocaleString()}`);
-                    row.push(`KES ${(item.srpPrice * item.quantity)?.toLocaleString()}`);
+                    row.push(`KES ${(item.srpPrice || 0)?.toLocaleString()}`);
+                    row.push(`KES ${((item.srpPrice || 0) * (item.quantity || 0))?.toLocaleString()}`);
                 }
                 return row;
             });
