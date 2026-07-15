@@ -278,14 +278,25 @@ export const generateInvoicePdfDataUri = async (
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(71, 85, 105);
-    doc.text('BILL TO (CLIENT)', pageWidth / 2 + 6, tableStartY + 1);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(30, 41, 59);
-    doc.text(`Organization :  ${institution?.name || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 7);
-    doc.text(`Representative: ${institution?.email || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 13);
-    doc.text(`Contact Phone :  ${institution?.phoneNumber || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 19);
+    
+    const student = (invoice as any).student;
+    if (student) {
+        doc.text('BILL TO (STUDENT)', pageWidth / 2 + 6, tableStartY + 1);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Student Name :  ${student.name || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 7);
+        doc.text(`Adm Number   :  ${student.admissionNumber || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 13);
+        doc.text(`Class / Grade:  ${student.className || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 19);
+    } else {
+        doc.text('BILL TO (CLIENT)', pageWidth / 2 + 6, tableStartY + 1);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Organization :  ${institution?.name || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 7);
+        doc.text(`Representative: ${institution?.email || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 13);
+        doc.text(`Contact Phone :  ${institution?.phoneNumber || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 19);
+    }
 
     // Main line items table
     const head = [['#', 'DESCRIPTION / BILLABLE ITEM', 'QTY', 'UNIT PRICE (KES)', 'TOTAL AMOUNT (KES)']];

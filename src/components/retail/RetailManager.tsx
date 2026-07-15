@@ -147,7 +147,7 @@ export function RetailManager(props: RetailManagerProps) {
         { id: 'students', label: 'Students', icon: UserGroupIcon },
         { id: 'reports', label: 'Reports', icon: BarChart3 },
         { id: 'logistics', label: 'Logistics', icon: TruckIcon },
-        { id: 'stores', label: 'Departments', icon: Store },
+        { id: 'stores', label: 'Manage Stores', icon: Store },
         { id: 'expenses', label: 'Expenses', icon: Receipt },
         { id: 'requisitions', label: 'Requests', icon: FileText },
         { id: 'goods_in_lieu', label: 'Goods in Lieu', icon: HandCoins },

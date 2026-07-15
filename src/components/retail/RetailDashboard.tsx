@@ -169,14 +169,15 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
                             <Truck className="w-6 h-6" />
                         </div>
                         <div>
-                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{isEducation ? 'Departments' : 'Field Agents'}</p>
-                            <div className="flex items-baseline gap-2">
-                                <h3 className="text-4xl font-black text-slate-900 dark:text-white">{stats.totalVanStock}</h3>
-                                <span className="text-sm font-bold text-slate-500">{isEducation ? 'Active Departments' : 'Active Vans'}</span>
-                            </div>
-                            <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-700 flex items-center gap-2 text-[10px] font-black uppercase tracking-tight text-emerald-600 dark:text-emerald-400">
-                                <MapPin className="w-4 h-4" />
-                                <span>{isEducation ? 'Internal Tracking' : 'Real-time Tracking'}</span>
+                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{isEducation ? 'Stores & Departments' : 'Field Agents'}</p>
+                            <div className="flex justify-between items-baseline">
+                                <div className="flex flex-col">
+                                    <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{stats.totalVanStock}</span>
+                                    <span className="text-sm font-bold text-slate-500">{isEducation ? 'Active Stores / Depts' : 'Active Vans'}</span>
+                                </div>
+                                <div className="text-right text-[10px] font-bold text-slate-400">
+                                    <span>{isEducation ? 'Multi-Store Tracking' : 'Real-time Tracking'}</span>
+                                </div>
                             </div>
                         </div>
                     </div>

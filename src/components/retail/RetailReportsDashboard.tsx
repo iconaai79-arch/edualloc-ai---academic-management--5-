@@ -171,7 +171,7 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
 
         const handlePreview = async () => {
             if (targetType !== 'general' && !targetId) {
-                alert(`Please select a ${targetType === 'store' ? (isEducation ? 'department' : 'store') : targetType === 'student' ? 'student' : targetType === 'teacher' ? 'teacher' : 'agent'}`);
+                alert(`Please select a ${targetType === 'store' ? (isEducation ? 'store/department' : 'store') : targetType === 'student' ? 'student' : targetType === 'teacher' ? 'teacher' : 'agent'}`);
                 return;
             }
             if (!institution) return;
@@ -215,7 +215,7 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                 <button onClick={() => { setTargetType('general'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'general' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-400'}`}>General</button>
                                 {isEducation ? (
                                     <>
-                                        <button onClick={() => { setTargetType('store'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'store' ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm' : 'text-slate-400'}`}>Per Department</button>
+                                        <button onClick={() => { setTargetType('store'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'store' ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm' : 'text-slate-400'}`}>Per Store / Dept</button>
                                         <button onClick={() => { setTargetType('student'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'student' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm' : 'text-slate-400'}`}>Per Student</button>
                                         <button onClick={() => { setTargetType('teacher'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'teacher' ? 'bg-white dark:bg-slate-800 text-violet-600 shadow-sm' : 'text-slate-400'}`}>Per Teacher</button>
                                     </>
@@ -231,14 +231,14 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                         {targetType !== 'general' && (
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">
-                                    Select {targetType === 'store' ? (isEducation ? 'Department' : 'Store') : targetType === 'student' ? 'Student' : targetType === 'teacher' ? 'Teacher' : 'Agent'}
+                                    Select {targetType === 'store' ? (isEducation ? 'Store / Department' : 'Store') : targetType === 'student' ? 'Student' : targetType === 'teacher' ? 'Teacher' : 'Agent'}
                                 </label>
                                 <select 
                                     value={targetId}
                                     onChange={(e) => setTargetId(e.target.value)}
                                     className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 font-bold outline-none transition-all text-sm appearance-none"
                                 >
-                                    <option value="">--- Select {targetType === 'store' ? (isEducation ? 'Department' : 'Store') : targetType === 'student' ? 'Student' : targetType === 'teacher' ? 'Teacher' : 'Agent'} ---</option>
+                                    <option value="">--- Select {targetType === 'store' ? (isEducation ? 'Store / Department' : 'Store') : targetType === 'student' ? 'Student' : targetType === 'teacher' ? 'Teacher' : 'Agent'} ---</option>
                                     {targetType === 'store' ? (
                                         stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
                                     ) : targetType === 'student' ? (

@@ -197,8 +197,8 @@ export function RetailStoresManager({ institutionId, isEducation }: RetailStores
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-xl font-bold text-slate-800 tracking-tight">{isEducation ? 'Departments & Locations' : 'Stores & Agent Locations'}</h2>
-                    <p className="text-slate-500 text-sm mt-1">{isEducation ? 'Manage physical school departments and internal resource centers.' : 'Manage physical branches and van stock for field agents.'}</p>
+                    <h2 className="text-xl font-bold text-slate-800 tracking-tight">{isEducation ? 'School Stores & Departments' : 'Stores & Agent Locations'}</h2>
+                    <p className="text-slate-500 text-sm mt-1">{isEducation ? 'Manage physical school stores, central inventories, and departments.' : 'Manage physical branches and van stock for field agents.'}</p>
                 </div>
 
                 <button
@@ -219,7 +219,7 @@ export function RetailStoresManager({ institutionId, isEducation }: RetailStores
                     <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"
-                        placeholder={isEducation ? "Search departments or locations..." : "Search stores or agents..."}
+                        placeholder={isEducation ? "Search school stores or locations..." : "Search stores or agents..."}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
@@ -233,8 +233,8 @@ export function RetailStoresManager({ institutionId, isEducation }: RetailStores
                         className="w-full sm:w-auto px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm bg-slate-50"
                     >
                         <option value="all">All Locations</option>
-                        <option value="main_store">{isEducation ? 'Main Campus' : 'Main Stores'}</option>
-                        <option value="branch_store">{isEducation ? 'Department / Resource Center' : 'Branch Stores'}</option>
+                        <option value="main_store">{isEducation ? 'Central Store / Main Depot' : 'Main Stores'}</option>
+                        <option value="branch_store">{isEducation ? 'Sub-Store / Department' : 'Branch Stores'}</option>
                         <option value="van_stock">{isEducation ? 'Mobile Unit / Cart' : 'Van Stock (Agents)'}</option>
                         <option value="warehouse">Warehouses</option>
                     </select>
@@ -445,8 +445,8 @@ export function RetailStoresManager({ institutionId, isEducation }: RetailStores
                                     onChange={e => setCurrentLocation({ ...currentLocation, storeType: e.target.value as any })}
                                     className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                                 >
-                                    <option value="branch_store">{isEducation ? 'Department / Resource Center' : 'Branch Store'}</option>
-                                    <option value="main_store">{isEducation ? 'Main Campus / Central Store' : 'Main Store / HQ'}</option>
+                                    <option value="branch_store">{isEducation ? 'Sub-Store / Department' : 'Branch Store'}</option>
+                                    <option value="main_store">{isEducation ? 'Central Store / Main Depot' : 'Main Store / HQ'}</option>
                                     <option value="van_stock">{isEducation ? 'Mobile Unit / Cart' : 'Field Agent (Van Stock)'}</option>
                                     <option value="warehouse">Warehouse</option>
                                 </select>

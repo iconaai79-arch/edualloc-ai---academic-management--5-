@@ -1570,7 +1570,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const filteredStudentInvoices = useMemo(() => {
         return mappedInvoices.filter((inv: any) => {
             const studentId = inv.studentId || inv.student_id;
-            const student = studentId ? props.students.find(s => s.id === studentId) : null;
+            const student = studentId ? studentFinanceData.find(s => s.id === studentId) : null;
             const adm = student?.admissionNumber || student?.admission_number || '—';
             const sName = student?.name || 'Unknown Student';
             const sClass = student ? studentClassGroup(student) : '—';
@@ -1597,7 +1597,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             return matchesQuery && matchesStatus && matchesClass;
         });
-    }, [mappedInvoices, props.students, searchInvoiceQuery, invoiceStatusFilter, invoiceClassFilter]);
+    }, [mappedInvoices, studentFinanceData, searchInvoiceQuery, invoiceStatusFilter, invoiceClassFilter]);
 
     const [invoiceCurrentPage, setInvoiceCurrentPage] = useState(1);
 
@@ -4220,7 +4220,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                                                        {inv.issueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '—')}
+                                                        {inv.issueDate || ((inv as any).createdAt ? new Date((inv as any).createdAt).toISOString().split('T')[0] : '—')}
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
                                                         <div className="flex justify-center items-center gap-1">
@@ -4235,7 +4235,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 onClick={async () => {
                                                                     setIsPrintingInvoiceId(inv.id);
                                                                     try {
-                                                                        const dataUri = await pdfService.generateInvoicePdfDataUri(inv, props.companyDetails, props.institution);
+                                                                        const studentId = inv.studentId || (inv as any).student_id;
+                                                                        const student = studentId ? studentFinanceData.find(s => s.id === studentId) : null;
+                                                                        const invWithStudent = student ? {
+                                                                            ...inv,
+                                                                            student: {
+                                                                                name: student.name,
+                                                                                admissionNumber: student.admissionNumber || student.admission_number || '',
+                                                                                className: student.className || ''
+                                                                            }
+                                                                        } : inv;
+                                                                        const dataUri = await pdfService.generateInvoicePdfDataUri(
+                                                                            invWithStudent as any,
+                                                                            props.institution,
+                                                                            props.companyDetails!,
+                                                                            props.institution.logoUrl || null
+                                                                        );
                                                                         const printWindow = window.open();
                                                                         if (printWindow) {
                                                                             printWindow.document.write(`<iframe src="${dataUri}" style="width:100%; height:100%; border:none;"></iframe>`);
@@ -4324,7 +4339,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 {selectedInvoiceForDetails && (() => {
                     const inv = selectedInvoiceForDetails;
                     const studentId = inv.studentId || inv.student_id;
-                    const student = studentId ? props.students.find(s => s.id === studentId) : null;
+                    const student = studentId ? studentFinanceData.find(s => s.id === studentId) : null;
                     const sName = student?.name || 'Unknown Student';
                     const admNum = student?.admissionNumber || student?.admission_number || '—';
                     const sClass = student ? studentClassGroup(student) : '—';
