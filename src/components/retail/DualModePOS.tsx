@@ -34,6 +34,7 @@ interface DualModePOSProps {
 
 export function DualModePOS({ institutionId, currentUser, isEducation, preSelectedUser, onClearPreSelectedUser }: DualModePOSProps) {
     const [activeMode, setActiveMode] = useState<'shop' | 'field'>('shop');
+    const [mobileActiveView, setMobileActiveView] = useState<'products' | 'cart'>('products');
 
     // Printer State Configuration
     const [printerConfig, setPrinterConfig] = useState<PrinterConfig | null>(null);
@@ -162,19 +163,22 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
         
-        // Touch events
+        let clientX = 0;
+        let clientY = 0;
+
         if ('touches' in e) {
             if (e.touches.length === 0) return { x: 0, y: 0 };
-            return {
-                x: e.touches[0].clientX - rect.left,
-                y: e.touches[0].clientY - rect.top
-            };
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
         }
-        
-        // Mouse events
+
+        // Scale coordinates to match canvas internal resolution (width/height attributes vs CSS bounding client rect)
         return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
+            x: ((clientX - rect.left) / rect.width) * canvas.width,
+            y: ((clientY - rect.top) / rect.height) * canvas.height
         };
     };
 
@@ -626,10 +630,45 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     }
 
     return (
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 w-full lg:h-[calc(100vh-11rem)] lg:min-h-[600px] xl:min-h-[650px] lg:overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
+        <div className="flex flex-col gap-6 w-full lg:h-[calc(100vh-11rem)] lg:min-h-[600px] xl:min-h-[650px] lg:overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
 
-            {/* Product Arena - Left Section */}
-            <div className="flex-1 flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[3rem] shadow-sm border border-white dark:border-slate-800 overflow-hidden transition-all">
+            {/* Mobile Tab Switcher (Visible on mobile/tablet, hidden on desktop) */}
+            <div className="lg:hidden flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md p-1.5 rounded-2xl w-full border border-slate-200/50 dark:border-slate-700/50">
+                <button
+                    onClick={() => setMobileActiveView('products')}
+                    className={`flex-1 py-3 text-center rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                        mobileActiveView === 'products'
+                            ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-black scale-[1.02]'
+                            : 'text-slate-500 hover:text-indigo-500'
+                    }`}
+                >
+                    <Layers className="w-4 h-4" />
+                    Browse Items ({filteredProducts.length})
+                </button>
+                <button
+                    onClick={() => setMobileActiveView('cart')}
+                    className={`flex-1 py-3 text-center rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 relative ${
+                        mobileActiveView === 'cart'
+                            ? 'bg-white dark:bg-slate-700 text-indigo-650 dark:text-indigo-400 shadow-sm font-black scale-[1.02]'
+                            : 'text-slate-500 hover:text-indigo-500'
+                    }`}
+                >
+                    <ShoppingCart className="w-4 h-4" />
+                    {isEducation ? 'Issuance Cart' : 'Sales Cart'}
+                    {cart.length > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[8px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 animate-pulse">
+                            {cart.reduce((sum, c) => sum + c.quantity, 0)}
+                        </span>
+                    )}
+                </button>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 w-full lg:h-full lg:overflow-hidden">
+
+                {/* Product Arena - Left Section */}
+                <div className={`flex-grow flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[3rem] shadow-sm border border-white dark:border-slate-800 overflow-hidden transition-all ${
+                    mobileActiveView === 'products' ? 'flex' : 'hidden lg:flex'
+                }`}>
 
                 {/* Cyber-Header & Mode Switcher */}
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
@@ -803,11 +842,37 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 </div>
             </div>
 
+            {/* Floating Proceed Button on Mobile */}
+            {mobileActiveView === 'products' && cart.length > 0 && (
+                <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] w-[90%] max-w-sm animate-in slide-in-from-bottom-8 duration-500">
+                    <button
+                        onClick={() => setMobileActiveView('cart')}
+                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl flex items-center justify-center gap-3 border border-indigo-500/20 active:scale-95 transition-all"
+                    >
+                        <ShoppingCart className="w-4 h-4" />
+                        Proceed to Manifest ({cart.reduce((sum, c) => sum + c.quantity, 0)} items)
+                    </button>
+                </div>
+            )}
+
+            {/* Backdrop for selectedItem drawer on mobile */}
+            {selectedItem && (
+                <div 
+                    onClick={() => setSelectedItem(null)} 
+                    className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[80] animate-in fade-in duration-300"
+                />
+            )}
+
             {/* Cart & Pricing Engine - Right Section */}
-            <div className="w-full lg:w-[340px] xl:w-[400px] 2xl:w-[450px] flex flex-col gap-6 shrink-0 lg:h-full lg:overflow-hidden">
+            <div className={`w-full lg:w-[340px] xl:w-[400px] 2xl:w-[450px] flex-col gap-6 shrink-0 lg:h-full lg:overflow-hidden ${
+                mobileActiveView === 'cart' ? 'flex' : 'hidden lg:flex'
+            }`}>
 
                 {/* Negotiation / Item Focus */}
-                <div className={`overflow-hidden transition-all duration-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[3rem] border border-white dark:border-slate-800 shadow-2xl ${selectedItem ? 'h-auto opacity-100 p-8' : 'h-0 opacity-0 p-0 overflow-hidden'}`}>
+                <div className={`transition-all duration-500 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-[2.5rem] sm:rounded-[3rem] border border-white dark:border-slate-800 shadow-2xl p-6 sm:p-8
+                    ${selectedItem ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none h-0 lg:h-auto overflow-hidden'}
+                    fixed inset-x-4 bottom-4 z-[90] lg:relative lg:inset-auto lg:translate-y-0 lg:opacity-100 lg:pointer-events-auto lg:z-0 lg:p-8 lg:rounded-[3rem]
+                `}>
                     {selectedItem && (
                         <div className="space-y-8">
                             <div className="flex justify-between items-start">
@@ -1026,12 +1091,14 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 </div>
             </div>
 
+            </div>
+
             {/* Premium Checkout Nexus */}
             {isCheckoutModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
-                    <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden border border-white dark:border-slate-800 animate-in zoom-in-95 duration-500">
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-300">
+                    <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-[2rem] sm:rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden border border-white dark:border-slate-800 animate-in zoom-in-95 duration-500 max-h-[92vh] flex flex-col">
                         {checkoutSuccess ? (
-                            <div className="p-12 text-center space-y-8">
+                            <div className="p-6 sm:p-12 text-center space-y-6 sm:space-y-8 overflow-y-auto flex-1 no-scrollbar">
                                 <div className="w-24 h-24 bg-emerald-500/10 text-emerald-500 rounded-[2.5rem] flex items-center justify-center mx-auto animate-bounce shadow-inner">
                                     <CheckCircleIcon className="w-12 h-12" />
                                 </div>
@@ -1240,8 +1307,8 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                 </button>
                             </div>
                         ) : (
-                            <div className="flex flex-col h-full">
-                                <div className="px-6 py-5 sm:px-10 sm:py-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div className="flex flex-col flex-1 overflow-hidden">
+                                <div className="px-4 py-3 sm:px-10 sm:py-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                                     <div className="flex items-center gap-4">
                                         <div className="p-3 bg-indigo-600 text-white rounded-2xl">
                                             <CreditCard className="w-5 h-5" />
@@ -1260,7 +1327,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                     </button>
                                 </div>
 
-                                <div className="p-6 sm:p-10 space-y-6 sm:space-y-8 max-h-[60vh] sm:max-h-[70vh] md:max-h-[75vh] overflow-y-auto">
+                                <div className="p-4 sm:p-10 space-y-6 sm:space-y-8 flex-1 overflow-y-auto no-scrollbar">
                                     {isEducation ? (
                                         // ───────────────────────────────────────────
                                         // EDUCATION MODE: Student Search & Verification

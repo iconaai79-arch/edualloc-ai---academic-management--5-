@@ -57,7 +57,7 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
             const vanAgents = (stores || []).filter(s => s.storeType === 'van_stock').length;
 
             const invValue = (inventory || []).reduce((sum, item) => {
-                const price = (item as any).srpPrice || (item as any).basePrice || (item as any).costPrice || 0;
+                const price = (item as any).costPrice || (item as any).basePrice || (item as any).srpPrice || 0;
                 return sum + (price * (item.quantity || 0));
             }, 0);
 

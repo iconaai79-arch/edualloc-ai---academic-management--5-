@@ -458,7 +458,8 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Quantity</th>
                                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Unit Cost</th>
                                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Unit SRP</th>
-                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Total Value</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Total Cost Value</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Total Retail Value</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
@@ -478,7 +479,8 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                         </td>
                                         <td className="p-6 text-right text-xs font-bold text-slate-400 italic">KES {item.costPrice?.toLocaleString()}</td>
                                         <td className="p-6 text-right text-xs font-bold text-indigo-600 italic">KES {item.srpPrice?.toLocaleString()}</td>
-                                        <td className="p-6 text-right text-sm font-black text-slate-900 dark:text-white italic">KES {(item.srpPrice * item.quantity)?.toLocaleString()}</td>
+                                        <td className="p-6 text-right text-xs font-bold text-slate-900 dark:text-white italic">KES {(item.costPrice * item.quantity)?.toLocaleString()}</td>
+                                        <td className="p-6 text-right text-sm font-black text-indigo-650 dark:text-indigo-400 italic">KES {(item.srpPrice * item.quantity)?.toLocaleString()}</td>
                                     </tr>
                                 ))}
                             </tbody>
