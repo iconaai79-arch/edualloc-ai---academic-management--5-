@@ -4973,8 +4973,8 @@ export const generateRetailInventoryReportPdf = async (
     doc.setTextColor(100);
     doc.text(`Generated on: ${new Date()?.toLocaleString()}`, margin, nextY);
 
-    const totalCost = inventory.reduce((acc, i) => acc + (i.costPrice * i.quantity), 0);
-    const totalSrp = inventory.reduce((acc, i) => acc + (i.srpPrice * i.quantity), 0);
+    const totalCost = inventory.reduce((acc, i) => acc + ((i.costPrice || 0) * (i.quantity || 0)), 0);
+    const totalSrp = inventory.reduce((acc, i) => acc + ((i.srpPrice || 0) * (i.quantity || 0)), 0);
 
     nextY += 15;
     // Summary Cards
@@ -4997,7 +4997,7 @@ export const generateRetailInventoryReportPdf = async (
     doc.rect(margin + 130, nextY, pageWidth - margin - (margin + 130), 25, 'F');
     doc.setFontSize(8);
     doc.text('LOW STOCK ITEMS', margin + 135, nextY + 10);
-    const lowStockCount = inventory.filter(i => i.quantity <= i.reorderLevel).length;
+    const lowStockCount = inventory.filter(i => (i.quantity || 0) <= (i.reorderLevel || 5)).length;
     doc.setFontSize(12);
     doc.text(`${lowStockCount} ALERT(S)`, margin + 135, nextY + 18);
 
@@ -5007,9 +5007,9 @@ export const generateRetailInventoryReportPdf = async (
         `${item.name}\n${item.sku}`,
         item.category,
         `${item.quantity} ${item.unit}`,
-        item.costPrice?.toLocaleString(),
-        item.srpPrice?.toLocaleString(),
-        (item.srpPrice * item.quantity)?.toLocaleString()
+        (item.costPrice || 0)?.toLocaleString(),
+        (item.srpPrice || 0)?.toLocaleString(),
+        ((item.srpPrice || 0) * (item.quantity || 0))?.toLocaleString()
     ]);
 
     (doc as any).autoTable({

@@ -377,11 +377,15 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
         const [isFiltering, setIsFiltering] = useState(false);
         
         const filteredInventory = filterStoreId 
-            ? inventory.filter(item => {
-                // Simplified: In a real scenario we'd check shop_id or mapping
-                return true; 
-              })
+            ? inventory.filter(item => item.storeId === filterStoreId)
             : inventory;
+
+        const totalUnitsCount = filteredInventory.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        const costBasis = filteredInventory.reduce((sum, item) => sum + ((item.costPrice || 0) * (item.quantity || 0)), 0);
+        const retailVal = filteredInventory.reduce((sum, item) => sum + ((item.srpPrice || 0) * (item.quantity || 0)), 0);
+        const profit = retailVal - costBasis;
+        const criticalItems = filteredInventory.filter(item => (item.quantity || 0) <= (item.reorderLevel || 5));
+        const marginPercent = retailVal > 0 ? ((profit / retailVal) * 100).toFixed(1) : '0.0';
 
         const handleDownloadReport = async () => {
             if (!institution) return;
@@ -409,17 +413,17 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-indigo-600 p-8 rounded-[2.5rem] shadow-xl text-white">
                         <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Total Inventory Value (SRP)</p>
-                        <h3 className="text-3xl font-black italic">KES {totalRetailValue?.toLocaleString()}</h3>
-                        <p className="text-[10px] font-bold text-indigo-100 uppercase mt-4">Across {totalInventoryUnits} units</p>
+                        <h3 className="text-3xl font-black italic">KES {retailVal?.toLocaleString()}</h3>
+                        <p className="text-[10px] font-bold text-indigo-100 uppercase mt-4">Across {totalUnitsCount} units</p>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Asset Cost</p>
-                        <h3 className="text-3xl font-black text-slate-900 dark:text-white italic">KES {totalCostValue?.toLocaleString()}</h3>
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase mt-4">Margin: {((projectedProfit/totalRetailValue)*100).toFixed(1)}%</p>
+                        <h3 className="text-3xl font-black text-slate-900 dark:text-white italic">KES {costBasis?.toLocaleString()}</h3>
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase mt-4">Margin: {marginPercent}%</p>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Critical Stock Alerts</p>
-                        <h3 className="text-3xl font-black text-rose-600 italic">{lowStockItems.length}</h3>
+                        <h3 className="text-3xl font-black text-rose-600 italic">{criticalItems.length}</h3>
                         <p className="text-[10px] font-bold text-rose-400 uppercase mt-4">Items below reorder level</p>
                     </div>
                 </div>
