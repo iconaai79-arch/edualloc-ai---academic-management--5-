@@ -108,6 +108,19 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     });
 
     useEffect(() => {
+        // Run database schema migrations to ensure all custom store and procurement columns are defined
+        const migrations = [
+            "ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS store_id text;",
+            "ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS store_name text;",
+            "ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS procurement_account_id text;",
+            "ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS procurement_account_name text;"
+        ];
+        migrations.forEach(sql => {
+            apiService.runMigration(sql).catch(() => {
+                // Silently ignore failures
+            });
+        });
+
         fetchInventory();
     }, [institutionId]);
 
