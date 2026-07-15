@@ -931,6 +931,25 @@ export const apiService = {
                 delete item.assigned_instructor_id;
             }
             
+            // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
+            Object.keys(item).forEach(key => {
+                if (item[key] === '') {
+                    const lowerKey = key.toLowerCase();
+                    if (
+                        lowerKey === 'dob' || 
+                        lowerKey === 'age' ||
+                        lowerKey === 'user_id' || 
+                        lowerKey === 'patient_id' ||
+                        lowerKey === 'recorded_by' ||
+                        lowerKey === 'date' ||
+                        lowerKey.endsWith('_date') || 
+                        lowerKey.endsWith('_at')
+                    ) {
+                        item[key] = null;
+                    }
+                }
+            });
+            
             return item;
         };
 
