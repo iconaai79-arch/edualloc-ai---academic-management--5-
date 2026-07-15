@@ -96,6 +96,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     // Selected item for pricing negotiation
     const [selectedItem, setSelectedItem] = useState<RetailInventoryItem | CafeMenuItem | null>(null);
     const [negotiatedPrice, setNegotiatedPrice] = useState<string>('');
+    const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
 
     // CRM state
     const [allCustomers, setAllCustomers] = useState<RetailCustomer[]>([]);
@@ -326,28 +327,67 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     const addToCart = () => {
         if (!selectedItem) return;
 
-        const numPrice = parseFloat(negotiatedPrice);
-        if (isNaN(numPrice)) {
-            alert('Please enter a valid price.');
-            return;
-        }
-
         const isCafe = (selectedItem as any).source === 'cafe';
         const basePrice = isCafe ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0);
 
-        if (numPrice < basePrice) {
-            alert(`Price cannot be below the Base Price of KES ${basePrice}`);
-            return;
-        }
+        if (isEducation) {
+            // For school inventory issuance
+            const maxStock = (selectedItem as any).quantity ?? 0;
+            if (selectedQuantity > maxStock) {
+                alert(`Cannot issue more than available stock (${maxStock} units).`);
+                return;
+            }
+            if (selectedQuantity < 1) {
+                alert('Please enter a valid quantity.');
+                return;
+            }
 
-        setCart([...cart, {
-            item: selectedItem,
-            quantity: 1,
-            finalPrice: numPrice
-        }]);
+            setCart([...cart, {
+                item: selectedItem,
+                quantity: selectedQuantity,
+                finalPrice: 0 // Price is 0 for inventory issuance
+            }]);
+        } else {
+            // For commercial sales
+            const numPrice = parseFloat(negotiatedPrice);
+            if (isNaN(numPrice)) {
+                alert('Please enter a valid price.');
+                return;
+            }
+
+            if (numPrice < basePrice) {
+                alert(`Price cannot be below the Base Price of KES ${basePrice}`);
+                return;
+            }
+
+            setCart([...cart, {
+                item: selectedItem,
+                quantity: 1,
+                finalPrice: numPrice
+            }]);
+        }
 
         setSelectedItem(null);
         setNegotiatedPrice('');
+        setSelectedQuantity(1);
+    };
+
+    const updateCartItemQuantity = (index: number, newQty: number) => {
+        if (newQty < 1) return;
+        const newCart = [...cart];
+        const item = newCart[index].item;
+        
+        const isCafe = (item as any).source === 'cafe';
+        if (!isCafe) {
+            const maxStock = (item as any).quantity ?? 999999;
+            if (newQty > maxStock) {
+                alert(`Only ${maxStock} units of this item are available in stock.`);
+                return;
+            }
+        }
+        
+        newCart[index].quantity = newQty;
+        setCart(newCart);
     };
 
     const removeFromCart = (index: number) => {
@@ -699,6 +739,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                             onClick={() => {
                                                 setSelectedItem(product);
                                                 setNegotiatedPrice(price.toString());
+                                                setSelectedQuantity(1);
                                             }}
                                             className={`border-b border-slate-100 dark:border-slate-700/50 cursor-pointer transition-colors ${
                                                 isSelected
@@ -772,52 +813,98 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                             <div className="flex justify-between items-start">
                                 <div className="space-y-1">
                                     <h3 className="font-black text-slate-900 dark:text-white text-xl tracking-tight leading-tight">{selectedItem.name}</h3>
-                                    <p className="text-[10px] font-black uppercase tracking-[.3em] text-indigo-600">Dynamic Pricing Active</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[.3em] text-indigo-600">
+                                        {isEducation ? 'Inventory Issuance Control' : 'Dynamic Pricing Active'}
+                                    </p>
                                 </div>
                                 <button onClick={() => setSelectedItem(null)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-color"><X className="w-5 h-5 text-slate-400" /></button>
                             </div>
 
                             <div className="space-y-6">
-                                <div className="space-y-3">
-                                    <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400">Negotiated Price (KES)</label>
-                                    <div className="relative group">
-                                        <HandCoins className="w-6 h-6 absolute left-5 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                        <input
-                                            type="number"
-                                            value={negotiatedPrice}
-                                            onChange={(e) => setNegotiatedPrice(e.target.value)}
-                                            className="w-full pl-16 pr-6 py-5 text-3xl font-black bg-slate-50 dark:bg-slate-800 border-none rounded-[1.5rem] focus:ring-4 focus:ring-emerald-500/10 outline-none text-slate-900 dark:text-white transition-all"
-                                        />
-                                    </div>
-                                </div>
+                                {isEducation ? (
+                                    <>
+                                        {/* School Issuance Quantity Selector */}
+                                        <div className="space-y-3">
+                                            <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400">Quantity to Issue</label>
+                                            <div className="relative group flex items-center gap-3">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max={(selectedItem as any).quantity ?? 0}
+                                                    value={selectedQuantity}
+                                                    onChange={(e) => {
+                                                        const val = parseInt(e.target.value);
+                                                        if (!isNaN(val)) setSelectedQuantity(val);
+                                                    }}
+                                                    className="w-full px-6 py-5 text-3xl font-black bg-slate-50 dark:bg-slate-800 border-none rounded-[1.5rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-slate-900 dark:text-white transition-all"
+                                                />
+                                                <span className="text-xs font-bold text-slate-500 shrink-0">
+                                                    / {((selectedItem as any).quantity ?? 0).toLocaleString()} {(selectedItem as any).unit || 'units'}
+                                                </span>
+                                            </div>
+                                        </div>
 
-                                <div className="flex items-center justify-between p-6 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20">
-                                    <div className="flex flex-col">
-                                        <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 mb-1">Agent Yield</span>
-                                        <span className="text-2xl font-black text-emerald-600">
-                                            KES {Math.max(0, parseFloat(negotiatedPrice || '0') - ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)))?.toLocaleString()}
-                                        </span>
-                                    </div>
-                                    <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                                        <HandCoins className="w-6 h-6" />
-                                    </div>
-                                </div>
+                                        {selectedQuantity > ((selectedItem as any).quantity ?? 0) && (
+                                            <div className="flex gap-3 p-5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl border border-rose-100 dark:border-rose-900/30">
+                                                <AlertCircle className="w-5 h-5 flex-shrink-0 animate-bounce" />
+                                                <p className="text-xs font-bold leading-relaxed">System blocked: Quantity exceeds available stock of {((selectedItem as any).quantity ?? 0).toLocaleString()} {(selectedItem as any).unit || 'units'}</p>
+                                            </div>
+                                        )}
 
-                                {parseFloat(negotiatedPrice) < ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)) && (
-                                    <div className="flex gap-3 p-5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl border border-rose-100 dark:border-rose-900/30">
-                                        <AlertCircle className="w-5 h-5 flex-shrink-0 animate-bounce" />
-                                        <p className="text-xs font-bold leading-relaxed">System blocked: Price is below base KES {((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))?.toLocaleString()}</p>
-                                    </div>
+                                        <button
+                                            onClick={addToCart}
+                                            disabled={selectedQuantity < 1 || selectedQuantity > ((selectedItem as any).quantity ?? 0)}
+                                            className="w-full py-5 bg-slate-900 dark:bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-[0.3em] shadow-2xl hover:scale-105 active:scale-95 disabled:opacity-30 disabled:hover:scale-100 transition-all flex items-center justify-center gap-3"
+                                        >
+                                            <Plus className="w-5 h-5" />
+                                            Commit to Issuance Cart
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Commercial Pricing Selector */}
+                                        <div className="space-y-3">
+                                            <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400">Negotiated Price (KES)</label>
+                                            <div className="relative group">
+                                                <HandCoins className="w-6 h-6 absolute left-5 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                                                <input
+                                                    type="number"
+                                                    value={negotiatedPrice}
+                                                    onChange={(e) => setNegotiatedPrice(e.target.value)}
+                                                    className="w-full pl-16 pr-6 py-5 text-3xl font-black bg-slate-50 dark:bg-slate-800 border-none rounded-[1.5rem] focus:ring-4 focus:ring-emerald-500/10 outline-none text-slate-900 dark:text-white transition-all"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-6 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20">
+                                            <div className="flex flex-col">
+                                                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 mb-1">Agent Yield</span>
+                                                <span className="text-2xl font-black text-emerald-600">
+                                                    KES {Math.max(0, parseFloat(negotiatedPrice || '0') - ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)))?.toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                                                <HandCoins className="w-6 h-6" />
+                                            </div>
+                                        </div>
+
+                                        {parseFloat(negotiatedPrice) < ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)) && (
+                                            <div className="flex gap-3 p-5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl border border-rose-100 dark:border-rose-900/30">
+                                                <AlertCircle className="w-5 h-5 flex-shrink-0 animate-bounce" />
+                                                <p className="text-xs font-bold leading-relaxed">System blocked: Price is below base KES {((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))?.toLocaleString()}</p>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={addToCart}
+                                            disabled={parseFloat(negotiatedPrice) < ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))}
+                                            className="w-full py-5 bg-slate-900 dark:bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-[0.3em] shadow-2xl hover:scale-105 active:scale-95 disabled:opacity-30 disabled:hover:scale-100 transition-all flex items-center justify-center gap-3"
+                                        >
+                                            <Plus className="w-5 h-5" />
+                                            Commit to Cart
+                                        </button>
+                                    </>
                                 )}
-
-                                <button
-                                    onClick={addToCart}
-                                    disabled={parseFloat(negotiatedPrice) < ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))}
-                                    className="w-full py-5 bg-slate-900 dark:bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-[0.3em] shadow-2xl hover:scale-105 active:scale-95 disabled:opacity-30 disabled:hover:scale-100 transition-all flex items-center justify-center gap-3"
-                                >
-                                    <Plus className="w-5 h-5" />
-                                    Commit to Cart
-                                </button>
                             </div>
                         </div>
                     )}
@@ -848,17 +935,43 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                 <div key={idx} className="group flex justify-between items-center p-3.5 sm:p-5 border border-slate-50 dark:border-slate-800 rounded-[2rem] bg-white dark:bg-slate-800 hover:shadow-xl hover:border-indigo-100 dark:hover:border-indigo-900 transition-all duration-300 animate-in slide-in-from-right-4">
                                     <div className="flex-1 space-y-1">
                                         <p className="font-black text-slate-900 dark:text-white text-xs uppercase tracking-tight truncate pr-4">{cartItem.item.name}</p>
-                                        {isEducation ? (
-                                            <p className="text-[10px] font-bold text-indigo-500 italic">Qty: {cartItem.quantity} {(cartItem.item as any).unit || 'units'}</p>
-                                        ) : (
+                                        {!isEducation && (
                                             <p className="text-[10px] font-bold text-indigo-500 italic">KES {cartItem.finalPrice?.toLocaleString()} {cartItem.quantity > 1 ? `x ${cartItem.quantity}` : ''}</p>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-4">
-                                        {!isEducation ? (
-                                            <p className="font-black text-slate-900 dark:text-white text-sm">KES {(cartItem.finalPrice * cartItem.quantity)?.toLocaleString()}</p>
-                                        ) : (
-                                            <p className="font-black text-slate-900 dark:text-white text-xs">Qty: {cartItem.quantity}</p>
+                                        {/* Interactive Quantity Control */}
+                                        <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-1 border border-slate-100 dark:border-slate-800/40">
+                                            <button
+                                                type="button"
+                                                onClick={() => updateCartItemQuantity(idx, cartItem.quantity - 1)}
+                                                disabled={cartItem.quantity <= 1}
+                                                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-400 transition-all font-bold text-sm"
+                                            >
+                                                −
+                                            </button>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={(cartItem.item as any).quantity ?? 9999}
+                                                value={cartItem.quantity}
+                                                onChange={(e) => {
+                                                    const val = parseInt(e.target.value);
+                                                    if (!isNaN(val)) updateCartItemQuantity(idx, val);
+                                                }}
+                                                className="w-12 text-center bg-transparent border-none outline-none font-black text-xs text-slate-900 dark:text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:ring-0"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => updateCartItemQuantity(idx, cartItem.quantity + 1)}
+                                                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-800 transition-all font-bold text-sm"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+
+                                        {!isEducation && (
+                                            <p className="font-black text-slate-900 dark:text-white text-sm shrink-0 min-w-[70px] text-right">KES {(cartItem.finalPrice * cartItem.quantity)?.toLocaleString()}</p>
                                         )}
                                         <button onClick={() => removeFromCart(idx)} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all">
                                             <X className="w-4 h-4" />
