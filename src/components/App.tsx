@@ -6042,6 +6042,7 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                             countyInventory={countyInventory}
                                             onMarkInventoryReceived={handleMarkInventoryReceived}
                                             onEditUser={onEditUser}
+                                            voteHeads={voteHeads}
                                         />
                                     </ModuleAccessGuard>
                                 ) : ((activeRole === 'finance_officer' || activeRole === 'finance') && !isAutoMarket) ? (

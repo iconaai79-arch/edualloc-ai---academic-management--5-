@@ -20,7 +20,7 @@ import { RetailUserDirectory } from './RetailUserDirectory';
 import { RetailReportsDashboard } from './RetailReportsDashboard';
 import { StoreConfigManager } from './StoreConfigManager';
 import { RetailStockReceipts } from './RetailStockReceipts';
-import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition, Course, CountyInventoryItem } from '../../types';
+import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition, Course, CountyInventoryItem, VoteHead } from '../../types';
 import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
 import { StoreIcon as Store } from '../icons/StoreIcon';
 import { SmartphoneIcon as Smartphone } from '../icons/SmartphoneIcon';
@@ -61,10 +61,11 @@ interface RetailManagerProps {
     countyInventory?: CountyInventoryItem[];
     onMarkInventoryReceived?: (id: string) => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
+    voteHeads?: VoteHead[];
 }
 
 export function RetailManager(props: RetailManagerProps) {
-    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution, activeTab, onTabChange, hideNavigation, countyInventory = [], onMarkInventoryReceived, onEditUser } = props;
+    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution, activeTab, onTabChange, hideNavigation, countyInventory = [], onMarkInventoryReceived, onEditUser, voteHeads = [] } = props;
 
     const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
     const filteredRetailStores = isAdmin
@@ -337,6 +338,7 @@ export function RetailManager(props: RetailManagerProps) {
                         institutionId={institutionId}
                         currentInstitution={currentInstitution}
                         stores={filteredRetailStores}
+                        voteHeads={voteHeads}
                     />
                 )}
                 {activeView === 'shipments' && (

@@ -3166,6 +3166,8 @@ export interface RetailInventoryItem {
     bufferStock: number;
     viewCount: number;
     inquiryCount: number;
+    procurementAccountId?: string;   // VoteHead ID — the budget used to fund procurement
+    procurementAccountName?: string; // Denormalized name for quick display
     createdAt: string;
     lastUpdated?: string;
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RetailInventoryItem, RetailStore } from '../../types';
+import { RetailInventoryItem, RetailStore, VoteHead } from '../../types';
 import { ArchiveBoxIcon as Package } from '../icons/ArchiveBoxIcon';
 import { PlusIcon as Plus } from '../icons/PlusIcon';
 import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
@@ -23,9 +23,10 @@ interface RetailInventoryManagerProps {
     institutionId: string;
     currentInstitution?: any;
     stores?: any[];
+    voteHeads?: VoteHead[];
 }
 
-export function RetailInventoryManager({ institutionId, currentInstitution, stores = [] }: RetailInventoryManagerProps) {
+export function RetailInventoryManager({ institutionId, currentInstitution, stores = [], voteHeads = [] }: RetailInventoryManagerProps) {
     const [items, setItems] = useState<RetailInventoryItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -98,7 +99,9 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         imageUrl: '',
         description: '',
         barcode: '',
-        marketplaceEnabled: false
+        marketplaceEnabled: false,
+        procurementAccountId: '',
+        procurementAccountName: ''
     });
 
     useEffect(() => {
@@ -285,6 +288,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             const headers = ['NAME'];
             if (pdfIncludeSku) headers.push('SKU');
             headers.push('CATEGORY');
+            headers.push('PROCUREMENT ACCOUNT');
             headers.push('STOCK LEVEL');
             if (pdfIncludeCostPrice) headers.push('UNIT COST');
             headers.push('UNIT SRP');
@@ -294,6 +298,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 const row = [item.name];
                 if (pdfIncludeSku) row.push(item.sku);
                 row.push(item.category || 'Other');
+                row.push(item.procurementAccountName || 'Not Assigned');
                 row.push(`${item.quantity} ${item.unit || 'pcs'}`);
                 if (pdfIncludeCostPrice) row.push(`KES ${item.costPrice?.toLocaleString()}`);
                 row.push(`KES ${item.srpPrice?.toLocaleString()}`);
@@ -435,7 +440,9 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 imageUrl: '',
                 description: '',
                 barcode: '',
-                marketplaceEnabled: true
+                marketplaceEnabled: true,
+                procurementAccountId: '',
+                procurementAccountName: ''
             });
             fetchInventory();
         } catch (err: any) {
@@ -756,6 +763,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 w-8 text-center">#</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400" style={{ minWidth: '200px' }}>Item Name</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 hidden md:table-cell" style={{ minWidth: '130px' }}>Category</th>
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-amber-500 hidden lg:table-cell" style={{ minWidth: '150px' }}>💰 Procurement A/C</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-indigo-500 text-center" style={{ minWidth: '110px' }}>📦 Qty in Stock</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right hidden sm:table-cell" style={{ minWidth: '100px' }}>Cost (KES)</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right" style={{ minWidth: '100px' }}>Price (KES)</th>
@@ -809,6 +817,17 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                                         >
                                                             {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                                         </select>
+                                                    </td>
+
+                                                    {/* Procurement Account badge */}
+                                                    <td className="px-2 py-1 hidden lg:table-cell">
+                                                        {item.procurementAccountName ? (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-400 whitespace-nowrap">
+                                                                💰 {item.procurementAccountName}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[9px] text-slate-300 dark:text-slate-600 italic">Not assigned</span>
+                                                        )}
                                                     </td>
 
                                                     {/* QUANTITY — the hero spreadsheet cell */}
@@ -1199,6 +1218,41 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                         {formData.marketplaceEnabled ? '🌐 Public (Visible on Marketplace)' : '🔒 Private (Internal Only)'}
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* Procurement Account Section */}
+                            <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-1.5 mb-3">
+                                    💰 Procurement Account
+                                    <span className="text-[9px] font-medium text-slate-400 normal-case tracking-normal">(Budget used to fund this item)</span>
+                                </label>
+                                <select
+                                    value={formData.procurementAccountId || ''}
+                                    onChange={(e) => {
+                                        const selected = voteHeads.find(v => v.id === e.target.value);
+                                        setFormData({
+                                            ...formData,
+                                            procurementAccountId: e.target.value || undefined,
+                                            procurementAccountName: selected?.name || undefined
+                                        });
+                                    }}
+                                    className="w-full p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl text-xs font-bold text-amber-800 dark:text-amber-300 focus:ring-2 focus:ring-amber-400 outline-none"
+                                >
+                                    <option value="">— No Account / Not Assigned —</option>
+                                    {voteHeads.map(vh => (
+                                        <option key={vh.id} value={vh.id}>
+                                            {vh.name} {vh.allocatedAmount ? `(Allocated: KES ${vh.allocatedAmount.toLocaleString()})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                {formData.procurementAccountName && (
+                                    <p className="mt-2 text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        ✔ Linked to <strong>{formData.procurementAccountName}</strong>
+                                    </p>
+                                )}
+                                {voteHeads.length === 0 && (
+                                    <p className="mt-2 text-[10px] text-slate-400 italic">No finance accounts configured. Set up Vote Heads in the Finance module first.</p>
+                                )}
                             </div>
 
                             <div className="flex gap-3 pt-4">
