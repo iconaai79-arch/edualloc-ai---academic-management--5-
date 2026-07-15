@@ -339,6 +339,7 @@ export function RetailManager(props: RetailManagerProps) {
                         currentInstitution={currentInstitution}
                         stores={filteredRetailStores}
                         voteHeads={voteHeads}
+                        isEducation={isEducation}
                     />
                 )}
                 {activeView === 'shipments' && (

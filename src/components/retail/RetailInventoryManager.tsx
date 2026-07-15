@@ -24,9 +24,10 @@ interface RetailInventoryManagerProps {
     currentInstitution?: any;
     stores?: any[];
     voteHeads?: VoteHead[];
+    isEducation?: boolean;
 }
 
-export function RetailInventoryManager({ institutionId, currentInstitution, stores = [], voteHeads = [] }: RetailInventoryManagerProps) {
+export function RetailInventoryManager({ institutionId, currentInstitution, stores = [], voteHeads = [], isEducation }: RetailInventoryManagerProps) {
     const [items, setItems] = useState<RetailInventoryItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
