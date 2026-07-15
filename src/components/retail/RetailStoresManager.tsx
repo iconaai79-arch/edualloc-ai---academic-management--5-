@@ -23,6 +23,7 @@ export function RetailStoresManager({ institutionId, isEducation }: RetailStores
     const [isLoading, setIsLoading] = useState(true);
     const user = apiService.getSession();
     const isSuperAdmin = user?.role === 'super_admin';
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<string>('all');
     const [selectedStore, setSelectedStore] = useState<RetailStore | null>(null);
@@ -55,10 +56,14 @@ export function RetailStoresManager({ institutionId, isEducation }: RetailStores
         try {
             const data = await apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId);
             if (data) {
-                setStores(data.map((s: RetailStore) => ({
+                const mapped = data.map((s: RetailStore) => ({
                     ...s,
                     mpesaConfig: (s as any).mpesa_config || s.mpesaConfig // Handle potential snake_case from DB
-                })));
+                }));
+                const filtered = isAdmin
+                    ? mapped
+                    : mapped.filter((s: RetailStore) => s.id === user?.departmentId);
+                setStores(filtered);
             }
         } catch (err) {
             console.error("Fetch error:", err);
@@ -201,16 +206,18 @@ export function RetailStoresManager({ institutionId, isEducation }: RetailStores
                     <p className="text-slate-500 text-sm mt-1">{isEducation ? 'Manage physical school stores, central inventories, and departments.' : 'Manage physical branches and van stock for field agents.'}</p>
                 </div>
 
-                <button
-                    onClick={() => {
-                        setCurrentLocation({ name: '', storeType: 'branch_store', location: '', isActive: true, latitude: undefined, longitude: undefined });
-                        setIsAddModalOpen(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                    <Plus className="w-4 h-4" />
-                    Add Location
-                </button>
+                {isAdmin && (
+                    <button
+                        onClick={() => {
+                            setCurrentLocation({ name: '', storeType: 'branch_store', location: '', isActive: true, latitude: undefined, longitude: undefined });
+                            setIsAddModalOpen(true);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Add Location
+                    </button>
+                )}
             </div>
 
             {/* Filters */}
@@ -251,20 +258,24 @@ export function RetailStoresManager({ institutionId, isEducation }: RetailStores
                     {filteredStores.map(store => (
                         <div key={store.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group relative">
                             <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                <button
-                                    onClick={() => handleEditStore(store)}
-                                    className="p-1.5 bg-white shadow-sm border border-slate-200 rounded-lg text-slate-400 hover:text-blue-600 hover:border-blue-100 transition-all"
-                                    title="Edit Location"
-                                >
-                                    <Pencil className="w-4 h-4" />
-                                </button>
-                                <button
-                                    onClick={() => handleDeleteStore(store.id)}
-                                    className="p-1.5 bg-white shadow-sm border border-slate-200 rounded-lg text-slate-400 hover:text-red-600 hover:border-red-100 transition-all"
-                                    title="Delete Location"
-                                >
-                                    <Trash className="w-4 h-4" />
-                                </button>
+                                {(isAdmin || store.id === user?.departmentId) && (
+                                    <button
+                                        onClick={() => handleEditStore(store)}
+                                        className="p-1.5 bg-white shadow-sm border border-slate-200 rounded-lg text-slate-400 hover:text-blue-600 hover:border-blue-100 transition-all"
+                                        title="Edit Location"
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
+                                )}
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => handleDeleteStore(store.id)}
+                                        className="p-1.5 bg-white shadow-sm border border-slate-200 rounded-lg text-slate-400 hover:text-red-600 hover:border-red-100 transition-all"
+                                        title="Delete Location"
+                                    >
+                                        <Trash className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
 
                             <div className="p-6">

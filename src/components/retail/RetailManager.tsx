@@ -65,6 +65,11 @@ interface RetailManagerProps {
 
 export function RetailManager(props: RetailManagerProps) {
     const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution, activeTab, onTabChange, hideNavigation, countyInventory = [], onMarkInventoryReceived, onEditUser } = props;
+
+    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+    const filteredRetailStores = isAdmin
+        ? retailStores
+        : retailStores.filter(s => s.id === currentUser?.departmentId);
     const [internalActiveView, setInternalActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'stock_inwards' | 'shipments' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'support_staff' | 'students' | 'reports' | 'config' | 'goods_in_lieu'>('dashboard');
     const [selectedUserForPOS, setSelectedUserForPOS] = useState<User | null>(null);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -298,7 +303,7 @@ export function RetailManager(props: RetailManagerProps) {
                     <RetailExpenses
                         institutionId={institutionId}
                         currentUser={currentUser}
-                        retailStores={retailStores}
+                        retailStores={filteredRetailStores}
                         retailExpenses={retailExpenses}
                         onAddRetailExpense={onAddRetailExpense!}
                     />
@@ -308,7 +313,7 @@ export function RetailManager(props: RetailManagerProps) {
                     <RetailRequisitions
                         institutionId={institutionId}
                         currentUser={currentUser}
-                        retailStores={retailStores}
+                        retailStores={filteredRetailStores}
                         requisitions={requisitions}
                         inventory={inventory as any}
                         onAddRequisition={onAddRequisition!}
@@ -331,7 +336,7 @@ export function RetailManager(props: RetailManagerProps) {
                     <RetailInventoryManager
                         institutionId={institutionId}
                         currentInstitution={currentInstitution}
-                        stores={retailStores}
+                        stores={filteredRetailStores}
                     />
                 )}
                 {activeView === 'shipments' && (

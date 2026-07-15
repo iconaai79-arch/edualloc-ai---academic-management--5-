@@ -29,7 +29,7 @@ interface RetailReportsDashboardProps {
 }
 
 export function RetailReportsDashboard({ institutionId, users, isEducation }: RetailReportsDashboardProps) {
-    const [activeTab, setActiveTab] = useState<'revenue' | 'inventory' | 'agents' | 'statements' | 'inventory_reports'>('revenue');
+    const [activeTab, setActiveTab] = useState<'revenue' | 'inventory' | 'agents' | 'statements' | 'inventory_reports' | 'issuance'>('revenue');
     const [isLoading, setIsLoading] = useState(true);
     const [institution, setInstitution] = useState<Institution | null>(null);
 
@@ -52,16 +52,27 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                 ]);
 
                 const instData = insts[0] || null;
+                const currentUser = apiService.getSession();
+                const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+                const userAssignedStoreId = currentUser?.departmentId;
+
+                const filteredSales = isAdmin
+                    ? (salesData || [])
+                    : (salesData || []).filter((s: RetailSale) => s.storeId === userAssignedStoreId);
+
+                const filteredStores = isAdmin
+                    ? (storesData || [])
+                    : (storesData || []).filter((s: RetailStore) => s.id === userAssignedStoreId);
 
                 // Sort sales by newest first for better processing
-                setSales(salesData.sort((a: RetailSale, b: RetailSale) => {
+                setSales(filteredSales.sort((a: RetailSale, b: RetailSale) => {
                     const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
                     const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
                     return dateB - dateA;
                 }));
                 setInventory(invData);
                 setCommissions(commData);
-                setStores(storesData);
+                setStores(filteredStores);
                 setInstitution(instData);
             } catch (error) {
                 console.error("Failed to fetch retail reports data:", error);
@@ -471,6 +482,182 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
         );
     };
 
+    const IssuanceLedgerManager = () => {
+        const [searchQuery, setSearchQuery] = useState('');
+        const [filterStoreId, setFilterStoreId] = useState('');
+        const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
+        const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+
+        // Flatten and filter the issuance records
+        const issuanceRows = sales
+            .filter(sale => {
+                const isIssuance = sale.paymentMethod === 'issuance' || (sale as any).metadata?.isEducationIssuance;
+                if (!isIssuance) return false;
+
+                // Date filter
+                const date = sale.createdAt ? sale.createdAt.split('T')[0] : '';
+                const inRange = date >= startDate && date <= endDate;
+                if (!inRange) return false;
+
+                // Store filter
+                if (filterStoreId && sale.storeId !== filterStoreId) return false;
+
+                return true;
+            })
+            .flatMap(sale => 
+                (sale.items || []).map(item => {
+                    const invItem = inventory.find(i => i.id === item.itemId);
+                    const currentQty = invItem ? invItem.quantity : 0;
+                    const endQty = Math.max(0, currentQty - item.quantity);
+
+                    return {
+                        id: `${sale.id}-${item.itemId}`,
+                        recipientName: sale.customerName || 'N/A',
+                        itemIssued: item.name,
+                        qty: item.quantity,
+                        currentQty,
+                        endQty,
+                        signature: (sale as any).signature,
+                        date: sale.createdAt ? new Date(sale.createdAt).toLocaleDateString() : '—'
+                    };
+                })
+            )
+            .filter(row => {
+                const matchesSearch = row.recipientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    row.itemIssued.toLowerCase().includes(searchQuery.toLowerCase());
+                return matchesSearch;
+            });
+
+        return (
+            <div className="space-y-8 animate-in fade-in duration-500">
+                {/* Filters */}
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl flex flex-col md:flex-row gap-6 justify-between items-end">
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Search Ledger</label>
+                            <div className="relative">
+                                <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search recipient or item..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl pl-12 pr-4 py-3 font-bold outline-none transition-all text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Store / Department</label>
+                            <select
+                                value={filterStoreId}
+                                onChange={(e) => setFilterStoreId(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-3.5 font-bold outline-none transition-all text-sm appearance-none"
+                            >
+                                <option value="">All Stores</option>
+                                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Start Date</label>
+                            <div className="relative">
+                                <Calendar className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl pl-12 pr-4 py-3 font-bold outline-none transition-all text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">End Date</label>
+                            <div className="relative">
+                                <Calendar className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl pl-12 pr-4 py-3 font-bold outline-none transition-all text-sm"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Ledger Table */}
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">School Issuance Ledger</h3>
+                        <span className="px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-[10px] font-black uppercase tracking-widest">
+                            {issuanceRows.length} Items Issued
+                        </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                <tr>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Recipient Name</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Item Issued</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Qty</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Current Qty</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">End Qty</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Recipient Signature</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                {issuanceRows.map(row => (
+                                    <tr key={row.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                        <td className="p-6">
+                                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{row.recipientName}</p>
+                                        </td>
+                                        <td className="p-6">
+                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{row.itemIssued}</p>
+                                        </td>
+                                        <td className="p-6 text-center font-bold text-slate-600 dark:text-slate-400">
+                                            {row.qty}
+                                        </td>
+                                        <td className="p-6 text-center font-bold text-slate-600 dark:text-slate-400">
+                                            {row.currentQty}
+                                        </td>
+                                        <td className="p-6 text-center font-bold text-slate-900 dark:text-white">
+                                            {row.endQty}
+                                        </td>
+                                        <td className="p-6 text-center">
+                                            {row.signature ? (
+                                                <img 
+                                                    src={row.signature} 
+                                                    className="max-h-8 border border-slate-100 dark:border-slate-700 rounded p-0.5 bg-white mx-auto object-contain" 
+                                                    alt="Signature" 
+                                                />
+                                            ) : (
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase">No Signature</span>
+                                            )}
+                                        </td>
+                                        <td className="p-6 text-xs text-slate-500 dark:text-slate-400 font-mono">
+                                            {row.date}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {issuanceRows.length === 0 && (
+                                    <tr>
+                                        <td colSpan={7} className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest">
+                                            No issuance records found for the selected filters
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center p-20">
@@ -527,6 +714,14 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                 >
                     <BarChart3 className="w-4 h-4" /> Full Inventory Report
                 </button>
+                {isEducation && (
+                    <button
+                        onClick={() => setActiveTab('issuance')}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'issuance' ? 'bg-white text-indigo-600 shadow-md border border-indigo-100' : 'text-slate-500 hover:text-indigo-500'}`}
+                    >
+                        <FileText className="w-4 h-4" /> Issuance Ledger
+                    </button>
+                )}
             </div>
 
             {/* Content Area */}
@@ -729,6 +924,9 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
 
                 {/* ----------------- INVENTORY REPORTS TAB ----------------- */}
                 {activeTab === 'inventory_reports' && <InventoryReportsManager />}
+
+                {/* ----------------- ISSUANCE LEDGER TAB ----------------- */}
+                {activeTab === 'issuance' && <IssuanceLedgerManager />}
             </div>
         </div>
     );
