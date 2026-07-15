@@ -6275,6 +6275,9 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                                 onLogAction={handleLogAction}
                                                 onRefreshData={loadData}
                                                 teacherCheckIns={teacherCheckIns}
+                                                retailStores={retailStores}
+                                                inventory={retailInventory}
+                                                retailExpenses={retailExpenses}
                                             />
                                         </DrivingSchoolProvider>
                                     )
@@ -6323,6 +6326,9 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                              onLogAction={handleLogAction}
                                              onRefreshData={loadData}
                                              onSaveTimetableSettings={(c) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
+                                             retailStores={retailStores}
+                                             inventory={retailInventory}
+                                             retailExpenses={retailExpenses}
                                          />
                                     </DrivingSchoolProvider>
                                 ) : null}
