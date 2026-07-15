@@ -3119,6 +3119,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 countyInventory={props.countyInventory}
                                 onMarkInventoryReceived={props.onMarkInventoryReceived}
                                 onEditUser={props.onEditUser}
+                                voteHeads={props.voteHeads}
                             />
                         ) : (
                             <ModuleAccessGuard
@@ -3152,6 +3153,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     countyInventory={props.countyInventory}
                                     onMarkInventoryReceived={props.onMarkInventoryReceived}
                                     onEditUser={props.onEditUser}
+                                    voteHeads={props.voteHeads}
                                 />
                             </ModuleAccessGuard>
                         );

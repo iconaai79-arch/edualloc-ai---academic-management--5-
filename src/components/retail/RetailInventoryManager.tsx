@@ -261,18 +261,30 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(7);
             doc.setTextColor(148, 163, 184);
-            doc.text('TOTAL COST BASIS', margin + colWidth + 6, yPos + 7);
+            doc.text(isEducation ? 'TOTAL INVENTORY VALUE' : 'TOTAL COST BASIS', margin + colWidth + 6, yPos + 7);
             doc.setFontSize(11);
             doc.setTextColor(30, 41, 59);
-            doc.text(pdfIncludeCostPrice ? `KES ${totalCostBasis?.toLocaleString()}` : 'N/A (Hidden)', margin + colWidth + 6, yPos + 15);
+            doc.text(
+                isEducation || pdfIncludeCostPrice 
+                    ? `KES ${totalCostBasis?.toLocaleString()}` 
+                    : 'N/A (Hidden)', 
+                margin + colWidth + 6, 
+                yPos + 15
+            );
 
             // Col 3: Total Retail Valuation
             doc.setFontSize(7);
             doc.setTextColor(148, 163, 184);
-            doc.text('RETAIL VALUATION', margin + (colWidth * 2) + 6, yPos + 7);
+            doc.text(isEducation ? 'ACTIVE PROCUREMENTS' : 'RETAIL VALUATION', margin + (colWidth * 2) + 6, yPos + 7);
             doc.setFontSize(11);
             doc.setTextColor(79, 70, 229);
-            doc.text(`KES ${totalRetailValue?.toLocaleString()}`, margin + (colWidth * 2) + 6, yPos + 15);
+            doc.text(
+                isEducation 
+                    ? `${sourceItems.filter(i => i.procurementAccountId).length} items`
+                    : `KES ${totalRetailValue?.toLocaleString()}`, 
+                margin + (colWidth * 2) + 6, 
+                yPos + 15
+            );
 
             // Col 4: Alert items count
             doc.setFontSize(7);
@@ -290,9 +302,14 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             headers.push('CATEGORY');
             headers.push('PROCUREMENT ACCOUNT');
             headers.push('STOCK LEVEL');
-            if (pdfIncludeCostPrice) headers.push('UNIT COST');
-            headers.push('UNIT SRP');
-            headers.push('TOTAL VALUE');
+            if (pdfIncludeCostPrice || isEducation) {
+                headers.push('UNIT COST');
+                headers.push('TOTAL COST');
+            }
+            if (!isEducation) {
+                headers.push('UNIT SRP');
+                headers.push('TOTAL VALUE');
+            }
 
             const bodyValues = sourceItems.map(item => {
                 const row = [item.name];
@@ -300,9 +317,14 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 row.push(item.category || 'Other');
                 row.push(item.procurementAccountName || 'Not Assigned');
                 row.push(`${item.quantity} ${item.unit || 'pcs'}`);
-                if (pdfIncludeCostPrice) row.push(`KES ${item.costPrice?.toLocaleString()}`);
-                row.push(`KES ${item.srpPrice?.toLocaleString()}`);
-                row.push(`KES ${(item.srpPrice * item.quantity)?.toLocaleString()}`);
+                if (pdfIncludeCostPrice || isEducation) {
+                    row.push(`KES ${item.costPrice?.toLocaleString()}`);
+                    row.push(`KES ${(item.costPrice * item.quantity)?.toLocaleString()}`);
+                }
+                if (!isEducation) {
+                    row.push(`KES ${item.srpPrice?.toLocaleString()}`);
+                    row.push(`KES ${(item.srpPrice * item.quantity)?.toLocaleString()}`);
+                }
                 return row;
             });
 
@@ -766,7 +788,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-amber-500 hidden lg:table-cell" style={{ minWidth: '150px' }}>💰 Procurement A/C</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-indigo-500 text-center" style={{ minWidth: '110px' }}>📦 Qty in Stock</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right hidden sm:table-cell" style={{ minWidth: '100px' }}>Cost (KES)</th>
-                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right" style={{ minWidth: '100px' }}>Price (KES)</th>
+                                            {!isEducation && <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right" style={{ minWidth: '100px' }}>Price (KES)</th>}
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center hidden sm:table-cell">Visibility</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center w-16">Del</th>
                                         </tr>
@@ -885,16 +907,18 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                                     </td>
 
                                                     {/* Selling price */}
-                                                    <td className="px-1 py-1">
-                                                        <input
-                                                            type="number"
-                                                            value={item.srpPrice ?? 0}
-                                                            min={0}
-                                                            onChange={e => updateCell(item.id, 'srpPrice', Number(e.target.value))}
-                                                            onFocus={e => e.target.select()}
-                                                            className="w-full text-right px-2 py-1.5 text-xs font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-800 dark:text-white"
-                                                        />
-                                                    </td>
+                                                    {!isEducation && (
+                                                        <td className="px-1 py-1">
+                                                            <input
+                                                                type="number"
+                                                                value={item.srpPrice ?? 0}
+                                                                min={0}
+                                                                onChange={e => updateCell(item.id, 'srpPrice', Number(e.target.value))}
+                                                                onFocus={e => e.target.select()}
+                                                                className="w-full text-right px-2 py-1.5 text-xs font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-800 dark:text-white"
+                                                            />
+                                                        </td>
+                                                    )}
 
                                                     {/* Visibility toggle */}
                                                     <td className="px-1 py-1 text-center hidden sm:table-cell">
@@ -1154,19 +1178,21 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selling Price (KES)</label>
-                                    <div className="relative">
-                                        <Banknote className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" />
-                                        <input
-                                            type="number"
-                                            required
-                                            value={formData.srpPrice}
-                                            onChange={(e) => setFormData({ ...formData, srpPrice: Number(e.target.value) })}
-                                            className="w-full pl-9 pr-3 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm font-black focus:ring-2 focus:ring-indigo-500"
-                                        />
+                                {!isEducation && (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selling Price (KES)</label>
+                                        <div className="relative">
+                                            <Banknote className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" />
+                                            <input
+                                                type="number"
+                                                required={!isEducation}
+                                                value={formData.srpPrice}
+                                                onChange={(e) => setFormData({ ...formData, srpPrice: Number(e.target.value) })}
+                                                className="w-full pl-9 pr-3 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm font-black focus:ring-2 focus:ring-indigo-500"
+                                            />
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Stock Qty</label>
                                     <input

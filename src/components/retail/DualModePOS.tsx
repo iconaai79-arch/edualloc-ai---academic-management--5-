@@ -759,7 +759,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                     <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Barcode/SKU</th>
                                     <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Item Name</th>
                                     <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Category</th>
-                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">Price (KES)</th>
+                                    {!isEducation && <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">Price (KES)</th>}
                                     <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center">Stock</th>
                                     <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center w-24">Action</th>
                                 </tr>
@@ -797,9 +797,11 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                     {product.category || (isCafe ? 'Hospitality' : 'Retail')}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-xs font-black text-slate-900 dark:text-white text-right">
-                                                {price?.toLocaleString()}
-                                            </td>
+                                            {!isEducation && (
+                                                <td className="px-4 py-3 text-xs font-black text-slate-900 dark:text-white text-right">
+                                                    {price?.toLocaleString()}
+                                                </td>
+                                            )}
                                             <td className="px-4 py-3 text-xs font-bold text-center">
                                                 <span className={isCafe || (product as any).quantity > 0 ? 'text-emerald-600' : 'text-rose-600'}>
                                                     {stock}
