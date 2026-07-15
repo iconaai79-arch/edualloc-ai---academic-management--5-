@@ -3168,6 +3168,8 @@ export interface RetailInventoryItem {
     inquiryCount: number;
     procurementAccountId?: string;   // VoteHead ID — the budget used to fund procurement
     procurementAccountName?: string; // Denormalized name for quick display
+    storeId?: string;                // The store or warehouse this item is located in
+    storeName?: string;              // Denormalized name of the store
     createdAt: string;
     lastUpdated?: string;
 }

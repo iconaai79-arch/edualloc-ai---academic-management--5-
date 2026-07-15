@@ -102,7 +102,9 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         barcode: '',
         marketplaceEnabled: false,
         procurementAccountId: '',
-        procurementAccountName: ''
+        procurementAccountName: '',
+        storeId: '',
+        storeName: ''
     });
 
     useEffect(() => {
@@ -168,7 +170,9 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                         imageUrl: '',
                         description: '',
                         barcode: scannedBarcode,
-                        marketplaceEnabled: true
+                        marketplaceEnabled: true,
+                        storeId: '',
+                        storeName: ''
                     });
                     setIsAddModalOpen(true);
                 }
@@ -465,7 +469,9 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 barcode: '',
                 marketplaceEnabled: true,
                 procurementAccountId: '',
-                procurementAccountName: ''
+                procurementAccountName: '',
+                storeId: '',
+                storeName: ''
             });
             fetchInventory();
         } catch (err: any) {
@@ -787,6 +793,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400" style={{ minWidth: '200px' }}>Item Name</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 hidden md:table-cell" style={{ minWidth: '130px' }}>Category</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-amber-500 hidden lg:table-cell" style={{ minWidth: '150px' }}>💰 Procurement A/C</th>
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-indigo-500 hidden lg:table-cell" style={{ minWidth: '150px' }}>🏢 Store / Location</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-indigo-500 text-center" style={{ minWidth: '110px' }}>📦 Qty in Stock</th>
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right hidden sm:table-cell" style={{ minWidth: '100px' }}>Cost (KES)</th>
                                             {!isEducation && <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right" style={{ minWidth: '100px' }}>Price (KES)</th>}
@@ -857,6 +864,26 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                                             {voteHeads.map(vh => (
                                                                 <option key={vh.id} value={vh.id}>
                                                                     💰 {vh.name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </td>
+
+                                                    {/* Store / Location select */}
+                                                    <td className="px-1 py-1 hidden lg:table-cell">
+                                                        <select
+                                                            value={item.storeId || ''}
+                                                            onChange={e => {
+                                                                const selectedStore = stores.find(s => s.id === e.target.value);
+                                                                updateCell(item.id, 'storeId', e.target.value || null);
+                                                                updateCell(item.id, 'storeName', selectedStore ? selectedStore.name : null);
+                                                            }}
+                                                            className="w-full px-2 py-1.5 text-[10px] font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-600 dark:text-slate-300"
+                                                        >
+                                                            <option value="">— Not Assigned —</option>
+                                                            {stores.map(s => (
+                                                                <option key={s.id} value={s.id}>
+                                                                    🏢 {s.name}
                                                                 </option>
                                                             ))}
                                                         </select>
@@ -1288,6 +1315,41 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                 )}
                                 {voteHeads.length === 0 && (
                                     <p className="mt-2 text-[10px] text-slate-400 italic">No finance accounts configured. Set up Vote Heads in the Finance module first.</p>
+                                )}
+                            </div>
+
+                            {/* Store / Location Section */}
+                            <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-indigo-500 flex items-center gap-1.5 mb-3">
+                                    🏢 Store / Location
+                                    <span className="text-[9px] font-medium text-slate-400 normal-case tracking-normal">(Physical store where this item is kept)</span>
+                                </label>
+                                <select
+                                    value={formData.storeId || ''}
+                                    onChange={(e) => {
+                                        const selectedStore = stores.find(s => s.id === e.target.value);
+                                        setFormData({
+                                            ...formData,
+                                            storeId: e.target.value || undefined,
+                                            storeName: selectedStore?.name || undefined
+                                        });
+                                    }}
+                                    className="w-full p-3 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-bold text-indigo-800 dark:text-indigo-300 focus:ring-2 focus:ring-indigo-450 outline-none"
+                                >
+                                    <option value="">— No Store / Not Assigned —</option>
+                                    {stores.map(s => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.name} ({s.storeType?.replace('_', ' ')?.toUpperCase()})
+                                        </option>
+                                    ))}
+                                </select>
+                                {formData.storeName && (
+                                    <p className="mt-2 text-[10px] text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                                        ✔ Kept in <strong>{formData.storeName}</strong>
+                                    </p>
+                                )}
+                                {stores.length === 0 && (
+                                    <p className="mt-2 text-[10px] text-slate-400 italic">No stores configured. Set up Stores first.</p>
                                 )}
                             </div>
 
