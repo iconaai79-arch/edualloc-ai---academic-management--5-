@@ -842,15 +842,24 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                                         </select>
                                                     </td>
 
-                                                    {/* Procurement Account badge */}
-                                                    <td className="px-2 py-1 hidden lg:table-cell">
-                                                        {item.procurementAccountName ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-400 whitespace-nowrap">
-                                                                💰 {item.procurementAccountName}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-[9px] text-slate-300 dark:text-slate-600 italic">Not assigned</span>
-                                                        )}
+                                                    {/* Procurement Account select */}
+                                                    <td className="px-1 py-1 hidden lg:table-cell">
+                                                        <select
+                                                            value={item.procurementAccountId || ''}
+                                                            onChange={e => {
+                                                                const selected = voteHeads.find(v => v.id === e.target.value);
+                                                                updateCell(item.id, 'procurementAccountId', e.target.value || null);
+                                                                updateCell(item.id, 'procurementAccountName', selected ? selected.name : null);
+                                                            }}
+                                                            className="w-full px-2 py-1.5 text-[10px] font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-600 dark:text-slate-300"
+                                                        >
+                                                            <option value="">— Not Assigned —</option>
+                                                            {voteHeads.map(vh => (
+                                                                <option key={vh.id} value={vh.id}>
+                                                                    💰 {vh.name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
                                                     </td>
 
                                                     {/* QUANTITY — the hero spreadsheet cell */}
