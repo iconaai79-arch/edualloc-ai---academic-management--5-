@@ -300,7 +300,10 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
 
     const getBookTitle = (id: string) => books.find(b => b.id === id)?.title || 'Unknown Resource';
     const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Unknown User';
-    const getUserStaffId = (id: string) => users.find(u => u.id === id)?.staffId || 'N/A';
+    const getUserStaffId = (id: string) => {
+        const u = users.find(user => user.id === id);
+        return u?.admissionNumber || u?.admission_number || u?.staffId || (u as any)?.studentId || (u as any)?.admNo || 'N/A';
+    };
 
     return (
         <div className="space-y-8 animate-fade-in">
@@ -526,7 +529,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                 <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Member Identified</p>
                                             </div>
                                             <p className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mt-0.5 truncate">{member.name}</p>
-                                            <p className="text-xs font-bold text-slate-500 font-mono">{member.staffId || 'No ID'}</p>
+                                            <p className="text-xs font-bold text-slate-500 font-mono">{member.admissionNumber || member.admission_number || member.staffId || (member as any).studentId || (member as any).admNo || 'No ID'}</p>
                                             <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-0.5">{(member.role || 'Member').replace(/_/g, ' ')}</p>
                                         </div>
                                     </div>
@@ -557,10 +560,11 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                 } catch (e) { }
 
                                                 // Partial Matching for ID or Name
-                                                const found = users.find(u =>
-                                                    u.staffId?.toLowerCase() === val.toLowerCase() ||
-                                                    u.name.toLowerCase() === val.toLowerCase()
-                                                );
+                                                const found = users.find(u => {
+                                                    const idCode = u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '';
+                                                    return idCode.toLowerCase() === val.toLowerCase() ||
+                                                        u.name.toLowerCase() === val.toLowerCase();
+                                                });
                                                 if (found) setNewLoan(prev => ({ ...prev, userId: found.id }));
                                             }}
                                             className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none"
@@ -582,13 +586,17 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                         <option value="">-- Or select from list --</option>
                                         {users.filter(u => {
                                             const search = memberSearch.toLowerCase();
+                                            const idCode = (u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '').toLowerCase();
                                             return u.role !== 'super_admin' && (
                                                 u.name.toLowerCase().includes(search) ||
-                                                (u.staffId || '').toLowerCase().includes(search)
+                                                idCode.includes(search)
                                             );
-                                        }).map(user => (
-                                            <option key={user.id} value={user.id}>{user.name} ({user.staffId || 'No ID'})</option>
-                                        ))}
+                                        }).map(user => {
+                                            const idCode = user.admissionNumber || user.admission_number || user.staffId || (user as any).studentId || (user as any).admNo;
+                                            return (
+                                                <option key={user.id} value={user.id}>{user.name} ({idCode || 'No ID'})</option>
+                                            );
+                                        })}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
