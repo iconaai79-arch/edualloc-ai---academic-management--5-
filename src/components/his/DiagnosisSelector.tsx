@@ -72,8 +72,9 @@ export const DiagnosisSelector: React.FC<DiagnosisSelectorProps> = ({ value, onC
                     placeholder={placeholder || "SEARCH BY ICD-10 CODE OR DIAGNOSIS NAME..."}
                     value={value || search}
                     onChange={(e) => {
-                        if (value) onChange('');
-                        setSearch(e.target.value);
+                        const val = e.target.value;
+                        setSearch(val);
+                        onChange(val);
                         setIsOpen(true);
                     }}
                     onFocus={() => setIsOpen(true)}

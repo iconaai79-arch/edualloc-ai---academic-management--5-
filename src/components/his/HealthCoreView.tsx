@@ -289,7 +289,8 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 ...visitData,
                 patientId: activePatientId,
                 institutionId,
-                id: `evt_${Date.now()}`
+                id: `evt_${Date.now()}`,
+                createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('his_clinical_events', clinicalEvent);
             alert("Clinical record saved successfully");

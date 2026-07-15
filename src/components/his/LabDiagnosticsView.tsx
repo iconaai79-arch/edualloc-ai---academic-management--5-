@@ -207,7 +207,8 @@ export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institut
                         time: new Date().toTimeString().split(' ')[0].substring(0, 5),
                         event: `Lab Result: ${selectedRequest.testType} - Result: ${data.results.substring(0, 30)}...`,
                         dept: 'Laboratory',
-                        provider: userName || 'Lab Technician'
+                        provider: userName || 'Lab Technician',
+                        createdAt: new Date().toISOString()
                     });
 
                     setIsResultModalOpen(false);
