@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RetailInventoryItem, RetailSale, RetailCommissionLedger, User, RetailStore, MpesaConfig, Institution } from '../../types';
+import { RetailInventoryItem, RetailSale, RetailCommissionLedger, User, RetailStore, MpesaConfig, Institution, StockReceipt } from '../../types';
 import { apiService } from '../../services/apiService';
 import * as pdfService from '../../services/pdfService';
 import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
@@ -29,7 +29,7 @@ interface RetailReportsDashboardProps {
 }
 
 export function RetailReportsDashboard({ institutionId, users, isEducation }: RetailReportsDashboardProps) {
-    const [activeTab, setActiveTab] = useState<'revenue' | 'inventory' | 'agents' | 'statements' | 'inventory_reports' | 'issuance'>('revenue');
+    const [activeTab, setActiveTab] = useState<'revenue' | 'inventory' | 'agents' | 'statements' | 'inventory_reports' | 'issuance' | 'receipt'>('revenue');
     const [isLoading, setIsLoading] = useState(true);
     const [institution, setInstitution] = useState<Institution | null>(null);
 
@@ -38,17 +38,19 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
     const [inventory, setInventory] = useState<RetailInventoryItem[]>([]);
     const [commissions, setCommissions] = useState<RetailCommissionLedger[]>([]);
     const [stores, setStores] = useState<RetailStore[]>([]);
+    const [stockReceipts, setStockReceipts] = useState<StockReceipt[]>([]);
 
     useEffect(() => {
         const fetchReportData = async () => {
             setIsLoading(true);
             try {
-                const [salesData, invData, commData, storesData, insts] = await Promise.all([
+                const [salesData, invData, commData, storesData, insts, receiptsData] = await Promise.all([
                     apiService.fetchModuleRecords<RetailSale>('retail_sales', institutionId),
                     apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
                     apiService.fetchModuleRecords<RetailCommissionLedger>('retail_commission_ledger', institutionId),
                     apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId),
-                    apiService.fetchInstitutions(institutionId)
+                    apiService.fetchInstitutions(institutionId),
+                    apiService.fetchModuleRecords<StockReceipt>('retail_stock_receipts', institutionId)
                 ]);
 
                 const instData = insts[0] || null;
@@ -74,6 +76,11 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                 setCommissions(commData);
                 setStores(filteredStores);
                 setInstitution(instData);
+                setStockReceipts((receiptsData || []).sort((a: StockReceipt, b: StockReceipt) => {
+                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return dateB - dateA;
+                }));
             } catch (error) {
                 console.error("Failed to fetch retail reports data:", error);
             } finally {
@@ -658,6 +665,170 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
         );
     };
 
+    // ----------------------------------------------------------------
+    // RECEIPT LEDGER — sourced from retail_stock_receipts
+    // ----------------------------------------------------------------
+    const ReceiptLedgerManager = () => {
+        const [searchQuery, setSearchQuery] = useState('');
+        const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
+        const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+
+        // Flatten stock receipts into one row per item received
+        const receiptRows = stockReceipts
+            .filter(receipt => {
+                const date = (receipt.receiptDate || receipt.createdAt || '').split('T')[0];
+                return date >= startDate && date <= endDate;
+            })
+            .flatMap(receipt =>
+                (receipt.items || []).map(item => {
+                    const invItem = inventory.find(i => i.id === item.itemId);
+                    const totalEnding = invItem ? invItem.quantity : 0;
+                    return {
+                        id: `${receipt.id}-${item.itemId}`,
+                        receiptFrom: receipt.supplierName || 'Unknown Supplier',
+                        itemName: item.itemName,
+                        qtyReceived: item.quantity,
+                        totalEnding,
+                        signature: (receipt as any).signature,
+                        date: receipt.receiptDate
+                            ? new Date(receipt.receiptDate).toLocaleDateString()
+                            : receipt.createdAt ? new Date(receipt.createdAt).toLocaleDateString() : '—',
+                        reference: receipt.referenceNumber
+                    };
+                })
+            )
+            .filter(row => {
+                if (!searchQuery) return true;
+                const q = searchQuery.toLowerCase();
+                return (
+                    row.receiptFrom.toLowerCase().includes(q) ||
+                    row.itemName.toLowerCase().includes(q) ||
+                    row.reference.toLowerCase().includes(q)
+                );
+            });
+
+        const totalQtyReceived = receiptRows.reduce((sum, r) => sum + r.qtyReceived, 0);
+
+        return (
+            <div className="space-y-8 animate-in fade-in duration-500">
+                {/* Filters */}
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Search Ledger</label>
+                            <div className="relative">
+                                <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Supplier, item or ref..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-emerald-500 rounded-2xl pl-12 pr-4 py-3 font-bold outline-none transition-all text-sm"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Start Date</label>
+                            <div className="relative">
+                                <Calendar className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-emerald-500 rounded-2xl pl-12 pr-4 py-3 font-bold outline-none transition-all text-sm"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">End Date</label>
+                            <div className="relative">
+                                <Calendar className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-emerald-500 rounded-2xl pl-12 pr-4 py-3 font-bold outline-none transition-all text-sm"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Ledger Table */}
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-wrap justify-between items-center gap-4">
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Stock Receipt Ledger</h3>
+                        <div className="flex items-center gap-3">
+                            <span className="px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                {receiptRows.length} Line Items
+                            </span>
+                            <span className="px-4 py-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                {totalQtyReceived.toLocaleString()} Units Received
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                <tr>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Receipt From</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Received Item Name</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Qty Received</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Total Ending</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Signature</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Ref / Date</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                {receiptRows.map(row => (
+                                    <tr key={row.id} className="hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors">
+                                        <td className="p-6">
+                                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{row.receiptFrom}</p>
+                                        </td>
+                                        <td className="p-6">
+                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{row.itemName}</p>
+                                        </td>
+                                        <td className="p-6 text-center">
+                                            <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400">
+                                                +{row.qtyReceived}
+                                            </span>
+                                        </td>
+                                        <td className="p-6 text-center font-black text-slate-900 dark:text-white">
+                                            {row.totalEnding.toLocaleString()}
+                                        </td>
+                                        <td className="p-6 text-center">
+                                            {row.signature ? (
+                                                <img
+                                                    src={row.signature}
+                                                    className="max-h-8 border border-slate-100 dark:border-slate-700 rounded p-0.5 bg-white mx-auto object-contain"
+                                                    alt="Signature"
+                                                />
+                                            ) : (
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase">No Signature</span>
+                                            )}
+                                        </td>
+                                        <td className="p-6">
+                                            <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">{row.reference}</p>
+                                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{row.date}</p>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {receiptRows.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest">
+                                            No stock receipt records found for the selected filters
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center p-20">
@@ -720,6 +891,14 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                         className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'issuance' ? 'bg-white text-indigo-600 shadow-md border border-indigo-100' : 'text-slate-500 hover:text-indigo-500'}`}
                     >
                         <FileText className="w-4 h-4" /> Issuance Ledger
+                    </button>
+                )}
+                {isEducation && (
+                    <button
+                        onClick={() => setActiveTab('receipt')}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'receipt' ? 'bg-white text-emerald-600 shadow-md border border-emerald-100' : 'text-slate-500 hover:text-emerald-500'}`}
+                    >
+                        <FileText className="w-4 h-4" /> Receipt Ledger
                     </button>
                 )}
             </div>
@@ -927,6 +1106,9 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
 
                 {/* ----------------- ISSUANCE LEDGER TAB ----------------- */}
                 {activeTab === 'issuance' && <IssuanceLedgerManager />}
+
+                {/* ----------------- RECEIPT LEDGER TAB ----------------- */}
+                {activeTab === 'receipt' && <ReceiptLedgerManager />}
             </div>
         </div>
     );
