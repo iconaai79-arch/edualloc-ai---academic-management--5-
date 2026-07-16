@@ -372,6 +372,23 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     
     const [isPrinterSettingsOpen, setIsPrinterSettingsOpen] = useState(false);
     const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(getPrinterConfig());
+    const [dahuaConfig, setDahuaConfig] = useState<{
+        ipAddress: string;
+        port: number;
+        username?: string;
+        password?: string;
+        enabled: boolean;
+    }>(() => {
+        const data = localStorage.getItem('eduai_dahua_config');
+        if (data) {
+            try {
+                return JSON.parse(data);
+            } catch (e) {
+                console.error("Failed to parse Dahua config:", e);
+            }
+        }
+        return { ipAddress: '', port: 80, username: 'admin', password: '', enabled: false };
+    });
 
     useEffect(() => {
         setActiveUsers(users);
@@ -415,6 +432,46 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             (u.name.toLowerCase().includes(query) || (u.phoneNumber || '').toLowerCase().includes(query) || u.role.toLowerCase().includes(query))
         );
     }, [users, staffSearchTerm]);
+
+    const registerUserOnDahua = async (user: User) => {
+        if (!dahuaConfig.enabled || !dahuaConfig.ipAddress) {
+            return;
+        }
+        
+        const resolveCardNo = (u: User) => {
+            const digits = (u.phoneNumber || '').replace(/\D/g, '') || (u.staffId || '').replace(/\D/g, '');
+            if (digits && digits.length >= 4) {
+                return digits.substring(0, 10);
+            }
+            let hash = 0;
+            for (let i = 0; i < u.id.length; i++) {
+                hash = u.id.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return String(Math.abs(hash)).substring(0, 10);
+        };
+
+        const cardNo = resolveCardNo(user);
+        const userId = user.staffId || user.id.substring(0, 8);
+        
+        const authPrefix = dahuaConfig.username && dahuaConfig.password 
+            ? `${dahuaConfig.username}:${dahuaConfig.password}@` 
+            : '';
+        
+        const baseUrl = `http://${authPrefix}${dahuaConfig.ipAddress}:${dahuaConfig.port || 80}`;
+        const cardUrl = `${baseUrl}/cgi-bin/recordUpdater.cgi?action=insert&name=AccessControlCard&CardNo=${cardNo}&UserID=${userId}&CardStatus=0&CardType=0`;
+        
+        console.log(`Dahua Integration: Syncing card record for ${user.name} (ID: ${userId}, Card: ${cardNo})`);
+        
+        try {
+            await fetch(cardUrl, { 
+                method: 'GET',
+                mode: 'no-cors'
+            });
+            console.log("Dahua Integration: User card sync dispatched successfully.");
+        } catch (err: any) {
+            console.error("Dahua Integration: Error dispatching user record to device:", err);
+        }
+    };
 
     // Walk-in registration state
     const [showWalkInForm, setShowWalkInForm] = useState(false);
@@ -1065,85 +1122,168 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     {/* Left side: Search and Actions */}
                     <div className="lg:col-span-7 space-y-6">
                         {activeTab === 'settings' ? (
-                            <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 dark:border-slate-850 space-y-6">
-                                <div>
-                                    <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white tracking-widest italic">Thermal Printer Configuration</h3>
-                                    <p className="text-[10px] text-slate-400 dark:text-slate-550 uppercase tracking-widest mt-1">Configure your local gate receipt spooler</p>
-                                </div>
-                                
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Connection Interface</label>
-                                        <select 
-                                            value={printerConfig.type}
-                                            onChange={(e) => setPrinterConfig(prev => ({ ...prev, type: e.target.value as any }))}
-                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-xs font-black uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
-                                        >
-                                            <option value="system">System Spooler (PDF / Preview)</option>
-                                            <option value="bluetooth">Bluetooth Printer (Raw ESC/POS)</option>
-                                            <option value="network">Network IP Printer (Direct TCP Port 9100)</option>
-                                        </select>
+                            <div className="space-y-6 animate-in fade-in">
+                                {/* Thermal Printer Configuration */}
+                                <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 dark:border-slate-850 space-y-6">
+                                    <div>
+                                        <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white tracking-widest italic">Thermal Printer Configuration</h3>
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-555 uppercase tracking-widest mt-1">Configure your local gate receipt spooler</p>
                                     </div>
+                                    
+                                    <div className="space-y-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Connection Interface</label>
+                                            <select 
+                                                value={printerConfig.type}
+                                                onChange={(e) => setPrinterConfig(prev => ({ ...prev, type: e.target.value as any }))}
+                                                className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-xs font-black uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                            >
+                                                <option value="system">System Spooler (PDF / Preview)</option>
+                                                <option value="bluetooth">Bluetooth Printer (Raw ESC/POS)</option>
+                                                <option value="network">Network IP Printer (Direct TCP Port 9100)</option>
+                                            </select>
+                                        </div>
 
-                                    {printerConfig.type === 'network' && (
-                                        <div className="grid grid-cols-3 gap-4">
-                                            <div className="col-span-2 space-y-2">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Printer IP Address</label>
+                                        {printerConfig.type === 'network' && (
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div className="col-span-2 space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Printer IP Address</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="e.g. 192.168.1.100" 
+                                                        value={printerConfig.ipAddress || ''}
+                                                        onChange={(e) => setPrinterConfig(prev => ({ ...prev, ipAddress: e.target.value }))}
+                                                        className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Port</label>
+                                                    <input 
+                                                        type="number" 
+                                                        placeholder="9100" 
+                                                        value={printerConfig.port || 9100}
+                                                        onChange={(e) => setPrinterConfig(prev => ({ ...prev, port: parseInt(e.target.value) || 9100 }))}
+                                                        className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {printerConfig.type === 'bluetooth' && (
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Bluetooth Hardware Address (MAC)</label>
                                                 <input 
                                                     type="text" 
-                                                    placeholder="e.g. 192.168.1.100" 
-                                                    value={printerConfig.ipAddress || ''}
-                                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, ipAddress: e.target.value }))}
-                                                    className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                                    placeholder="00:11:22:33:44:55" 
+                                                    value={printerConfig.bluetoothAddress || ''}
+                                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, bluetoothAddress: e.target.value }))}
+                                                    className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                                                 />
                                             </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Port</label>
-                                                <input 
-                                                    type="number" 
-                                                    placeholder="9100" 
-                                                    value={printerConfig.port || 9100}
-                                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, port: parseInt(e.target.value) || 9100 }))}
-                                                    className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
+                                        )}
 
-                                    {printerConfig.type === 'bluetooth' && (
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Bluetooth Hardware Address (MAC)</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="00:11:22:33:44:55" 
-                                                value={printerConfig.bluetoothAddress || ''}
-                                                onChange={(e) => setPrinterConfig(prev => ({ ...prev, bluetoothAddress: e.target.value }))}
-                                                className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
-                                            />
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Thermal Roll Paper Width</label>
+                                            <select 
+                                                value={printerConfig.paperWidth || 80}
+                                                onChange={(e) => setPrinterConfig(prev => ({ ...prev, paperWidth: parseInt(e.target.value) as any }))}
+                                                className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-xs font-black uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                            >
+                                                <option value={80}>80 mm Thermal Spool</option>
+                                                <option value={58}>58 mm Mini-Spool</option>
+                                            </select>
                                         </div>
-                                    )}
 
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Thermal Roll Paper Width</label>
-                                        <select 
-                                            value={printerConfig.paperWidth || 80}
-                                            onChange={(e) => setPrinterConfig(prev => ({ ...prev, paperWidth: parseInt(e.target.value) as any }))}
-                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-xs font-black uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                        <button 
+                                            onClick={() => {
+                                                savePrinterConfig(printerConfig);
+                                                alert("Printer settings committed successfully.");
+                                            }}
+                                            className="w-full py-4.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-750 hover:to-indigo-750 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-600/10 active:scale-95 transition-all"
                                         >
-                                            <option value={80}>80 mm Thermal Spool</option>
-                                            <option value={58}>58 mm Mini-Spool</option>
-                                        </select>
+                                            Commit Printer Settings
+                                        </button>
                                     </div>
+                                </div>
 
-                                    <button 
-                                        onClick={() => {
-                                            savePrinterConfig(printerConfig);
-                                            alert("Printer settings committed successfully.");
-                                        }}
-                                        className="w-full py-4.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-750 hover:to-indigo-750 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-600/10 active:scale-95 transition-all"
-                                    >
-                                        Commit Settings
-                                    </button>
+                                {/* Dahua Access Control Integration */}
+                                <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 dark:border-slate-850 space-y-6">
+                                    <div>
+                                        <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white tracking-widest italic">Dahua Face Recognition Terminal</h3>
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-555 uppercase tracking-widest mt-1">Enroll staff credentials automatically on gate check-in</p>
+                                    </div>
+                                    
+                                    <div className="space-y-6">
+                                        <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850">
+                                            <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Enable Automated Sync</span>
+                                            <button 
+                                                type="button"
+                                                onClick={() => setDahuaConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                                                className={`w-12 h-6 rounded-full transition-all relative outline-none ${dahuaConfig.enabled ? 'bg-indigo-650' : 'bg-slate-300 dark:bg-slate-800'}`}
+                                            >
+                                                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${dahuaConfig.enabled ? 'right-1' : 'left-1'}`}></span>
+                                            </button>
+                                        </div>
+
+                                        {dahuaConfig.enabled && (
+                                            <div className="space-y-6 animate-in slide-in-from-top-4">
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    <div className="col-span-2 space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Terminal IP Address</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="e.g. 192.168.1.108" 
+                                                            value={dahuaConfig.ipAddress}
+                                                            onChange={(e) => setDahuaConfig(prev => ({ ...prev, ipAddress: e.target.value }))}
+                                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">API Port</label>
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="80" 
+                                                            value={dahuaConfig.port}
+                                                            onChange={(e) => setDahuaConfig(prev => ({ ...prev, port: parseInt(e.target.value) || 80 }))}
+                                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">CGI Username</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={dahuaConfig.username}
+                                                            onChange={(e) => setDahuaConfig(prev => ({ ...prev, username: e.target.value }))}
+                                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">CGI Password</label>
+                                                        <input 
+                                                            type="password" 
+                                                            placeholder="••••••••" 
+                                                            value={dahuaConfig.password}
+                                                            onChange={(e) => setDahuaConfig(prev => ({ ...prev, password: e.target.value }))}
+                                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <button 
+                                            onClick={() => {
+                                                localStorage.setItem('eduai_dahua_config', JSON.stringify(dahuaConfig));
+                                                alert("Dahua terminal configurations saved successfully.");
+                                            }}
+                                            className="w-full py-4.5 bg-gradient-to-r from-slate-700 to-slate-900 hover:from-slate-800 hover:to-slate-950 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+                                        >
+                                            Save Dahua Integration
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ) : activeTab === 'vehicle' ? (
@@ -1641,6 +1781,10 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                             try {
                                                 await onTeacherGateCheckIn(selectedStaff.id, staffCheckInType, 'School Gate', staffNotes);
                                                 alert(`Check-in recorded successfully for ${selectedStaff.name}!`);
+                                                
+                                                // Sync staff details with Dahua access terminal
+                                                await registerUserOnDahua(selectedStaff);
+                                                
                                                 setStaffNotes('');
                                                 setSelectedStaff(null);
                                             } catch (e: any) {
