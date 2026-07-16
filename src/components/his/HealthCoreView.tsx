@@ -119,6 +119,8 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 }
             }
         };
+        // Auto-migrate to add admission_number column to public.his_patients if not exists
+        apiService.runMigration("ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS admission_number text;").catch(() => {});
         loadInst();
     }, [institutionId]);
 
@@ -198,6 +200,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
             const dob = userRecord.metadata?.dob || '';
             const gender = (userRecord.metadata?.gender || 'Unknown') as any;
             
+            const admNo = userRecord.admissionNumber || userRecord.metadata?.admissionNumber || '';
             const record = {
                 id: newPatientId,
                 institutionId,
@@ -213,6 +216,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 emergencyContactName: '',
                 emergencyContactPhone: '',
                 status: 'active',
+                admissionNumber: admNo,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
