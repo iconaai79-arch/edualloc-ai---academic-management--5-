@@ -367,7 +367,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor, courses = [],
     eventPins, events, teacherCheckIns = [], onTeacherGateCheckIn, initialTab
 }) => {
-    const [activeTab, setActiveTab] = useState<'vehicle' | 'parent' | 'staff'>(initialTab || 'vehicle');
+    const [activeTab, setActiveTab] = useState<'vehicle' | 'parent' | 'staff' | 'settings'>(initialTab || 'vehicle');
     const [activeUsers, setActiveUsers] = useState<User[]>(users);
     
     const [isPrinterSettingsOpen, setIsPrinterSettingsOpen] = useState(false);
@@ -1014,7 +1014,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 </div>
 
                 {/* Segmented Control Tabs */}
-                <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-850 p-2 rounded-[2rem] shadow-md flex flex-wrap gap-2 w-full max-w-2xl">
+                <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-850 p-2 rounded-[2rem] shadow-md flex flex-wrap gap-2 w-full max-w-3xl">
                     <button
                         onClick={() => setActiveTab('vehicle')}
                         className={`flex-1 py-4 px-6 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2.5 border ${
@@ -1045,13 +1045,108 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     >
                         <UserIcon className="w-4.5 h-4.5" /> Staff Gate
                     </button>
+                    <button
+                        onClick={() => {
+                            setPrinterConfig(getPrinterConfig());
+                            setActiveTab('settings');
+                        }}
+                        className={`flex-1 py-4 px-6 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2.5 border ${
+                            activeTab === 'settings'
+                                ? 'bg-gradient-to-tr from-slate-700 to-slate-900 text-white border-transparent shadow-lg shadow-slate-900/10'
+                                : 'bg-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-355 border-transparent'
+                        }`}
+                    >
+                        <PrinterIcon className="w-4.5 h-4.5 text-indigo-500" /> Settings
+                    </button>
                 </div>
 
                 {/* Grid Content */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     {/* Left side: Search and Actions */}
                     <div className="lg:col-span-7 space-y-6">
-                        {activeTab === 'vehicle' ? (
+                        {activeTab === 'settings' ? (
+                            <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 dark:border-slate-850 space-y-6">
+                                <div>
+                                    <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white tracking-widest italic">Thermal Printer Configuration</h3>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-550 uppercase tracking-widest mt-1">Configure your local gate receipt spooler</p>
+                                </div>
+                                
+                                <div className="space-y-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Connection Interface</label>
+                                        <select 
+                                            value={printerConfig.type}
+                                            onChange={(e) => setPrinterConfig(prev => ({ ...prev, type: e.target.value as any }))}
+                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-xs font-black uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                        >
+                                            <option value="system">System Spooler (PDF / Preview)</option>
+                                            <option value="bluetooth">Bluetooth Printer (Raw ESC/POS)</option>
+                                            <option value="network">Network IP Printer (Direct TCP Port 9100)</option>
+                                        </select>
+                                    </div>
+
+                                    {printerConfig.type === 'network' && (
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div className="col-span-2 space-y-2">
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Printer IP Address</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="e.g. 192.168.1.100" 
+                                                    value={printerConfig.ipAddress || ''}
+                                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, ipAddress: e.target.value }))}
+                                                    className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Port</label>
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="9100" 
+                                                    value={printerConfig.port || 9100}
+                                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, port: parseInt(e.target.value) || 9100 }))}
+                                                    className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {printerConfig.type === 'bluetooth' && (
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Bluetooth Hardware Address (MAC)</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="00:11:22:33:44:55" 
+                                                value={printerConfig.bluetoothAddress || ''}
+                                                onChange={(e) => setPrinterConfig(prev => ({ ...prev, bluetoothAddress: e.target.value }))}
+                                                className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Thermal Roll Paper Width</label>
+                                        <select 
+                                            value={printerConfig.paperWidth || 80}
+                                            onChange={(e) => setPrinterConfig(prev => ({ ...prev, paperWidth: parseInt(e.target.value) as any }))}
+                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-xs font-black uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                                        >
+                                            <option value={80}>80 mm Thermal Spool</option>
+                                            <option value={58}>58 mm Mini-Spool</option>
+                                        </select>
+                                    </div>
+
+                                    <button 
+                                        onClick={() => {
+                                            savePrinterConfig(printerConfig);
+                                            alert("Printer settings committed successfully.");
+                                        }}
+                                        className="w-full py-4.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-750 hover:to-indigo-750 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-600/10 active:scale-95 transition-all"
+                                    >
+                                        Commit Settings
+                                    </button>
+                                </div>
+                            </div>
+                        ) : activeTab === 'vehicle' ? (
                             <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 dark:border-slate-850">
                                 <div className="relative mb-6">
                                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
@@ -1372,7 +1467,65 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 
                     {/* Right side: Actions confirmation / History Feed */}
                     <div className="lg:col-span-5 space-y-6">
-                        {/* Selected Entity Action Form Overlay */}
+                        {activeTab === 'settings' && (
+                            <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 dark:border-slate-850 space-y-6">
+                                <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest mb-2">Printer Connection Status</h3>
+                                
+                                <div className="p-5 rounded-2.5xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Driver Status</span>
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Ready
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Active Mode</span>
+                                        <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                            {printerConfig.type === 'system' ? 'System Spool' : printerConfig.type === 'bluetooth' ? 'Bluetooth SPP' : 'Network Socket'}
+                                        </span>
+                                    </div>
+                                    {printerConfig.type === 'network' && (
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Target Endpoint</span>
+                                            <span className="text-xs font-mono font-black text-slate-700 dark:text-slate-300">
+                                                {printerConfig.ipAddress || 'Not set'}:{printerConfig.port || 9100}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {printerConfig.type === 'bluetooth' && (
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Bluetooth Address</span>
+                                            <span className="text-xs font-mono font-black text-slate-700 dark:text-slate-300">
+                                                {printerConfig.bluetoothAddress || 'Not set'}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-bold text-slate-455 dark:text-slate-500 text-center uppercase tracking-wide">Verify if your receipt printer prints correctly by sending a mock gatepass ticket.</p>
+                                    <button 
+                                        onClick={async () => {
+                                            try {
+                                                await printService.printEventPass({
+                                                    pin: { code: 'TEST-1234', guests: '[]' },
+                                                    parent: { name: 'Gate Desk Test Parent', phoneNumber: '+254 700 000 000' },
+                                                    event: { title: 'Security Spool Connection' },
+                                                    institution: currentInstitution || { name: 'Academic Institution' }
+                                                });
+                                                alert("Test print command successfully dispatched to printer!");
+                                            } catch (err: any) {
+                                                alert("Test print failed: " + (err.message || err));
+                                            }
+                                        }}
+                                        className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-750 hover:to-indigo-750 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-600/10 flex items-center justify-center gap-2 cursor-pointer"
+                                    >
+                                        <PrinterIcon className="w-4.5 h-4.5" /> Send Test Ticket
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {activeTab === 'vehicle' && selectedVehicle && (
                             <div className="bg-gradient-to-br from-blue-50/50 to-indigo-50/30 dark:from-blue-950/20 dark:to-indigo-950/10 border border-blue-200/60 dark:border-blue-900/30 p-6 rounded-[2.5rem] shadow-lg animate-in fade-in slide-in-from-bottom-6 space-y-5">
                                 <div className="flex items-center justify-between">
@@ -1504,186 +1657,188 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                         )}
 
                         {/* Recent History Desk Logger */}
-                        <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 dark:border-slate-850 h-fit">
-                            {activeTab === 'vehicle' ? (
-                                <>
-                                    <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest mb-6">Gate Log (Today's Vehicles)</h3>
-                                    <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
-                                        {recentLogs.map(log => {
-                                            const vehicle = vehicles.find(v => v.id === log.vehicleId);
-                                            const security = activeUsers.find(u => u.id === log.securityId);
-                                            return (
-                                                <div key={log.id} className="flex gap-4 p-4 rounded-2xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 transition-all shadow-sm">
-                                                    <div className={`p-3 rounded-xl h-fit ${log.eventType === 'entry' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-blue-500/10 text-blue-600'}`}>
-                                                        <ArrowRightOnRectangleIcon className={`w-5 h-5 ${log.eventType === 'entry' ? 'rotate-180' : ''}`} />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <div className="flex justify-between items-start">
-                                                            <p className="font-black text-base text-slate-900 dark:text-white leading-none">{vehicle?.plateNumber || 'Unknown'}</p>
-                                                            <span className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                                                                <ClockIcon className="w-3.5 h-3.5" />
-                                                                {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            </span>
-                                                        </div>
-                                                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-1.5">{log.eventType === 'entry' ? 'Incoming' : 'Outgoing'} • {security?.name || 'Gate Officer'}</p>
-                                                        {log.notes && <p className="text-[11px] text-slate-650 dark:text-slate-400 mt-2.5 italic border-l-2 border-slate-200 dark:border-slate-800 pl-2">"{log.notes}"</p>}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                        {recentLogs.length === 0 && (
-                                            <div className="text-center py-12">
-                                                <ClockIcon className="w-12 h-12 text-slate-350 dark:text-slate-700 mx-auto mb-2 animate-pulse" />
-                                                <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">No vehicle activity logged today</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </>
-                            ) : activeTab === 'parent' ? (
-                                <>
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest">Gate Log (Today's Guests)</h3>
-                                        <button 
-                                            onClick={fetchHistoryAndEvents} 
-                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 transition-all"
-                                            title="Refresh Check-ins"
-                                        >
-                                            <ArrowPathIcon className={`w-4.5 h-4.5 ${loadingHistory ? 'animate-spin' : ''}`} />
-                                        </button>
-                                    </div>
-                                    <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar animate-in fade-in">
-                                        {(() => {
-                                            const checkedInPins = allEventPins
-                                                .filter(p => p.status === 'used')
-                                                .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
-                                                .slice(0, 10);
-
-                                            if (checkedInPins.length === 0) {
+                        {activeTab !== 'settings' && (
+                            <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 dark:border-slate-850 h-fit">
+                                {activeTab === 'vehicle' ? (
+                                    <>
+                                        <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest mb-6">Gate Log (Today's Vehicles)</h3>
+                                        <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
+                                            {recentLogs.map(log => {
+                                                const vehicle = vehicles.find(v => v.id === log.vehicleId);
+                                                const security = activeUsers.find(u => u.id === log.securityId);
                                                 return (
-                                                    <div className="text-center py-12">
-                                                        <UserGroupIcon className="w-12 h-12 text-slate-350 dark:text-slate-750 mx-auto mb-2 animate-pulse" />
-                                                        <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">No guest activity logged today</p>
-                                                    </div>
-                                                );
-                                            }
-
-                                            return checkedInPins.map(pin => {
-                                                const parent = activeUsers.find(u => u.id === pin.userId);
-                                                const parentName = parent?.name || 'Invited Guest';
-                                                const event = allEvents.find(e => e.id === pin.eventId);
-                                                const student = activeUsers.find(u => 
-                                                    u.role === 'student' && (
-                                                        u.parentIds?.includes(pin.userId) || 
-                                                        parent?.studentIds?.includes(u.id) || 
-                                                        phonesMatch((u as any).parentPhone || '', parent?.phoneNumber || '')
-                                                    )
-                                                );
-
-                                                return (
-                                                    <div key={pin.id} className="p-4.5 rounded-2xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 space-y-3.5 transition-all shadow-sm">
-                                                        <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <p className="font-black text-sm text-slate-900 dark:text-white uppercase leading-tight">{parentName}</p>
-                                                                <p className="text-[9px] text-purple-600 dark:text-purple-400 font-black uppercase tracking-widest mt-1">Pass PIN: {pin.pin}</p>
-                                                            </div>
-                                                            <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-lg border border-emerald-500/20">Authorized In</span>
-                                                        </div>
-                                                        <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase space-y-1.5 leading-relaxed bg-white/50 dark:bg-slate-950/50 p-2.5 rounded-xl border border-slate-200/30 dark:border-slate-850">
-                                                            <p><span className="text-slate-400">Target Event:</span> {event?.title || 'Institution Event'}</p>
-                                                            {student && <p><span className="text-slate-400">Student:</span> {student.name}</p>}
-                                                        </div>
-                                                        <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-800/80">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setSelectedPin(pin);
-                                                                    setSelectedParent(parent || {
-                                                                        id: pin.userId,
-                                                                        name: parentName,
-                                                                        phoneNumber: '',
-                                                                        role: 'parent',
-                                                                        institutionId: currentInstitution.id
-                                                                    } as any);
-                                                                    setAssociatedEvent(event || null);
-                                                                    setSelectedStudent(student || null);
-                                                                }}
-                                                                className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
-                                                            >
-                                                                View Details
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    printEposGatePass(pin, parent || { name: parentName }, event || { title: 'Institution Event' }, currentInstitution);
-                                                                }}
-                                                                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-750 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-md shadow-purple-500/10"
-                                                            >
-                                                                <PrinterIcon className="w-3.5 h-3.5" /> Reprint Ticket
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            });
-                                        })()}
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest mb-6">Gate Log (Today's Staff)</h3>
-                                    <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
-                                        {(teacherCheckIns || [])
-                                            .filter(c => c.checkInDate === todayStr)
-                                            .sort((a, b) => {
-                                                const timeA = a.morningCheckInTime || a.afternoonCheckInTime || '';
-                                                const timeB = b.morningCheckInTime || b.afternoonCheckInTime || '';
-                                                return timeB.localeCompare(timeA);
-                                            })
-                                            .map(c => {
-                                                const staff = activeUsers.find(u => u.id === c.teacherId);
-                                                if (!staff) return null;
-                                                return (
-                                                    <div key={c.id} className="flex gap-4 p-4 rounded-2xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 transition-all shadow-sm">
-                                                        <div className="p-3 rounded-xl h-fit bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-                                                            <ClockIcon className="w-5 h-5" />
+                                                    <div key={log.id} className="flex gap-4 p-4 rounded-2xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 transition-all shadow-sm">
+                                                        <div className={`p-3 rounded-xl h-fit ${log.eventType === 'entry' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-blue-500/10 text-blue-600'}`}>
+                                                            <ArrowRightOnRectangleIcon className={`w-5 h-5 ${log.eventType === 'entry' ? 'rotate-180' : ''}`} />
                                                         </div>
                                                         <div className="flex-1">
-                                                            <div className="flex items-start justify-between">
-                                                                <div>
-                                                                    <h4 className="font-black text-sm text-slate-900 dark:text-white leading-tight">{staff.name}</h4>
-                                                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-1">{staff.role}</p>
-                                                                </div>
-                                                                <div className="flex flex-col gap-1 items-end">
-                                                                    {c.morningCheckInTime && (
-                                                                        <span className="text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-mono">
-                                                                            IN: {c.morningCheckInTime.substring(0, 5)}
-                                                                        </span>
-                                                                    )}
-                                                                    {c.afternoonCheckInTime && (
-                                                                        <span className="text-[9px] font-black uppercase bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-mono">
-                                                                            OUT: {c.afternoonCheckInTime.substring(0, 5)}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
+                                                            <div className="flex justify-between items-start">
+                                                                <p className="font-black text-base text-slate-900 dark:text-white leading-none">{vehicle?.plateNumber || 'Unknown'}</p>
+                                                                <span className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                                                                    <ClockIcon className="w-3.5 h-3.5" />
+                                                                    {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
                                                             </div>
-                                                            {(c.morningNotes || c.afternoonNotes) && (
-                                                                <p className="text-xs text-slate-550 dark:text-slate-400 mt-3.5 italic border-l-2 border-slate-200 dark:border-slate-800 pl-2">
-                                                                    "{c.morningNotes || c.afternoonNotes}"
-                                                                </p>
-                                                            )}
+                                                            <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-1.5">{log.eventType === 'entry' ? 'Incoming' : 'Outgoing'} • {security?.name || 'Gate Officer'}</p>
+                                                            {log.notes && <p className="text-[11px] text-slate-650 dark:text-slate-400 mt-2.5 italic border-l-2 border-slate-200 dark:border-slate-800 pl-2">"{log.notes}"</p>}
                                                         </div>
                                                     </div>
                                                 );
                                             })}
-                                        {(teacherCheckIns || []).filter(c => c.checkInDate === todayStr).length === 0 && (
-                                            <div className="text-center py-12 animate-fade-in">
-                                                <ClockIcon className="w-12 h-12 text-slate-350 dark:text-slate-700 mx-auto mb-2 animate-pulse" />
-                                                <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">No staff check-ins logged today</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </>
-                            )}
-                        </div>
+                                            {recentLogs.length === 0 && (
+                                                <div className="text-center py-12">
+                                                    <ClockIcon className="w-12 h-12 text-slate-350 dark:text-slate-700 mx-auto mb-2 animate-pulse" />
+                                                    <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">No vehicle activity logged today</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                ) : activeTab === 'parent' ? (
+                                    <>
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest">Gate Log (Today's Guests)</h3>
+                                            <button 
+                                                onClick={fetchHistoryAndEvents} 
+                                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 transition-all"
+                                                title="Refresh Check-ins"
+                                            >
+                                                <ArrowPathIcon className={`w-4.5 h-4.5 ${loadingHistory ? 'animate-spin' : ''}`} />
+                                            </button>
+                                        </div>
+                                        <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar animate-in fade-in">
+                                            {(() => {
+                                                const checkedInPins = allEventPins
+                                                    .filter(p => p.status === 'used')
+                                                    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+                                                    .slice(0, 10);
+
+                                                if (checkedInPins.length === 0) {
+                                                    return (
+                                                        <div className="text-center py-12">
+                                                            <UserGroupIcon className="w-12 h-12 text-slate-350 dark:text-slate-750 mx-auto mb-2 animate-pulse" />
+                                                            <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">No guest activity logged today</p>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                return checkedInPins.map(pin => {
+                                                    const parent = activeUsers.find(u => u.id === pin.userId);
+                                                    const parentName = parent?.name || 'Invited Guest';
+                                                    const event = allEvents.find(e => e.id === pin.eventId);
+                                                    const student = activeUsers.find(u => 
+                                                        u.role === 'student' && (
+                                                            u.parentIds?.includes(pin.userId) || 
+                                                            parent?.studentIds?.includes(u.id) || 
+                                                            phonesMatch((u as any).parentPhone || '', parent?.phoneNumber || '')
+                                                        )
+                                                    );
+
+                                                    return (
+                                                        <div key={pin.id} className="p-4.5 rounded-2xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 space-y-3.5 transition-all shadow-sm">
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <p className="font-black text-sm text-slate-900 dark:text-white uppercase leading-tight">{parentName}</p>
+                                                                    <p className="text-[9px] text-purple-600 dark:text-purple-400 font-black uppercase tracking-widest mt-1">Pass PIN: {pin.pin}</p>
+                                                                </div>
+                                                                <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-lg border border-emerald-500/20">Authorized In</span>
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase space-y-1.5 leading-relaxed bg-white/50 dark:bg-slate-950/50 p-2.5 rounded-xl border border-slate-200/30 dark:border-slate-850">
+                                                                <p><span className="text-slate-400">Target Event:</span> {event?.title || 'Institution Event'}</p>
+                                                                {student && <p><span className="text-slate-400">Student:</span> {student.name}</p>}
+                                                            </div>
+                                                            <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setSelectedPin(pin);
+                                                                        setSelectedParent(parent || {
+                                                                            id: pin.userId,
+                                                                            name: parentName,
+                                                                            phoneNumber: '',
+                                                                            role: 'parent',
+                                                                            institutionId: currentInstitution.id
+                                                                        } as any);
+                                                                        setAssociatedEvent(event || null);
+                                                                        setSelectedStudent(student || null);
+                                                                    }}
+                                                                    className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                                                >
+                                                                    View Details
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        printEposGatePass(pin, parent || { name: parentName }, event || { title: 'Institution Event' }, currentInstitution);
+                                                                    }}
+                                                                    className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-750 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-md shadow-purple-500/10"
+                                                                >
+                                                                    <PrinterIcon className="w-3.5 h-3.5" /> Reprint Ticket
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                });
+                                            })()}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest mb-6">Gate Log (Today's Staff)</h3>
+                                        <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
+                                            {(teacherCheckIns || [])
+                                                .filter(c => c.checkInDate === todayStr)
+                                                .sort((a, b) => {
+                                                    const timeA = a.morningCheckInTime || a.afternoonCheckInTime || '';
+                                                    const timeB = b.morningCheckInTime || b.afternoonCheckInTime || '';
+                                                    return timeB.localeCompare(timeA);
+                                                })
+                                                .map(c => {
+                                                    const staff = activeUsers.find(u => u.id === c.teacherId);
+                                                    if (!staff) return null;
+                                                    return (
+                                                        <div key={c.id} className="flex gap-4 p-4 rounded-2xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 transition-all shadow-sm">
+                                                            <div className="p-3 rounded-xl h-fit bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                                                                <ClockIcon className="w-5 h-5" />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-start justify-between">
+                                                                    <div>
+                                                                        <h4 className="font-black text-sm text-slate-900 dark:text-white leading-tight">{staff.name}</h4>
+                                                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-1">{staff.role}</p>
+                                                                    </div>
+                                                                    <div className="flex flex-col gap-1 items-end">
+                                                                        {c.morningCheckInTime && (
+                                                                            <span className="text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-mono">
+                                                                                IN: {c.morningCheckInTime.substring(0, 5)}
+                                                                            </span>
+                                                                        )}
+                                                                        {c.afternoonCheckInTime && (
+                                                                            <span className="text-[9px] font-black uppercase bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-mono">
+                                                                                OUT: {c.afternoonCheckInTime.substring(0, 5)}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                {(c.morningNotes || c.afternoonNotes) && (
+                                                                    <p className="text-xs text-slate-550 dark:text-slate-400 mt-3.5 italic border-l-2 border-slate-200 dark:border-slate-800 pl-2">
+                                                                        "{c.morningNotes || c.afternoonNotes}"
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            {(teacherCheckIns || []).filter(c => c.checkInDate === todayStr).length === 0 && (
+                                                <div className="text-center py-12 animate-fade-in">
+                                                    <ClockIcon className="w-12 h-12 text-slate-350 dark:text-slate-700 mx-auto mb-2 animate-pulse" />
+                                                    <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">No staff check-ins logged today</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
