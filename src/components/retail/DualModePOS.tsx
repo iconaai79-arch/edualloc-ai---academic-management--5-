@@ -32,6 +32,20 @@ interface DualModePOSProps {
     onClearPreSelectedUser?: () => void;
 }
 
+// ─── Helper: extract the best available ID from any user object ───
+function getStudentId(u: any): string {
+    return (
+        u?.admissionNumber ||
+        u?.admission_number ||
+        u?.staffId ||
+        u?.staff_id ||
+        u?.metadata?.admissionNumber ||
+        u?.metadata?.admission_number ||
+        u?.metadata?.staffId ||
+        ''
+    );
+}
+
 export function DualModePOS({ institutionId, currentUser, isEducation, preSelectedUser, onClearPreSelectedUser }: DualModePOSProps) {
     const [activeMode, setActiveMode] = useState<'shop' | 'field'>('shop');
     const [mobileActiveView, setMobileActiveView] = useState<'products' | 'cart'>('products');
@@ -494,7 +508,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 signature: isEducation ? signatureData : undefined,
                 metadata: isEducation ? {
                     studentId: selectedStudent?.id,
-                    admissionNumber: selectedStudent?.admissionNumber || (selectedStudent as any).admission_number || '',
+                    admissionNumber: getStudentId(selectedStudent),
                     isEducationIssuance: true
                 } : undefined,
                 createdAt: new Date().toISOString()
@@ -1470,9 +1484,9 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                                 {selectedStudent.role === 'student' || (Array.isArray(selectedStudent.roles) && selectedStudent.roles.includes('student')) ? 'Admission Number' : 'Staff ID'}
                                                             </label>
                                                             <p className="text-xs font-black text-indigo-600 uppercase">
-                                                                {selectedStudent.role === 'student' || (Array.isArray(selectedStudent.roles) && selectedStudent.roles.includes('student'))
-                                                                    ? ((selectedStudent as any).admission_number || selectedStudent.admissionNumber || 'N/A')
-                                                                    : (selectedStudent.staffId || (selectedStudent as any).staff_id || 'N/A')}
+                                                                 {selectedStudent.role === 'student' || (Array.isArray(selectedStudent.roles) && selectedStudent.roles.includes('student'))
+                                                                    ? (getStudentId(selectedStudent) || 'N/A')
+                                                                    : (selectedStudent.staffId || (selectedStudent as any).staff_id || getStudentId(selectedStudent) || 'N/A')}
                                                             </p>
                                                         </div>
                                                     </div>
