@@ -201,7 +201,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
             const gender = (userRecord.metadata?.gender || 'Unknown') as any;
             
             const admNo = userRecord.admissionNumber || userRecord.metadata?.admissionNumber || '';
-            const record = {
+            const record: HISPatient = {
                 id: newPatientId,
                 institutionId,
                 fullName: userRecord.name,
@@ -211,8 +211,6 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 shaNumber: '',
                 insuranceProvider: 'School Coverage',
                 bloodGroup: 'Unknown',
-                allergies: [],
-                chronicConditions: [],
                 emergencyContactName: '',
                 emergencyContactPhone: '',
                 status: 'active',
