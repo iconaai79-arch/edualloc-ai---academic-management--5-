@@ -38,11 +38,12 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
         return (users || []).filter(u => {
             const isClinicApplicable = ['student', 'teacher', 'boarding_master', 'staff', 'parent', 'librarian'].includes(u.role);
             if (!isClinicApplicable) return false;
+            const adm = u.admissionNumber || u.admission_number || u.metadata?.admissionNumber || u.metadata?.admission_number || '';
             return (
                 u.name.toLowerCase().includes(directorySearch.toLowerCase()) ||
                 (u.email || '').toLowerCase().includes(directorySearch.toLowerCase()) ||
                 (u.phoneNumber || '').includes(directorySearch) ||
-                (u.metadata?.admissionNumber || '').toLowerCase().includes(directorySearch.toLowerCase())
+                adm.toLowerCase().includes(directorySearch.toLowerCase())
             );
         });
     }, [directorySearch, users, isEdu]);
@@ -58,7 +59,7 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
             shaNumber: user.metadata?.shaNumber || '',
             emergencyContactName: user.metadata?.emergencyContactName || '',
             emergencyContactPhone: user.metadata?.emergencyContactPhone || '',
-            admissionNumber: user.admissionNumber || user.metadata?.admissionNumber || '',
+            admissionNumber: user.admissionNumber || user.admission_number || user.metadata?.admissionNumber || user.metadata?.admission_number || '',
         });
         setDirectorySearch('');
     };
