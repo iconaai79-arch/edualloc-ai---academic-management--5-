@@ -213,23 +213,23 @@ CREATE POLICY "service_role_staff_attendance_daily" ON staff_attendance_daily FO
 -- Authenticated users: institution-scoped access
 CREATE POLICY "institution_biometric_devices" ON biometric_devices
     FOR ALL TO authenticated
-    USING (institution_id IN (SELECT institution_id FROM users WHERE id = auth.uid()))
-    WITH CHECK (institution_id IN (SELECT institution_id FROM users WHERE id = auth.uid()));
+    USING (institution_id = get_curr_user_inst_id())
+    WITH CHECK (institution_id = get_curr_user_inst_id());
 
 CREATE POLICY "institution_biometric_enrollments" ON biometric_enrollments
     FOR ALL TO authenticated
-    USING (institution_id IN (SELECT institution_id FROM users WHERE id = auth.uid()))
-    WITH CHECK (institution_id IN (SELECT institution_id FROM users WHERE id = auth.uid()));
+    USING (institution_id = get_curr_user_inst_id())
+    WITH CHECK (institution_id = get_curr_user_inst_id());
 
 CREATE POLICY "institution_staff_attendance_logs" ON staff_attendance_logs
     FOR ALL TO authenticated
-    USING (institution_id IN (SELECT institution_id FROM users WHERE id = auth.uid()))
-    WITH CHECK (institution_id IN (SELECT institution_id FROM users WHERE id = auth.uid()));
+    USING (institution_id = get_curr_user_inst_id())
+    WITH CHECK (institution_id = get_curr_user_inst_id());
 
 CREATE POLICY "institution_staff_attendance_daily" ON staff_attendance_daily
     FOR ALL TO authenticated
-    USING (institution_id IN (SELECT institution_id FROM users WHERE id = auth.uid()))
-    WITH CHECK (institution_id IN (SELECT institution_id FROM users WHERE id = auth.uid()));
+    USING (institution_id = get_curr_user_inst_id())
+    WITH CHECK (institution_id = get_curr_user_inst_id());
 
 -- Comments
 COMMENT ON TABLE biometric_devices IS 'Registry of ZKTeco and other biometric attendance devices per institution';
