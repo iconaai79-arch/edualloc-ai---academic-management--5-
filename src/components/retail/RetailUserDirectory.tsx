@@ -77,7 +77,19 @@ export function RetailUserDirectory({
         setIsAddModalOpen(true);
     };
 
+    const [enrollments, setEnrollments] = useState<any[]>([]);
+
     useEffect(() => {
+        const fetchEnrollments = async () => {
+            try {
+                const enrollmentsData = await apiService.fetchModuleRecords<any>('enrollments', institutionId);
+                setEnrollments(enrollmentsData || []);
+            } catch (err) {
+                console.error('Failed to fetch enrollments:', err);
+            }
+        };
+        fetchEnrollments();
+
         if (propUsers) {
             setUsers(propUsers);
             // Fetch departments and courses to resolve N/A labels and dropdown choices
@@ -102,14 +114,16 @@ export function RetailUserDirectory({
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [usersData, coursesData, deptsData] = await Promise.all([
+            const [usersData, coursesData, deptsData, enrollmentsData] = await Promise.all([
                 apiService.fetchModuleRecords<User>('users', institutionId),
                 apiService.fetchModuleRecords<Course>('courses', institutionId),
                 apiService.fetchModuleRecords<Department>('departments', institutionId),
+                apiService.fetchModuleRecords<any>('enrollments', institutionId),
             ]);
             setUsers(usersData || []);
             setCourses(coursesData || []);
             setDepartments(deptsData || []);
+            setEnrollments(enrollmentsData || []);
         } catch (err) {
             console.error('Failed to fetch data for directory:', err);
         } finally {
@@ -118,23 +132,50 @@ export function RetailUserDirectory({
     };
 
     const displayUsers = useMemo(() => {
-        // Filter by role: 'teacher' matches all faculty/lecturer/admin roles, 'support_staff' matches subordinate staff, 'student' matches student
+        if (role === 'student') {
+            const enrolledUsers: User[] = [];
+            enrollments.forEach(enr => {
+                const user = users.find(u => u.id === enr.userId);
+                if (user) {
+                    const adm = enr.admissionNumber || enr.admission_number || user.admissionNumber || (user as any).admission_number || (user as any).admNumber || (user as any).adm_number || 'No ADM';
+                    enrolledUsers.push({
+                        ...user,
+                        role: 'student',
+                        admissionNumber: adm,
+                        admission_number: adm,
+                        courseId: enr.metadata?.courseId || user.courseId || enr.courseId,
+                        courseLevelId: enr.metadata?.courseLevelId || user.courseLevelId || enr.courseLevelId
+                    });
+                }
+            });
+
+            let filtered = enrolledUsers;
+            if (selectedCourseId !== 'all') {
+                filtered = filtered.filter(u => u.courseId === selectedCourseId);
+            }
+            if (selectedCourseLevelId !== 'all') {
+                filtered = filtered.filter(u => u.courseLevelId === selectedCourseLevelId);
+            }
+            if (searchQuery.trim()) {
+                const query = searchQuery.toLowerCase();
+                filtered = filtered.filter(u => 
+                    u.name.toLowerCase().includes(query) ||
+                    (u.email && u.email.toLowerCase().includes(query)) ||
+                    (u.phoneNumber && u.phoneNumber.includes(query)) ||
+                    (u.admissionNumber && u.admissionNumber.toLowerCase().includes(query))
+                );
+            }
+            return filtered;
+        }
+
+        // Filter by role: 'teacher' matches all faculty/lecturer/admin roles, 'support_staff' matches subordinate staff
         const targetRoles = role === 'teacher' 
             ? ['teacher', 'lecturer', 'hod', 'dos', 'deputy', 'head_teacher'] 
-            : role === 'support_staff'
-            ? ['support_staff', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'attendant', 'worker', 'secretary', 'finance']
-            : ['student'];
+            : ['support_staff', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'attendant', 'worker', 'secretary', 'finance'];
         let filtered = users.filter(u => 
             targetRoles.includes(u.role) || 
             (Array.isArray(u.roles) && u.roles.some(r => targetRoles.includes(r)))
         );
-
-        if (selectedCourseId !== 'all' && role === 'student') {
-            filtered = filtered.filter(u => u.courseId === selectedCourseId);
-        }
-        if (selectedCourseLevelId !== 'all' && role === 'student') {
-            filtered = filtered.filter(u => u.courseLevelId === selectedCourseLevelId);
-        }
 
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
@@ -142,14 +183,12 @@ export function RetailUserDirectory({
                 u.name.toLowerCase().includes(query) ||
                 (u.email && u.email.toLowerCase().includes(query)) ||
                 (u.phoneNumber && u.phoneNumber.includes(query)) ||
-                (u.staffId && u.staffId.toLowerCase().includes(query)) ||
-                ((u as any).admission_number && (u as any).admission_number.toLowerCase().includes(query)) ||
-                (u.admissionNumber && u.admissionNumber.toLowerCase().includes(query))
+                (u.staffId && u.staffId.toLowerCase().includes(query))
             );
         }
 
         return filtered;
-    }, [users, role, selectedCourseId, searchQuery]);
+    }, [users, role, selectedCourseId, selectedCourseLevelId, searchQuery, enrollments]);
 
     const getCourseName = (courseId?: string) => {
         if (!courseId) return 'N/A';

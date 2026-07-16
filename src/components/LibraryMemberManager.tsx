@@ -48,6 +48,8 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [generatingPdf, setGeneratingPdf] = useState(false);
 
+    const [enrollments, setEnrollments] = useState<any[]>([]);
+
     useEffect(() => {
         loadData();
     }, [institutionId]);
@@ -55,14 +57,16 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [transData, finesData, booksData] = await Promise.all([
+            const [transData, finesData, booksData, enrollmentsData] = await Promise.all([
                 apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institutionId),
                 apiService.fetchModuleRecords<LibraryFine>('library_fines', institutionId),
-                apiService.fetchModuleRecords<Book>('books', institutionId)
+                apiService.fetchModuleRecords<Book>('books', institutionId),
+                apiService.fetchModuleRecords<any>('enrollments', institutionId)
             ]);
             setTransactions(transData);
             setFines(finesData);
             setBooks(booksData);
+            setEnrollments(enrollmentsData || []);
         } catch (error) {
             console.error('Error loading member management data:', error);
         } finally {
@@ -71,7 +75,20 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     };
 
     const groupedMembers = useMemo(() => {
-        const eligibleUsers = users.filter(u => u.role !== 'super_admin');
+        const eligibleStaff = users.filter(u => u.role !== 'super_admin' && u.role !== 'student');
+        const enrolledStudents = enrollments.map(enr => {
+            const user = users.find(u => u.id === enr.userId);
+            if (!user) return null;
+            const adm = enr.admissionNumber || enr.admission_number || user.admissionNumber || (user as any).admission_number || (user as any).admNumber || (user as any).adm_number || 'No ADM';
+            return {
+                ...user,
+                role: 'student',
+                admissionNumber: adm,
+                admission_number: adm
+            };
+        }).filter((u): u is any => u !== null);
+
+        const eligibleUsers = [...eligibleStaff, ...enrolledStudents];
 
         const processed = eligibleUsers.map(user => {
             const userTrans = transactions.filter(t => t.userId === user.id);
@@ -94,7 +111,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             staff: processed.filter(u => u.role !== 'student'),
             students: processed.filter(u => u.role === 'student')
         };
-    }, [users, transactions, fines, searchTerm]);
+    }, [users, transactions, fines, searchTerm, enrollments]);
 
     const handleClearFine = async (fine: LibraryFine) => {
         if (!confirm(`Confirm full payment of KES ${fine.amount - fine.paidAmount}?`)) return;
