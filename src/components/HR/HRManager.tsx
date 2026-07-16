@@ -10,6 +10,7 @@ import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { XIcon } from '../icons/XIcon';
 import { ClockIcon } from '../icons/ClockIcon';
 import TeacherCheckInAdminView from '../TeacherCheckInAdminView';
+import { BiometricAttendanceDashboard } from './BiometricAttendanceDashboard';
 import { apiService } from '../../services/apiService';
 import { 
     generateStaffPayslipPdf, 
@@ -581,13 +582,27 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 )}
 
                 {activeTab === 'attendance' && (
-                    <div className="animate-in fade-in">
-                        <TeacherCheckInAdminView
-                            currentUser={currentUser!}
-                            currentInstitution={institution}
-                            letterheadConfig={letterheadConfig}
-                            footerImageUrl={footerImageUrl}
+                    <div className="animate-in fade-in space-y-8">
+                        <BiometricAttendanceDashboard
+                            staff={staff}
+                            institution={institution}
                         />
+
+                        {/* Existing Teacher Check-In System */}
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-700">
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Manual Check-In System</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Legacy teacher attendance tracker (non-biometric)</p>
+                            </div>
+                            <div className="p-4">
+                                <TeacherCheckInAdminView
+                                    currentUser={currentUser!}
+                                    currentInstitution={institution}
+                                    letterheadConfig={letterheadConfig}
+                                    footerImageUrl={footerImageUrl}
+                                />
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

@@ -185,6 +185,74 @@ export interface PayrollRecord {
     processedAt?: string;
 }
 
+// ─── ZKTeco Biometric Integration Types ───
+
+export interface BiometricDevice {
+    id: string;
+    institutionId: string;
+    serialNumber: string;
+    deviceName: string;
+    deviceModel?: string;
+    ipAddress?: string;
+    locationDescription?: string;
+    protocol: 'adms' | 'pull' | 'biotime';
+    pushUrl?: string;
+    lastSyncAt?: string;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt?: string;
+}
+
+export interface BiometricEnrollment {
+    id: string;
+    institutionId: string;
+    staffId: string;
+    devicePin: string;
+    fingerprintIndex?: number;
+    enrolledAt: string;
+    isActive: boolean;
+    // Joined fields
+    staffName?: string;
+    staffRole?: string;
+}
+
+export interface StaffAttendanceLog {
+    id: string | number;
+    institutionId: string;
+    staffId?: string;
+    deviceId?: string;
+    devicePin: string;
+    punchTime: string;
+    punchType: number;
+    verificationMethod: number;
+    rawData?: string;
+    isProcessed: boolean;
+    createdAt: string;
+    // Joined fields
+    staffName?: string;
+}
+
+export interface StaffAttendanceDaily {
+    id: string;
+    institutionId: string;
+    staffId: string;
+    attendanceDate: string;
+    firstIn?: string;
+    lastOut?: string;
+    totalHours: number;
+    overtimeHours: number;
+    status: 'present' | 'absent' | 'half-day' | 'leave' | 'holiday';
+    lateMinutes: number;
+    earlyLeaveMinutes: number;
+    punchCount: number;
+    notes?: string;
+    createdAt: string;
+    updatedAt?: string;
+    // Joined fields
+    staffName?: string;
+    staffRole?: string;
+}
+
 export interface CampaignGroup {
     id: string;
     campaignId: string;
