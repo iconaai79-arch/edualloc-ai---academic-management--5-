@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { XIcon } from '../icons/XIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { PhoneIcon } from '../icons/PhoneIcon';
@@ -16,7 +17,20 @@ interface RegisterPatientModalProps {
     isEdu?: boolean;
 }
 
+const ChevronRightIcon = (props: any) => (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+    </svg>
+);
+
+const ChevronLeftIcon = (props: any) => (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+    </svg>
+);
+
 export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOpen, onClose, onRegister, users = [], isEdu = false }) => {
+    const [currentStep, setCurrentStep] = useState(1);
     const [formData, setFormData] = useState({
         fullName: '',
         dob: '',
@@ -28,10 +42,12 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
         emergencyContactName: '',
         emergencyContactPhone: '',
         admissionNumber: '',
+        allergies: '', // Newly suggested medical field
     });
 
     const [directorySearch, setDirectorySearch] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isAutoFilled, setIsAutoFilled] = useState(false);
 
     const filteredUsers = useMemo(() => {
         if (!isEdu || !directorySearch.trim()) return [];
@@ -60,19 +76,72 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
             emergencyContactName: user.metadata?.emergencyContactName || '',
             emergencyContactPhone: user.metadata?.emergencyContactPhone || '',
             admissionNumber: user.admissionNumber || user.admission_number || user.metadata?.admissionNumber || user.metadata?.admission_number || '',
+            allergies: Array.isArray(user.metadata?.allergies) 
+                ? user.metadata.allergies.join(', ') 
+                : (user.metadata?.allergies || ''),
         });
+        setIsAutoFilled(true);
         setDirectorySearch('');
+    };
+
+    const handleResetForm = () => {
+        setFormData({
+            fullName: '',
+            dob: '',
+            gender: 'Male',
+            bloodGroup: '',
+            contact: '',
+            insuranceProvider: '',
+            shaNumber: '',
+            emergencyContactName: '',
+            emergencyContactPhone: '',
+            admissionNumber: '',
+            allergies: '',
+        });
+        setIsAutoFilled(false);
+        setCurrentStep(1);
     };
 
     if (!isOpen) return null;
 
+    const isStepValid = () => {
+        switch (currentStep) {
+            case 1:
+                return formData.fullName.trim().length > 0 && formData.dob.trim().length > 0;
+            case 2:
+                return true; // Medical details can be skipped
+            case 3:
+                return formData.contact.trim().length > 0;
+            case 4:
+                return formData.emergencyContactName.trim().length > 0 && formData.emergencyContactPhone.trim().length > 0;
+            default:
+                return false;
+        }
+    };
+
+    const handleNext = () => {
+        if (isStepValid() && currentStep < 4) {
+            setCurrentStep(currentStep + 1);
+        }
+    };
+
+    const handlePrev = () => {
+        if (currentStep > 1) {
+            setCurrentStep(currentStep - 1);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!isStepValid()) return;
         setIsSubmitting(true);
         try {
             await onRegister({
                 ...formData,
-                gender: formData.gender as 'Male' | 'Female' | 'Other'
+                gender: formData.gender as 'Male' | 'Female' | 'Other',
+                allergies: formData.allergies
+                    ? formData.allergies.split(',').map(s => s.trim()).filter(Boolean)
+                    : []
             });
             onClose();
         } catch (error) {
@@ -82,8 +151,8 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6">
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-md" onClick={onClose}></div>
             
             <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-white/10 shadow-2xl overflow-hidden animate-fade-in-up">
@@ -101,105 +170,156 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-8 space-y-8 relative z-10 max-h-[70vh] overflow-y-auto no-scrollbar">
-                    {/* Auto-fill Search from Directory */}
-                    {isEdu && (
-                        <div className="space-y-2 relative">
-                            <label className="text-[10px] font-black uppercase text-indigo-500 ml-1">Auto-fill from School Directory</label>
-                            <div className="relative group">
-                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                <input
-                                    type="text"
-                                    placeholder="SEARCH STUDENTS, TEACHERS, OR STAFF..."
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-800 dark:text-slate-100"
-                                    value={directorySearch}
-                                    onChange={e => setDirectorySearch(e.target.value)}
-                                />
-                            </div>
-                            {directorySearch && (
-                                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl z-[200] max-h-48 overflow-y-auto no-scrollbar">
-                                    {filteredUsers.length > 0 ? (
-                                        filteredUsers.map(u => (
-                                            <button
-                                                key={u.id}
-                                                type="button"
-                                                onClick={() => handleSelectUser(u)}
-                                                className="w-full p-4 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-[10px] font-black uppercase tracking-wider border-b border-slate-50 dark:border-white/5 last:border-0 flex justify-between items-center text-slate-800 dark:text-slate-200"
-                                            >
-                                                <span>{u.name} ({u.role})</span>
-                                                <span className="text-[8px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900">Select</span>
-                                            </button>
-                                        ))
-                                    ) : (
-                                        <div className="p-4 text-center text-[10px] font-bold text-slate-400 uppercase">No matching directory records</div>
+                {/* Stepper Progress Bar */}
+                <div className="px-10 pt-6 pb-4 bg-slate-50/50 dark:bg-slate-900/50 relative z-10 border-b border-slate-100 dark:border-white/5">
+                    <div className="flex justify-between items-center relative">
+                        {/* Connecting Line */}
+                        <div className="absolute left-0 right-0 h-1 bg-slate-200 dark:bg-slate-800 -translate-y-1/2 top-1/2 -z-10 rounded-full" />
+                        <div 
+                            className="absolute left-0 h-1 bg-indigo-600 -translate-y-1/2 top-1/2 -z-10 rounded-full transition-all duration-500" 
+                            style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
+                        />
+
+                        {[1, 2, 3, 4].map(step => (
+                            <button
+                                key={step}
+                                type="button"
+                                onClick={() => {
+                                    if (step < currentStep || isStepValid()) {
+                                        setCurrentStep(step);
+                                    }
+                                }}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all duration-300 ring-4 ${
+                                    step === currentStep 
+                                        ? 'bg-indigo-600 text-white ring-indigo-500/30' 
+                                        : step < currentStep 
+                                        ? 'bg-emerald-500 text-white ring-emerald-500/20' 
+                                        : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 ring-transparent'
+                                }`}
+                            >
+                                {step < currentStep ? '✓' : step}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex justify-between mt-2 text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                        <span>Identity</span>
+                        <span>Clinical</span>
+                        <span>Coverage</span>
+                        <span>Emergency</span>
+                    </div>
+                </div>
+
+                {/* Auto-filled Notification Banner */}
+                {isAutoFilled && (
+                    <div className="mx-8 mt-6 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex justify-between items-center text-[10px] font-black text-emerald-500 uppercase tracking-widest relative z-10">
+                        <span>✓ Record pre-filled from school directory</span>
+                        <button type="button" onClick={handleResetForm} className="underline hover:text-emerald-400">Clear</button>
+                    </div>
+                )}
+
+                {/* Content Steps */}
+                <div className="p-8 relative z-10 max-h-[50vh] overflow-y-auto no-scrollbar">
+                    {currentStep === 1 && (
+                        <div className="space-y-6 animate-fade-in">
+                            {isEdu && (
+                                <div className="space-y-2 relative">
+                                    <label className="text-[10px] font-black uppercase text-indigo-500 ml-1">Auto-fill from School Directory</label>
+                                    <div className="relative group">
+                                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                        <input
+                                            type="text"
+                                            placeholder="SEARCH STUDENTS, TEACHERS, OR STAFF..."
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-800 dark:text-slate-100"
+                                            value={directorySearch}
+                                            onChange={e => setDirectorySearch(e.target.value)}
+                                        />
+                                    </div>
+                                    {directorySearch && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl z-[200] max-h-48 overflow-y-auto no-scrollbar">
+                                            {filteredUsers.length > 0 ? (
+                                                filteredUsers.map(u => (
+                                                    <button
+                                                        key={u.id}
+                                                        type="button"
+                                                        onClick={() => handleSelectUser(u)}
+                                                        className="w-full p-4 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-[10px] font-black uppercase tracking-wider border-b border-slate-50 dark:border-white/5 last:border-0 flex justify-between items-center text-slate-800 dark:text-slate-200"
+                                                    >
+                                                        <span>{u.name} ({u.role})</span>
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900">Select</span>
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="p-4 text-center text-[10px] font-bold text-slate-400 uppercase">No matching directory records</div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             )}
-                        </div>
-                    )}
 
-                    {/* Basic Information */}
-                    <div className="space-y-6">
-                        <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">Personal Details</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Full Identity Name</label>
-                                <div className="relative group">
-                                    <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                    <input
-                                        required
-                                        type="text"
-                                        placeholder="E.G. JOHN DOE"
-                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner"
-                                        value={formData.fullName}
-                                        onChange={e => setFormData({ ...formData, fullName: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Birth Registry Date</label>
-                                <div className="relative group">
-                                    <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                    <input
-                                        required
-                                        type="date"
-                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner"
-                                        value={formData.dob}
-                                        onChange={e => setFormData({ ...formData, dob: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Gender</label>
-                                <select
-                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner appearance-none"
-                                    value={formData.gender}
-                                    onChange={e => setFormData({ ...formData, gender: e.target.value })}
-                                >
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-
-                            {isEdu && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Admission Number</label>
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Full Identity Name</label>
                                     <div className="relative group">
-                                        <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                        <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                         <input
+                                            required
                                             type="text"
-                                            placeholder="E.G. ADM-1234"
-                                            className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner"
-                                            value={formData.admissionNumber}
-                                            onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
+                                            placeholder="E.G. JOHN DOE"
+                                            className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                            value={formData.fullName}
+                                            onChange={e => setFormData({ ...formData, fullName: e.target.value })}
                                         />
                                     </div>
                                 </div>
-                            )}
 
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Birth Registry Date</label>
+                                    <div className="relative group">
+                                        <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                        <input
+                                            required
+                                            type="date"
+                                            className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                            value={formData.dob}
+                                            onChange={e => setFormData({ ...formData, dob: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Gender</label>
+                                    <select
+                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner appearance-none text-slate-900 dark:text-white"
+                                        value={formData.gender}
+                                        onChange={e => setFormData({ ...formData, gender: e.target.value })}
+                                    >
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+
+                                {isEdu && (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Admission Number</label>
+                                        <div className="relative group">
+                                            <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                            <input
+                                                type="text"
+                                                placeholder="E.G. ADM-1234"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.admissionNumber}
+                                                onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {currentStep === 2 && (
+                        <div className="space-y-6 animate-fade-in">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Blood Registry Group</label>
                                 <div className="relative group">
@@ -207,115 +327,159 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
                                     <input
                                         type="text"
                                         placeholder="E.G. O+"
-                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner"
+                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
                                         value={formData.bloodGroup}
                                         onChange={e => setFormData({ ...formData, bloodGroup: e.target.value })}
                                     />
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    {/* Contact & Insurance */}
-                    <div className="space-y-6">
-                        <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">Communication & Coverage</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Primary Contact Unit</label>
-                                <div className="relative group">
-                                    <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Medical Notes & Allergies</label>
+                                <textarea
+                                    rows={4}
+                                    placeholder="E.G. PENICILLIN ALLERGY, ASTHMATIC..."
+                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner resize-none leading-relaxed text-slate-900 dark:text-white"
+                                    value={formData.allergies}
+                                    onChange={e => setFormData({ ...formData, allergies: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {currentStep === 3 && (
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Primary Contact Unit</label>
+                                    <div className="relative group">
+                                        <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                        <input
+                                            required
+                                            type="tel"
+                                            placeholder="+254..."
+                                            className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                            value={formData.contact}
+                                            onChange={e => setFormData({ ...formData, contact: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">S.H.A Identifier (Registry)</label>
+                                    <div className="relative group">
+                                        <ShieldCheckIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                        <input
+                                            type="text"
+                                            placeholder="SHA-XXXXXX"
+                                            className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                            value={formData.shaNumber}
+                                            onChange={e => setFormData({ ...formData, shaNumber: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Insurance Provider Unit</label>
+                                    <div className="relative group">
+                                        <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                        <input
+                                            type="text"
+                                            placeholder="E.G. APA, NHIF, SHA..."
+                                            className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                            value={formData.insuranceProvider}
+                                            onChange={e => setFormData({ ...formData, insuranceProvider: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {currentStep === 4 && (
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-[10px] font-black text-rose-500 uppercase tracking-widest">
+                                ⚠️ Emergency contacts are utilized for automated alerts and notifications.
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Kin Full Identity</label>
                                     <input
+                                        type="text"
                                         required
+                                        placeholder="NEXT OF KIN NAME"
+                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                        value={formData.emergencyContactName}
+                                        onChange={e => setFormData({ ...formData, emergencyContactName: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Kin Emergency Line</label>
+                                    <input
                                         type="tel"
-                                        placeholder="+254..."
-                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner"
-                                        value={formData.contact}
-                                        onChange={e => setFormData({ ...formData, contact: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">S.H.A Identifier (Registry)</label>
-                                <div className="relative group">
-                                    <ShieldCheckIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                    <input
-                                        type="text"
-                                        placeholder="SHA-XXXXXX"
-                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner"
-                                        value={formData.shaNumber}
-                                        onChange={e => setFormData({ ...formData, shaNumber: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Insurance Provider Unit</label>
-                                <div className="relative group">
-                                    <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                    <input
-                                        type="text"
-                                        placeholder="E.G. APA, NHIF, SHA..."
-                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner"
-                                        value={formData.insuranceProvider}
-                                        onChange={e => setFormData({ ...formData, insuranceProvider: e.target.value })}
+                                        required
+                                        placeholder="KIN PHONE NUMBER"
+                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                        value={formData.emergencyContactPhone}
+                                        onChange={e => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
                                     />
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    )}
+                </div>
 
-                    {/* Emergency Contact */}
-                    <div className="space-y-6">
-                        <p className="text-[10px] font-black text-rose-500 uppercase tracking-[0.3em]">Critical Emergency Link</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Kin Full Identity</label>
-                                <input
-                                    type="text"
-                                    placeholder="NEXT OF KIN NAME"
-                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner"
-                                    value={formData.emergencyContactName}
-                                    onChange={e => setFormData({ ...formData, emergencyContactName: e.target.value })}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Kin Emergency Line</label>
-                                <input
-                                    type="tel"
-                                    placeholder="KIN PHONE NUMBER"
-                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner"
-                                    value={formData.emergencyContactPhone}
-                                    onChange={e => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </form>
-
-                <div className="p-8 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 relative z-10 flex justify-end gap-4">
+                {/* Footer Controls */}
+                <div className="p-8 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 relative z-10 flex justify-between items-center">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-8 py-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-lg"
+                        className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
                     >
                         Abandon Registry
                     </button>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={isSubmitting}
-                        className="px-8 py-4 bg-indigo-600 text-white rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50"
-                    >
-                        {isSubmitting ? (
-                            <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                        ) : (
-                            <PlusIcon className="w-4 h-4" />
+                    
+                    <div className="flex gap-3">
+                        {currentStep > 1 && (
+                            <button
+                                type="button"
+                                onClick={handlePrev}
+                                className="px-6 py-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2 text-slate-900 dark:text-white"
+                            >
+                                <ChevronLeftIcon className="w-4 h-4" />
+                                Back
+                            </button>
                         )}
-                        Finalize Intake
-                    </button>
+                        
+                        {currentStep < 4 ? (
+                            <button
+                                type="button"
+                                onClick={handleNext}
+                                disabled={!isStepValid()}
+                                className="px-8 py-4 bg-indigo-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 disabled:hover:scale-100 transition-all shadow-xl shadow-indigo-500/20 disabled:shadow-none"
+                            >
+                                Continue
+                                <ChevronRightIcon className="w-4 h-4" />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleSubmit}
+                                disabled={isSubmitting || !isStepValid()}
+                                className="px-8 py-4 bg-indigo-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 disabled:hover:scale-100 transition-all shadow-xl shadow-indigo-500/20 disabled:shadow-none"
+                            >
+                                {isSubmitting ? (
+                                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <PlusIcon className="w-4 h-4" />
+                                )}
+                                Finalize Intake
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
-
