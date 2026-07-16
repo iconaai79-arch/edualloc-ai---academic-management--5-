@@ -1054,7 +1054,7 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                         setCurrentUser(prev => ({ ...prev, ...refreshedSelf } as User));
                         apiService.storeSession({ ...currentUser, ...refreshedSelf } as User);
                     }
-                } else if (!finalUsers.some((u: User) => u.id === currentUser.id)) {
+                } else if (!finalUsers.some((u: User) => u.id === currentUser.id) && !currentUser.id.startsWith('temp_admin_')) {
                     apiService.saveUser(currentUser).catch(err => {
                         // Silently ignore registry conflicts — user already exists in DB but wasn't returned by the query
                         const msg = err?.message || String(err);
