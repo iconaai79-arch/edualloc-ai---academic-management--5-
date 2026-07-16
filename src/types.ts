@@ -3308,6 +3308,7 @@ export interface HISPatient {
     status?: string;
     recordedBy?: string;
     admissionNumber?: string;
+    admission_number?: string;
     createdAt?: string;
     updatedAt?: string;
 }
