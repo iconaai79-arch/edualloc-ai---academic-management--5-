@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { PlusIcon } from '../icons/PlusIcon';
 import { SearchIcon } from '../icons/SearchIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
@@ -288,8 +289,8 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
             </div>
 
             {/* Reschedule Modal - Standardized PM Style */}
-            {isRescheduleModalOpen && selectedAppointment && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-8 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-300">
+            {isRescheduleModalOpen && selectedAppointment && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-8 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-300">
                     <div className="absolute inset-0" onClick={() => setIsRescheduleModalOpen(false)}></div>
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 w-full max-w-lg rounded-[3rem] p-12 relative z-10 shadow-2xl animate-in zoom-in-95 duration-300">
                         <button onClick={() => setIsRescheduleModalOpen(false)} className="absolute top-10 right-10 text-slate-400 hover:text-rose-500 transition-all">
@@ -347,14 +348,18 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
             
-            <AddAppointmentModal 
-                isOpen={isAddAppointmentOpen} 
-                onClose={() => setIsAddAppointmentOpen(false)} 
-                onAdd={handleCreateAppointment}
-            />
+            {createPortal(
+                <AddAppointmentModal 
+                    isOpen={isAddAppointmentOpen} 
+                    onClose={() => setIsAddAppointmentOpen(false)} 
+                    onAdd={handleCreateAppointment}
+                />,
+                document.body
+            )}
         </div>
     );
 };

@@ -47,6 +47,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     // PDF Preview state
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [generatingPdf, setGeneratingPdf] = useState(false);
+    const [activeSubTab, setActiveSubTab] = useState<'students' | 'staff'>('students');
 
     const [enrollments, setEnrollments] = useState<any[]>([]);
 
@@ -237,38 +238,60 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 </div>
             </div>
 
+            {/* Subtabs for Students and Essential Staff */}
+            <div className="flex bg-slate-100/50 dark:bg-white/5 p-1.5 rounded-2xl border border-slate-200 dark:border-white/5 w-fit shadow-inner">
+                <button
+                    onClick={() => setActiveSubTab('students')}
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'students' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-md border border-slate-200/50 dark:border-slate-700/50 scale-105' : 'text-slate-400 hover:text-indigo-500'}`}
+                >
+                    Students
+                </button>
+                <button
+                    onClick={() => setActiveSubTab('staff')}
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'staff' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-md border border-slate-200/50 dark:border-slate-700/50 scale-105' : 'text-slate-400 hover:text-indigo-500'}`}
+                >
+                    Essential Staff
+                </button>
+            </div>
+
             {/* Members List Sections */}
             <div className="space-y-10">
                 {/* Staff Section */}
-                {groupedMembers.staff.length > 0 && (
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                        <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-700/30 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">Staff Members</h3>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">{groupedMembers.staff.length} Active Profiles</span>
+                {activeSubTab === 'staff' && (
+                    groupedMembers.staff.length > 0 ? (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-700/30 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">Essential Staff</h3>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">{groupedMembers.staff.length} Active Profiles</span>
+                            </div>
+                            <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                                {groupedMembers.staff.map(renderMemberRow)}
+                            </div>
                         </div>
-                        <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                            {groupedMembers.staff.map(renderMemberRow)}
+                    ) : (
+                        <div className="py-20 text-center bg-white dark:bg-slate-800 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-700">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No staff members found matching your search</p>
                         </div>
-                    </div>
+                    )
                 )}
 
                 {/* Students Section */}
-                {groupedMembers.students.length > 0 && (
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                        <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-700/30 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Student Body</h3>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">{groupedMembers.students.length} Active Records</span>
+                {activeSubTab === 'students' && (
+                    groupedMembers.students.length > 0 ? (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-700/30 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Students</h3>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">{groupedMembers.students.length} Active Records</span>
+                            </div>
+                            <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                                {groupedMembers.students.map(renderMemberRow)}
+                            </div>
                         </div>
-                        <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                            {groupedMembers.students.map(renderMemberRow)}
+                    ) : (
+                        <div className="py-20 text-center bg-white dark:bg-slate-800 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-700">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No students found matching your search</p>
                         </div>
-                    </div>
-                )}
-
-                {groupedMembers.staff.length === 0 && groupedMembers.students.length === 0 && (
-                    <div className="py-20 text-center bg-white dark:bg-slate-800 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-700">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No members found matching your search</p>
-                    </div>
+                    )
                 )}
             </div>
 

@@ -754,7 +754,7 @@ export const App: React.FC = () => {
             suffix = roleNames[activeRole] || activeRole.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
 
-        if (isHealthSystemOpen || activeRole === 'his_admin' || activeRole === 'nurse') {
+        if (isHealthSystemOpen || activeRole === 'his_admin' || activeRole === 'nurse' || (activeRole === 'admin' && activeInstitution?.institutionType === 'HIS')) {
             suffix = isEduInstitution(activeInstitution) ? "EduPulse Wellness" : "HealthCore HIS";
         }
         if (isPharmacySystemOpen) suffix = "Pharmacy Hub";
@@ -5517,7 +5517,7 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                              currentUser={currentUser!}
                                          />
                                     </div>
-                                ) : (isHealthSystemOpen || activeRole === 'his_admin' || activeRole === 'nurse') ? (
+                                ) : (isHealthSystemOpen || activeRole === 'his_admin' || activeRole === 'nurse' || (activeRole === 'admin' && activeInstitution?.institutionType === 'HIS')) ? (
                                     <ModuleAccessGuard
                                         moduleId="his"
                                         moduleName={isEduInstitution(activeInstitution) ? "EduPulse Wellness" : "HealthCore HIS"}
