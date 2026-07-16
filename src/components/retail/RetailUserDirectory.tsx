@@ -82,7 +82,7 @@ export function RetailUserDirectory({
     useEffect(() => {
         const fetchEnrollments = async () => {
             try {
-                const enrollmentsData = await apiService.fetchModuleRecords<any>('enrollments', institutionId);
+                const enrollmentsData = await apiService.fetchModuleRecords<any>('student_enrollments', institutionId);
                 setEnrollments(enrollmentsData || []);
             } catch (err) {
                 console.error('Failed to fetch enrollments:', err);
@@ -118,7 +118,7 @@ export function RetailUserDirectory({
                 apiService.fetchModuleRecords<User>('users', institutionId),
                 apiService.fetchModuleRecords<Course>('courses', institutionId),
                 apiService.fetchModuleRecords<Department>('departments', institutionId),
-                apiService.fetchModuleRecords<any>('enrollments', institutionId),
+                apiService.fetchModuleRecords<any>('student_enrollments', institutionId),
             ]);
             setUsers(usersData || []);
             setCourses(coursesData || []);

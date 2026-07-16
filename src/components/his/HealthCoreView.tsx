@@ -289,8 +289,13 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
         if (!institutionId || !activePatientId) return;
         try {
             for (const v of vitalsData) {
+                const vitalId = `v_${activePatientId}_${v.label.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
                 await apiService.saveModuleRecord('his_vital_statistics', {
-                    ...v, institutionId, patientId: activePatientId, recordedAt: new Date().toISOString()
+                    ...v,
+                    id: vitalId,
+                    institutionId,
+                    patientId: activePatientId,
+                    recordedAt: new Date().toISOString()
                 });
             }
             alert("Vitals updated successfully");
@@ -630,12 +635,12 @@ const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOp
                     <div className="glass-morphism p-10 rounded-[3rem] border border-slate-200 dark:border-white/5 bg-gradient-to-br from-indigo-500/5 to-transparent">
                         <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] mb-8 italic">Vital Statistics</p>
                         <div className="space-y-6">
-                            {(vitals || [
-                                { label: 'Blood Pressure', value: '120/80', unit: 'mmHg', trend: 'Normal', color: 'text-emerald-500' },
-                                { label: 'Heart Rate', value: '72', unit: 'BPM', trend: '+2', color: 'text-slate-900 dark:text-white' },
-                                { label: 'Oxygen Saturation', value: '98%', unit: 'SpO2', trend: 'Normal', color: 'text-blue-500' },
-                                { label: 'Body Temp', value: '36.8', unit: '°C', trend: '-0.2', color: 'text-slate-900 dark:text-white' }
-                            ]).map((vital, i) => (
+                            {(!vitals || vitals.length === 0 ? [
+                                { label: 'Blood Pressure', value: '—', unit: 'mmHg', trend: '—', color: 'text-emerald-500' },
+                                { label: 'Heart Rate', value: '—', unit: 'BPM', trend: '—', color: 'text-slate-900 dark:text-white' },
+                                { label: 'Oxygen Saturation', value: '—', unit: 'SpO2', trend: '—', color: 'text-blue-500' },
+                                { label: 'Body Temp', value: '—', unit: '°C', trend: '—', color: 'text-slate-900 dark:text-white' }
+                            ] : vitals).map((vital, i) => (
                                 <div key={i} className="flex justify-between items-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/5 hover:bg-slate-200/50 dark:hover:bg-white/10 transition-all cursor-pointer">
                                     <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 italic">{vital.label}</p><p className="text-2xl font-black text-slate-900 dark:text-white">{vital.value} <span className="text-xs font-bold text-slate-500 tracking-tight">{vital.unit}</span></p></div>
                                     <div className={`text-[10px] font-black uppercase tracking-widest ${vital.color} italic underline underline-offset-4 decoration-2`}>{vital.trend}</div>

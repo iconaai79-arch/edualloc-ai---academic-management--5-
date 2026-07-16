@@ -61,7 +61,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institutionId),
                 apiService.fetchModuleRecords<LibraryFine>('library_fines', institutionId),
                 apiService.fetchModuleRecords<Book>('books', institutionId),
-                apiService.fetchModuleRecords<any>('enrollments', institutionId)
+                apiService.fetchModuleRecords<any>('student_enrollments', institutionId)
             ]);
             setTransactions(transData);
             setFines(finesData);

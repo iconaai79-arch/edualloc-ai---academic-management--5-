@@ -1022,7 +1022,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
             // Retail & Procurement tabs
             if (['retail', 'procurement'].includes(tab.id)) {
-                if (isLaw) return false;
+                if (isLaw || institutionType === 'HIS') return false;
                 if (isEdu) {
                     return tab.id === 'retail';
                 }
