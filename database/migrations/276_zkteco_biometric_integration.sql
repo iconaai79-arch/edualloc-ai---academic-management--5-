@@ -5,7 +5,7 @@
 -- 1. Biometric Device Registry
 CREATE TABLE IF NOT EXISTS biometric_devices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     serial_number VARCHAR(100) NOT NULL,
     device_name VARCHAR(255) NOT NULL DEFAULT 'Biometric Terminal',
     device_model VARCHAR(100),
@@ -25,8 +25,8 @@ CREATE INDEX IF NOT EXISTS idx_biometric_devices_institution ON biometric_device
 -- 2. Staff ↔ Device PIN Enrollment
 CREATE TABLE IF NOT EXISTS biometric_enrollments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    staff_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    staff_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     device_pin VARCHAR(20) NOT NULL,
     fingerprint_index INT DEFAULT 0,
     enrolled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -41,8 +41,8 @@ CREATE INDEX IF NOT EXISTS idx_biometric_enrollments_pin ON biometric_enrollment
 -- 3. Raw Attendance Punch Logs
 CREATE TABLE IF NOT EXISTS staff_attendance_logs (
     id BIGSERIAL PRIMARY KEY,
-    institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    staff_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    staff_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     device_id UUID REFERENCES biometric_devices(id) ON DELETE SET NULL,
     device_pin VARCHAR(20),
     punch_time TIMESTAMPTZ NOT NULL,
@@ -56,13 +56,13 @@ CREATE TABLE IF NOT EXISTS staff_attendance_logs (
 CREATE INDEX IF NOT EXISTS idx_staff_attendance_logs_institution ON staff_attendance_logs(institution_id);
 CREATE INDEX IF NOT EXISTS idx_staff_attendance_logs_staff ON staff_attendance_logs(staff_id);
 CREATE INDEX IF NOT EXISTS idx_staff_attendance_logs_punch_time ON staff_attendance_logs(punch_time);
-CREATE INDEX IF NOT EXISTS idx_staff_attendance_logs_date ON staff_attendance_logs(institution_id, (punch_time::date));
+CREATE INDEX IF NOT EXISTS idx_staff_attendance_logs_date ON staff_attendance_logs(institution_id, punch_time);
 
 -- 4. Computed Daily Attendance Summary
 CREATE TABLE IF NOT EXISTS staff_attendance_daily (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    staff_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    staff_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     attendance_date DATE NOT NULL,
     first_in TIMESTAMPTZ,
     last_out TIMESTAMPTZ,
@@ -85,7 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_staff_attendance_daily_lookup ON staff_attendance
 
 -- 5. Function to compute daily summary from raw logs
 CREATE OR REPLACE FUNCTION compute_staff_daily_attendance(
-    p_institution_id UUID,
+    p_institution_id TEXT,
     p_date DATE DEFAULT CURRENT_DATE,
     p_standard_hours DECIMAL DEFAULT 8.0,
     p_morning_deadline TIME DEFAULT '08:00:00'
