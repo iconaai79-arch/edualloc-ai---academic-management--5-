@@ -1651,30 +1651,34 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                         </div>
                                     )}
 
+                                </div>
+
+                                {/* ── STICKY FOOTER: always visible, never scrolls away ── */}
+                                <div className="flex-shrink-0 px-4 sm:px-10 py-4 sm:py-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 space-y-4">
                                     {isEducation ? (
-                                        <div className="p-8 bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] flex justify-between items-center shadow-2xl">
-                                            <div className="space-y-1">
+                                        <div className="p-5 bg-slate-900 dark:bg-slate-800 rounded-2xl flex justify-between items-center shadow-xl">
+                                            <div className="space-y-0.5">
                                                 <span className="text-[10px] font-black uppercase tracking-[.4em] text-slate-400">
                                                     Total Items Count
                                                 </span>
-                                                <h4 className="text-3xl font-black text-white tracking-tighter">
+                                                <h4 className="text-2xl font-black text-white tracking-tighter">
                                                     {cart.reduce((sum, c) => sum + c.quantity, 0)}
                                                 </h4>
                                             </div>
-                                            <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
-                                                <ShoppingCart className="w-8 h-8 text-white/50" />
+                                            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md">
+                                                <ShoppingCart className="w-6 h-6 text-white/50" />
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="p-8 bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] flex justify-between items-center shadow-2xl">
-                                            <div className="space-y-1">
+                                        <div className="p-5 bg-slate-900 dark:bg-slate-800 rounded-2xl flex justify-between items-center shadow-xl">
+                                            <div className="space-y-0.5">
                                                 <span className="text-[10px] font-black uppercase tracking-[.4em] text-slate-400">
                                                     Net Liability
                                                 </span>
-                                                <h4 className="text-3xl font-black text-white tracking-tighter">KES {totalAmount?.toLocaleString()}</h4>
+                                                <h4 className="text-2xl font-black text-white tracking-tighter">KES {totalAmount?.toLocaleString()}</h4>
                                             </div>
-                                            <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
-                                                <ShoppingCart className="w-8 h-8 text-white/50" />
+                                            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md">
+                                                <ShoppingCart className="w-6 h-6 text-white/50" />
                                             </div>
                                         </div>
                                     )}
@@ -1682,7 +1686,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                     <button
                                         onClick={handleCheckout}
                                         disabled={isProcessing}
-                                        className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-[12px] tracking-[0.4em] shadow-2xl hover:bg-indigo-500 transition-all flex items-center justify-center gap-4 disabled:opacity-50"
+                                        className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[12px] tracking-[0.4em] shadow-2xl hover:bg-indigo-500 active:scale-[0.98] transition-all flex items-center justify-center gap-4 disabled:opacity-50"
                                     >
                                         {isProcessing ? (
                                             <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin" />
