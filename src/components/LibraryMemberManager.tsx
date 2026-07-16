@@ -85,7 +85,9 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             };
         }).filter(u =>
             u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (u.staffId && u.staffId.toLowerCase().includes(searchTerm.toLowerCase()))
+            (u.staffId && u.staffId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (u.admissionNumber && u.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (u.admission_number && u.admission_number.toLowerCase().includes(searchTerm.toLowerCase()))
         );
 
         return {
@@ -161,7 +163,9 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 <div className="min-w-0">
                     <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase truncate tracking-tight">{member.name}</h4>
                     <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{member.staffId || 'No ID'}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                            {member.role === 'student' ? (member.admissionNumber || member.admission_number || 'No ADM') : (member.staffId || 'No ID')}
+                        </p>
                         <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-[7px] font-black text-slate-500 rounded uppercase tracking-tighter">
                             {member.role.replace('_', ' ')}
                         </span>
@@ -266,7 +270,9 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                                 </div>
                                 <div>
                                     <h3 className="text-2xl font-black uppercase tracking-tighter leading-none">{selectedMember.name}</h3>
-                                    <p className="text-sm font-bold text-indigo-100 uppercase tracking-widest mt-2">Member Reference: {selectedMember.staffId || 'N/A'}</p>
+                                    <p className="text-sm font-bold text-indigo-100 uppercase tracking-widest mt-2">
+                                        Member Reference: {selectedMember.role === 'student' ? (selectedMember.admissionNumber || selectedMember.admission_number || 'N/A') : (selectedMember.staffId || 'N/A')}
+                                    </p>
                                     <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] mt-1">{selectedMember.role.replace('_', ' ')} Registry</p>
                                 </div>
                             </div>

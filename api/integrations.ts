@@ -1923,6 +1923,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             // 1. Determine table name immediately
             const table = txn.provider === 'ncba' ? 'ncba_transactions' : 
+                          txn.provider === 'im' ? 'im_transactions' : 
                           txn.provider === 'airtel' ? 'airtel_transactions' : 
                           'mpesa_transactions';
 

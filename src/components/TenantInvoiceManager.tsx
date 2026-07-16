@@ -56,6 +56,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+    const [tenantSearchQuery, setTenantSearchQuery] = useState('');
     
     // States for recording payment
     const [recordingPaymentFor, setRecordingPaymentFor] = useState<Invoice | null>(null);
@@ -325,9 +326,19 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     };
 
     const sortedInvoices = useMemo(() => {
-        const filtered = filterStatus === 'all' ? invoices : invoices.filter(inv => inv.status === filterStatus);
+        let filtered = filterStatus === 'all' ? invoices : invoices.filter(inv => inv.status === filterStatus);
+        
+        if (tenantSearchQuery.trim()) {
+            const query = tenantSearchQuery.toLowerCase().trim();
+            filtered = filtered.filter(inv => {
+                const instName = institutionMap.get(inv.institutionId)?.name || '';
+                const docNum = inv.invoiceNumber || '';
+                return instName.toLowerCase().includes(query) || docNum.toLowerCase().includes(query);
+            });
+        }
+
         return [...filtered].sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime());
-    }, [invoices, filterStatus]);
+    }, [invoices, filterStatus, tenantSearchQuery, institutionMap]);
 
     return (
         <div className="space-y-6">
@@ -484,18 +495,35 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                 </div>
             )}
 
-            {/* Filter bar */}
-            <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mr-2">Filter:</span>
-                {['all', ...STATUS_OPTIONS.map(s => s.value)].map(s => (
-                    <button
-                        key={s}
-                        onClick={() => setFilterStatus(s)}
-                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${filterStatus === s ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-indigo-400 hover:text-indigo-600'}`}
-                    >
-                        {s === 'all' ? 'All' : STATUS_OPTIONS.find(o => o.value === s)?.label || s}
-                    </button>
-                ))}
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mr-2">Filter:</span>
+                    {['all', ...STATUS_OPTIONS.map(s => s.value)].map(s => (
+                        <button
+                            key={s}
+                            onClick={() => setFilterStatus(s)}
+                            className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${filterStatus === s ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-indigo-400 hover:text-indigo-600'}`}
+                        >
+                            {s === 'all' ? 'All' : STATUS_OPTIONS.find(o => o.value === s)?.label || s}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="relative min-w-[240px] max-w-xs">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
+                    <input
+                        type="text"
+                        placeholder="Search Tenant or Doc #..."
+                        value={tenantSearchQuery}
+                        onChange={e => setTenantSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-xl text-[10px] font-bold outline-none transition-all placeholder:text-slate-400"
+                    />
+                </div>
             </div>
 
             {/* Invoice Table */}

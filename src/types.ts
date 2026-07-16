@@ -485,6 +485,7 @@ export interface Institution {
     intasendConfig?: IntasendConfig;
     ncbaConfig?: NcbaConfig;
     kcbConfig?: KcbConfig;
+    imConfig?: ImConfig;
     googleDriveConfig?: GoogleDriveConfig;
     farmerSmsBillingEnabled?: boolean;
     moduleStates?: InstitutionModuleState[];
@@ -924,6 +925,12 @@ export interface KcbConfig {
     businessKeyType?: string;
     organizationShortCode?: string;
     creditAccountIdentifier?: string;
+}
+
+export interface ImConfig {
+    apiKey?: string;
+    callbackUsername?: string;
+    callbackSecret?: string;
 }
 
 export interface CoopB2bConfig {
