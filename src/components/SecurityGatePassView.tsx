@@ -15,7 +15,7 @@ import { CameraIcon } from './icons/CameraIcon';
 import type { TransportVehicle, VehicleLog, User, Institution, Visitor, Course, TeacherCheckIn } from '../types';
 import { apiService } from '../services/apiService';
 import { phonesMatch, phoneContains } from '../utils/stringUtils';
-import { printService } from '../services/printService';
+import { printService, getPrinterConfig, savePrinterConfig, PrinterConfig } from '../services/printService';
 import { Capacitor } from '@capacitor/core';
 
 export const printEposGatePass = (pin: any, parent: any, event: any, institution: any) => {
@@ -369,6 +369,9 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'vehicle' | 'parent' | 'staff'>(initialTab || 'vehicle');
     const [activeUsers, setActiveUsers] = useState<User[]>(users);
+    
+    const [isPrinterSettingsOpen, setIsPrinterSettingsOpen] = useState(false);
+    const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(getPrinterConfig());
 
     useEffect(() => {
         setActiveUsers(users);
@@ -991,6 +994,18 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     </div>
 
                     <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <button 
+                            onClick={() => {
+                                setPrinterConfig(getPrinterConfig());
+                                setIsPrinterSettingsOpen(true);
+                            }}
+                            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-xl border border-slate-200/40 dark:border-slate-850 text-slate-600 dark:text-slate-400 text-xs font-black uppercase tracking-wider flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm cursor-pointer"
+                            title="Configure Thermal Printer"
+                        >
+                            <PrinterIcon className="w-4 h-4 text-indigo-500" />
+                            <span>Printer Config</span>
+                        </button>
+                        
                         <div className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200/40 dark:border-slate-850 text-slate-600 dark:text-slate-400 text-xs font-black uppercase tracking-wider flex items-center gap-2">
                             <ClockIcon className="w-4 h-4 text-blue-500" />
                             {new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -1377,8 +1392,8 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     <div>
                                         <label className="block text-[9px] font-black uppercase text-slate-450 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Driver Notes / Observations</label>
                                         <textarea
-                                            value={vehicleNotes}
-                                            onChange={e => setVehicleNotes(e.target.value)}
+                                            value={notes}
+                                            onChange={e => setNotes(e.target.value)}
                                             className="w-full p-4 rounded-2xl bg-white dark:bg-slate-950 border border-blue-200/40 dark:border-blue-800/40 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-semibold"
                                             rows={2}
                                             placeholder="e.g. Transporting grade 4 trip students..."
@@ -1830,6 +1845,101 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     </button>
                                 ))}
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isPrinterSettingsOpen && (
+                <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden animate-in zoom-in duration-200">
+                        <div className="p-8 bg-gradient-to-r from-blue-600 to-indigo-600 flex justify-between items-center text-white">
+                            <div>
+                                <h3 className="text-lg font-black uppercase tracking-tight italic">Thermal Printer Configuration</h3>
+                                <p className="text-[10px] text-blue-100 uppercase tracking-widest mt-1 opacity-80">Link gatepass print services</p>
+                            </div>
+                            <button 
+                                onClick={() => setIsPrinterSettingsOpen(false)} 
+                                className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all font-black text-xs uppercase"
+                            >
+                                Close
+                            </button>
+                        </div>
+                        
+                        <div className="p-8 space-y-6 text-left">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Connection Interface</label>
+                                <select 
+                                    value={printerConfig.type}
+                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, type: e.target.value as any }))}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold uppercase tracking-wider focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                >
+                                    <option value="system">System Spooler (PDF / Preview)</option>
+                                    <option value="bluetooth">Bluetooth Printer (Raw ESC/POS)</option>
+                                    <option value="network">Network IP Printer (Direct TCP Port 9100)</option>
+                                </select>
+                            </div>
+
+                            {printerConfig.type === 'network' && (
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="col-span-2 space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Printer IP Address</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="e.g. 192.168.1.100" 
+                                            value={printerConfig.ipAddress || ''}
+                                            onChange={(e) => setPrinterConfig(prev => ({ ...prev, ipAddress: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Port</label>
+                                        <input 
+                                            type="number" 
+                                            placeholder="9100" 
+                                            value={printerConfig.port || 9100}
+                                            onChange={(e) => setPrinterConfig(prev => ({ ...prev, port: parseInt(e.target.value) || 9100 }))}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {printerConfig.type === 'bluetooth' && (
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Bluetooth Hardware Address (MAC)</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="00:11:22:33:44:55" 
+                                        value={printerConfig.bluetoothAddress || ''}
+                                        onChange={(e) => setPrinterConfig(prev => ({ ...prev, bluetoothAddress: e.target.value }))}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold uppercase tracking-wider focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                    />
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Thermal Roll Paper Width</label>
+                                <select 
+                                    value={printerConfig.paperWidth || 80}
+                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, paperWidth: parseInt(e.target.value) as any }))}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold uppercase tracking-wider focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                >
+                                    <option value={80}>80 mm Thermal Spool</option>
+                                    <option value={58}>58 mm Mini-Spool</option>
+                                </select>
+                            </div>
+
+                            <button 
+                                onClick={() => {
+                                    savePrinterConfig(printerConfig);
+                                    setIsPrinterSettingsOpen(false);
+                                    alert("Printer settings committed successfully.");
+                                }}
+                                className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all"
+                            >
+                                Commit Printer Config
+                            </button>
                         </div>
                     </div>
                 </div>
