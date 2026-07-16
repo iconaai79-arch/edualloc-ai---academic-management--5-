@@ -1135,7 +1135,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Connection Interface</label>
                                             <select 
                                                 value={printerConfig.type}
-                                                onChange={(e) => setPrinterConfig(prev => ({ ...prev, type: e.target.value as any }))}
+                                                onChange={(e) => {
+                                                    const updated = { ...printerConfig, type: e.target.value as any };
+                                                    setPrinterConfig(updated);
+                                                    savePrinterConfig(updated);
+                                                }}
                                                 className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-xs font-black uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                                             >
                                                 <option value="system">System Spooler (PDF / Preview)</option>
@@ -1152,7 +1156,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                         type="text" 
                                                         placeholder="e.g. 192.168.1.100" 
                                                         value={printerConfig.ipAddress || ''}
-                                                        onChange={(e) => setPrinterConfig(prev => ({ ...prev, ipAddress: e.target.value }))}
+                                                        onChange={(e) => {
+                                                            const updated = { ...printerConfig, ipAddress: e.target.value };
+                                                            setPrinterConfig(updated);
+                                                            savePrinterConfig(updated);
+                                                        }}
                                                         className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                                                     />
                                                 </div>
@@ -1162,7 +1170,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                         type="number" 
                                                         placeholder="9100" 
                                                         value={printerConfig.port || 9100}
-                                                        onChange={(e) => setPrinterConfig(prev => ({ ...prev, port: parseInt(e.target.value) || 9100 }))}
+                                                        onChange={(e) => {
+                                                            const updated = { ...printerConfig, port: parseInt(e.target.value) || 9100 };
+                                                            setPrinterConfig(updated);
+                                                            savePrinterConfig(updated);
+                                                        }}
                                                         className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                                                     />
                                                 </div>
@@ -1176,7 +1188,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                     type="text" 
                                                     placeholder="00:11:22:33:44:55" 
                                                     value={printerConfig.bluetoothAddress || ''}
-                                                    onChange={(e) => setPrinterConfig(prev => ({ ...prev, bluetoothAddress: e.target.value }))}
+                                                    onChange={(e) => {
+                                                        const updated = { ...printerConfig, bluetoothAddress: e.target.value };
+                                                        setPrinterConfig(updated);
+                                                        savePrinterConfig(updated);
+                                                    }}
                                                     className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                                                 />
                                             </div>
@@ -1186,7 +1202,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Thermal Roll Paper Width</label>
                                             <select 
                                                 value={printerConfig.paperWidth || 80}
-                                                onChange={(e) => setPrinterConfig(prev => ({ ...prev, paperWidth: parseInt(e.target.value) as any }))}
+                                                onChange={(e) => {
+                                                    const updated = { ...printerConfig, paperWidth: parseInt(e.target.value) as any };
+                                                    setPrinterConfig(updated);
+                                                    savePrinterConfig(updated);
+                                                }}
                                                 className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-xs font-black uppercase tracking-wider focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                                             >
                                                 <option value={80}>80 mm Thermal Spool</option>
@@ -1218,7 +1238,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                             <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Enable Automated Sync</span>
                                             <button 
                                                 type="button"
-                                                onClick={() => setDahuaConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                                                onClick={() => {
+                                                    const updated = { ...dahuaConfig, enabled: !dahuaConfig.enabled };
+                                                    setDahuaConfig(updated);
+                                                    localStorage.setItem('eduai_dahua_config', JSON.stringify(updated));
+                                                }}
                                                 className={`w-12 h-6 rounded-full transition-all relative outline-none ${dahuaConfig.enabled ? 'bg-indigo-650' : 'bg-slate-300 dark:bg-slate-800'}`}
                                             >
                                                 <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${dahuaConfig.enabled ? 'right-1' : 'left-1'}`}></span>
@@ -1234,7 +1258,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                             type="text" 
                                                             placeholder="e.g. 192.168.1.108" 
                                                             value={dahuaConfig.ipAddress}
-                                                            onChange={(e) => setDahuaConfig(prev => ({ ...prev, ipAddress: e.target.value }))}
+                                                            onChange={(e) => {
+                                                                const updated = { ...dahuaConfig, ipAddress: e.target.value };
+                                                                setDahuaConfig(updated);
+                                                                localStorage.setItem('eduai_dahua_config', JSON.stringify(updated));
+                                                            }}
                                                             className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
                                                         />
                                                     </div>
@@ -1244,7 +1272,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                             type="number" 
                                                             placeholder="80" 
                                                             value={dahuaConfig.port}
-                                                            onChange={(e) => setDahuaConfig(prev => ({ ...prev, port: parseInt(e.target.value) || 80 }))}
+                                                            onChange={(e) => {
+                                                                const updated = { ...dahuaConfig, port: parseInt(e.target.value) || 80 };
+                                                                setDahuaConfig(updated);
+                                                                localStorage.setItem('eduai_dahua_config', JSON.stringify(updated));
+                                                            }}
                                                             className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
                                                         />
                                                     </div>
@@ -1256,8 +1288,12 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                         <input 
                                                             type="text" 
                                                             value={dahuaConfig.username}
-                                                            onChange={(e) => setDahuaConfig(prev => ({ ...prev, username: e.target.value }))}
-                                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+                                                            onChange={(e) => {
+                                                                const updated = { ...dahuaConfig, username: e.target.value };
+                                                                setDahuaConfig(updated);
+                                                                localStorage.setItem('eduai_dahua_config', JSON.stringify(updated));
+                                                            }}
+                                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-550 outline-none transition-all dark:text-white"
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
@@ -1266,8 +1302,12 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                             type="password" 
                                                             placeholder="••••••••" 
                                                             value={dahuaConfig.password}
-                                                            onChange={(e) => setDahuaConfig(prev => ({ ...prev, password: e.target.value }))}
-                                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+                                                            onChange={(e) => {
+                                                                const updated = { ...dahuaConfig, password: e.target.value };
+                                                                setDahuaConfig(updated);
+                                                                localStorage.setItem('eduai_dahua_config', JSON.stringify(updated));
+                                                            }}
+                                                            className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-550 outline-none transition-all dark:text-white"
                                                         />
                                                     </div>
                                                 </div>
