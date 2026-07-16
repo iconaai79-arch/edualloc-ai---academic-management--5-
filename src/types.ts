@@ -3039,7 +3039,7 @@ export interface PMSettings {
 // RETAIL & AGENCY MODULE TYPES
 // ============================================================================
 
-export type RetailStoreType = 'main_store' | 'branch_store' | 'van_stock' | 'warehouse';
+export type RetailStoreType = 'main_store' | 'branch_store' | 'van_stock' | 'warehouse' | 'pharmacy_store';
 export type RetailItemStatus = 'in_stock' | 'sold' | 'reserved' | 'in_transit' | 'defective';
 export type RetailTransferStatus = 'pending' | 'approved' | 'completed' | 'rejected' | 'cancelled';
 export type RetailWishlistUrgency = 'urgent' | 'casual';

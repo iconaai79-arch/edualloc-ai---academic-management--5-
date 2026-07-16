@@ -24,6 +24,7 @@ export const HISReportsView: React.FC<HISReportsProps> = ({ activeRole, institut
     const [patientsList, setPatientsList] = useState<HISPatient[]>(patients);
     const [clinicalEvents, setClinicalEvents] = useState<any[]>([]);
     const [pharmacyInventory, setPharmacyInventory] = useState<any[]>([]);
+    const [linkedSchoolItems, setLinkedSchoolItems] = useState<any[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(false);
 
     // Dynamic search / filter state for visits
@@ -39,6 +40,7 @@ export const HISReportsView: React.FC<HISReportsProps> = ({ activeRole, institut
     // Pharmacy search state
     const [pharmacySearch, setPharmacySearch] = useState('');
     const [pharmacyCategoryFilter, setPharmacyCategoryFilter] = useState('');
+    const [reportInventorySubTab, setReportInventorySubTab] = useState<'molecular' | 'school_linked'>('molecular');
 
     // Fetch reports data on mount/update
     useEffect(() => {
@@ -46,14 +48,22 @@ export const HISReportsView: React.FC<HISReportsProps> = ({ activeRole, institut
         const loadReportData = async () => {
             setIsLoadingData(true);
             try {
-                const [evtData, pharmData, patData] = await Promise.all([
+                const [evtData, pharmData, patData, stores, retailItems] = await Promise.all([
                     apiService.fetchModuleRecords('his_clinical_events', institutionId),
                     apiService.fetchModuleRecords('his_pharmacy_inventory', institutionId),
-                    patients.length ? Promise.resolve(patients) : apiService.fetchModuleRecords('his_patients', institutionId)
+                    patients.length ? Promise.resolve(patients) : apiService.fetchModuleRecords('his_patients', institutionId),
+                    apiService.fetchModuleRecords('retail_stores', institutionId),
+                    apiService.fetchModuleRecords('retail_inventory_items', institutionId)
                 ]);
                 setClinicalEvents(evtData || []);
                 setPharmacyInventory(pharmData || []);
                 setPatientsList(patData || []);
+
+                const pharmStore = (stores || []).find((s: any) => s.storeType === 'pharmacy_store' || s.name.toLowerCase().includes('pharmacy'));
+                if (pharmStore) {
+                    const linked = (retailItems || []).filter((item: any) => item.storeId === pharmStore.id || item.store_id === pharmStore.id);
+                    setLinkedSchoolItems(linked);
+                }
             } catch (err) {
                 console.error("Failed to load Intelligence reports data:", err);
             } finally {
@@ -558,26 +568,32 @@ export const HISReportsView: React.FC<HISReportsProps> = ({ activeRole, institut
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
                     <div>
                         <h3 className="text-sm font-black uppercase tracking-[0.2em] italic">Pharmacy Inventory Ledger</h3>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Detailed overview of current drug units in stock</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">
+                            {reportInventorySubTab === 'molecular'
+                                ? 'Detailed overview of current drug units in stock'
+                                : 'General school inventory items allocated to Pharmacy Sub-Store'}
+                        </p>
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                        <select
-                            value={pharmacyCategoryFilter}
-                            onChange={e => setPharmacyCategoryFilter(e.target.value)}
-                            className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[9px] font-black uppercase tracking-widest px-4 py-2 text-slate-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-inner"
-                        >
-                            <option value="">ALL CATEGORIES</option>
-                            {pharmacyStats.categories.map((c, i) => (
-                                <option key={i} value={c}>{c.toUpperCase()}</option>
-                            ))}
-                        </select>
+                        {reportInventorySubTab === 'molecular' && (
+                            <select
+                                value={pharmacyCategoryFilter}
+                                onChange={e => setPharmacyCategoryFilter(e.target.value)}
+                                className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[9px] font-black uppercase tracking-widest px-4 py-2 text-slate-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-inner"
+                            >
+                                <option value="">ALL CATEGORIES</option>
+                                {pharmacyStats.categories.map((c, i) => (
+                                    <option key={i} value={c}>{c.toUpperCase()}</option>
+                                ))}
+                            </select>
+                        )}
 
                         <div className="relative w-full sm:w-64">
                             <span className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-white/40"><SearchIcon className="w-3.5 h-3.5" /></span>
                             <input 
                                 type="text"
-                                placeholder="SEARCH DRUG NAME..."
+                                placeholder={reportInventorySubTab === 'molecular' ? "SEARCH DRUG NAME..." : "SEARCH ITEM NAME..."}
                                 value={pharmacySearch}
                                 onChange={e => setPharmacySearch(e.target.value)}
                                 className="w-full pl-10 pr-6 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[9px] font-black uppercase tracking-widest focus:ring-1 focus:ring-indigo-500 transition-all dark:text-white shadow-inner"
@@ -586,24 +602,98 @@ export const HISReportsView: React.FC<HISReportsProps> = ({ activeRole, institut
                     </div>
                 </div>
 
+                <div className="flex border-b border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/5 p-1 rounded-2xl w-fit">
+                    <button
+                        onClick={() => setReportInventorySubTab('molecular')}
+                        className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all italic ${
+                            reportInventorySubTab === 'molecular'
+                            ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-md'
+                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                    >
+                        Molecular Pharmacy Drugs
+                    </button>
+                    <button
+                        onClick={() => setReportInventorySubTab('school_linked')}
+                        className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all italic ${
+                            reportInventorySubTab === 'school_linked'
+                            ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-md'
+                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                    >
+                        Linked School Inventory (Sub-Store)
+                    </button>
+                </div>
+
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="border-b border-slate-100 dark:border-white/5 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 italic">
-                                <th className="py-4">Drug item / description</th>
-                                <th className="py-4">Category</th>
-                                <th className="py-4 text-center">Unit Price</th>
-                                <th className="py-4 text-center">Current Stock</th>
-                                <th className="py-4 text-center">Reorder Threshold</th>
-                                <th className="py-4 text-right">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredPharmacy.length > 0 ? (
-                                filteredPharmacy.map((item, idx) => {
-                                    const qty = Number(item.stock_quantity || item.stockQuantity || 0);
-                                    const price = Number(item.unit_price || item.unitPrice || 0);
-                                    const reorder = Number(item.reorder_level || item.reorderLevel || 10);
+                    {reportInventorySubTab === 'molecular' ? (
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-100 dark:border-white/5 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 italic">
+                                    <th className="py-4">Drug item / description</th>
+                                    <th className="py-4">Category</th>
+                                    <th className="py-4 text-center">Unit Price</th>
+                                    <th className="py-4 text-center">Current Stock</th>
+                                    <th className="py-4 text-center">Reorder Threshold</th>
+                                    <th className="py-4 text-right">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredPharmacy.length > 0 ? (
+                                    filteredPharmacy.map((item, idx) => {
+                                        const qty = Number(item.stock_quantity || item.stockQuantity || 0);
+                                        const price = Number(item.unit_price || item.unitPrice || 0);
+                                        const reorder = Number(item.reorder_level || item.reorderLevel || 10);
+                                        
+                                        let statusText = 'In Stock';
+                                        let badgeColor = 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20';
+                                        if (qty <= 0) {
+                                            statusText = 'Out of Stock';
+                                            badgeColor = 'text-rose-500 bg-rose-500/10 border-rose-500/20';
+                                        } else if (qty < reorder) {
+                                            statusText = 'Low Stock';
+                                            badgeColor = 'text-amber-500 bg-amber-500/10 border-amber-500/20';
+                                        }
+
+                                        return (
+                                            <tr key={item.id || idx} className="border-b border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+                                                <td className="py-5">
+                                                    <p className="text-[11px] font-black italic">{item.name}</p>
+                                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">SKU ID: {item.id.substring(0, 8).toUpperCase()}</p>
+                                                </td>
+                                                <td className="py-5 text-[10px] font-bold uppercase tracking-widest text-slate-500">{item.category || 'Generics'}</td>
+                                                <td className="py-5 text-center text-[10px] font-black italic">KES {price.toFixed(2)}</td>
+                                                <td className="py-5 text-center text-[11px] font-black">{qty} {item.unit || 'units'}</td>
+                                                <td className="py-5 text-center text-[10px] font-bold text-slate-400">{reorder} units</td>
+                                                <td className="py-5 text-right">
+                                                    <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full border italic ${badgeColor}`}>{statusText}</span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                ) : (
+                                    <tr>
+                                        <td colSpan={6} className="py-10 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">No matching drugs in stock</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-100 dark:border-white/5 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 italic">
+                                    <th className="py-4">Asset Formulation</th>
+                                    <th className="py-4">Category</th>
+                                    <th className="py-4 text-center">Cost Value</th>
+                                    <th className="py-4 text-center">Stock Level</th>
+                                    <th className="py-4 text-right">Status Code</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {linkedSchoolItems.filter(item => !pharmacySearch.trim() || item.name.toLowerCase().includes(pharmacySearch.toLowerCase())).map((item, idx) => {
+                                    const qty = Number(item.quantity || 0);
+                                    const cost = Number(item.costPrice || 0);
+                                    const reorder = Number(item.reorderLevel || 10);
                                     
                                     let statusText = 'In Stock';
                                     let badgeColor = 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20';
@@ -619,25 +709,27 @@ export const HISReportsView: React.FC<HISReportsProps> = ({ activeRole, institut
                                         <tr key={item.id || idx} className="border-b border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
                                             <td className="py-5">
                                                 <p className="text-[11px] font-black italic">{item.name}</p>
-                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">SKU ID: {item.id.substring(0, 8).toUpperCase()}</p>
+                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">General Stock ID: {item.id.slice(0, 8).toUpperCase()}</p>
                                             </td>
-                                            <td className="py-5 text-[10px] font-bold uppercase tracking-widest text-slate-500">{item.category || 'Generics'}</td>
-                                            <td className="py-5 text-center text-[10px] font-black italic">KES {price.toFixed(2)}</td>
-                                            <td className="py-5 text-center text-[11px] font-black">{qty} {item.unit || 'units'}</td>
-                                            <td className="py-5 text-center text-[10px] font-bold text-slate-400">{reorder} units</td>
+                                            <td className="py-5 text-[10px] font-bold uppercase tracking-widest text-slate-500">{item.category || 'General Store'}</td>
+                                            <td className="py-5 text-center text-[10px] font-black italic">KES {cost.toFixed(2)}</td>
+                                            <td className="py-5 text-center text-[11px] font-black">{qty} units</td>
                                             <td className="py-5 text-right">
                                                 <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full border italic ${badgeColor}`}>{statusText}</span>
                                             </td>
                                         </tr>
                                     );
-                                })
-                            ) : (
-                                <tr>
-                                    <td colSpan={6} className="py-10 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">No matching drugs in stock</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                })}
+                                {linkedSchoolItems.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="py-10 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            No linked school inventory items issued to Pharmacy Sub-Store yet.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
         </div>

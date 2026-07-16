@@ -77,10 +77,14 @@ export const ModernPharmacyManager: React.FC<{
     const [isRegisterPatientOpen, setIsRegisterPatientOpen] = useState(false);
     const [settings, setSettings] = useState<PharmacySettings | null>(null);
 
+    const [linkedSchoolItems, setLinkedSchoolItems] = useState<any[]>([]);
+    const [pharmacyStoreId, setPharmacyStoreId] = useState<string | null>(null);
+    const [inventorySubTab, setInventorySubTab] = useState<'molecular' | 'school_linked'>('molecular');
+
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [inv, batchRecords, prescs, saleRecords, saleItemRecords, ledgerRecords, staffRecords, patientRecords, alertRecords, settingsRecords] = await Promise.all([
+            const [inv, batchRecords, prescs, saleRecords, saleItemRecords, ledgerRecords, staffRecords, patientRecords, alertRecords, settingsRecords, stores, retailItems] = await Promise.all([
                 apiService.fetchModuleRecords('his_pharmacy_inventory', institutionId),
                 apiService.fetchModuleRecords('his_pharmacy_batches', institutionId),
                 apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { order: 'created_at.desc' }),
@@ -90,7 +94,9 @@ export const ModernPharmacyManager: React.FC<{
                 apiService.fetchModuleRecords('his_pharmacy_staff', institutionId),
                 apiService.fetchModuleRecords('his_patients', institutionId),
                 apiService.fetchModuleRecords('his_pharmacy_adherence_alerts', institutionId),
-                apiService.fetchModuleRecords('his_pharmacy_settings', institutionId)
+                apiService.fetchModuleRecords('his_pharmacy_settings', institutionId),
+                apiService.fetchModuleRecords('retail_stores', institutionId),
+                apiService.fetchModuleRecords('retail_inventory_items', institutionId)
             ]);
 
             setInventory(inv || []);
@@ -102,6 +108,13 @@ export const ModernPharmacyManager: React.FC<{
             setStaff(staffRecords || []);
             setPatients(patientRecords || []);
             setAlerts(alertRecords || []);
+            
+            const pharmStore = (stores || []).find((s: any) => s.storeType === 'pharmacy_store' || s.name.toLowerCase().includes('pharmacy'));
+            if (pharmStore) {
+                setPharmacyStoreId(pharmStore.id);
+                const linked = (retailItems || []).filter((item: any) => item.storeId === pharmStore.id || item.store_id === pharmStore.id);
+                setLinkedSchoolItems(linked);
+            }
             
             if (settingsRecords && settingsRecords.length > 0) {
                 setSettings(settingsRecords[0]);
@@ -120,6 +133,24 @@ export const ModernPharmacyManager: React.FC<{
             console.error("Modern Pharmacy Load Error:", e);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleAdjustSchoolItemQty = async (itemId: string, newQty: number) => {
+        try {
+            const itemToUpdate = linkedSchoolItems.find(item => item.id === itemId);
+            if (!itemToUpdate) return;
+            const updatedItem = {
+                ...itemToUpdate,
+                quantity: newQty,
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('retail_inventory_items', updatedItem);
+            setLinkedSchoolItems(prev => prev.map(item => item.id === itemId ? updatedItem : item));
+            alert("Quantity adjusted successfully.");
+        } catch (err) {
+            console.error("Failed to adjust school inventory item quantity:", err);
+            alert("Failed to adjust quantity.");
         }
     };
 
@@ -1017,7 +1048,11 @@ export const ModernPharmacyManager: React.FC<{
                     <div className="p-12 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
                         <div>
                             <h3 className="text-3xl font-black uppercase tracking-tighter italic">Molecular <span className="text-indigo-400">Inventory</span></h3>
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-2">{inventory.length} Active Records Linked to Distribution Hub</p>
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-2">
+                                {inventorySubTab === 'molecular' 
+                                    ? `${inventory.length} Active Records Linked to Distribution Hub` 
+                                    : `${linkedSchoolItems.length} Linked School Inventory Items (Sub-Store)`}
+                            </p>
                         </div>
                         <div className="flex gap-4">
                             <div className="flex items-center gap-4 bg-black/40 px-8 py-4 rounded-2xl border border-white/10 w-80">
@@ -1030,77 +1065,186 @@ export const ModernPharmacyManager: React.FC<{
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
-                            <button onClick={() => setIsImportInventoryOpen(true)} className="bg-emerald-500 text-slate-950 px-8 py-4 rounded-2xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-emerald-500/20">
-                                <SparklesIcon className="w-4 h-4" /> Import Excel
-                            </button>
-                            <button onClick={() => setIsAddInventoryOpen(true)} className="bg-indigo-500 text-white px-8 py-4 rounded-2xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20">
-                                <PlusIcon className="w-4 h-4" /> Add Item Manually
-                            </button>
+                            {inventorySubTab === 'molecular' && (
+                                <>
+                                    <button onClick={() => setIsImportInventoryOpen(true)} className="bg-emerald-500 text-slate-950 px-8 py-4 rounded-2xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-emerald-500/20">
+                                        <SparklesIcon className="w-4 h-4" /> Import Excel
+                                    </button>
+                                    <button onClick={() => setIsAddInventoryOpen(true)} className="bg-indigo-500 text-white px-8 py-4 rounded-2xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20">
+                                        <PlusIcon className="w-4 h-4" /> Add Item Manually
+                                    </button>
+                                </>
+                            )}
                         </div>
+                    </div>
+
+                    <div className="flex border-b border-white/5 px-12 bg-white/[0.01]">
+                        <button
+                            onClick={() => setInventorySubTab('molecular')}
+                            className={`px-8 py-5 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 italic ${
+                                inventorySubTab === 'molecular'
+                                ? 'border-indigo-500 text-indigo-400'
+                                : 'border-transparent text-slate-500 hover:text-white'
+                            }`}
+                        >
+                            Molecular Pharmacy Drugs
+                        </button>
+                        <button
+                            onClick={() => setInventorySubTab('school_linked')}
+                            className={`px-8 py-5 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 italic ${
+                                inventorySubTab === 'school_linked'
+                                ? 'border-indigo-500 text-indigo-400'
+                                : 'border-transparent text-slate-500 hover:text-white'
+                            }`}
+                        >
+                            Linked School Inventory (Sub-Store)
+                        </button>
                     </div>
                     
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-white/[0.03]">
-                                <tr>
-                                    <th className="px-12 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Asset Formulation</th>
-                                    <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Category</th>
-                                    <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Quantum (Units)</th>
-                                    <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Unit Value</th>
-                                    <th className="px-12 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500 text-right">Status Code</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {inventory.map(item => (
-                                    <tr key={item.id} className="hover:bg-white/[0.02] transition-colors group">
-                                        <td className="px-12 py-10">
-                                            <div className="flex items-center gap-6">
-                                                <div className="w-14 h-14 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-all">
-                                                    <BeakerIcon className="w-7 h-7" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-base font-black uppercase tracking-tighter italic text-white">{item.name}</p>
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">SKU: {item.sku || `PHA-${item.id.slice(0, 8).toUpperCase()}`}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-10">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-4 py-1.5 bg-white/5 rounded-full border border-white/5">{item.category}</span>
-                                        </td>
-                                        <td className="px-8 py-10 font-bold text-white">
-                                            <span className={item.stockQuantity <= item.reorderLevel ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}>{item.stockQuantity}</span>
-                                            <span className="text-[9px] text-slate-600 ml-2 uppercase">Units</span>
-                                        </td>
-                                        <td className="px-8 py-10 font-black italic text-indigo-400">KES {item.unitPrice?.toLocaleString()}</td>
-                                        <td className="px-12 py-10 text-right">
-                                            <div className="flex items-center justify-end gap-4">
-                                                <button 
-                                                    onClick={() => setSelectedInventoryForBatch(item)}
-                                                    className="p-2 rounded-xl border border-emerald-500/10 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all group/btn"
-                                                    title="Add Batch"
-                                                >
-                                                    <PlusIcon className="w-4 h-4" />
-                                                </button>
-                                                <button 
-                                                    onClick={() => { setEditingInventory(item); setIsAddInventoryOpen(true); }}
-                                                    className="p-2 rounded-xl border border-white/5 bg-white/5 text-slate-500 hover:text-indigo-400 hover:border-indigo-400/30 transition-all"
-                                                >
-                                                    <PencilIcon className="w-4 h-4" />
-                                                </button>
-                                                <div className={`inline-flex items-center gap-3 px-6 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${
-                                                    item.stockQuantity <= item.reorderLevel 
-                                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
-                                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                                }`}>
-                                                    <div className={`w-1.5 h-1.5 rounded-full ${item.stockQuantity <= item.reorderLevel ? 'bg-rose-400' : 'bg-emerald-400'} animate-pulse`}></div>
-                                                    {item.stockQuantity <= item.reorderLevel ? 'Critical Level' : 'Stable Ops'}
-                                                </div>
-                                            </div>
-                                        </td>
+                        {inventorySubTab === 'molecular' ? (
+                            <table className="w-full text-left">
+                                <thead className="bg-white/[0.03]">
+                                    <tr>
+                                        <th className="px-12 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Asset Formulation</th>
+                                        <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Category</th>
+                                        <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Quantum (Units)</th>
+                                        <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Unit Value</th>
+                                        <th className="px-12 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500 text-right">Status Code</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {inventory.filter(item => !searchTerm.trim() || item.name.toLowerCase().includes(searchTerm.toLowerCase())).map(item => (
+                                        <tr key={item.id} className="hover:bg-white/[0.02] transition-colors group">
+                                            <td className="px-12 py-10">
+                                                <div className="flex items-center gap-6">
+                                                    <div className="w-14 h-14 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-all">
+                                                        <BeakerIcon className="w-7 h-7" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-base font-black uppercase tracking-tighter italic text-white">{item.name}</p>
+                                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">SKU: {item.sku || `PHA-${item.id.slice(0, 8).toUpperCase()}`}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-10">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-4 py-1.5 bg-white/5 rounded-full border border-white/5">{item.category}</span>
+                                            </td>
+                                            <td className="px-8 py-10 font-bold text-white">
+                                                <span className={item.stockQuantity <= item.reorderLevel ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}>{item.stockQuantity}</span>
+                                                <span className="text-[9px] text-slate-600 ml-2 uppercase">Units</span>
+                                            </td>
+                                            <td className="px-8 py-10 font-black italic text-indigo-400">KES {item.unitPrice?.toLocaleString()}</td>
+                                            <td className="px-12 py-10 text-right">
+                                                <div className="flex items-center justify-end gap-4">
+                                                    <button 
+                                                        onClick={() => setSelectedInventoryForBatch(item)}
+                                                        className="p-2 rounded-xl border border-emerald-500/10 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all group/btn"
+                                                        title="Add Batch"
+                                                    >
+                                                        <PlusIcon className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => { setEditingInventory(item); setIsAddInventoryOpen(true); }}
+                                                        className="p-2 rounded-xl border border-white/5 bg-white/5 text-slate-500 hover:text-indigo-400 hover:border-indigo-400/30 transition-all"
+                                                    >
+                                                        <PencilIcon className="w-4 h-4" />
+                                                    </button>
+                                                    <div className={`inline-flex items-center gap-3 px-6 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${
+                                                        item.stockQuantity <= item.reorderLevel 
+                                                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+                                                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                    }`}>
+                                                        <div className={`w-1.5 h-1.5 rounded-full ${item.stockQuantity <= item.reorderLevel ? 'bg-rose-400' : 'bg-emerald-400'} animate-pulse`}></div>
+                                                        {item.stockQuantity <= item.reorderLevel ? 'Critical Level' : 'Stable Ops'}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <table className="w-full text-left">
+                                <thead className="bg-white/[0.03]">
+                                    <tr>
+                                        <th className="px-12 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Asset Formulation</th>
+                                        <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Category</th>
+                                        <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Quantity (Units)</th>
+                                        <th className="px-8 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">Cost Value</th>
+                                        <th className="px-12 py-8 text-[11px] font-black uppercase tracking-[0.4em] text-slate-500 text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {linkedSchoolItems.filter(item => !searchTerm.trim() || item.name.toLowerCase().includes(searchTerm.toLowerCase())).map(item => {
+                                        const qty = Number(item.quantity || 0);
+                                        const cost = Number(item.costPrice || 0);
+                                        const reorder = Number(item.reorderLevel || 10);
+                                        return (
+                                            <tr key={item.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                <td className="px-12 py-10">
+                                                    <div className="flex items-center gap-6">
+                                                        <div className="w-14 h-14 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                                            <SparklesIcon className="w-7 h-7" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-base font-black uppercase tracking-tighter italic text-white">{item.name}</p>
+                                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">General Stock ID: {item.id.slice(0, 8).toUpperCase()}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-10">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-4 py-1.5 bg-white/5 rounded-full border border-white/5">{item.category || 'General Store'}</span>
+                                                </td>
+                                                <td className="px-8 py-10">
+                                                    <div className="flex items-center gap-3">
+                                                        <button 
+                                                            onClick={() => handleAdjustSchoolItemQty(item.id, Math.max(0, qty - 1))}
+                                                            className="p-1 rounded bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white transition-all font-black text-xs px-2"
+                                                        >
+                                                            -
+                                                        </button>
+                                                        <span className={`font-black text-white ${qty <= reorder ? 'text-rose-400' : 'text-emerald-400'}`}>{qty}</span>
+                                                        <button 
+                                                            onClick={() => handleAdjustSchoolItemQty(item.id, qty + 1)}
+                                                            className="p-1 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all font-black text-xs px-2"
+                                                        >
+                                                            +
+                                                        </button>
+                                                        <span className="text-[9px] text-slate-600 uppercase ml-1">Units</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-10 font-black italic text-indigo-400">
+                                                    KES {cost?.toLocaleString()}
+                                                </td>
+                                                <td className="px-12 py-10 text-right">
+                                                    <div className="flex items-center justify-end gap-4">
+                                                        <button 
+                                                            onClick={() => {
+                                                                const newQty = prompt("Enter new quantity for " + item.name + ":", String(qty));
+                                                                if (newQty !== null && !isNaN(Number(newQty))) {
+                                                                    handleAdjustSchoolItemQty(item.id, Number(newQty));
+                                                                }
+                                                            }}
+                                                            className="p-2 rounded-xl border border-white/5 bg-white/5 text-slate-500 hover:text-indigo-400 hover:border-indigo-400/30 transition-all text-[9px] font-black uppercase tracking-widest px-4 py-2"
+                                                        >
+                                                            Adjust Stock
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {linkedSchoolItems.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="px-12 py-10 text-center text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                                No linked school inventory items issued to Pharmacy Sub-Store yet.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 </div>
             )}

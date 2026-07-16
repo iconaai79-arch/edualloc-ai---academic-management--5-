@@ -117,6 +117,26 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 if (results && results.length > 0) {
                     setInstitutionData(results[0]);
                 }
+                // Auto-provision Pharmacy Sub-Store in school inventory if not exists
+                try {
+                    const stores = await apiService.fetchModuleRecords('retail_stores', institutionId);
+                    const hasPharmStore = (stores || []).some((s: any) => s.storeType === 'pharmacy_store' || s.name.toLowerCase().includes('pharmacy'));
+                    if (!hasPharmStore) {
+                        const newPharmStore = {
+                            id: `store_pharm_sub_${Date.now()}`,
+                            institutionId,
+                            name: 'Pharmacy Sub-Store',
+                            storeType: 'pharmacy_store',
+                            location: 'Wellness Center',
+                            isActive: true,
+                            createdAt: new Date().toISOString()
+                        };
+                        await apiService.saveModuleRecord('retail_stores', newPharmStore);
+                        console.info('[auto-provision] Pharmacy Sub-Store registered in school inventory stores.');
+                    }
+                } catch (err) {
+                    console.error('Failed to auto-provision Pharmacy Sub-Store:', err);
+                }
             }
         };
         // Auto-migrate to add admission_number column to public.his_patients if not exists
