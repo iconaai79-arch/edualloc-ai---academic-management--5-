@@ -50,6 +50,18 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     const [activeSubTab, setActiveSubTab] = useState<'students' | 'staff'>('students');
 
     const [enrollments, setEnrollments] = useState<any[]>([]);
+    const [classFilter, setClassFilter] = useState('all');
+    const [streamFilter, setStreamFilter] = useState('all');
+
+    const classOptions = useMemo(() => {
+        const levels = enrollments.map(e => e.metadata?.gradeLevel || '').filter(Boolean);
+        return [...new Set(levels)].sort();
+    }, [enrollments]);
+
+    const streamOptions = useMemo(() => {
+        const streams = enrollments.map(e => e.metadata?.stream || '').filter(Boolean);
+        return [...new Set(streams)].sort();
+    }, [enrollments]);
 
     useEffect(() => {
         loadData();
@@ -81,11 +93,15 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             const user = users.find(u => u.id === enr.userId);
             if (!user) return null;
             const adm = enr.admissionNumber || enr.admission_number || user.admissionNumber || (user as any).admission_number || (user as any).admNumber || (user as any).adm_number || 'No ADM';
+            const gradeLevel = enr.metadata?.gradeLevel || user.metadata?.gradeLevel || '';
+            const stream = enr.metadata?.stream || user.metadata?.stream || '';
             return {
                 ...user,
                 role: 'student',
                 admissionNumber: adm,
-                admission_number: adm
+                admission_number: adm,
+                gradeLevel,
+                stream
             };
         }).filter((u): u is any => u !== null);
 
@@ -108,11 +124,17 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             (u.admission_number && u.admission_number.toLowerCase().includes(searchTerm.toLowerCase()))
         );
 
+        const filteredStudents = processed.filter(u => u.role === 'student').filter(s => {
+            const matchesClass = classFilter === 'all' || (s as any).gradeLevel === classFilter;
+            const matchesStream = streamFilter === 'all' || (s as any).stream === streamFilter;
+            return matchesClass && matchesStream;
+        });
+
         return {
             staff: processed.filter(u => u.role !== 'student'),
-            students: processed.filter(u => u.role === 'student')
+            students: filteredStudents
         };
-    }, [users, transactions, fines, searchTerm, enrollments]);
+    }, [users, transactions, fines, searchTerm, enrollments, classFilter, streamFilter]);
 
     const handleClearFine = async (fine: LibraryFine) => {
         if (!confirm(`Confirm full payment of KES ${fine.amount - fine.paidAmount}?`)) return;
@@ -181,9 +203,14 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 <div className="min-w-0">
                     <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase truncate tracking-tight">{member.name}</h4>
                     <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                        <p className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 font-mono uppercase tracking-widest">
                             {member.role === 'student' ? (member.admissionNumber || member.admission_number || 'No ADM') : (member.staffId || 'No ID')}
                         </p>
+                        {member.role === 'student' && (member.gradeLevel || member.stream) && (
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                • {member.gradeLevel} {member.stream}
+                            </p>
+                        )}
                         <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-[7px] font-black text-slate-500 rounded uppercase tracking-tighter">
                             {member.role.replace('_', ' ')}
                         </span>
@@ -238,20 +265,47 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 </div>
             </div>
 
-            {/* Subtabs for Students and Essential Staff */}
-            <div className="flex bg-slate-100/50 dark:bg-white/5 p-1.5 rounded-2xl border border-slate-200 dark:border-white/5 w-fit shadow-inner">
-                <button
-                    onClick={() => setActiveSubTab('students')}
-                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'students' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-md border border-slate-200/50 dark:border-slate-700/50 scale-105' : 'text-slate-400 hover:text-indigo-500'}`}
-                >
-                    Students
-                </button>
-                <button
-                    onClick={() => setActiveSubTab('staff')}
-                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'staff' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-md border border-slate-200/50 dark:border-slate-700/50 scale-105' : 'text-slate-400 hover:text-indigo-500'}`}
-                >
-                    Essential Staff
-                </button>
+            {/* Subtabs for Students and Support Staff */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex bg-slate-100/50 dark:bg-white/5 p-1.5 rounded-2xl border border-slate-200 dark:border-white/5 w-fit shadow-inner">
+                    <button
+                        onClick={() => setActiveSubTab('students')}
+                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'students' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-md border border-slate-200/50 dark:border-slate-700/50 scale-105' : 'text-slate-400 hover:text-indigo-500'}`}
+                    >
+                        Students
+                    </button>
+                    <button
+                        onClick={() => setActiveSubTab('staff')}
+                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'staff' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-md border border-slate-200/50 dark:border-slate-700/50 scale-105' : 'text-slate-400 hover:text-indigo-500'}`}
+                    >
+                        Support Staff
+                    </button>
+                </div>
+
+                {activeSubTab === 'students' && (
+                    <div className="flex gap-3 flex-wrap">
+                        <select
+                            value={classFilter}
+                            onChange={e => setClassFilter(e.target.value)}
+                            className="px-4 py-2 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 font-bold text-xs shadow-sm outline-none min-w-[140px] text-slate-700 dark:text-slate-200"
+                        >
+                            <option value="all">All Classes</option>
+                            {classOptions.map(c => (
+                                <option key={c} value={c}>{c}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={streamFilter}
+                            onChange={e => setStreamFilter(e.target.value)}
+                            className="px-4 py-2 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 font-bold text-xs shadow-sm outline-none min-w-[120px] text-slate-700 dark:text-slate-200"
+                        >
+                            <option value="all">All Streams</option>
+                            {streamOptions.map(s => (
+                                <option key={s} value={s}>{s}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
             </div>
 
             {/* Members List Sections */}
@@ -261,7 +315,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                     groupedMembers.staff.length > 0 ? (
                         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
                             <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-700/30 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">Essential Staff</h3>
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">Support Staff</h3>
                                 <span className="text-[9px] font-bold text-slate-400 uppercase">{groupedMembers.staff.length} Active Profiles</span>
                             </div>
                             <div className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -312,6 +366,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                                     <h3 className="text-2xl font-black uppercase tracking-tighter leading-none">{selectedMember.name}</h3>
                                     <p className="text-sm font-bold text-indigo-100 uppercase tracking-widest mt-2">
                                         Member Reference: {selectedMember.role === 'student' ? (selectedMember.admissionNumber || selectedMember.admission_number || 'N/A') : (selectedMember.staffId || 'N/A')}
+                                        {selectedMember.role === 'student' && ((selectedMember as any).gradeLevel || (selectedMember as any).stream) ? ` • ${(selectedMember as any).gradeLevel} ${(selectedMember as any).stream}` : ''}
                                     </p>
                                     <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] mt-1">{selectedMember.role.replace('_', ' ')} Registry</p>
                                 </div>
