@@ -529,13 +529,16 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
             }
 
             if (savedSale && (savedSale as any).id) {
-                // Save commissions if any
+                const commissionPromises: Promise<any>[] = [];
+                const stockUpdatePromises: Promise<any>[] = [];
+
+                // 1. Prepare Commissions
                 for (const c of cart) {
                     const isCafe = (c.item as any).source === 'cafe';
                     const basePrice = isCafe ? (c.item as any).basePrice : ((c.item as any).basePrice || (c.item as any).costPrice || 0);
                     if (c.finalPrice > basePrice) {
-                        try {
-                            await apiService.saveModuleRecord('retail_commissions_ledger', {
+                        commissionPromises.push(
+                            apiService.saveModuleRecord('retail_commissions_ledger', {
                                 institutionId,
                                 agentId: currentUser.id,
                                 saleId: (savedSale as any).id,
@@ -545,32 +548,33 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                 commissionAmount: (c.finalPrice - basePrice) * c.quantity,
                                 isPaid: false,
                                 createdAt: new Date().toISOString()
-                            });
-                        } catch (commErr) {
-                            console.error("Commission save failed:", commErr);
-                        }
+                            }).catch((commErr) => {
+                                console.error("Commission save failed:", commErr);
+                            })
+                        );
                     }
                 }
 
-                // ───────────────────────────────────────────
-                // STOCK REDUCTION: Decrement qty for each sold retail item
-                // ───────────────────────────────────────────
+                // 2. Prepare Stock Reductions
                 for (const c of cart) {
                     const isCafe = (c.item as any).source === 'cafe';
                     if (isCafe) continue; // Cafe menu items don't track quantity
 
                     const retailItem = c.item as RetailInventoryItem;
                     const newQty = Math.max(0, (retailItem.quantity || 0) - c.quantity);
-                    try {
-                        await apiService.saveModuleRecord('retail_inventory_items', {
+                    stockUpdatePromises.push(
+                        apiService.saveModuleRecord('retail_inventory_items', {
                             ...retailItem,
                             quantity: newQty,
                             lastUpdated: new Date().toISOString()
-                        });
-                    } catch (stockErr) {
-                        console.error(`Stock update failed for item ${retailItem.name}:`, stockErr);
-                    }
+                        }).catch((stockErr) => {
+                            console.error(`Stock update failed for item ${retailItem.name}:`, stockErr);
+                        })
+                    );
                 }
+
+                // 3. Await all in parallel
+                await Promise.all([...commissionPromises, ...stockUpdatePromises]);
 
                 if (customerInfo.phone) {
                     console.log(`[Mock SMS] Sending receipt to ${customerInfo.phone} for KES ${totalAmount}`);

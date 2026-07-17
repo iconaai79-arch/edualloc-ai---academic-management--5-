@@ -49,6 +49,8 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const [hasSigned, setHasSigned] = useState(false);
     const [isDrawing, setIsDrawing] = useState(false);
 
+    const [enrollments, setEnrollments] = useState<any[]>([]);
+
     useEffect(() => {
         loadData();
     }, [institutionId]);
@@ -56,14 +58,16 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [booksData, transData, configData] = await Promise.all([
+            const [booksData, transData, configData, enrollmentsData] = await Promise.all([
                 apiService.fetchModuleRecords<Book>('books', institutionId),
                 apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institutionId),
-                apiService.fetchModuleRecords<LibrarySettings>('library_settings', institutionId)
+                apiService.fetchModuleRecords<LibrarySettings>('library_settings', institutionId),
+                apiService.fetchModuleRecords<any>('student_enrollments', institutionId).catch(() => [])
             ]);
             setBooks(booksData);
             setTransactions(transData.sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()));
             if (configData.length > 0) setSettings(configData[0]);
+            setEnrollments(enrollmentsData || []);
         } catch (error) {
             console.error('Error loading circulation data:', error);
         } finally {
@@ -302,7 +306,10 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Unknown User';
     const getUserStaffId = (id: string) => {
         const u = users.find(user => user.id === id);
-        return u?.admissionNumber || u?.admission_number || u?.staffId || (u as any)?.studentId || (u as any)?.admNo || 'N/A';
+        if (!u) return 'N/A';
+        const enrollment = enrollments.find(e => e.userId === u.id || e.student_id === u.id);
+        const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
+        return admissionNo || u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || 'N/A';
     };
 
     return (
@@ -529,7 +536,14 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                 <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Member Identified</p>
                                             </div>
                                             <p className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mt-0.5 truncate">{member.name}</p>
-                                            <p className="text-xs font-bold text-slate-500 font-mono">{member.admissionNumber || member.admission_number || member.staffId || (member as any).studentId || (member as any).admNo || 'No ID'}</p>
+                                            {(() => {
+                                                 const enrollment = enrollments.find(e => e.userId === member.id || e.student_id === member.id);
+                                                 const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
+                                                 const idCode = admissionNo || member.admissionNumber || member.admission_number || member.staffId || (member as any).studentId || (member as any).admNo;
+                                                 return (
+                                                     <p className="text-xs font-bold text-slate-500 font-mono">{idCode || 'No ID'}</p>
+                                                 );
+                                             })()}
                                             <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-0.5">{(member.role || 'Member').replace(/_/g, ' ')}</p>
                                         </div>
                                     </div>
@@ -586,13 +600,17 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                         <option value="">-- Or select from list --</option>
                                         {users.filter(u => {
                                             const search = memberSearch.toLowerCase();
-                                            const idCode = (u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '').toLowerCase();
+                                            const enrollment = enrollments.find(e => e.userId === u.id || e.student_id === u.id);
+                                            const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
+                                            const idCode = (admissionNo || u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '').toLowerCase();
                                             return u.role !== 'super_admin' && (
                                                 u.name.toLowerCase().includes(search) ||
                                                 idCode.includes(search)
                                             );
                                         }).map(user => {
-                                            const idCode = user.admissionNumber || user.admission_number || user.staffId || (user as any).studentId || (user as any).admNo;
+                                            const enrollment = enrollments.find(e => e.userId === user.id || e.student_id === user.id);
+                                            const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
+                                            const idCode = admissionNo || user.admissionNumber || user.admission_number || user.staffId || (user as any).studentId || (user as any).admNo;
                                             return (
                                                 <option key={user.id} value={user.id}>{user.name} ({idCode || 'No ID'})</option>
                                             );

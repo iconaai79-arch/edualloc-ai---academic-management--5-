@@ -54,32 +54,22 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
             -- Enable RLS
             ALTER TABLE public.retail_stock_receipts ENABLE ROW LEVEL SECURITY;
 
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_policies 
-                    WHERE tablename = 'retail_stock_receipts' 
-                    AND policyname = 'Users can view their institution''s retail_stock_receipts'
-                ) THEN
-                    CREATE POLICY "Users can view their institution''s retail_stock_receipts"
-                        ON public.retail_stock_receipts FOR SELECT
-                        USING (institution_id IN (
-                            SELECT institution_id FROM public.users WHERE id::TEXT = auth.uid()::TEXT
-                        ));
-                END IF;
+            -- Recreate policies with standard tenancy and fallback checks
+            DROP POLICY IF EXISTS "Users can view their institution''s retail_stock_receipts" ON public.retail_stock_receipts;
+            CREATE POLICY "Users can view their institution''s retail_stock_receipts"
+                ON public.retail_stock_receipts FOR SELECT
+                USING (
+                    institution_id::text = public.get_curr_user_inst_id()
+                    OR (public.get_curr_user_inst_id() IS NULL AND (auth.role() = 'anon' OR auth.role() = 'authenticated'))
+                );
 
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_policies 
-                    WHERE tablename = 'retail_stock_receipts' 
-                    AND policyname = 'Admins/Agents can manage their institution''s retail_stock_receipts'
-                ) THEN
-                    CREATE POLICY "Admins/Agents can manage their institution''s retail_stock_receipts"
-                        ON public.retail_stock_receipts FOR ALL
-                        USING (institution_id IN (
-                            SELECT institution_id FROM public.users WHERE id::TEXT = auth.uid()::TEXT
-                        ));
-                END IF;
-            END $$;
+            DROP POLICY IF EXISTS "Admins/Agents can manage their institution''s retail_stock_receipts" ON public.retail_stock_receipts;
+            CREATE POLICY "Admins/Agents can manage their institution''s retail_stock_receipts"
+                ON public.retail_stock_receipts FOR ALL
+                USING (
+                    institution_id::text = public.get_curr_user_inst_id()
+                    OR (public.get_curr_user_inst_id() IS NULL AND (auth.role() = 'anon' OR auth.role() = 'authenticated'))
+                );
 
             GRANT ALL ON TABLE public.retail_stock_receipts TO anon, authenticated, service_role;
             NOTIFY pgrst, 'reload schema';
@@ -284,15 +274,23 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
             }
 
             // Update inventory quantities with new receipt values
-            for (const receiptItem of receipt.items) {
-                const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
-                const item = inventoryItemArr.find(i => i.id === receiptItem.itemId);
-                
-                if (item) {
-                    item.quantity += receiptItem.quantity;
-                    item.lastUpdated = new Date().toISOString();
-                    await apiService.saveModuleRecord('retail_inventory_items', item);
-                }
+            try {
+                const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId) || [];
+                const stockUpdatePromises = receipt.items.map(receiptItem => {
+                    const item = inventoryItemArr.find(i => i.id === receiptItem.itemId);
+                    if (item) {
+                        const updatedItem = {
+                            ...item,
+                            quantity: (item.quantity || 0) + receiptItem.quantity,
+                            lastUpdated: new Date().toISOString()
+                        };
+                        return apiService.saveModuleRecord('retail_inventory_items', updatedItem);
+                    }
+                    return Promise.resolve(null);
+                });
+                await Promise.all(stockUpdatePromises);
+            } catch (stockUpdateErr) {
+                console.error("Failed to update inventory stock levels:", stockUpdateErr);
             }
 
             setIsAddModalOpen(false);

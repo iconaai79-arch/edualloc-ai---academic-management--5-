@@ -15,6 +15,8 @@ import { UploadIcon as Upload } from '../icons/UploadIcon';
 import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
 import { apiService } from '../../services/apiService';
 import { SmartRetailInventoryImporterModal } from './SmartRetailInventoryImporterModal';
+import { AddPharmacyInventoryModal } from '../his/AddPharmacyInventoryModal';
+import { SmartPharmacyInventoryImporterModal } from '../his/SmartPharmacyInventoryImporterModal';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PdfViewer } from '../PdfViewer';
@@ -33,6 +35,8 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isPharmacyAddModalOpen, setIsPharmacyAddModalOpen] = useState(false);
+    const [isPharmacyImportModalOpen, setIsPharmacyImportModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<RetailInventoryItem | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
@@ -533,6 +537,58 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         }
     };
 
+    const handleAddPharmacyDrug = async (drugData: any) => {
+        try {
+            await apiService.saveModuleRecord('his_pharmacy_inventory', {
+                id: `drug_${Date.now()}`,
+                institutionId,
+                name: drugData.name,
+                category: drugData.category || 'General',
+                sku: drugData.sku || `SKU-${Date.now()}`,
+                unit: drugData.unit || 'Units',
+                stockQuantity: drugData.stockQuantity || 0,
+                unitPrice: drugData.unitPrice || 0,
+                reorderLevel: drugData.reorderLevel || 10,
+                isNarcotic: drugData.isNarcotic || false
+            });
+            alert('Medication added successfully!');
+            setIsPharmacyAddModalOpen(false);
+            // Reload pharmacy drugs
+            const drugs = await apiService.fetchModuleRecords<HISPharmacyInventory>('his_pharmacy_inventory', institutionId);
+            setPharmacyDrugs(drugs || []);
+        } catch (err) {
+            console.error(err);
+            alert('Failed to save medication.');
+        }
+    };
+
+    const handleImportPharmacyDrugs = async (items: any[]) => {
+        try {
+            for (const item of items) {
+                await apiService.saveModuleRecord('his_pharmacy_inventory', {
+                    id: `drug_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                    institutionId,
+                    name: item.name,
+                    category: item.category || 'General',
+                    sku: item.sku || `SKU-${Date.now()}`,
+                    unit: item.unit || 'Units',
+                    stockQuantity: item.stockQuantity || 0,
+                    unitPrice: item.unitPrice || 0,
+                    reorderLevel: item.reorderLevel || 10,
+                    isNarcotic: item.isNarcotic || false
+                });
+            }
+            alert(`Bulk import of ${items.length} items completed!`);
+            setIsPharmacyImportModalOpen(false);
+            // Reload pharmacy drugs
+            const drugs = await apiService.fetchModuleRecords<HISPharmacyInventory>('his_pharmacy_inventory', institutionId);
+            setPharmacyDrugs(drugs || []);
+        } catch (err) {
+            console.error(err);
+            alert('Bulk import failed.');
+        }
+    };
+
     const openEdit = (item: RetailInventoryItem) => {
         setEditingItem(item);
         setFormData(item);
@@ -626,6 +682,10 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                     <button
                         onClick={() => {
+                            if (inventorySubTab === 'pharmacy') {
+                                setIsPharmacyAddModalOpen(true);
+                                return;
+                            }
                             setEditingItem(null);
                             setFormData({
                                 id: `rii_${Date.now()}`,
@@ -652,7 +712,13 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     </button>
 
                     <button
-                        onClick={() => setIsImportModalOpen(true)}
+                        onClick={() => {
+                            if (inventorySubTab === 'pharmacy') {
+                                setIsPharmacyImportModalOpen(true);
+                                return;
+                            }
+                            setIsImportModalOpen(true);
+                        }}
                         className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.15em] shadow border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 hover:-translate-y-0.5 active:translate-y-0 transition-all"
                     >
                         <Upload className="w-4 h-4" />
@@ -1546,6 +1612,22 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     onClose={() => setIsImportModalOpen(false)}
                     onImport={handleBulkImport}
                     institutionId={institutionId}
+                />
+            )}
+
+            {isPharmacyAddModalOpen && (
+                <AddPharmacyInventoryModal 
+                    institutionId={institutionId}
+                    onClose={() => setIsPharmacyAddModalOpen(false)}
+                    onAdd={handleAddPharmacyDrug}
+                />
+            )}
+
+            {isPharmacyImportModalOpen && (
+                <SmartPharmacyInventoryImporterModal 
+                    institutionId={institutionId}
+                    onClose={() => setIsPharmacyImportModalOpen(false)}
+                    onImport={handleImportPharmacyDrugs}
                 />
             )}
 
