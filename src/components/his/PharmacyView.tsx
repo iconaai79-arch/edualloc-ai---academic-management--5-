@@ -14,6 +14,7 @@ import { ClockIcon } from '../icons/ClockIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { apiService } from '../../services/apiService';
 import { LinkDrugToInventoryModal } from './LinkDrugToInventoryModal';
+import { SmartPharmacyInventoryImporterModal } from './SmartPharmacyInventoryImporterModal';
 
 import { 
     HISPharmacyInventory, 
@@ -35,6 +36,7 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isAddDrugOpen, setIsAddDrugOpen] = useState(false);
+    const [isImportDrugOpen, setIsImportDrugOpen] = useState(false);
     const [showBatchRegistry, setShowBatchRegistry] = useState(false);
     const [selectedPrescription, setSelectedPrescription] = useState<HISPrescription | null>(null);
     const [linkingDrug, setLinkingDrug] = useState<HISPharmacyInventory | null>(null);
@@ -300,12 +302,25 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
                                 </div>
-                                {showBatchRegistry && (
+                                <button 
+                                    onClick={() => setIsImportDrugOpen(true)}
+                                    className="bg-emerald-500 text-slate-950 px-6 py-3 rounded-2xl flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-emerald-500/20"
+                                >
+                                    <SparklesIcon className="w-4 h-4" /> Import Excel
+                                </button>
+                                {showBatchRegistry ? (
                                     <button 
-                                        onClick={() => setIsAddDrugOpen(true)} // Reusing or could add dedicated
-                                        className="bg-emerald-500 text-slate-950 px-6 py-3 rounded-2xl flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-emerald-500/20"
+                                        onClick={() => { setShowBatchRegistry(true); setIsAddDrugOpen(true); }}
+                                        className="bg-indigo-500 text-white px-6 py-3 rounded-2xl flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20"
                                     >
                                         <PlusIcon className="w-4 h-4" /> Add Batch
+                                    </button>
+                                ) : (
+                                    <button 
+                                        onClick={() => { setShowBatchRegistry(false); setIsAddDrugOpen(true); }}
+                                        className="bg-indigo-500 text-white px-6 py-3 rounded-2xl flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20"
+                                    >
+                                        <PlusIcon className="w-4 h-4" /> Add Medication
                                     </button>
                                 )}
                             </div>
@@ -575,6 +590,34 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                     </div>
                 </div>
             )}
+            {isImportDrugOpen && (
+                <SmartPharmacyInventoryImporterModal 
+                    institutionId={institutionId || ''}
+                    onClose={() => setIsImportDrugOpen(false)}
+                    onImport={async (items) => {
+                        try {
+                            for (const item of items) {
+                                await apiService.saveModuleRecord('his_pharmacy_inventory', {
+                                    id: `drug_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                                    institutionId,
+                                    name: item.name,
+                                    category: item.category || 'General',
+                                    unit: item.unit || 'Units',
+                                    unitPrice: item.unitPrice,
+                                    reorderLevel: item.reorderLevel || 10,
+                                    isNarcotic: item.isNarcotic || false
+                                });
+                            }
+                            setIsImportDrugOpen(false);
+                            loadData();
+                        } catch (e) {
+                            console.error(e);
+                            alert("Import failed.");
+                        }
+                    }}
+                />
+            )}
+
             {/* Add Medication / Batch Modal Overlay */}
             {isAddDrugOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
