@@ -365,11 +365,12 @@ export const printService = {
     }): Promise<void> {
         const config = getPrinterConfig();
 
-        if (config.type === 'system') {
+        if (config.type === 'system' || !Capacitor.isNativePlatform()) {
             const resolvedVisitorSig = params.visitorSignature || params.visitorData.visitorSignature || params.visitorData.visitor_signature || null;
             const resolvedHostSig = params.hostSignature || params.visitorData.hostSignature || params.visitorData.host_signature || null;
             const resolvedOfficerName = params.securityOfficerName || params.visitorData.securityOfficerName || params.visitorData.security_officer_name || null;
             const resolvedHostName = params.visitorData.hostName || params.host?.name || 'N/A';
+            const timestamp = params.visitorData.timeIn ? formatPrintDate(params.visitorData.timeIn) : new Date().toLocaleString();
 
             if (Capacitor.isNativePlatform()) {
                 try {
@@ -395,57 +396,96 @@ export const printService = {
                         <head>
                             <title>Gate Pass</title>
                             <style>
-                                body { font-family: monospace; padding: 15px; max-width: 280px; margin: auto; line-height: 1.4; color: #000; }
-                                .center { text-align: center; }
+                                @media print {
+                                    @page {
+                                        size: 80mm auto !important;
+                                        margin: 0 !important;
+                                    }
+                                    html, body {
+                                        height: auto !important;
+                                        overflow: visible !important;
+                                        margin: 0 !important;
+                                        padding: 0 !important;
+                                        background: #fff !important;
+                                    }
+                                    body > * {
+                                        visibility: visible !important;
+                                    }
+                                }
+                                body {
+                                    font-family: 'Courier New', Courier, monospace;
+                                    padding: 5mm 0;
+                                    max-width: 72mm;
+                                    margin: 0 auto;
+                                    line-height: 1.3;
+                                    color: #000;
+                                    font-size: 11px;
+                                }
+                                .text-center { text-align: center; }
                                 .bold { font-weight: bold; }
-                                .divider { border-top: 1px dashed black; margin: 10px 0; }
-                                .title { font-size: 14px; margin: 4px 0; letter-spacing: 1px; text-transform: uppercase; }
+                                .title { font-size: 14px; margin: 4px 0; text-transform: uppercase; }
+                                .subtitle { font-size: 11px; margin-bottom: 8px; text-transform: uppercase; }
+                                .separator { border-top: 1px dashed #000; margin: 8px 0; }
+                                .info-table { width: 100%; margin-bottom: 8px; font-size: 11px; }
+                                .info-table td { padding: 2px 0; vertical-align: top; }
+                                .info-label { width: 40%; font-weight: bold; }
+                                .footer { margin-top: 15px; font-size: 9px; }
                             </style>
                         </head>
                         <body>
-                            ${params.institution.logoUrl || params.institution.logo_url ? `
-                                <div class="center" style="margin-bottom: 6px;">
-                                    <img src="${params.institution.logoUrl || params.institution.logo_url}" style="max-height: 35px; max-width: 110px; object-fit: contain;" />
-                                </div>
-                            ` : ''}
-                            <div class="center bold title">${params.institution.name || 'Learning Institution'}</div>
-                            <div class="center bold" style="font-size: 11px;">SECURITY VISIT PASS</div>
-                            <div class="divider"></div>
-                            <div><span class="bold">VISITOR:</span> ${params.visitorData.name || params.visitorData.fullName}</div>
-                            <div><span class="bold">PHONE:</span> ${params.visitorData.phoneNumber || params.visitorData.phone || 'N/A'}</div>
-                            ${params.visitorData.idNumber ? `<div><span class="bold">ID NO:</span> ${params.visitorData.idNumber}</div>` : ''}
-                            ${params.visitorData.vehiclePlate ? `<div><span class="bold">VEHICLE:</span> ${params.visitorData.vehiclePlate}${params.visitorData.vehicleModel ? ` (${params.visitorData.vehicleModel})` : ''}</div>` : ''}
-                            <div><span class="bold">VISITING:</span> ${resolvedHostName}</div>
-                            ${resolvedOfficerName ? `<div><span class="bold">OFFICER:</span> ${resolvedOfficerName}</div>` : ''}
-                            <div><span class="bold">PURPOSE:</span> ${params.visitorData.purpose || 'Official'}</div>
-                            <div><span class="bold">TIME IN:</span> ${formatPrintDate(params.visitorData.timeIn)}</div>
-                            <div class="divider"></div>
-                            
-                            <table style="width:100%; border-collapse:collapse; font-size:10px; margin-bottom:8px;">
+                            <div class="text-center">
+                                ${params.institution.logoUrl || params.institution.logo_url ? `
+                                    <img src="${params.institution.logoUrl || params.institution.logo_url}" style="max-height: 40px; max-width: 120px; object-fit: contain; margin: 0 auto 6px auto; display: block;" alt="Logo" /><br/>
+                                ` : ''}
+                                <div class="bold title">${params.institution.name || 'Academic Institution'}</div>
+                                <div class="subtitle">Gate Entry Pass</div>
+                                <div class="separator"></div>
+                                <div class="bold" style="font-size: 12px; margin: 5px 0;">WALK-IN VISITOR PASS</div>
+                                <div class="separator"></div>
+                            </div>
+
+                            <table class="info-table">
+                                <tr><td class="info-label">VISITOR:</td><td>${params.visitorData.name || params.visitorData.fullName || 'Unknown Visitor'}</td></tr>
+                                <tr><td class="info-label">PHONE:</td><td>${params.visitorData.phoneNumber || params.visitorData.phone || 'N/A'}</td></tr>
+                                ${params.visitorData.idNumber ? `<tr><td class="info-label">ID/REF:</td><td>${params.visitorData.idNumber}</td></tr>` : ''}
+                                <tr><td class="info-label">PURPOSE:</td><td>${params.visitorData.purpose || 'N/A'}</td></tr>
+                                <tr><td class="info-label">HOST:</td><td>${resolvedHostName}</td></tr>
+                                ${resolvedOfficerName ? `<tr><td class="info-label">OFFICER:</td><td>${resolvedOfficerName}</td></tr>` : ''}
+                                ${params.visitorData.vehiclePlate ? `<tr><td class="info-label">VEHICLE:</td><td class="bold">${params.visitorData.vehiclePlate}${params.visitorData.vehicleModel ? ` (${params.visitorData.vehicleModel})` : ''}</td></tr>` : ''}
+                                <tr><td class="info-label">TIME:</td><td>${timestamp}</td></tr>
+                            </table>
+
+                            <div class="separator"></div>
+
+                            <table style="width:100%; border-collapse:collapse; font-size:11px;">
                                 <tr>
                                     <td style="width:50%; vertical-align:top; padding:0 2px;">
-                                        <div style="font-size:8px; font-weight:bold; text-transform:uppercase; margin-bottom:2px;">Visitor Sign:</div>
+                                        <div style="font-size:9px; font-weight:bold; text-transform:uppercase; margin-bottom:3px;">Visitor Signature:</div>
                                         ${resolvedVisitorSig
-                                            ? `<img src="${resolvedVisitorSig}" style="width:100%; max-height:35px; object-fit:contain; border-bottom:1px solid #000; display:block;" />`
-                                            : `<div style="border-bottom:1px solid #000; height:20px; width:100%;"></div>`
+                                            ? `<img src="${resolvedVisitorSig}" style="width:100%; max-height:45px; object-fit:contain; border-bottom:1px solid #000; display:block;" alt="Visitor Signature" />`
+                                            : `<div style="border-bottom:1px solid #000; height:30px; width:100%;"></div>`
                                         }
-                                        <div style="font-size:7px; margin-top:2px;">${params.visitorData.name || params.visitorData.fullName || ''}</div>
+                                        <div style="font-size:8px; margin-top:2px;">${params.visitorData.name || params.visitorData.fullName || ''}</div>
                                     </td>
                                     <td style="width:50%; vertical-align:top; padding:0 2px;">
-                                        <div style="font-size:8px; font-weight:bold; text-transform:uppercase; margin-bottom:2px;">Host Sign:</div>
+                                        <div style="font-size:9px; font-weight:bold; text-transform:uppercase; margin-bottom:3px;">Host Signature:</div>
                                         ${resolvedHostSig
-                                            ? `<img src="${resolvedHostSig}" style="width:100%; max-height:35px; object-fit:contain; border-bottom:1px solid #000; display:block;" />`
-                                            : `<div style="border-bottom:1px solid #000; height:20px; width:100%;"></div>`
+                                            ? `<img src="${resolvedHostSig}" style="width:100%; max-height:45px; object-fit:contain; border-bottom:1px solid #000; display:block;" alt="Host Signature" />`
+                                            : `<div style="border-bottom:1px solid #000; height:30px; width:100%;"></div>`
                                         }
-                                        <div style="font-size:7px; margin-top:2px;">${resolvedHostName}</div>
+                                        <div style="font-size:8px; margin-top:2px;">${resolvedHostName}</div>
                                     </td>
                                 </tr>
                             </table>
 
-                            <div class="divider"></div>
-                            <div class="center bold" style="font-size: 10px;">VISITOR APPROVED ENTRY</div>
-                            <div class="center" style="font-size: 8px; margin-top: 4px; color: #555;">Please keep this pass visible.</div>
-                            <div class="center" style="font-size: 8px; margin-top: 4px; color: #555;">Powered by Edualloc-AI</div>
+                            <div class="separator"></div>
+
+                            <div class="text-center footer">
+                                <div class="bold">VISITOR APPROVED ENTRY</div>
+                                <div style="margin-top: 4px;">Please keep this pass visible.</div>
+                                <div style="font-size: 8px; margin-top: 4px; color: #555;">Eduai OS Support: 0723348912</div>
+                                <div style="font-size: 8px; margin-top: 6px; color: #555;">Powered by Edualloc-AI</div>
+                            </div>
                             <script>
                                 window.onload = () => {
                                     setTimeout(() => {
@@ -472,7 +512,11 @@ export const printService = {
         const escPosBytes = formatVisitorPassEscPos(
             params.visitorData,
             params.institution,
-            config.paperWidth || 80
+            config.paperWidth || 80,
+            params.host,
+            params.hostSignature,
+            params.visitorSignature,
+            params.securityOfficerName
         );
         const base64Bytes = arrayBufferToBase64(escPosBytes);
 
@@ -504,7 +548,7 @@ export const printService = {
     }): Promise<void> {
         const config = getPrinterConfig();
 
-        if (config.type === 'system') {
+        if (config.type === 'system' || !Capacitor.isNativePlatform()) {
             if (Capacitor.isNativePlatform()) {
                 try {
                     const base64Pdf = await generateEventPassPdfBase64(params.pin, params.parent, params.event, params.institution);
@@ -531,32 +575,101 @@ export const printService = {
                         <head>
                             <title>Event Pass</title>
                             <style>
-                                body { font-family: monospace; padding: 20px; max-width: 280px; margin: auto; line-height: 1.4; color: #000; }
-                                .center { text-align: center; }
+                                @media print {
+                                    @page {
+                                        size: 80mm auto !important;
+                                        margin: 0 !important;
+                                    }
+                                    html, body {
+                                        height: auto !important;
+                                        overflow: visible !important;
+                                        margin: 0 !important;
+                                        padding: 0 !important;
+                                        background: #fff !important;
+                                    }
+                                    body > * {
+                                        visibility: visible !important;
+                                    }
+                                }
+                                body {
+                                    font-family: 'Courier New', Courier, monospace;
+                                    padding: 5mm 0;
+                                    max-width: 72mm;
+                                    margin: 0 auto;
+                                    line-height: 1.3;
+                                    color: #000;
+                                    font-size: 11px;
+                                }
+                                .text-center { text-align: center; }
                                 .bold { font-weight: bold; }
-                                .divider { border-top: 1px dashed black; margin: 12px 0; }
-                                .title { font-size: 16px; margin: 5px 0; letter-spacing: 1px; }
+                                .title { font-size: 14px; margin: 4px 0; text-transform: uppercase; }
+                                .subtitle { font-size: 11px; margin-bottom: 8px; text-transform: uppercase; }
+                                .separator { border-top: 1px dashed #000; margin: 8px 0; }
+                                .info-table { width: 100%; margin-bottom: 8px; font-size: 11px; }
+                                .info-table td { padding: 2px 0; vertical-align: top; }
+                                .info-label { width: 40%; font-weight: bold; }
+                                .footer { margin-top: 15px; font-size: 9px; }
+                                .guests-title { margin-top: 8px; text-transform: uppercase; }
+                                .guest-item { padding: 2px 0; }
                             </style>
                         </head>
                         <body>
-                            <div class="center bold title">${params.institution.name || 'Learning Institution'}</div>
-                            <div class="center bold" style="font-size: 12px;">EVENT CHECK-IN PASS</div>
-                            <div class="divider"></div>
-                            <div><span class="bold">EVENT:</span> ${params.event?.title || 'School Event'}</div>
-                            <div><span class="bold">HOLDER:</span> ${params.parent?.name || 'Invited Guest'}</div>
-                            <div><span class="bold">PHONE:</span> ${params.parent?.phoneNumber || params.parent?.phone_number || 'N/A'}</div>
-                            ${params.pin.vehicleRegistration || params.pin.vehicle_registration ? `<div><span class="bold">VEHICLE:</span> ${params.pin.vehicleRegistration || params.pin.vehicle_registration}</div>` : ''}
-                            <div><span class="bold">TIME:</span> ${timestamp}</div>
-                            <div><span class="bold">PIN CODE:</span> ${params.pin.pin}</div>
-                            <div class="divider"></div>
-                            <div class="bold">Accompanying Guests (${guests.length}):</div>
+                            <div class="text-center">
+                                ${params.institution.logoUrl || params.institution.logo_url ? `
+                                    <img src="${params.institution.logoUrl || params.institution.logo_url}" style="max-height: 40px; max-width: 120px; object-fit: contain; margin-bottom: 6px;" alt="Logo" /><br/>
+                                ` : ''}
+                                <div class="bold title">${params.institution.name || 'Academic Institution'}</div>
+                                <div class="subtitle">Gate Entry Pass</div>
+                                <div class="separator"></div>
+                                <div class="bold" style="font-size: 12px; margin: 5px 0;">EVENT CHECK-IN PASS</div>
+                                <div class="separator"></div>
+                            </div>
+
+                            <table class="info-table">
+                                <tr>
+                                    <td class="info-label">EVENT:</td>
+                                    <td>${params.event?.title || 'School Event'}</td>
+                                </tr>
+                                <tr>
+                                    <td class="info-label">HOLDER:</td>
+                                    <td>${params.parent?.name || 'Invited Guest'}</td>
+                                </tr>
+                                <tr>
+                                    <td class="info-label">PHONE:</td>
+                                    <td>${params.parent?.phoneNumber || params.parent?.phone_number || 'N/A'}</td>
+                                </tr>
+                                ${params.pin.vehicleRegistration || params.pin.vehicle_registration ? `
+                                <tr>
+                                    <td class="info-label">VEHICLE:</td>
+                                    <td class="bold">${params.pin.vehicleRegistration || params.pin.vehicle_registration}</td>
+                                </tr>
+                                ` : ''}
+                                <tr>
+                                    <td class="info-label">TIME:</td>
+                                    <td>${timestamp}</td>
+                                </tr>
+                                <tr>
+                                    <td class="info-label">PIN CODE:</td>
+                                    <td class="bold">${params.pin.pin}</td>
+                                </tr>
+                            </table>
+
+                            <div class="separator"></div>
+
+                            <div class="bold guests-title">Accompanying Guests (${guests.length}):</div>
                             ${guests.length > 0 
-                                ? guests.map((g: string, idx: number) => `<div>${idx + 1}. ${g}</div>`).join('')
-                                : '<div>No accompanying guests</div>'
+                                ? guests.map((g: string, idx: number) => `<div class="guest-item">${idx + 1}. ${g}</div>`).join('')
+                                : '<div class="guest-item">No accompanying guests</div>'
                             }
-                            <div class="divider"></div>
-                            <div class="center" style="font-size: 9px; font-weight: bold;">ENTRY APPROVED</div>
-                            <div class="center" style="font-size: 9px; font-weight: bold;">POWERED BY EDUAI</div>
+
+                            <div class="separator"></div>
+
+                            <div class="text-center footer">
+                                <div class="bold">ENTRY APPROVED</div>
+                                <div style="margin-top: 4px;">Thank you for attending.</div>
+                                <div style="font-size: 8px; margin-top: 4px; color: #555;">Eduai OS Support: 0723348912</div>
+                                <div style="font-size: 8px; margin-top: 4px; color: #555;">Powered by Edualloc-AI</div>
+                            </div>
                             <script>
                                 window.onload = () => {
                                     setTimeout(() => {
@@ -613,7 +726,11 @@ export const printService = {
 export function formatVisitorPassEscPos(
     visitorData: any,
     institution: any,
-    width: 58 | 80
+    width: 58 | 80,
+    host?: any,
+    hostSignature?: string,
+    visitorSignature?: string,
+    securityOfficerName?: string
 ): Uint8Array {
     const cols = width === 58 ? 32 : 48;
     const bytes: number[] = [];
@@ -644,6 +761,26 @@ export function formatVisitorPassEscPos(
         feed();
     };
 
+    const formatRow = (label: string, value: string) => {
+        const labelWidth = width === 58 ? 9 : 10;
+        const valWidth = cols - labelWidth;
+        const paddedLabel = label.padEnd(labelWidth);
+        
+        if (value.length <= valWidth) {
+            addText(paddedLabel + value);
+            feed();
+        } else {
+            addText(paddedLabel + value.substring(0, valWidth));
+            feed();
+            let remaining = value.substring(valWidth);
+            while (remaining.length > 0) {
+                addText(" ".repeat(labelWidth) + remaining.substring(0, valWidth));
+                feed();
+                remaining = remaining.substring(valWidth);
+            }
+        }
+    };
+
     // 1. Initialize
     init();
 
@@ -651,59 +788,83 @@ export function formatVisitorPassEscPos(
     alignCenter();
     boldOn();
     sizeLarge();
-    addText(institution.name || "Learning Institution");
+    addText(institution.name || "Academic Institution");
     feed(2);
 
     sizeNormal();
     boldOff();
-    addText("SECURITY VISIT PASS");
+    addText("Gate Entry Pass");
     feed();
     line();
-
-    // 3. Visitor Info
-    alignLeft();
     boldOn();
-    addText(`VISITOR: ${visitorData.name || visitorData.fullName}`);
+    addText("WALK-IN VISITOR PASS");
     feed();
     boldOff();
+    line();
 
-    addText(`Phone: ${visitorData.phoneNumber || visitorData.phone}`);
-    feed();
-
+    // 3. Visitor Info Table Layout
+    alignLeft();
+    formatRow("VISITOR:", visitorData.name || visitorData.fullName || 'Unknown Visitor');
+    formatRow("PHONE:", visitorData.phoneNumber || visitorData.phone || 'N/A');
+    
     if (visitorData.idNumber) {
-        addText(`ID Number: ${visitorData.idNumber}`);
-        feed();
+        formatRow("ID/REF:", visitorData.idNumber);
+    }
+    
+    formatRow("PURPOSE:", visitorData.purpose || 'N/A');
+    
+    const resolvedHostName = visitorData.hostName || host?.name || 'N/A';
+    formatRow("HOST:", resolvedHostName);
+
+    const resolvedOfficerName = securityOfficerName || visitorData.securityOfficerName || visitorData.security_officer_name || null;
+    if (resolvedOfficerName) {
+        formatRow("OFFICER:", resolvedOfficerName);
     }
 
     if (visitorData.vehiclePlate) {
-        addText(`Vehicle: ${visitorData.vehiclePlate}`);
-        feed();
+        const vPlate = visitorData.vehiclePlate + (visitorData.vehicleModel ? ` (${visitorData.vehicleModel})` : '');
+        formatRow("VEHICLE:", vPlate);
     }
-
-    const resolvedHostName = visitorData.hostName || (visitorData.hostId ? 'Host User' : 'General Office');
-    addText(`Visiting: ${resolvedHostName}`);
-    feed();
-
-    const resolvedOfficerName = visitorData.securityOfficerName || visitorData.security_officer_name || null;
-    if (resolvedOfficerName) {
-        addText(`Officer: ${resolvedOfficerName}`);
-        feed();
-    }
-
-    addText(`Purpose: ${visitorData.purpose || 'Official'}`);
-    feed();
 
     const timeInStr = formatPrintDate(visitorData.timeIn);
-    addText(`Time In: ${timeInStr}`);
-    feed();
+    formatRow("TIME:", timeInStr);
     line();
 
-    // 4. Footer
+    // 4. Signatures side-by-side
+    boldOn();
+    if (width === 58) {
+        addText("Visitor Sign:".padEnd(16) + "Host Sign:".padEnd(16));
+        feed(3);
+        addText("______________  ______________");
+        feed();
+        const vNameTrunc = (visitorData.name || visitorData.fullName || '').substring(0, 14).padEnd(16);
+        const hNameTrunc = (resolvedHostName || '').substring(0, 14).padEnd(16);
+        addText(vNameTrunc + hNameTrunc);
+        feed();
+    } else {
+        addText("Visitor Sign:".padEnd(24) + "Host Sign:".padEnd(24));
+        feed(3);
+        addText("____________________    ____________________");
+        feed();
+        const vNameTrunc = (visitorData.name || visitorData.fullName || '').substring(0, 20).padEnd(24);
+        const hNameTrunc = (resolvedHostName || '').substring(0, 20).padEnd(24);
+        addText(vNameTrunc + hNameTrunc);
+        feed();
+    }
+    boldOff();
+    line();
+
+    // 5. Footer
     alignCenter();
     boldOn();
-    addText("PLEASE KEEP THIS PASS SECURE");
+    addText("VISITOR APPROVED ENTRY");
     feed();
-    addText("SURRENDER AT EXIT GATE");
+    boldOff();
+    addText("Please keep this pass visible.");
+    feed();
+    addText("Eduai OS Support: 0723348912");
+    feed();
+    addText("Powered by Edualloc-AI");
     feed(4);
     cut();
 
@@ -746,6 +907,26 @@ export function formatEventPassEscPos(
         feed();
     };
 
+    const formatRow = (label: string, value: string) => {
+        const labelWidth = width === 58 ? 9 : 10;
+        const valWidth = cols - labelWidth;
+        const paddedLabel = label.padEnd(labelWidth);
+        
+        if (value.length <= valWidth) {
+            addText(paddedLabel + value);
+            feed();
+        } else {
+            addText(paddedLabel + value.substring(0, valWidth));
+            feed();
+            let remaining = value.substring(valWidth);
+            while (remaining.length > 0) {
+                addText(" ".repeat(labelWidth) + remaining.substring(0, valWidth));
+                feed();
+                remaining = remaining.substring(valWidth);
+            }
+        }
+    };
+
     // 1. Initialize
     init();
 
@@ -753,42 +934,34 @@ export function formatEventPassEscPos(
     alignCenter();
     boldOn();
     sizeLarge();
-    addText(institution.name || "Learning Institution");
+    addText(institution.name || "Academic Institution");
     feed(2);
 
     sizeNormal();
     boldOff();
+    addText("Gate Entry Pass");
+    feed();
+    line();
+    boldOn();
     addText("EVENT CHECK-IN PASS");
     feed();
+    boldOff();
     line();
 
     // 3. Pass Info
     alignLeft();
-    boldOn();
-    addText(`EVENT: ${event?.title || 'School Event'}`);
-    feed();
-    boldOff();
-
-    addText(`Holder: ${parent?.name || 'Invited Guest'}`);
-    feed();
-
-    addText(`Phone: ${parent?.phoneNumber || parent?.phone_number || 'N/A'}`);
-    feed();
-
+    formatRow("EVENT:", event?.title || 'School Event');
+    formatRow("HOLDER:", parent?.name || 'Invited Guest');
+    formatRow("PHONE:", parent?.phoneNumber || parent?.phone_number || 'N/A');
+    
     const vehicle = pin?.vehicleRegistration || pin?.vehicle_registration;
     if (vehicle) {
-        addText(`Vehicle: ${vehicle}`);
-        feed();
+        formatRow("VEHICLE:", vehicle);
     }
-
+    
     const timestamp = new Date().toLocaleString();
-    addText(`Time: ${timestamp}`);
-    feed();
-
-    boldOn();
-    addText(`PIN CODE: ${pin?.pin || 'N/A'}`);
-    feed();
-    boldOff();
+    formatRow("TIME:", timestamp);
+    formatRow("PIN CODE:", pin?.pin || 'N/A');
     line();
 
     // Guests
@@ -801,12 +974,20 @@ export function formatEventPassEscPos(
         }
     })();
 
+    boldOn();
     addText(`Accompanying Guests (${guests.length}):`);
     feed();
-    guests.forEach((g: string, idx: number) => {
-        addText(`${idx + 1}. ${g}`);
+    boldOff();
+    
+    if (guests.length > 0) {
+        guests.forEach((g: string, idx: number) => {
+            addText(`${idx + 1}. ${g}`);
+            feed();
+        });
+    } else {
+        addText("No accompanying guests");
         feed();
-    });
+    }
     line();
 
     // 4. Footer
@@ -815,7 +996,11 @@ export function formatEventPassEscPos(
     addText("ENTRY APPROVED");
     feed();
     boldOff();
-    addText("Please retain this pass card");
+    addText("Thank you for attending.");
+    feed();
+    addText("Eduai OS Support: 0723348912");
+    feed();
+    addText("Powered by Edualloc-AI");
     feed(4);
     cut();
 
