@@ -6007,6 +6007,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             courses={courses}
                                             departments={departments}
                                             onLogAction={handleLogAction}
+                                            onSwitchPerspective={(role: any) => setImpersonatedRole(role)}
                                         />
                                     </ModuleAccessGuard>
                                 ) : activeRole === 'security' ? (

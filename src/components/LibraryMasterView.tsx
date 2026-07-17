@@ -46,6 +46,7 @@ interface LibraryMasterViewProps {
     courses: Course[];
     departments: Department[];
     onLogAction: (action: string) => Promise<void>;
+    onSwitchPerspective?: (role: any) => void;
 }
 
 type LibraryTab = 'dashboard' | 'inventory' | 'sponsors' | 'lending' | 'members' | 'reservations' | 'penalties' | 'reports' | 'eduflow';
@@ -59,7 +60,8 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
     semesters,
     courses,
     departments,
-    onLogAction
+    onLogAction,
+    onSwitchPerspective
 }) => {
     const [activeTab, setActiveTab] = useState<LibraryTab>('dashboard');
     const [loading, setLoading] = useState(true);
@@ -240,7 +242,16 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
         <div className="max-w-7xl mx-auto p-2 sm:p-6 lg:p-8 space-y-8">
             {/* Top Navigation */}
             <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl sticky top-4 z-[40] p-2 rounded-[2.5rem] border border-white dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex flex-wrap gap-1 items-center justify-between">
-                <div className="flex flex-wrap gap-1 p-1">
+                <div className="flex flex-wrap gap-1 p-1 items-center">
+                    {onSwitchPerspective && (
+                        <button
+                            onClick={() => onSwitchPerspective(null)}
+                            className="flex items-center gap-2.5 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-650 hover:bg-indigo-100/50 mr-2"
+                        >
+                            <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                            Portal Hub
+                        </button>
+                    )}
                     {[
                         { id: 'dashboard', label: 'Overview', icon: BarChart3Icon },
                         { id: 'inventory', label: 'Inventory', icon: BookOpenIcon },
