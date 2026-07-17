@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RetailInventoryItem, RetailStore, VoteHead } from '../../types';
+import { RetailInventoryItem, RetailStore, VoteHead, HISPharmacyInventory } from '../../types';
 import { ArchiveBoxIcon as Package } from '../icons/ArchiveBoxIcon';
 import { PlusIcon as Plus } from '../icons/PlusIcon';
 import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
@@ -42,6 +42,12 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const [isSavingAll, setIsSavingAll] = useState(false);
     const [lastSaved, setLastSaved] = useState<string | null>(null);
     const [categoryFilter, setCategoryFilter] = useState('all');
+
+    // Pharmacy subtab state
+    const [inventorySubTab, setInventorySubTab] = useState<'school' | 'pharmacy'>('school');
+    const [pharmacyDrugs, setPharmacyDrugs] = useState<HISPharmacyInventory[]>([]);
+    const [pharmacySearch, setPharmacySearch] = useState('');
+    const [isPharmacyLoading, setIsPharmacyLoading] = useState(false);
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -122,6 +128,15 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         });
 
         fetchInventory();
+
+        // Load pharmacy inventory for admin overview (edu institutions only)
+        if (isEducation) {
+            setIsPharmacyLoading(true);
+            apiService.fetchModuleRecords<HISPharmacyInventory>('his_pharmacy_inventory', institutionId)
+                .then(drugs => setPharmacyDrugs(drugs || []))
+                .catch(e => console.warn('Could not load pharmacy inventory:', e))
+                .finally(() => setIsPharmacyLoading(false));
+        }
     }, [institutionId]);
 
     // Barcode Scanner Listener
@@ -581,6 +596,14 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
 
     const handleDiscardAll = () => setDirtyRows({});
 
+    const filteredPharmacyDrugs = useMemo(() =>
+        pharmacyDrugs.filter(d =>
+            d.name.toLowerCase().includes(pharmacySearch.toLowerCase()) ||
+            (d.category || '').toLowerCase().includes(pharmacySearch.toLowerCase()) ||
+            (d.sku || '').toLowerCase().includes(pharmacySearch.toLowerCase())
+        ),
+    [pharmacyDrugs, pharmacySearch]);
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1000">
             {/* Dynamic Header Section */}
@@ -596,7 +619,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     </div>
                     <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] ml-11 flex items-center gap-2">
                         <Layers className="w-3 h-3 text-indigo-400" />
-                        School Stock Control
+                        {inventorySubTab === 'pharmacy' ? 'Sickbay & Pharmacy Stock' : 'School Stock Control'}
                     </p>
                 </div>
 
@@ -646,7 +669,138 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 </div>
             </div>
 
+            {/* ─ SUBTAB SWITCHER (education only) ─ */}
+            {isEducation && (
+                <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1 rounded-2xl w-fit border border-slate-200 dark:border-slate-700/50 shadow-inner gap-1">
+                    <button
+                        onClick={() => setInventorySubTab('school')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                            inventorySubTab === 'school'
+                                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                : 'text-slate-500 hover:text-indigo-500 dark:text-slate-400'
+                        }`}
+                    >
+                        <Layers className="w-3.5 h-3.5" />
+                        School Store
+                        <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-md text-[9px] font-black">
+                            {items.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setInventorySubTab('pharmacy')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                            inventorySubTab === 'pharmacy'
+                                ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                                : 'text-slate-500 hover:text-emerald-500 dark:text-slate-400'
+                        }`}
+                    >
+                        <Banknote className="w-3.5 h-3.5" />
+                        Pharmacy / Sickbay
+                        {pharmacyDrugs.filter(d => d.stockQuantity <= d.reorderLevel).length > 0 ? (
+                            <span className="ml-1 px-1.5 py-0.5 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-md text-[9px] font-black animate-pulse">
+                                {pharmacyDrugs.filter(d => d.stockQuantity <= d.reorderLevel).length} low
+                            </span>
+                        ) : (
+                            <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-md text-[9px] font-black">
+                                {pharmacyDrugs.length}
+                            </span>
+                        )}
+                    </button>
+                </div>
+            )}
+
+            {/* ─ PHARMACY / SICKBAY PANEL ─ */}
+            {inventorySubTab === 'pharmacy' && (
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                            { label: 'Total Drugs', value: pharmacyDrugs.length, color: 'indigo' },
+                            { label: 'Low Stock', value: pharmacyDrugs.filter(d => d.stockQuantity <= d.reorderLevel).length, color: 'rose' },
+                            { label: 'Linked to Store', value: pharmacyDrugs.filter(d => d.linkedInventoryItemId).length, color: 'emerald' },
+                            { label: 'Narcotics', value: pharmacyDrugs.filter(d => d.isNarcotic).length, color: 'amber' },
+                        ].map(card => (
+                            <div key={card.label} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 shadow-sm">
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">{card.label}</p>
+                                <p className={`text-3xl font-black tracking-tight ${
+                                    card.color === 'rose' ? 'text-rose-500' :
+                                    card.color === 'emerald' ? 'text-emerald-500' :
+                                    card.color === 'amber' ? 'text-amber-500' : 'text-indigo-500'
+                                }`}>{card.value}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="relative">
+                        <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Search drugs by name, category or SKU..."
+                            value={pharmacySearch}
+                            onChange={e => setPharmacySearch(e.target.value)}
+                            className="w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold placeholder:text-slate-400"
+                        />
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-auto shadow-sm">
+                        {isPharmacyLoading ? (
+                            <div className="py-20 text-center text-slate-400 text-sm font-bold uppercase tracking-widest animate-pulse">Loading pharmacy inventory...</div>
+                        ) : filteredPharmacyDrugs.length === 0 ? (
+                            <div className="py-20 text-center">
+                                <p className="text-slate-400 font-black uppercase text-xs tracking-widest">{pharmacySearch ? 'No drugs match your search.' : 'No pharmacy drugs recorded yet.'}</p>
+                                <p className="text-slate-300 dark:text-slate-600 text-[10px] mt-1">Drugs are added from the EduPulse → Pharmacy / Store tab.</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                                        {['Drug / Item','Category','Unit','Stock Qty','Reorder Lvl','Unit Price (KES)','Narcotic','Linked to Store','Status'].map(h => (
+                                            <th key={h} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 whitespace-nowrap">{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                    {filteredPharmacyDrugs.map(drug => {
+                                        const isLow = drug.stockQuantity <= drug.reorderLevel;
+                                        const isLinked = Boolean(drug.linkedInventoryItemId);
+                                        return (
+                                            <tr key={drug.id} className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${isLow ? 'bg-rose-50/40 dark:bg-rose-900/10' : ''}`}>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black ${
+                                                            drug.isNarcotic ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
+                                                        }`}>{drug.name.charAt(0)}</div>
+                                                        <div>
+                                                            <p className="font-bold text-slate-900 dark:text-white text-xs">{drug.name}</p>
+                                                            {drug.sku && <p className="text-[9px] text-slate-400 font-mono">{drug.sku}</p>}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-xs text-slate-500 font-semibold">{drug.category || '—'}</td>
+                                                <td className="px-4 py-3 text-xs text-slate-500 font-semibold uppercase">{drug.unit || 'pcs'}</td>
+                                                <td className="px-4 py-3"><span className={`text-sm font-black ${isLow ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>{drug.stockQuantity}</span></td>
+                                                <td className="px-4 py-3 text-xs text-slate-400 font-bold">{drug.reorderLevel}</td>
+                                                <td className="px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-300">{drug.unitPrice > 0 ? `KES ${drug.unitPrice.toLocaleString()}` : <span className="text-slate-300 dark:text-slate-600">—</span>}</td>
+                                                <td className="px-4 py-3">{drug.isNarcotic ? <span className="px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 rounded-md text-[9px] font-black">YES</span> : <span className="text-slate-300 dark:text-slate-600 text-[9px]">—</span>}</td>
+                                                <td className="px-4 py-3">{isLinked ? <span className="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400 rounded-md text-[9px] font-black w-fit"><CheckCircle className="w-3 h-3"/>Linked</span> : <span className="px-2 py-0.5 bg-slate-100 text-slate-400 dark:bg-slate-700 rounded-md text-[9px] font-black">Standalone</span>}</td>
+                                                <td className="px-4 py-3">{isLow ? <span className="flex items-center gap-1 px-2 py-0.5 bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400 rounded-md text-[9px] font-black animate-pulse"><AlertTriangle className="w-3 h-3"/>Low</span> : <span className="px-2 py-0.5 bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 rounded-md text-[9px] font-black">OK</span>}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-semibold text-center">
+                        Read-only view. To add/edit drugs go to <strong>EduPulse → Pharmacy / Store → Drug Stock</strong>.
+                    </p>
+                </div>
+            )}
+
+            {/* ─ SCHOOL STORE CONTENT (hidden when pharmacy tab active) ─ */}
+            {inventorySubTab === 'school' && (<>
+
             {/* Controls */}
+
             <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl shadow border border-white dark:border-slate-700 flex flex-col md:flex-row gap-3 justify-between items-center">
                 <div className="relative w-full md:flex-grow">
                     <Search className="w-4 h-4 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
@@ -1566,6 +1720,8 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     </div>
                 </div>
             )}
+        </>
+        )}
         </div>
     );
 }
