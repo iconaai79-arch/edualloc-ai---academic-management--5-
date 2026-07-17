@@ -109,6 +109,44 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         return { ipAddress: '', port: 80, username: 'admin', password: '', enabled: false };
     });
 
+    const [testingDahua, setTestingDahua] = useState(false);
+
+    const testDahuaConnection = async () => {
+        if (!dahuaConfig.ipAddress) {
+            alert("Please configure a valid Terminal IP Address first.");
+            return;
+        }
+        
+        setTestingDahua(true);
+        const authPrefix = dahuaConfig.username && dahuaConfig.password 
+            ? `${dahuaConfig.username}:${dahuaConfig.password}@` 
+            : '';
+        const baseUrl = `http://${authPrefix}${dahuaConfig.ipAddress}:${dahuaConfig.port || 80}`;
+        const testUrl = `${baseUrl}/cgi-bin/magicBox.cgi?action=getSystemInfo`;
+        
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 seconds timeout
+            
+            await fetch(testUrl, {
+                method: 'GET',
+                mode: 'no-cors',
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            alert("Connection test initiated! The device responded and is reachable on the network.");
+        } catch (err: any) {
+            console.error("Dahua connection test failed:", err);
+            if (err.name === 'AbortError') {
+                alert("Connection test timed out. Please check if the device is powered on, connected to the same network, and the IP/port are correct.");
+            } else {
+                alert(`Connection test failed: ${err.message || 'Device unreachable or network error.'}`);
+            }
+        } finally {
+            setTestingDahua(false);
+        }
+    };
+
     useEffect(() => {
         setActiveUsers(users);
     }, [users]);
@@ -1071,15 +1109,30 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                             </div>
                                         )}
 
-                                        <button 
-                                            onClick={() => {
-                                                localStorage.setItem('eduai_dahua_config', JSON.stringify(dahuaConfig));
-                                                alert("Dahua terminal configurations saved successfully.");
-                                            }}
-                                            className="w-full py-4.5 bg-gradient-to-r from-slate-700 to-slate-900 hover:from-slate-800 hover:to-slate-950 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
-                                        >
-                                            Save Dahua Integration
-                                        </button>
+                                        <div className="flex flex-col sm:flex-row gap-4">
+                                            <button 
+                                                type="button"
+                                                onClick={testDahuaConnection}
+                                                disabled={testingDahua}
+                                                className={`flex-1 py-4.5 rounded-2xl text-xs font-black uppercase tracking-widest active:scale-95 transition-all border ${
+                                                    testingDahua 
+                                                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed dark:bg-slate-800 dark:border-slate-700' 
+                                                        : 'bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-950 dark:hover:bg-slate-900 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                                                }`}
+                                            >
+                                                {testingDahua ? 'Testing...' : 'Test Connection'}
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => {
+                                                    localStorage.setItem('eduai_dahua_config', JSON.stringify(dahuaConfig));
+                                                    alert("Dahua terminal configurations saved successfully.");
+                                                }}
+                                                className="flex-1 py-4.5 bg-gradient-to-r from-slate-700 to-slate-900 hover:from-slate-800 hover:to-slate-950 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+                                            >
+                                                Save Settings
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
