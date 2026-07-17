@@ -207,14 +207,28 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
     }, 250);
 };
 
-export const printEposWalkInGatePass = (visitor: any, host: any, institution: any, hostSignature?: string, visitorSignature?: string) => {
+export const printEposWalkInGatePass = (
+    visitor: any,
+    host: any,
+    institution: any,
+    hostSignature?: string,
+    visitorSignature?: string,
+    securityOfficerName?: string
+) => {
+    // Resolve signatures and officer name from parameters or visitor object fallback
+    const resolvedVisitorSig = visitorSignature || visitor.visitorSignature || visitor.visitor_signature || null;
+    const resolvedHostSig = hostSignature || visitor.hostSignature || visitor.host_signature || null;
+    const resolvedOfficerName = securityOfficerName || visitor.securityOfficerName || visitor.security_officer_name || null;
+    const resolvedHostName = visitor.hostName || host?.name || 'N/A';
+
     if (Capacitor.isNativePlatform()) {
         printService.printVisitorPass({ 
             visitorData: visitor, 
             institution,
-            host,
-            hostSignature,
-            visitorSignature
+            host: host || { name: resolvedHostName },
+            hostSignature: resolvedHostSig,
+            visitorSignature: resolvedVisitorSig,
+            securityOfficerName: resolvedOfficerName
         }).catch(err => {
             console.error("Native visitor gatepass printing failed:", err);
             alert("Print failed: " + (err.message || err));
@@ -237,11 +251,12 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
         </div>
 
         <table style="width:100%;margin-bottom:8px;font-size:11px;">
-            <tr><td style="width:40%;font-weight:bold;padding:2px 0;vertical-align:top;">VISITOR:</td><td style="padding:2px 0;">${visitor?.name || 'Unknown Visitor'}</td></tr>
+            <tr><td style="width:40%;font-weight:bold;padding:2px 0;vertical-align:top;">VISITOR:</td><td style="padding:2px 0;">${visitor?.name || visitor?.fullName || 'Unknown Visitor'}</td></tr>
             <tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">PHONE:</td><td style="padding:2px 0;">${visitor?.phoneNumber || visitor?.phone || 'N/A'}</td></tr>
             ${visitor?.idNumber ? `<tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">ID/REF:</td><td style="padding:2px 0;">${visitor.idNumber}</td></tr>` : ''}
             <tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">PURPOSE:</td><td style="padding:2px 0;">${visitor?.purpose || 'N/A'}</td></tr>
-            <tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">HOST:</td><td style="padding:2px 0;">${visitor?.hostName || host?.name || 'N/A'}</td></tr>
+            <tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">HOST:</td><td style="padding:2px 0;">${resolvedHostName}</td></tr>
+            ${resolvedOfficerName ? `<tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">OFFICER:</td><td style="padding:2px 0;">${resolvedOfficerName}</td></tr>` : ''}
             ${visitor?.vehiclePlate ? `<tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">VEHICLE:</td><td style="font-weight:bold;padding:2px 0;">${visitor.vehiclePlate}${visitor.vehicleModel ? ` (${visitor.vehicleModel})` : ''}</td></tr>` : ''}
             <tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">TIME:</td><td style="padding:2px 0;">${timestamp}</td></tr>
         </table>
@@ -252,19 +267,19 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
             <tr>
                 <td style="width:50%;vertical-align:top;padding:0 2px;">
                     <div style="font-size:9px;font-weight:bold;text-transform:uppercase;margin-bottom:3px;">Visitor Signature:</div>
-                    ${visitorSignature
-                        ? `<img src="${visitorSignature}" style="width:100%;max-height:45px;object-fit:contain;border-bottom:1px solid #000;display:block;" alt="Visitor Signature" />`
+                    ${resolvedVisitorSig
+                        ? `<img src="${resolvedVisitorSig}" style="width:100%;max-height:45px;object-fit:contain;border-bottom:1px solid #000;display:block;" alt="Visitor Signature" />`
                         : `<div style="border-bottom:1px solid #000;height:30px;width:100%;"></div>`
                     }
-                    <div style="font-size:8px;margin-top:2px;">${visitor?.name || ''}</div>
+                    <div style="font-size:8px;margin-top:2px;">${visitor?.name || visitor?.fullName || ''}</div>
                 </td>
                 <td style="width:50%;vertical-align:top;padding:0 2px;">
                     <div style="font-size:9px;font-weight:bold;text-transform:uppercase;margin-bottom:3px;">Host Signature:</div>
-                    ${hostSignature
-                        ? `<img src="${hostSignature}" style="width:100%;max-height:45px;object-fit:contain;border-bottom:1px solid #000;display:block;" alt="Host Signature" />`
+                    ${resolvedHostSig
+                        ? `<img src="${resolvedHostSig}" style="width:100%;max-height:45px;object-fit:contain;border-bottom:1px solid #000;display:block;" alt="Host Signature" />`
                         : `<div style="border-bottom:1px solid #000;height:30px;width:100%;"></div>`
                     }
-                    <div style="font-size:8px;margin-top:2px;">${host?.name || ''}</div>
+                    <div style="font-size:8px;margin-top:2px;">${resolvedHostName}</div>
                 </td>
             </tr>
         </table>

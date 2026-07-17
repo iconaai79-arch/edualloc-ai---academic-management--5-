@@ -885,7 +885,10 @@ CREATE TABLE IF NOT EXISTS visitors (
     host_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     vehicle_plate TEXT,
-    vehicle_model TEXT
+    vehicle_model TEXT,
+    visitor_signature TEXT,
+    host_signature TEXT,
+    security_officer_name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS appointments (

@@ -361,18 +361,25 @@ export const printService = {
         host?: any;
         hostSignature?: string;
         visitorSignature?: string;
+        securityOfficerName?: string;
     }): Promise<void> {
         const config = getPrinterConfig();
 
         if (config.type === 'system') {
+            const resolvedVisitorSig = params.visitorSignature || params.visitorData.visitorSignature || params.visitorData.visitor_signature || null;
+            const resolvedHostSig = params.hostSignature || params.visitorData.hostSignature || params.visitorData.host_signature || null;
+            const resolvedOfficerName = params.securityOfficerName || params.visitorData.securityOfficerName || params.visitorData.security_officer_name || null;
+            const resolvedHostName = params.visitorData.hostName || params.host?.name || 'N/A';
+
             if (Capacitor.isNativePlatform()) {
                 try {
                     const base64Pdf = await generateVisitorPassPdfBase64(
                         params.visitorData, 
                         params.institution,
                         params.host,
-                        params.hostSignature,
-                        params.visitorSignature
+                        resolvedHostSig,
+                        resolvedVisitorSig,
+                        resolvedOfficerName
                     );
                     await this.printPdf(base64Pdf, "Visitor Pass");
                 } catch (err) {
@@ -388,27 +395,57 @@ export const printService = {
                         <head>
                             <title>Gate Pass</title>
                             <style>
-                                body { font-family: monospace; padding: 20px; max-width: 280px; margin: auto; line-height: 1.4; color: #000; }
+                                body { font-family: monospace; padding: 15px; max-width: 280px; margin: auto; line-height: 1.4; color: #000; }
                                 .center { text-align: center; }
                                 .bold { font-weight: bold; }
-                                .divider { border-top: 1px dashed black; margin: 12px 0; }
-                                .title { font-size: 16px; margin: 5px 0; letter-spacing: 1px; }
+                                .divider { border-top: 1px dashed black; margin: 10px 0; }
+                                .title { font-size: 14px; margin: 4px 0; letter-spacing: 1px; text-transform: uppercase; }
                             </style>
                         </head>
                         <body>
+                            ${params.institution.logoUrl || params.institution.logo_url ? `
+                                <div class="center" style="margin-bottom: 6px;">
+                                    <img src="${params.institution.logoUrl || params.institution.logo_url}" style="max-height: 35px; max-width: 110px; object-fit: contain;" />
+                                </div>
+                            ` : ''}
                             <div class="center bold title">${params.institution.name || 'Learning Institution'}</div>
-                            <div class="center bold" style="font-size: 12px;">SECURITY VISIT PASS</div>
+                            <div class="center bold" style="font-size: 11px;">SECURITY VISIT PASS</div>
                             <div class="divider"></div>
                             <div><span class="bold">VISITOR:</span> ${params.visitorData.name || params.visitorData.fullName}</div>
                             <div><span class="bold">PHONE:</span> ${params.visitorData.phoneNumber || params.visitorData.phone || 'N/A'}</div>
                             ${params.visitorData.idNumber ? `<div><span class="bold">ID NO:</span> ${params.visitorData.idNumber}</div>` : ''}
-                            ${params.visitorData.vehiclePlate ? `<div><span class="bold">VEHICLE:</span> ${params.visitorData.vehiclePlate}</div>` : ''}
-                            <div><span class="bold">VISITING:</span> ${params.visitorData.hostName || 'General Administration'}</div>
+                            ${params.visitorData.vehiclePlate ? `<div><span class="bold">VEHICLE:</span> ${params.visitorData.vehiclePlate}${params.visitorData.vehicleModel ? ` (${params.visitorData.vehicleModel})` : ''}</div>` : ''}
+                            <div><span class="bold">VISITING:</span> ${resolvedHostName}</div>
+                            ${resolvedOfficerName ? `<div><span class="bold">OFFICER:</span> ${resolvedOfficerName}</div>` : ''}
                             <div><span class="bold">PURPOSE:</span> ${params.visitorData.purpose || 'Official'}</div>
                             <div><span class="bold">TIME IN:</span> ${formatPrintDate(params.visitorData.timeIn)}</div>
                             <div class="divider"></div>
-                            <div class="center" style="font-size: 9px; font-weight: bold;">PLEASE RETAIN THIS CARD</div>
-                            <div class="center" style="font-size: 9px; font-weight: bold;">SURRENDER AT EXIT GATE</div>
+                            
+                            <table style="width:100%; border-collapse:collapse; font-size:10px; margin-bottom:8px;">
+                                <tr>
+                                    <td style="width:50%; vertical-align:top; padding:0 2px;">
+                                        <div style="font-size:8px; font-weight:bold; text-transform:uppercase; margin-bottom:2px;">Visitor Sign:</div>
+                                        ${resolvedVisitorSig
+                                            ? `<img src="${resolvedVisitorSig}" style="width:100%; max-height:35px; object-fit:contain; border-bottom:1px solid #000; display:block;" />`
+                                            : `<div style="border-bottom:1px solid #000; height:20px; width:100%;"></div>`
+                                        }
+                                        <div style="font-size:7px; margin-top:2px;">${params.visitorData.name || params.visitorData.fullName || ''}</div>
+                                    </td>
+                                    <td style="width:50%; vertical-align:top; padding:0 2px;">
+                                        <div style="font-size:8px; font-weight:bold; text-transform:uppercase; margin-bottom:2px;">Host Sign:</div>
+                                        ${resolvedHostSig
+                                            ? `<img src="${resolvedHostSig}" style="width:100%; max-height:35px; object-fit:contain; border-bottom:1px solid #000; display:block;" />`
+                                            : `<div style="border-bottom:1px solid #000; height:20px; width:100%;"></div>`
+                                        }
+                                        <div style="font-size:7px; margin-top:2px;">${resolvedHostName}</div>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <div class="divider"></div>
+                            <div class="center bold" style="font-size: 10px;">VISITOR APPROVED ENTRY</div>
+                            <div class="center" style="font-size: 8px; margin-top: 4px; color: #555;">Please keep this pass visible.</div>
+                            <div class="center" style="font-size: 8px; margin-top: 4px; color: #555;">Powered by Edualloc-AI</div>
                             <script>
                                 window.onload = () => {
                                     setTimeout(() => {
@@ -643,8 +680,15 @@ export function formatVisitorPassEscPos(
         feed();
     }
 
-    addText(`Visiting: ${visitorData.hostName || 'General Office'}`);
+    const resolvedHostName = visitorData.hostName || (visitorData.hostId ? 'Host User' : 'General Office');
+    addText(`Visiting: ${resolvedHostName}`);
     feed();
+
+    const resolvedOfficerName = visitorData.securityOfficerName || visitorData.security_officer_name || null;
+    if (resolvedOfficerName) {
+        addText(`Officer: ${resolvedOfficerName}`);
+        feed();
+    }
 
     addText(`Purpose: ${visitorData.purpose || 'Official'}`);
     feed();
@@ -783,7 +827,8 @@ async function generateVisitorPassPdfBase64(
     institution: any,
     host?: any,
     hostSignature?: string,
-    visitorSignature?: string
+    visitorSignature?: string,
+    securityOfficerName?: string
 ): Promise<string> {
     const logoUrl = institution?.logoUrl || institution?.logo_url || null;
     const [logoImg, visitorSigImg, hostSigImg] = await Promise.all([
@@ -792,9 +837,11 @@ async function generateVisitorPassPdfBase64(
         loadImage(hostSignature)
     ]);
 
+    const resolvedOfficerName = securityOfficerName || visitorData.securityOfficerName || visitorData.security_officer_name || null;
     const hasId = !!visitorData.idNumber;
     const hasVehicle = !!visitorData.vehiclePlate;
-    const pdfHeight = 110 + (logoImg ? 15 : 0) + (hasId ? 5 : 0) + (hasVehicle ? 5 : 0);
+    const hasOfficer = !!resolvedOfficerName;
+    const pdfHeight = 110 + (logoImg ? 15 : 0) + (hasId ? 5 : 0) + (hasVehicle ? 5 : 0) + (hasOfficer ? 5 : 0);
 
     const doc = new jsPDF({
         orientation: 'portrait',
@@ -858,7 +905,12 @@ async function generateVisitorPassPdfBase64(
         drawKeyValue("ID/REF:   ", visitorData.idNumber, yPos); yPos += 5;
     }
     drawKeyValue("PURPOSE:  ", visitorData.purpose || 'Official', yPos); yPos += 5;
-    drawKeyValue("HOST:     ", visitorData.hostName || (host && host.name) || 'N/A', yPos); yPos += 5;
+    const resolvedHostName = visitorData.hostName || (host && host.name) || 'N/A';
+    drawKeyValue("HOST:     ", resolvedHostName, yPos); yPos += 5;
+    
+    if (hasOfficer) {
+        drawKeyValue("OFFICER:  ", resolvedOfficerName, yPos); yPos += 5;
+    }
     
     if (hasVehicle) {
         drawKeyValue("VEHICLE:  ", visitorData.vehiclePlate + (visitorData.vehicleModel ? ` (${visitorData.vehicleModel})` : ''), yPos); yPos += 5;
@@ -894,7 +946,7 @@ async function generateVisitorPassPdfBase64(
 
     doc.setFontSize(7.5);
     doc.text(visitorData.name || visitorData.fullName || '', margin, yPos);
-    doc.text((host && host.name) || visitorData.hostName || '', margin + 34, yPos);
+    doc.text(resolvedHostName, margin + 34, yPos);
     yPos += 5;
 
     // Divider

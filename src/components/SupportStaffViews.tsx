@@ -410,7 +410,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         if (!walkInForm.phone) return;
         setLookupStatus('searching');
         const matches = (visitors || []).filter(v => {
-            const vPhone = (v.phoneNumber || v.phone || (v as any).phone_number || '').replace(/\D/g, '');
+            const vPhone = (v.phoneNumber || (v as any).phone || (v as any).phone_number || '').replace(/\D/g, '');
             const searchPhone = walkInForm.phone.replace(/\D/g, '');
             if (!vPhone || !searchPhone) return false;
             return vPhone.endsWith(searchPhone) || searchPhone.endsWith(vPhone);
@@ -455,7 +455,10 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 visitDate: new Date().toISOString().split('T')[0],
                 timeIn: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 institutionId: user?.institutionId || '',
-                status: 'pending_authorization'
+                status: 'pending_authorization',
+                visitorSignature: visitorSignature || undefined,
+                hostSignature: hostSignature || undefined,
+                securityOfficerName: user?.name || undefined
             };
 
             // Process saving and host notification asynchronously
@@ -480,7 +483,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                             const emailSubject = `Visitor Authorization Request: ${visitorPayload.name}`;
                             const emailBody = `Dear ${matchedHost.name},\n\nA visitor has registered at the security gate and requested to see you.\n\nVisitor Name: ${visitorPayload.name}\nPurpose of Visit: ${visitorPayload.purpose}\nArrival Time: ${visitorPayload.timeIn}\n\nPlease click the secure link below to review, sign, and authorize or deny entry:\n${link}\n\nBest Regards,\nSecurity Operations`;
                             
-                            const emailConfig = getInstitutionEmailConfig(props.currentInstitution, props.companyDetails.emailConfig);
+                            const emailConfig = getInstitutionEmailConfig(props.currentInstitution!, props.companyDetails.emailConfig);
                             await sendEmailNotification(matchedHost.email, emailSubject, emailBody, emailConfig);
                             console.info('[Security Notification] Sent Email authorization request to host:', matchedHost.email);
                         }
@@ -520,7 +523,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             // Print gate pass immediately (non-blocking)
             try {
                 const hostUser = users.find(u => u.id === finalHostId);
-                printEposWalkInGatePass(visitorPayload, hostUser, props.currentInstitution, hostSignature || undefined, visitorSignature || undefined);
+                printEposWalkInGatePass(visitorPayload, hostUser, props.currentInstitution, hostSignature || undefined, visitorSignature || undefined, user?.name || undefined);
             } catch (err) {
                 console.error("Failed to automatically print walk-in gatepass:", err);
             }
