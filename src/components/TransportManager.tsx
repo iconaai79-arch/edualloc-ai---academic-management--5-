@@ -11,7 +11,7 @@ import { XIcon } from './icons/XIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { UserPlusIcon } from './icons/UserPlusIcon';
 
-import type { TransportVehicle, User, Institution, UserUpdateData } from '../types';
+import type { TransportVehicle, User, Institution, UserUpdateData, StudentEnrollment } from '../types';
 import { apiService } from '../services/apiService';
 
 interface TransportManagerProps {
@@ -42,7 +42,11 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
     const [isAdding, setIsAdding] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [courseFilter, setCourseFilter] = useState('all');
+    const [classFilter, setClassFilter] = useState('all');
+    const [streamFilter, setStreamFilter] = useState('all');
+
+    // Enrollment data for admission numbers, class & stream
+    const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
 
     // Form data for Vehicle
     const [formData, setFormData] = useState<Omit<TransportVehicle, 'id' | 'institutionId'>>({
@@ -80,20 +84,47 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         [users]
     );
 
-    const getAdmissionNumber = (u: User): string =>
-        u.admissionNumber || u.admission_number ||
-        u.metadata?.admissionNumber || u.metadata?.admission_number || '';
+    // Merge enrollment data (admissionNumber, class, stream) onto each student
+    const enrichedStudents = useMemo(() => {
+        return students.map(s => {
+            const enr = enrollments.find(e => e.userId === s.id);
+            const adm = enr?.admissionNumber || (enr as any)?.admission_number ||
+                s.admissionNumber || s.admission_number ||
+                s.metadata?.admissionNumber || s.metadata?.admission_number || '';
+            const gradeLevel = enr?.metadata?.gradeLevel || s.metadata?.gradeLevel || '';
+            const stream = enr?.metadata?.stream || s.metadata?.stream || '';
+            return { ...s, admissionNumber: adm, admission_number: adm, gradeLevel, stream };
+        });
+    }, [students, enrollments]);
+
+    // Unique class & stream options for filter dropdowns
+    const classOptions = useMemo(() =>
+        [...new Set(enrichedStudents.map(s => (s as any).gradeLevel).filter(Boolean))].sort(),
+        [enrichedStudents]
+    );
+    const streamOptions = useMemo(() =>
+        [...new Set(enrichedStudents.map(s => (s as any).stream).filter(Boolean))].sort(),
+        [enrichedStudents]
+    );
 
     const filteredStudents = useMemo(() => {
-        return students.filter(s => {
-            const adm = getAdmissionNumber(s);
+        return enrichedStudents.filter(s => {
+            const adm = s.admissionNumber || '';
             const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 adm.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (s.staffId || '').toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesCourse = courseFilter === 'all' || s.courseId === courseFilter;
-            return matchesSearch && matchesCourse;
+            const matchesClass = classFilter === 'all' || (s as any).gradeLevel === classFilter;
+            const matchesStream = streamFilter === 'all' || (s as any).stream === streamFilter;
+            return matchesSearch && matchesClass && matchesStream;
         });
-    }, [students, searchTerm, courseFilter]);
+    }, [enrichedStudents, searchTerm, classFilter, streamFilter]);
+
+    // Fetch student enrollments to get admission numbers, class and stream
+    useEffect(() => {
+        apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', currentInstitution.id)
+            .then(data => setEnrollments(data || []))
+            .catch(e => console.warn('Could not load enrollments for transport:', e));
+    }, [currentInstitution.id]);
 
     useEffect(() => {
         if (showQrId) {
@@ -541,14 +572,26 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                 placeholder="Search by name or student ID..."
                             />
                         </div>
-                        <div className="flex gap-4">
+                        <div className="flex gap-3 flex-wrap">
                             <select
-                                value={courseFilter}
-                                onChange={e => setCourseFilter(e.target.value)}
-                                className="px-6 py-4 rounded-2xl bg-white dark:bg-slate-800 border-none outline-none font-bold text-sm shadow-sm min-w-[200px]"
+                                value={classFilter}
+                                onChange={e => setClassFilter(e.target.value)}
+                                className="px-5 py-4 rounded-2xl bg-white dark:bg-slate-800 border-none outline-none font-bold text-sm shadow-sm min-w-[160px]"
                             >
-                                <option value="all">All Courses</option>
-                                {/* Populate from courses if needed */}
+                                <option value="all">All Classes</option>
+                                {classOptions.map(c => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={streamFilter}
+                                onChange={e => setStreamFilter(e.target.value)}
+                                className="px-5 py-4 rounded-2xl bg-white dark:bg-slate-800 border-none outline-none font-bold text-sm shadow-sm min-w-[140px]"
+                            >
+                                <option value="all">All Streams</option>
+                                {streamOptions.map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
                             </select>
                         </div>
                     </div>
@@ -558,7 +601,8 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-900/50">
                                     <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">{passengerTerm}</th>
-                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Adm. No / ID</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Adm. No</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Class / Stream</th>
                                     <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Vehicle</th>
                                     <th className="px-8 py-6 text-center text-[10px] font-black uppercase text-slate-400 tracking-widest">Actions</th>
                                 </tr>
@@ -574,8 +618,21 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                                 <span className="font-bold text-slate-800 dark:text-white">{student.name}</span>
                                             </div>
                                         </td>
-                                        <td className="px-8 py-6 font-mono text-xs font-bold text-slate-600 dark:text-slate-300 uppercase">
-                                            {getAdmissionNumber(student) || student.staffId || <span className="text-slate-300 dark:text-slate-600 italic">—</span>}
+                                        <td className="px-8 py-6 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase">
+                                            {(student as any).admissionNumber || <span className="text-slate-300 dark:text-slate-600 italic">—</span>}
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <div className="flex flex-col gap-1">
+                                                {(student as any).gradeLevel ? (
+                                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{(student as any).gradeLevel}</span>
+                                                ) : null}
+                                                {(student as any).stream ? (
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{(student as any).stream}</span>
+                                                ) : null}
+                                                {!(student as any).gradeLevel && !(student as any).stream && (
+                                                    <span className="text-slate-300 dark:text-slate-600 italic text-xs">—</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-8 py-6">
                                             <select
@@ -605,7 +662,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                 ))}
                                 {filteredStudents.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="px-8 py-20 text-center font-black text-slate-300 uppercase tracking-widest">No {passengerTerm.toLowerCase()}s found matching your criteria</td>
+                                        <td colSpan={5} className="px-8 py-20 text-center font-black text-slate-300 uppercase tracking-widest">No {passengerTerm.toLowerCase()}s found matching your criteria</td>
                                     </tr>
                                 )}
                             </tbody>
