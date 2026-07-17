@@ -80,9 +80,15 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         [users]
     );
 
+    const getAdmissionNumber = (u: User): string =>
+        u.admissionNumber || u.admission_number ||
+        u.metadata?.admissionNumber || u.metadata?.admission_number || '';
+
     const filteredStudents = useMemo(() => {
         return students.filter(s => {
+            const adm = getAdmissionNumber(s);
             const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                adm.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (s.staffId || '').toLowerCase().includes(searchTerm.toLowerCase());
             const matchesCourse = courseFilter === 'all' || s.courseId === courseFilter;
             return matchesSearch && matchesCourse;
@@ -552,7 +558,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-900/50">
                                     <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">{passengerTerm}</th>
-                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">ID Number</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Adm. No / ID</th>
                                     <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Vehicle</th>
                                     <th className="px-8 py-6 text-center text-[10px] font-black uppercase text-slate-400 tracking-widest">Actions</th>
                                 </tr>
@@ -568,7 +574,9 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                                 <span className="font-bold text-slate-800 dark:text-white">{student.name}</span>
                                             </div>
                                         </td>
-                                        <td className="px-8 py-6 font-mono text-xs font-bold text-slate-400 uppercase">{student.staffId || '---'}</td>
+                                        <td className="px-8 py-6 font-mono text-xs font-bold text-slate-600 dark:text-slate-300 uppercase">
+                                            {getAdmissionNumber(student) || student.staffId || <span className="text-slate-300 dark:text-slate-600 italic">—</span>}
+                                        </td>
                                         <td className="px-8 py-6">
                                             <select
                                                 value={student.vehicleId || ''}
