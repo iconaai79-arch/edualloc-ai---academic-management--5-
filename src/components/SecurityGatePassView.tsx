@@ -1985,15 +1985,21 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                         <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest mb-6">Gate Log (Today's Staff)</h3>
                                         <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
                                             {(teacherCheckIns || [])
-                                                .filter(c => c.checkInDate === todayStr)
+                                                .filter(c => (c.checkInDate || c.check_in_date) === todayStr)
                                                 .sort((a, b) => {
-                                                    const timeA = a.morningCheckInTime || a.afternoonCheckInTime || '';
-                                                    const timeB = b.morningCheckInTime || b.afternoonCheckInTime || '';
+                                                    const timeA = a.morningCheckInTime || a.morning_check_in_time || a.afternoonCheckInTime || a.afternoon_check_in_time || '';
+                                                    const timeB = b.morningCheckInTime || b.morning_check_in_time || b.afternoonCheckInTime || b.afternoon_check_in_time || '';
                                                     return timeB.localeCompare(timeA);
                                                 })
                                                 .map(c => {
-                                                    const staff = activeUsers.find(u => u.id === c.teacherId);
+                                                    const teacherId = c.teacherId || c.teacher_id;
+                                                    const staff = activeUsers.find(u => u.id === teacherId);
                                                     if (!staff) return null;
+                                                    const morningTime = c.morningCheckInTime || c.morning_check_in_time;
+                                                    const afternoonTime = c.afternoonCheckInTime || c.afternoon_check_in_time;
+                                                    const morningNotes = c.morningNotes || c.morning_notes;
+                                                    const afternoonNotes = c.afternoonNotes || c.afternoon_notes;
+                                                    const notes = morningNotes || afternoonNotes;
                                                     return (
                                                         <div key={c.id} className="flex gap-4 p-4 rounded-2xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 transition-all shadow-sm">
                                                             <div className="p-3 rounded-xl h-fit bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
@@ -2006,28 +2012,28 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-1">{staff.role}</p>
                                                                     </div>
                                                                     <div className="flex flex-col gap-1 items-end">
-                                                                        {c.morningCheckInTime && (
+                                                                        {morningTime && (
                                                                             <span className="text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-mono">
-                                                                                IN: {c.morningCheckInTime.substring(0, 5)}
+                                                                                IN: {morningTime.substring(0, 5)}
                                                                             </span>
                                                                         )}
-                                                                        {c.afternoonCheckInTime && (
+                                                                        {afternoonTime && (
                                                                             <span className="text-[9px] font-black uppercase bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-mono">
-                                                                                OUT: {c.afternoonCheckInTime.substring(0, 5)}
+                                                                                OUT: {afternoonTime.substring(0, 5)}
                                                                             </span>
                                                                         )}
                                                                     </div>
                                                                 </div>
-                                                                {(c.morningNotes || c.afternoonNotes) && (
+                                                                {notes && (
                                                                     <p className="text-xs text-slate-550 dark:text-slate-400 mt-3.5 italic border-l-2 border-slate-200 dark:border-slate-800 pl-2">
-                                                                        "{c.morningNotes || c.afternoonNotes}"
+                                                                        "{notes}"
                                                                     </p>
                                                                 )}
                                                             </div>
                                                         </div>
                                                     );
                                                 })}
-                                            {(teacherCheckIns || []).filter(c => c.checkInDate === todayStr).length === 0 && (
+                                            {(teacherCheckIns || []).filter(c => (c.checkInDate || c.check_in_date) === todayStr).length === 0 && (
                                                 <div className="text-center py-12 animate-fade-in">
                                                     <ClockIcon className="w-12 h-12 text-slate-350 dark:text-slate-700 mx-auto mb-2 animate-pulse" />
                                                     <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">No staff check-ins logged today</p>

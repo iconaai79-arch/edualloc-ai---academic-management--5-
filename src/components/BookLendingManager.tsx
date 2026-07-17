@@ -599,6 +599,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                     >
                                         <option value="">-- Or select from list --</option>
                                         {users.filter(u => {
+                                            if (u.id === newLoan.userId) return true;
                                             const search = memberSearch.toLowerCase();
                                             const enrollment = enrollments.find(e => e.userId === u.id || e.student_id === u.id);
                                             const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
@@ -667,6 +668,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                     >
                                         <option value="">-- Or select from list --</option>
                                         {books.filter(b => {
+                                            if (b.id === newLoan.bookId) return true;
                                             if (b.available < 1) return false;
                                             const search = bookSearch.toLowerCase();
                                             if (!search) return true;
