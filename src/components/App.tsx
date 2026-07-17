@@ -6049,7 +6049,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                                 onDeleteAlert: async (id: string) => { if (currentUser?.role === 'super_admin') { await apiService.deleteModuleRecord('security_alerts', id); loadData(); } },
                                                 onLogAction: handleLogAction,
                                                 onTeacherGateCheckIn: handleTeacherGateCheckIn,
-                                                teacherCheckIns
+                                                teacherCheckIns,
+                                                onSwitchPerspective: (role: any) => setImpersonatedRole(role)
                                             } as any}
                                         />
                                     )

@@ -211,7 +211,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         user = { name: 'User', institutionId: '' } as any,
         securityAlerts = [], visitors = [], appointments = [], users = [],
         onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onDeleteAlert, onUpdateAppointmentStatus,
-        onLogAction, courses = []
+        onLogAction, courses = [], onSwitchPerspective
     } = props;
     const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts' | 'gatepass' | 'reports' | 'staff_checkin'>('checkpoint');
     const isSchool = ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.institutionType || '') ||
@@ -670,6 +670,17 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
 
     return (
         <BaseDashboard title={dashboardTitle} icon={<ShieldIcon className="w-6 h-6 text-slate-600" />}>
+            <div className="absolute top-24 right-8 flex items-center gap-3">
+                {onSwitchPerspective && (
+                    <button 
+                        onClick={() => onSwitchPerspective(null)}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200 dark:border-slate-700"
+                    >
+                        <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                        Portal Hub
+                    </button>
+                )}
+            </div>
             <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
                 <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar pb-1">
                     {[
