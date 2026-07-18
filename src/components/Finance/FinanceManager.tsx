@@ -1212,6 +1212,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // Invoices states
     const [searchInvoiceQuery, setSearchInvoiceQuery] = useState('');
+    const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
     const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All');
     const [invoiceClassFilter, setInvoiceClassFilter] = useState('All');
     const [selectedInvoiceForDetails, setSelectedInvoiceForDetails] = useState<any | null>(null);
@@ -4134,6 +4135,29 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Invoices Ledger</h3>
                                     <p className="text-xs text-slate-500 font-semibold mt-0.5">Track, audit, print and manage all academic billing invoices issued to students.</p>
                                 </div>
+                                {selectedInvoiceIds.size > 0 && (
+                                    <button
+                                        onClick={async () => {
+                                            if (!window.confirm(`Are you sure you want to permanently delete the ${selectedInvoiceIds.size} selected invoice(s)? This will remove them completely and cannot be undone.`)) return;
+                                            try {
+                                                const idsArray = Array.from(selectedInvoiceIds);
+                                                await apiService.deleteModuleRecord('invoices', idsArray.join(','));
+                                                setSelectedInvoiceIds(new Set());
+                                                if (props.onRefreshData) {
+                                                    await props.onRefreshData();
+                                                }
+                                                alert("Selected invoice(s) deleted successfully.");
+                                            } catch (err) {
+                                                console.error("Failed to delete invoices:", err);
+                                                alert("Failed to delete selected invoices.");
+                                            }
+                                        }}
+                                        className="flex items-center gap-2 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-rose-500/20 active:scale-95 animate-in slide-in-from-right duration-300"
+                                    >
+                                        <Trash2Icon className="w-4 h-4" />
+                                        Delete Selected ({selectedInvoiceIds.size})
+                                    </button>
+                                )}
                             </div>
 
                             {/* Filters Bar */}
@@ -4176,6 +4200,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <table className="w-full border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/60">
+                                            <th className="px-6 py-4 text-left w-10">
+                                                <input
+                                                    type="checkbox"
+                                                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer"
+                                                    checked={paginatedStudentInvoices.length > 0 && paginatedStudentInvoices.every(inv => selectedInvoiceIds.has(inv.id))}
+                                                    onChange={(e) => {
+                                                        const newSelected = new Set(selectedInvoiceIds);
+                                                        if (e.target.checked) {
+                                                            paginatedStudentInvoices.forEach(inv => newSelected.add(inv.id));
+                                                        } else {
+                                                            paginatedStudentInvoices.forEach(inv => newSelected.delete(inv.id));
+                                                        }
+                                                        setSelectedInvoiceIds(newSelected);
+                                                    }}
+                                                />
+                                            </th>
                                             <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoice Number</th>
                                             <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
                                             <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Class / Grade</th>
@@ -4193,13 +4233,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             const admNum = student?.admissionNumber || student?.admission_number || '—';
                                             const studentName = student?.name || 'Unknown Student';
                                             const gradeName = student ? studentClassGroup(student) : '—';
-                                            
                                             const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
                                             const paidAmount = allocations.reduce((sum, r) => sum + Number(r.amountPaid || r.amount_paid || 0), 0);
                                             const totalAmount = Number(inv.totalAmount || inv.total_amount || 0);
 
                                             return (
                                                 <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                                                    <td className="px-6 py-4 w-10">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer"
+                                                            checked={selectedInvoiceIds.has(inv.id)}
+                                                            onChange={(e) => {
+                                                                const newSelected = new Set(selectedInvoiceIds);
+                                                                if (e.target.checked) {
+                                                                    newSelected.add(inv.id);
+                                                                } else {
+                                                                    newSelected.delete(inv.id);
+                                                                }
+                                                                setSelectedInvoiceIds(newSelected);
+                                                            }}
+                                                        />
+                                                    </td>
                                                     <td className="px-6 py-4 text-xs font-black text-slate-800 dark:text-slate-100">{inv.invoiceNumber || inv.invoice_number || '—'}</td>
                                                     <td className="px-6 py-4">
                                                         <div className="text-xs font-extrabold text-slate-800 dark:text-slate-200">{studentName}</div>
@@ -4295,6 +4350,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <XCircleIcon className="w-4 h-4" />
                                                                 </button>
                                                             )}
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (!window.confirm(`Are you sure you want to permanently delete invoice ${inv.invoiceNumber || inv.invoice_number || ''}? This action cannot be undone.`)) return;
+                                                                    try {
+                                                                        await apiService.deleteModuleRecord('invoices', inv.id);
+                                                                        const newSelected = new Set(selectedInvoiceIds);
+                                                                        newSelected.delete(inv.id);
+                                                                        setSelectedInvoiceIds(newSelected);
+                                                                        if (props.onRefreshData) {
+                                                                            await props.onRefreshData();
+                                                                        }
+                                                                        alert("Invoice deleted successfully.");
+                                                                    } catch (err) {
+                                                                        console.error("Failed to delete invoice:", err);
+                                                                        alert("Failed to delete invoice.");
+                                                                    }
+                                                                }}
+                                                                title="Delete Invoice"
+                                                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                                                            >
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -4302,7 +4379,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         })}
                                         {filteredStudentInvoices.length === 0 && (
                                             <tr>
-                                                <td colSpan={8} className="py-12 text-center text-xs text-slate-450 italic font-semibold">
+                                                <td colSpan={9} className="py-12 text-center text-xs text-slate-450 italic font-semibold">
                                                     No student invoices matched the filter criteria.
                                                 </td>
                                             </tr>
