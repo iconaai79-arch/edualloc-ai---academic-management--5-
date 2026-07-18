@@ -35,6 +35,10 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     const semesters = Array.isArray(rawSemesters) ? rawSemesters : [];
     const courses = Array.isArray(rawCourses) ? rawCourses : [];
 
+    const isSchool = institution.institutionType === 'Primary' || 
+                     institution.institutionType === 'Secondary' || 
+                     (institution.institutionType || '').toLowerCase().includes('school');
+
     const [selectedAY, setSelectedAY] = useState('');
     const [selectedSem, setSelectedSem] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -529,7 +533,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                     <div>
                                         <p className="text-sm font-bold text-slate-700">{f.name}</p>
                                         <div className="flex flex-wrap gap-2 items-center mt-1">
-                                            {f.courseId && <span className="text-[8px] font-black bg-indigo-50 text-indigo-650 px-1.5 py-0.5 rounded uppercase tracking-wider">Course Restricted</span>}
+                                            {f.courseId && <span className="text-[8px] font-black bg-indigo-50 text-indigo-650 px-1.5 py-0.5 rounded uppercase tracking-wider">{isSchool ? 'Grade Restricted' : 'Course Restricted'}</span>}
                                             {(f.applicableTo || f.applicable_to) && (f.applicableTo || f.applicable_to) !== 'all' && (
                                                 <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
                                                     (f.applicableTo || f.applicable_to) === 'boarder' 
