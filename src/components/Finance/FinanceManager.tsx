@@ -847,18 +847,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return 'Unassigned Class';
     }
 
-    const filteredOpeningBalanceStudents = useMemo(() => {
-        return props.students.filter(student => {
-            const matchesSearch = student.name?.toLowerCase().includes(openingBalanceSearch.toLowerCase()) ||
-                student.admissionNumber?.toLowerCase().includes(openingBalanceSearch.toLowerCase()) ||
-                student.admission_number?.toLowerCase().includes(openingBalanceSearch.toLowerCase());
-            
-            const cls = studentClassGroup(student);
-            const matchesClass = openingBalanceClassFilter === 'All' || cls === openingBalanceClassFilter;
-            
-            return matchesSearch && matchesClass;
-        });
-    }, [props.students, openingBalanceSearch, openingBalanceClassFilter]);
+
 
     // State for students balances registry sub-tab
     const [studentSubTab, setStudentSubTab] = useState<'registry' | 'balances'>('registry');
@@ -904,6 +893,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             };
         });
     }, [props.students, mappedInvoices, mappedReceipts, enrollments]);
+
+    const filteredOpeningBalanceStudents = useMemo(() => {
+        return studentFinanceData.filter(student => {
+            const matchesSearch = student.name?.toLowerCase().includes(openingBalanceSearch.toLowerCase()) ||
+                (student.admissionNumber && student.admissionNumber.toLowerCase().includes(openingBalanceSearch.toLowerCase()));
+            
+            const cls = student.className || studentClassGroup(student);
+            const matchesClass = openingBalanceClassFilter === 'All' || cls === openingBalanceClassFilter;
+            
+            return matchesSearch && matchesClass;
+        });
+    }, [studentFinanceData, openingBalanceSearch, openingBalanceClassFilter]);
 
     const filteredFinanceStudents = useMemo(() => {
         return studentFinanceData.filter(s => {
