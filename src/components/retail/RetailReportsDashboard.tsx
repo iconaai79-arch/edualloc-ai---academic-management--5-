@@ -918,36 +918,77 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                     <div className="space-y-6">
                         {/* KPIs */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                            {/* Card 1: Revenue for business, Inventory Value for education */}
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group hover:border-indigo-200 transition-all">
                                 <div className="relative z-10">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Gross Revenue</p>
-                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {totalRevenue?.toLocaleString()}</h3>
-                                    <div className="mt-4 flex items-center gap-2 text-emerald-600 bg-emerald-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
-                                        <ArrowUpRight className="w-3 h-3" /> +12.5% this week
-                                    </div>
+                                    {isEducation ? (
+                                        <>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Inventory Value (Cost)</p>
+                                            <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {totalCostValue?.toLocaleString()}</h3>
+                                            <div className="mt-4 flex items-center gap-2 text-indigo-600 bg-indigo-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
+                                                📦 {totalInventoryUnits} total units in stock
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Gross Revenue</p>
+                                            <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {totalRevenue?.toLocaleString()}</h3>
+                                            <div className="mt-4 flex items-center gap-2 text-emerald-600 bg-emerald-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
+                                                <ArrowUpRight className="w-3 h-3" /> {totalSalesCount} transactions recorded
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                                 <DollarSign className="w-32 h-32 absolute -right-6 -bottom-6 text-slate-50 opacity-50 group-hover:scale-110 transition-transform" />
                             </div>
 
+                            {/* Card 2: Total Orders for business, Total Distinct Items for education */}
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group hover:border-indigo-200 transition-all">
                                 <div className="relative z-10">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Orders</p>
-                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white">{totalSalesCount}</h3>
-                                    <div className="mt-4 flex items-center gap-2 text-emerald-600 bg-emerald-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
-                                        <ShoppingCart className="w-3 h-3" /> completed transactions
-                                    </div>
+                                    {isEducation ? (
+                                        <>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Distinct Inventory Items</p>
+                                            <h3 className="text-3xl font-black text-slate-900 dark:text-white">{totalInventoryItems}</h3>
+                                            <div className="mt-4 flex items-center gap-2 text-indigo-600 bg-indigo-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
+                                                🗂️ unique items tracked
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Orders</p>
+                                            <h3 className="text-3xl font-black text-slate-900 dark:text-white">{totalSalesCount}</h3>
+                                            <div className="mt-4 flex items-center gap-2 text-emerald-600 bg-emerald-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
+                                                <ShoppingCart className="w-3 h-3" /> completed transactions
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
+                            {/* Card 3: AOV for business, Low Stock Alerts for education */}
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group hover:border-indigo-200 transition-all">
                                 <div className="relative z-10">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Average Order Value (AOV)</p>
-                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {averageOrderValue.toFixed(2)}</h3>
-                                    <div className="mt-4 flex items-center gap-2 text-amber-600 bg-amber-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
-                                        <ArrowDownRight className="w-3 h-3" /> -2.1% this week
-                                    </div>
+                                    {isEducation ? (
+                                        <>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Low Stock Alerts</p>
+                                            <h3 className="text-3xl font-black text-rose-600">{lowStockItems.length}</h3>
+                                            <div className="mt-4 flex items-center gap-2 text-rose-600 bg-rose-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
+                                                ⚠️ items at or below reorder level
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Average Order Value (AOV)</p>
+                                            <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {averageOrderValue.toFixed(2)}</h3>
+                                            <div className="mt-4 flex items-center gap-2 text-slate-600 bg-slate-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
+                                                <ShoppingCart className="w-3 h-3" /> per transaction
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
+
                         </div>
 
                         {/* Top Products */}
@@ -988,17 +1029,31 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-gradient-to-br from-indigo-900 to-indigo-700 p-6 rounded-3xl shadow-xl relative overflow-hidden group text-white">
                                 <div className="relative z-10">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Total Retail Value</p>
-                                    <h3 className="text-3xl font-black">KES {totalRetailValue?.toLocaleString()}</h3>
-                                    <div className="mt-4 flex items-center gap-2 text-indigo-900 bg-white w-fit px-3 py-1 rounded-full text-[10px] font-bold">
-                                        Projected Profit: KES {projectedProfit?.toLocaleString()}
-                                    </div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">
+                                        {isEducation ? 'Total Inventory Cost Value' : 'Total Retail Value (SRP)'}
+                                    </p>
+                                    <h3 className="text-3xl font-black">KES {isEducation ? totalCostValue?.toLocaleString() : totalRetailValue?.toLocaleString()}</h3>
+                                    {!isEducation && (
+                                        <div className="mt-4 flex items-center gap-2 text-indigo-900 bg-white w-fit px-3 py-1 rounded-full text-[10px] font-bold">
+                                            Projected Profit: KES {projectedProfit?.toLocaleString()}
+                                        </div>
+                                    )}
+                                    {isEducation && (
+                                        <div className="mt-4 flex items-center gap-2 text-indigo-900 bg-white w-fit px-3 py-1 rounded-full text-[10px] font-bold">
+                                            📦 {totalInventoryUnits} units across {totalInventoryItems} items
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Cost Basis</p>
-                                <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {totalCostValue?.toLocaleString()}</h3>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                                    {isEducation ? 'Assessed SRP Value' : 'Total Cost Basis'}
+                                </p>
+                                <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {isEducation ? totalRetailValue?.toLocaleString() : totalCostValue?.toLocaleString()}</h3>
+                                {isEducation && (
+                                    <p className="text-[10px] text-slate-400 font-bold mt-2 uppercase">Based on item unit prices</p>
+                                )}
                             </div>
 
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
