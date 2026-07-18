@@ -542,6 +542,87 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                         ))}
                     </div>
 
+                    {/* Student Invoices Preview Section with Subtotals */}
+                    <div className="space-y-4 pt-6 border-t border-slate-100 text-left">
+                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest border-l-4 border-indigo-600 pl-4">Sample Student Invoice Previews</h4>
+                        <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
+                            {billingStudents.slice(0, 5).map((s, idx) => {
+                                const boarder = isStudentBoarder(s);
+                                const studentFeeStructures = activeFeeStructures.filter(f => {
+                                    const matchesCourse = !f.courseId || f.courseId === s.courseId;
+                                    if (!matchesCourse) return false;
+
+                                    const appTo = f.applicableTo || f.applicable_to || 'all';
+                                    if (appTo === 'all') return true;
+                                    if (appTo === 'boarder') return boarder;
+                                    if (appTo === 'day_scholar') return !boarder;
+
+                                    return true;
+                                });
+                                const baseAmount = studentFeeStructures.reduce((acc, f) => {
+                                    const amt = f.amount || (f as any).allocatedAmount || 0;
+                                    const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                                    return acc + (isNaN(parsed) ? 0 : parsed);
+                                }, 0);
+
+                                const items = studentFeeStructures.map(f => {
+                                    const amt = f.amount || (f as any).allocatedAmount || 0;
+                                    const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                                    return {
+                                        name: f.name,
+                                        amount: isNaN(parsed) ? 0 : parsed
+                                    };
+                                });
+
+                                let transportAmount = 0;
+                                if (includeTransport) {
+                                    const pref = studentCommutePrefs[s.id];
+                                    if (pref && pref.preference !== 'none') {
+                                        const route = routeFeeSettings.find(r => r.routeId === pref.routeId);
+                                        if (route) {
+                                            const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
+                                            transportAmount = Math.round(route.termFee * multiplier);
+                                            const prefLabel = pref.preference === 'round_trip' ? 'Round Trip' : 'One Way';
+                                            items.push({
+                                                name: `Transport Fee: ${route.routeName} (${prefLabel})`,
+                                                amount: transportAmount
+                                            });
+                                        }
+                                    }
+                                }
+
+                                const totalAmount = baseAmount + transportAmount;
+                                const adm = s.admissionNumber || s.admission_number || admissionNumberMap.get(s.id) || 'No Adm';
+
+                                return (
+                                    <div key={s.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="text-sm font-black text-slate-800">{s.name}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">ADM: {adm} • {boarder ? 'Boarder' : 'Day Scholar'}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoice Subtotal</p>
+                                                <p className="text-sm font-black text-indigo-650">KES {totalAmount.toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="border-t border-dashed border-slate-200 pt-2.5 space-y-1">
+                                            {items.map((item, itemIdx) => (
+                                                <div key={itemIdx} className="flex justify-between items-center text-xs text-slate-600">
+                                                    <span>{item.name}</span>
+                                                    <span className="font-bold">KES {item.amount.toLocaleString()}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {billingStudents.length === 0 && (
+                                <p className="text-center text-xs text-slate-400 py-4 font-bold uppercase tracking-wider">No matching students to preview</p>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="pt-6 border-t border-slate-100 flex gap-4">
                         <button onClick={() => setStep('config')} className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">Back</button>
                         <button onClick={handleRunBilling} className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">Confirm & Execute Run</button>

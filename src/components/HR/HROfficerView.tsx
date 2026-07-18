@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
-import type { User, Institution, PayrollRecord, LeaveRequest, LetterheadConfig } from '../../types';
+import React, { useState, useMemo } from 'react';
+import type { User, Institution, PayrollRecord, LeaveRequest, LetterheadConfig, ActivityLog } from '../../types';
 import { HRManager } from './HRManager';
 import { Header } from '../Header';
+import { ActivityLogPanel } from '../common/ActivityLogPanel';
 
 const EduFlowManager = React.lazy(() => import('../common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 
@@ -23,10 +24,13 @@ interface HROfficerViewProps {
     letterheadConfig?: LetterheadConfig;
     footerImageUrl?: string | null;
     companyDetails?: any;
+    /** Activity log entries — filtered for HR events */
+    activityLog?: ActivityLog[];
+    onLogAction?: (action: string) => Promise<void>;
 }
 
 export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
-    const {
+    const [
         currentUser = { name: 'User' } as any,
         currentInstitution = { name: 'Institution' } as any,
         users = [],
@@ -37,9 +41,23 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
         onAddUser = async () => {},
         onEditUser = async () => {},
         onDeleteUser = async () => {}
-    } = props;
+    ] = [props.currentUser, props.currentInstitution, props.users, props.payrollRecords, props.leaveRequests,
+         props.onProcessPayroll, props.onUpdateLeaveStatus, props.onAddUser, props.onEditUser, props.onDeleteUser];
 
-    const [activeTab, setActiveTab] = useState<'hr' | 'eduflow'>('hr');
+    const activityLog = props.activityLog || [];
+
+    // Filter for HR-relevant events
+    const hrLogs = useMemo(() =>
+        activityLog.filter(l => {
+            const a = (l.action || '').toLowerCase();
+            return a.includes('payroll') || a.includes('leave') || a.includes('staff') ||
+                a.includes('employee') || a.includes('attendance') || a.includes('user') ||
+                a.includes('onboard') || a.includes('offboard') || a.includes('hr') ||
+                (l.module || '') === 'HR';
+        }),
+    [activityLog]);
+
+    const [activeTab, setActiveTab] = useState<'hr' | 'eduflow' | 'activity_log'>('hr');
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col">
@@ -77,6 +95,12 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
                         >
                             EduFlow Tasks
                         </button>
+                        <button
+                            onClick={() => setActiveTab('activity_log')}
+                            className={`py-4 px-1 border-b-2 font-black text-xs uppercase tracking-widest transition-all ${activeTab === 'activity_log' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Activity Log
+                        </button>
                     </nav>
                 </div>
 
@@ -98,6 +122,8 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
                         companyDetails={props.companyDetails}
                     />
 
+                ) : activeTab === 'activity_log' ? (
+                    <ActivityLogPanel logs={hrLogs} module="HR" />
                 ) : (
                     <React.Suspense fallback={<div className="h-96 flex items-center justify-center"><div className="w-8 h-8 animate-spin text-slate-350 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>}>
                         <EduFlowManager 

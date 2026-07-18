@@ -95,9 +95,31 @@ class SyncEngine {
             if (onProgress) onProgress(p);
         };
 
+        // Helper: write a table to both IndexedDB AND localStorage.
+        // IndexedDB is read by localDb.getAll() in App.tsx (Phase 2 offline branch).
+        // localStorage is read by fetchModuleRecords.queryLocal() used inside library
+        // components (LibraryMemberManager, BookLendingManager, etc.) when offline.
+        const cacheTable = async (storeName: string, records: any[]) => {
+            // Write each record to IndexedDB
+            await Promise.all(records.map((item: any) => localDb.put(storeName, item)));
+            // Merge into localStorage so component-level fetchModuleRecords calls work offline
+            try {
+                const existing: any[] = JSON.parse(localStorage.getItem(`eduai_${storeName}`) || '[]');
+                const merged = [...existing];
+                for (const item of records) {
+                    const idx = merged.findIndex((r: any) => r && r.id === item.id);
+                    if (idx >= 0) merged[idx] = item;
+                    else merged.push(item);
+                }
+                localStorage.setItem(`eduai_${storeName}`, JSON.stringify(merged));
+            } catch (e) {
+                console.warn(`[SyncEngine] localStorage write failed for ${storeName}:`, e);
+            }
+        };
+
         update(10);
         try {
-            // Fetch relevant tables from Supabase via apiService
+            // ── BATCH 1: Core / election / beauty-college tables ─────────────
             const [
                 institutions,
                 constituencies,
@@ -124,43 +146,107 @@ class SyncEngine {
                 apiService.fetchModuleRecords('requisitions', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('sms_logs', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('sms_outbox', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('election_events', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('election_candidates', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('election_voters_ledger', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('election_checkins', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('bc_settings', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('bc_courses', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('bc_students', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('bc_trainers', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('bc_fee_structures', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('bc_invoices', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('bc_payments', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('bc_practicals', tenantId).catch(() => [])
-             ]);
- 
-             update(50);
- 
-             // Populate local IndexedDB tables
-             await Promise.all([
-                 ...institutions.map((item: any) => localDb.put('institutions', item)),
-                 ...constituencies.map((item: any) => localDb.put('constituencies', item)),
-                 ...users.map((item: any) => localDb.put('users', item)),
-                 ...requisitions.map((item: any) => localDb.put('requisitions', item)),
-                 ...smsLogs.map((item: any) => localDb.put('sms_logs', item)),
-                 ...smsOutbox.map((item: any) => localDb.put('sms_outbox', item)),
-                 ...electionEvents.map((item: any) => localDb.put('election_events', item)),
-                 ...electionCandidates.map((item: any) => localDb.put('election_candidates', item)),
-                 ...electionVotersLedger.map((item: any) => localDb.put('election_voters_ledger', item)),
-                 ...electionCheckins.map((item: any) => localDb.put('election_checkins', item)),
-                 ...bcSettings.map((item: any) => localDb.put('bc_settings', item)),
-                 ...bcCourses.map((item: any) => localDb.put('bc_courses', item)),
-                 ...bcStudents.map((item: any) => localDb.put('bc_students', item)),
-                 ...bcTrainers.map((item: any) => localDb.put('bc_trainers', item)),
-                 ...bcFeeStructures.map((item: any) => localDb.put('bc_fee_structures', item)),
-                 ...bcInvoices.map((item: any) => localDb.put('bc_invoices', item)),
-                 ...bcPayments.map((item: any) => localDb.put('bc_payments', item)),
-                 ...bcPracticals.map((item: any) => localDb.put('bc_practicals', item))
-             ]);
+                apiService.fetchModuleRecords('election_events', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('election_candidates', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('election_voters_ledger', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('election_checkins', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('bc_settings', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('bc_courses', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('bc_students', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('bc_trainers', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('bc_fee_structures', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('bc_invoices', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('bc_payments', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('bc_practicals', tenantId).catch(() => []),
+            ]);
+
+            update(35);
+
+            // ── BATCH 2: Library module tables ───────────────────────────────
+            // These are NOT fetched anywhere else at sync time, which is why
+            // Members / Students tabs show empty data when offline.
+            const [
+                books,
+                libraryTransactions,
+                libraryFines,
+                librarySettings,
+                bookReservations,
+                bookStockReceipts,
+                studentEnrollments,
+            ] = await Promise.all([
+                apiService.fetchModuleRecords('books', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('library_transactions', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('library_fines', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('library_settings', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('book_reservations', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('book_stock_receipts', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('student_enrollments', tenantId).catch(() => []),
+            ]);
+
+            update(60);
+
+            // ── BATCH 3: Security module tables ──────────────────────────────
+            // visitors, watchlist, alerts, event pins, building logs, etc.
+            const [
+                visitors,
+                watchlistRecords,
+                securityAlerts,
+                eventPins,
+                institutionEvents,
+                buildingVisitorLogs,
+                buildingVisitorAssets,
+            ] = await Promise.all([
+                apiService.fetchModuleRecords('visitors', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('watchlist_records', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('security_alerts', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('event_pins', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('institution_events', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('building_visitor_logs', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('building_visitor_assets').catch(() => []),
+            ]);
+
+            update(80);
+
+            // ── Write everything to IndexedDB + localStorage ──────────────────
+            await Promise.all([
+                // Core
+                cacheTable('institutions', institutions),
+                cacheTable('constituencies', constituencies),
+                cacheTable('users', users),
+                cacheTable('requisitions', requisitions),
+                cacheTable('sms_logs', smsLogs),
+                cacheTable('sms_outbox', smsOutbox),
+                // Election
+                cacheTable('election_events', electionEvents),
+                cacheTable('election_candidates', electionCandidates),
+                cacheTable('election_voters_ledger', electionVotersLedger),
+                cacheTable('election_checkins', electionCheckins),
+                // Beauty College
+                cacheTable('bc_settings', bcSettings),
+                cacheTable('bc_courses', bcCourses),
+                cacheTable('bc_students', bcStudents),
+                cacheTable('bc_trainers', bcTrainers),
+                cacheTable('bc_fee_structures', bcFeeStructures),
+                cacheTable('bc_invoices', bcInvoices),
+                cacheTable('bc_payments', bcPayments),
+                cacheTable('bc_practicals', bcPracticals),
+                // Library
+                cacheTable('books', books),
+                cacheTable('library_transactions', libraryTransactions),
+                cacheTable('library_fines', libraryFines),
+                cacheTable('library_settings', librarySettings),
+                cacheTable('book_reservations', bookReservations),
+                cacheTable('book_stock_receipts', bookStockReceipts),
+                cacheTable('student_enrollments', studentEnrollments),
+                // Security
+                cacheTable('visitors', visitors),
+                cacheTable('watchlist_records', watchlistRecords),
+                cacheTable('security_alerts', securityAlerts),
+                cacheTable('event_pins', eventPins),
+                cacheTable('institution_events', institutionEvents),
+                cacheTable('building_visitor_logs', buildingVisitorLogs),
+                cacheTable('building_visitor_assets', buildingVisitorAssets),
+            ]);
 
             update(100);
         } catch (err: any) {

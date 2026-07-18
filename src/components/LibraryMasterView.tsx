@@ -3,8 +3,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type {
     User, Institution, Book, LibraryTransaction, LibraryFine,
     BookReservation, BookStockReceipt, LibrarySettings, v_library_statistics,
-    CompanyDetails, Course, Department, AcademicYear, Semester
+    CompanyDetails, Course, Department, AcademicYear, Semester, ActivityLog
 } from '../types';
+import { ActivityLogPanel } from './common/ActivityLogPanel';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { BarChart3Icon } from './icons/BarChart3Icon';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
@@ -23,6 +24,7 @@ import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { UsersIcon } from './icons/UsersIcon';
 import { ShieldIcon } from './icons/ShieldIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { ListIcon } from './icons/ListIcon';
 import { apiService } from '../services/apiService';
 
 // Sub-components
@@ -47,9 +49,11 @@ interface LibraryMasterViewProps {
     departments: Department[];
     onLogAction: (action: string) => Promise<void>;
     onSwitchPerspective?: (role: any) => void;
+    /** Activity log entries passed from App.tsx — filtered for library events */
+    activityLog?: ActivityLog[];
 }
 
-type LibraryTab = 'dashboard' | 'inventory' | 'sponsors' | 'lending' | 'members' | 'reservations' | 'penalties' | 'reports' | 'eduflow';
+type LibraryTab = 'dashboard' | 'inventory' | 'sponsors' | 'lending' | 'members' | 'reservations' | 'penalties' | 'reports' | 'eduflow' | 'activity_log';
 
 export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
     currentUser,
@@ -61,8 +65,22 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
     courses,
     departments,
     onLogAction,
-    onSwitchPerspective
+    onSwitchPerspective,
+    activityLog = []
 }) => {
+    // Filter activity log to show only library-relevant entries
+    const libraryLogs = useMemo(() =>
+        activityLog.filter(l =>
+            (l.action || '').toLowerCase().includes('library') ||
+            (l.action || '').toLowerCase().includes('book') ||
+            (l.action || '').toLowerCase().includes('lend') ||
+            (l.action || '').toLowerCase().includes('return') ||
+            (l.action || '').toLowerCase().includes('fine') ||
+            (l.action || '').toLowerCase().includes('reservation') ||
+            (l.action || '').toLowerCase().includes('catalog') ||
+            (l.module || '') === 'Library'
+        ),
+    [activityLog]);
     const [activeTab, setActiveTab] = useState<LibraryTab>('dashboard');
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<v_library_statistics | null>(null);
@@ -260,7 +278,8 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
                         { id: 'sponsors', label: 'Inward Receipts', icon: BuildingOfficeIcon },
                         { id: 'reservations', label: 'Reservations', icon: RectangleStackIcon },
                         { id: 'penalties', label: 'Dues & Fines', icon: CurrencyIcon },
-                        { id: 'reports', label: 'Statement Hub', icon: ClipboardListIcon }
+                        { id: 'reports', label: 'Statement Hub', icon: ClipboardListIcon },
+                        { id: 'activity_log', label: 'Activity Log', icon: ListIcon }
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -284,6 +303,7 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
                 {activeTab === 'reservations' && <BookReservationManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
                 {activeTab === 'penalties' && <LibraryPenaltyManager institutionId={currentInstitution.id} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
                 {activeTab === 'reports' && <LibraryReports institution={currentInstitution} companyDetails={companyDetails} users={users} departments={departments} courses={courses} onLogAction={onLogAction} />}
+                {activeTab === 'activity_log' && <ActivityLogPanel logs={libraryLogs} module="Library" />}
             </div>
 
             <style>{`

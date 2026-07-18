@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { RetailDashboard } from './RetailDashboard';
 import { GoodsInLieuProposalsManager } from './GoodsInLieuProposalsManager';
 import { NotificationBell } from '../NotificationBell';
@@ -20,7 +20,8 @@ import { RetailUserDirectory } from './RetailUserDirectory';
 import { RetailReportsDashboard } from './RetailReportsDashboard';
 import { StoreConfigManager } from './StoreConfigManager';
 import { RetailStockReceipts } from './RetailStockReceipts';
-import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition, Course, CountyInventoryItem, VoteHead } from '../../types';
+import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition, Course, CountyInventoryItem, VoteHead, ActivityLog } from '../../types';
+import { ActivityLogPanel } from '../common/ActivityLogPanel';
 import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
 import { StoreIcon as Store } from '../icons/StoreIcon';
 import { SmartphoneIcon as Smartphone } from '../icons/SmartphoneIcon';
@@ -62,10 +63,23 @@ interface RetailManagerProps {
     onMarkInventoryReceived?: (id: string) => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
     voteHeads?: VoteHead[];
+    /** Activity log entries for this inventory/store module */
+    activityLog?: ActivityLog[];
 }
 
 export function RetailManager(props: RetailManagerProps) {
-    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution, activeTab, onTabChange, hideNavigation, countyInventory = [], onMarkInventoryReceived, onEditUser, voteHeads = [] } = props;
+    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution, activeTab, onTabChange, hideNavigation, countyInventory = [], onMarkInventoryReceived, onEditUser, voteHeads = [], activityLog = [] } = props;
+
+    // Filter activity log for inventory/store-relevant events
+    const inventoryLogs = useMemo(() =>
+        activityLog.filter(l => {
+            const a = (l.action || '').toLowerCase();
+            return a.includes('stock') || a.includes('inventory') || a.includes('store') ||
+                a.includes('item') || a.includes('requisition') || a.includes('issue') ||
+                a.includes('vendor') || a.includes('supplier') || a.includes('transfer') ||
+                a.includes('expense') || a.includes('goods') || a.includes('pos');
+        }),
+    [activityLog]);
 
     const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
     const filteredRetailStores = isAdmin
@@ -160,6 +174,7 @@ export function RetailManager(props: RetailManagerProps) {
         { id: 'vendors', label: 'Suppliers', icon: BuildingIcon },
         { id: 'transfers', label: 'Transfers', icon: Truck },
         { id: 'config', label: 'Config', icon: Cog },
+        { id: 'activity_log', label: 'Activity Log', icon: FileText },
     ] : [
         { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
         { id: 'inventory', label: 'Catalog', icon: Package },
@@ -173,6 +188,7 @@ export function RetailManager(props: RetailManagerProps) {
         { id: 'vendors', label: 'Vendors', icon: BuildingIcon },
         { id: 'transfers', label: 'Transfers', icon: Truck },
         { id: 'commissions', label: 'Comms', icon: HandCoins },
+        { id: 'activity_log', label: 'Activity Log', icon: FileText },
         ...(isHospitality ? [{ id: 'cafe_menu', label: 'Cafe', icon: Coffee }] : [])
     ];
 
@@ -411,6 +427,7 @@ export function RetailManager(props: RetailManagerProps) {
                         currentInstitution={currentInstitution}
                     />
                 )}
+                {activeView === 'activity_log' && <ActivityLogPanel logs={inventoryLogs} module="Inventory" />}
             </div>
         </div>
     );

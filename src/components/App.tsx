@@ -6007,6 +6007,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             courses={courses}
                                             departments={departments}
                                             onLogAction={handleLogAction}
+                                            activityLog={activityLog}
                                             onSwitchPerspective={(role: any) => setImpersonatedRole(role)}
                                         />
                                     </ModuleAccessGuard>
@@ -6115,6 +6116,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             onMarkInventoryReceived={handleMarkInventoryReceived}
                                             onEditUser={onEditUser}
                                             voteHeads={voteHeads}
+                                            activityLog={activityLog}
                                         />
                                     </ModuleAccessGuard>
                                 ) : ((activeRole === 'finance_officer' || activeRole === 'finance') && !isAutoMarket) ? (
@@ -6194,7 +6196,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                                 onLogAction: handleLogAction,
                                                 letterheadConfig: activeLetterheadConfig,
                                                 footerImageUrl: activeFooterImageUrl,
-                                                companyDetails: companyDetails
+                                                companyDetails: companyDetails,
+                                                activityLog: activityLog
                                             } as any}
                                         />
                                     </ModuleAccessGuard>
