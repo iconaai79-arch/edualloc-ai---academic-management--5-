@@ -51,6 +51,17 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
 
     const [enrollments, setEnrollments] = useState<any[]>([]);
 
+    // Bulk Issuance state variables
+    const [isBulkIssuing, setIsBulkIssuing] = useState(false);
+    const [bulkBookTitle, setBulkBookTitle] = useState('');
+    const [bulkCriteria, setBulkCriteria] = useState<'class' | 'course'>('class');
+    const [selectedClass, setSelectedClass] = useState('');
+    const [selectedCourse, setSelectedCourse] = useState('');
+    const [bulkDueDate, setBulkDueDate] = useState(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const [bulkAllocations, setBulkAllocations] = useState<Record<string, string>>({}); // studentId -> copyId
+    const [courses, setCourses] = useState<any[]>([]);
+
     useEffect(() => {
         loadData();
     }, [institutionId]);
@@ -58,20 +69,159 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [booksData, transData, configData, enrollmentsData] = await Promise.all([
+            const [booksData, transData, configData, enrollmentsData, coursesData] = await Promise.all([
                 apiService.fetchModuleRecords<Book>('books', institutionId),
                 apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institutionId),
                 apiService.fetchModuleRecords<LibrarySettings>('library_settings', institutionId),
-                apiService.fetchModuleRecords<any>('student_enrollments', institutionId).catch(() => [])
+                apiService.fetchModuleRecords<any>('student_enrollments', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('courses', institutionId).catch(() => [])
             ]);
             setBooks(booksData);
             setTransactions(transData.sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()));
             if (configData.length > 0) setSettings(configData[0]);
             setEnrollments(enrollmentsData || []);
+            setCourses(coursesData || []);
         } catch (error) {
             console.error('Error loading circulation data:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Bulk Issuance Helper Memos & Functions
+    const uniqueBookTitles = useMemo(() => {
+        const seen = new Set<string>();
+        const list: { title: string; isbn: string; author: string }[] = [];
+        books.forEach(b => {
+            const key = `${b.title.trim().toLowerCase()}_${(b.isbn || '').trim().toLowerCase()}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                list.push({ title: b.title, isbn: b.isbn || '', author: b.author });
+            }
+        });
+        return list.sort((a, b) => a.title.localeCompare(b.title));
+    }, [books]);
+
+    const classOptions = useMemo(() => {
+        const list = enrollments.map(e => {
+            const gradeLevel = e.metadata?.gradeLevel || e.gradeLevel || '';
+            const stream = e.metadata?.stream || e.stream || '';
+            if (!gradeLevel) return '';
+            return stream ? `${gradeLevel} - ${stream}` : gradeLevel;
+        }).filter(Boolean);
+        return [...new Set(list)].sort();
+    }, [enrollments]);
+
+    const availableCopies = useMemo(() => {
+        if (!bulkBookTitle) return [];
+        return books.filter(b => b.title.trim().toLowerCase() === bulkBookTitle.trim().toLowerCase() && b.available > 0);
+    }, [books, bulkBookTitle]);
+
+    const filteredStudentsList = useMemo(() => {
+        if (!isBulkIssuing || !bulkBookTitle) return [];
+        
+        let list = users.filter(u => u.role === 'student');
+        
+        if (bulkCriteria === 'class' && selectedClass) {
+            list = list.filter(u => {
+                const enrollment = enrollments.find(e => e.userId === u.id || e.student_id === u.id);
+                if (!enrollment) return false;
+                const gradeLevel = enrollment.metadata?.gradeLevel || enrollment.gradeLevel || '';
+                const stream = enrollment.metadata?.stream || enrollment.stream || '';
+                const classString = stream ? `${gradeLevel} - ${stream}` : gradeLevel;
+                return classString === selectedClass;
+            });
+        } else if (bulkCriteria === 'course' && selectedCourse) {
+            list = list.filter(u => {
+                const enrollment = enrollments.find(e => e.userId === u.id || e.student_id === u.id);
+                if (!enrollment) return false;
+                return enrollment.courseId === selectedCourse || enrollment.course_id === selectedCourse;
+            });
+        }
+        
+        return list;
+    }, [users, enrollments, bulkCriteria, selectedClass, selectedCourse, isBulkIssuing, bulkBookTitle]);
+
+    const handleAutoAllocate = () => {
+        const checkedStudents = filteredStudentsList.filter(s => selectedStudentIds.includes(s.id));
+        const freshAllocations: Record<string, string> = { ...bulkAllocations };
+        let copyIndex = 0;
+        
+        checkedStudents.forEach(student => {
+            // Find next unallocated copy
+            while (copyIndex < availableCopies.length) {
+                const copy = availableCopies[copyIndex];
+                const alreadyAssigned = Object.values(freshAllocations).includes(copy.id);
+                if (!alreadyAssigned) {
+                    freshAllocations[student.id] = copy.id;
+                    copyIndex++;
+                    break;
+                }
+                copyIndex++;
+            }
+        });
+        setBulkAllocations(freshAllocations);
+    };
+
+    const handlePostBulkIssuance = async () => {
+        const checkedStudents = filteredStudentsList.filter(s => selectedStudentIds.includes(s.id));
+        if (checkedStudents.length === 0) {
+            alert('Please select at least one student to issue books.');
+            return;
+        }
+
+        const missingAllocations = checkedStudents.some(s => !bulkAllocations[s.id]);
+        if (missingAllocations) {
+            alert('Please assign a unique book (accession number) to all selected students.');
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const issueDate = new Date().toISOString();
+            const dueDate = new Date(bulkDueDate).toISOString();
+            
+            for (const student of checkedStudents) {
+                const copyId = bulkAllocations[student.id];
+                const copy = books.find(b => b.id === copyId);
+                if (!copy) continue;
+
+                const transactionId = `ltx_bulk_${Date.now()}_${student.id.slice(-4)}`;
+                const transaction: LibraryTransaction = {
+                    id: transactionId,
+                    bookId: copyId,
+                    userId: student.id,
+                    issueDate,
+                    dueDate,
+                    status: 'issued',
+                    institutionId,
+                    fineAmount: 0
+                };
+
+                await apiService.saveModuleRecord('library_transactions', transaction);
+
+                await apiService.saveModuleRecord('books', {
+                    ...copy,
+                    available: 0
+                });
+            }
+
+            await onLogAction(`Issued ${checkedStudents.length} copies of "${bulkBookTitle}" in bulk`);
+            alert(`Successfully issued ${checkedStudents.length} books in bulk!`);
+            
+            setIsBulkIssuing(false);
+            setBulkBookTitle('');
+            setSelectedClass('');
+            setSelectedCourse('');
+            setSelectedStudentIds([]);
+            setBulkAllocations({});
+            
+            await loadData();
+            onDataChange();
+        } catch (error: any) {
+            alert("Failed to issue books in bulk: " + (error.message || error));
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -331,6 +481,13 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                             >
                                 <BellIcon className="w-5 h-5" />
                                 Bulk Prompt Overdue
+                            </button>
+                            <button
+                                onClick={() => setIsBulkIssuing(true)}
+                                className="bg-indigo-650 hover:bg-indigo-750 text-white px-5 h-14 rounded-[1.5rem] flex items-center gap-3 shadow-lg shadow-indigo-100 dark:shadow-none transition-all font-black uppercase text-[10px] tracking-widest"
+                            >
+                                <PlusIcon className="w-5 h-5" />
+                                Bulk Issuance
                             </button>
                             <button
                                 onClick={() => setIsIssuing(true)}
@@ -764,6 +921,286 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {isBulkIssuing && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in text-left">
+                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-5xl shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-indigo-650 text-white flex-shrink-0">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter">
+                                    Bulk Issuance Registry
+                                </h3>
+                                <p className="text-xs font-bold text-indigo-100 uppercase tracking-[0.2em] mt-1">Issue resources to multiple members</p>
+                            </div>
+                            <button onClick={() => setIsBulkIssuing(false)} className="p-3 hover:bg-white/20 rounded-2xl transition-all" aria-label="Close">
+                                <XIcon className="w-6 h-6 text-white" />
+                            </button>
+                        </div>
+                        <div className="flex-grow overflow-y-auto p-8 grid grid-cols-1 lg:grid-cols-5 gap-8">
+                            {/* Parameters panel */}
+                            <div className="lg:col-span-2 space-y-6">
+                                <div className="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-[2rem] space-y-4 border border-slate-100/50 dark:border-slate-700/50">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">1. Select Resource & Due Date</h4>
+                                    
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black uppercase text-slate-400">Target Book Title</label>
+                                        <select
+                                            value={bulkBookTitle}
+                                            onChange={(e) => {
+                                                setBulkBookTitle(e.target.value);
+                                                setBulkAllocations({});
+                                                setSelectedStudentIds([]);
+                                            }}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-850 rounded-xl text-xs font-bold outline-none border border-slate-150 dark:border-slate-750 text-slate-800 dark:text-white"
+                                        >
+                                            <option value="">-- Choose Book Title --</option>
+                                            {uniqueBookTitles.map((b, i) => (
+                                                <option key={i} value={b.title}>
+                                                    {b.title} {b.author ? `by ${b.author}` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {bulkBookTitle && (
+                                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/30 text-[10px] font-bold text-emerald-800 dark:text-emerald-400">
+                                            📚 {availableCopies.length} physical copies available in inventory.
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black uppercase text-slate-400">Due Date</label>
+                                        <input
+                                            type="date"
+                                            value={bulkDueDate}
+                                            onChange={(e) => setBulkDueDate(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-850 rounded-xl text-xs font-bold outline-none border border-slate-150 dark:border-slate-750 text-slate-800 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-[2rem] space-y-4 border border-slate-100/50 dark:border-slate-700/50">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">2. Filter Recipients</h4>
+                                    
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setBulkCriteria('class');
+                                                setSelectedStudentIds([]);
+                                                setBulkAllocations({});
+                                            }}
+                                            className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                bulkCriteria === 'class'
+                                                ? 'bg-indigo-650 text-white shadow-sm'
+                                                : 'bg-white dark:bg-slate-850 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                            }`}
+                                        >
+                                            Class / Stream
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setBulkCriteria('course');
+                                                setSelectedStudentIds([]);
+                                                setBulkAllocations({});
+                                            }}
+                                            className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                bulkCriteria === 'course'
+                                                ? 'bg-indigo-650 text-white shadow-sm'
+                                                : 'bg-white dark:bg-slate-855 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                            }`}
+                                        >
+                                            Course
+                                        </button>
+                                    </div>
+
+                                    {bulkCriteria === 'class' ? (
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black uppercase text-slate-400">Target Class</label>
+                                            <select
+                                                value={selectedClass}
+                                                onChange={(e) => {
+                                                    setSelectedClass(e.target.value);
+                                                    setSelectedStudentIds([]);
+                                                    setBulkAllocations({});
+                                                }}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-850 rounded-xl text-xs font-bold outline-none border border-slate-150 dark:border-slate-750 text-slate-800 dark:text-white"
+                                            >
+                                                <option value="">-- Select Class/Stream --</option>
+                                                {classOptions.map((c, i) => (
+                                                    <option key={i} value={c}>{c}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black uppercase text-slate-400">Target Course</label>
+                                            <select
+                                                value={selectedCourse}
+                                                onChange={(e) => {
+                                                    setSelectedCourse(e.target.value);
+                                                    setSelectedStudentIds([]);
+                                                    setBulkAllocations({});
+                                                }}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-850 rounded-xl text-xs font-bold outline-none border border-slate-150 dark:border-slate-750 text-slate-800 dark:text-white"
+                                            >
+                                                <option value="">-- Select Course --</option>
+                                                {courses.map((c, i) => (
+                                                    <option key={i} value={c.id}>{c.name || c.title}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Spreadsheet Grid panel */}
+                            <div className="lg:col-span-3 flex flex-col h-full space-y-4 min-h-[300px]">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">3. Map Books & Confirm</h4>
+                                    {bulkBookTitle && filteredStudentsList.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={handleAutoAllocate}
+                                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                        >
+                                            ⚡ Auto-Allocate Copies
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex-grow border border-slate-150 dark:border-slate-700/60 rounded-[2rem] overflow-hidden flex flex-col bg-slate-50/50 dark:bg-slate-900/10">
+                                    {filteredStudentsList.length === 0 ? (
+                                        <div className="flex-grow flex flex-col items-center justify-center p-8 text-center min-h-[250px]">
+                                            <span className="text-3xl">👥</span>
+                                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mt-3">No recipients match current filters</p>
+                                            <p className="text-[10px] text-slate-500 mt-1">Please select a book and filter criteria to load students.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex-grow overflow-y-auto max-h-[45vh]">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-100 dark:bg-slate-800 text-[9px] font-black uppercase tracking-widest text-slate-450 border-b border-slate-200 dark:border-slate-700">
+                                                        <th className="p-4 text-center w-12 border-r border-slate-200 dark:border-slate-700">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedStudentIds.length === filteredStudentsList.length && filteredStudentsList.length > 0}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedStudentIds(filteredStudentsList.map(s => s.id));
+                                                                    } else {
+                                                                        setSelectedStudentIds([]);
+                                                                        setBulkAllocations({});
+                                                                    }
+                                                                }}
+                                                                className="rounded border-slate-350 text-indigo-650 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                                            />
+                                                        </th>
+                                                        <th className="p-4">Student Name</th>
+                                                        <th className="p-4">Accession Number Assignment</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-150 dark:divide-slate-700">
+                                                    {filteredStudentsList.map(student => {
+                                                        const enrollment = enrollments.find(e => e.userId === student.id || e.student_id === student.id);
+                                                        const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : 'No Adm';
+                                                        const hasActiveLoan = transactions.some(t =>
+                                                            t.userId === student.id &&
+                                                            books.find(b => b.id === t.bookId)?.title?.trim()?.toLowerCase() === bulkBookTitle?.trim()?.toLowerCase() &&
+                                                            (t.status === 'issued' || t.status === 'overdue')
+                                                        );
+                                                        
+                                                        const isSelected = selectedStudentIds.includes(student.id);
+
+                                                        return (
+                                                            <tr key={student.id} className={`text-xs transition-colors hover:bg-slate-100/30 dark:hover:bg-slate-800/10 ${hasActiveLoan ? 'opacity-50 bg-rose-50/20' : ''}`}>
+                                                                <td className="p-4 text-center border-r border-slate-150 dark:border-slate-700/60">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        disabled={hasActiveLoan}
+                                                                        checked={isSelected}
+                                                                        onChange={(e) => {
+                                                                            if (e.target.checked) {
+                                                                                setSelectedStudentIds(prev => [...prev, student.id]);
+                                                                            } else {
+                                                                                setSelectedStudentIds(prev => prev.filter(id => id !== student.id));
+                                                                                setBulkAllocations(prev => {
+                                                                                    const updated = { ...prev };
+                                                                                    delete updated[student.id];
+                                                                                    return updated;
+                                                                                });
+                                                                            }
+                                                                        }}
+                                                                        className="rounded border-slate-350 text-indigo-650 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                                                    />
+                                                                </td>
+                                                                <td className="p-4">
+                                                                    <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{student.name}</p>
+                                                                    <p className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{admissionNo}</p>
+                                                                    {hasActiveLoan && (
+                                                                        <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest block mt-1">⚠️ Already has an active copy</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="p-4">
+                                                                    <select
+                                                                        disabled={!isSelected}
+                                                                        value={bulkAllocations[student.id] || ''}
+                                                                        onChange={(e) => {
+                                                                            setBulkAllocations(prev => ({
+                                                                                ...prev,
+                                                                                [student.id]: e.target.value
+                                                                            }));
+                                                                        }}
+                                                                        className="w-full px-3 py-2 bg-white dark:bg-slate-850 rounded-xl text-xs font-bold outline-none border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white cursor-pointer"
+                                                                    >
+                                                                        <option value="">-- Select Accession Copy --</option>
+                                                                        {availableCopies.map(copy => {
+                                                                            const isUsedByOther = Object.entries(bulkAllocations).some(([sId, bId]) => bId === copy.id && sId !== student.id);
+                                                                            return (
+                                                                                <option key={copy.id} value={copy.id} disabled={isUsedByOther}>
+                                                                                    [{copy.accessionNumber}] {copy.location ? `· ${copy.location}` : ''} {isUsedByOther ? '(Allocated)' : ''}
+                                                                                </option>
+                                                                            );
+                                                                        })}
+                                                                    </select>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-8 border-t border-slate-50 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 flex-shrink-0">
+                            <button
+                                type="button"
+                                disabled={isProcessing}
+                                onClick={() => setIsBulkIssuing(false)}
+                                className="px-6 py-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-650 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                            >
+                                Discard
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isProcessing || selectedStudentIds.length === 0}
+                                onClick={handlePostBulkIssuance}
+                                className="px-8 py-3 bg-indigo-650 hover:bg-indigo-750 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-100 dark:shadow-none hover:translate-y-[-2px] disabled:opacity-50 disabled:translate-y-0"
+                            >
+                                {isProcessing ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                        Processing Bulk...
+                                    </div>
+                                ) : `Issue to ${selectedStudentIds.length} members`}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
