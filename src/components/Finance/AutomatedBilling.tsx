@@ -190,14 +190,21 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     }, [feeStructures, selectedAY, selectedSem, selectedSemName]);
 
     const displayFeeStructures = useMemo(() => {
-        // Deduplicate by voteHeadId + name to avoid showing the same votehead twice in the summary list
-        const seen = new Set<string>();
-        return activeFeeStructures.filter(f => {
+        const grouped: Record<string, FeeStructure> = {};
+        activeFeeStructures.forEach(f => {
             const key = f.voteHeadId ? String(f.voteHeadId) : String(f.name);
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
+            const amt = parseMoneyAmount(f.amount || (f as any).allocatedAmount || 0);
+            if (grouped[key]) {
+                const existingAmt = parseMoneyAmount(grouped[key].amount || (grouped[key] as any).allocatedAmount || 0);
+                grouped[key] = {
+                    ...grouped[key],
+                    amount: existingAmt + amt
+                };
+            } else {
+                grouped[key] = { ...f, amount: amt };
+            }
         });
+        return Object.values(grouped);
     }, [activeFeeStructures]);
 
     const routeFeeSettings = useMemo(() => {
@@ -301,7 +308,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         let currentNum = nextInvoiceNumber;
         const mockInvoices = billingStudents.map(s => {
             const boarder = isStudentBoarder(s);
-            const studentFeeStructures = activeFeeStructures.filter(f => {
+            let studentFeeStructures = activeFeeStructures.filter(f => {
                 const matchesCourse = !f.courseId || f.courseId === getStudentCourseId(s);
                 if (!matchesCourse) return false;
 
@@ -312,6 +319,25 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
                 return true;
             });
+
+            if (selectedSem === 'annual') {
+                const groupedMap = new Map<string, typeof studentFeeStructures[0]>();
+                studentFeeStructures.forEach(f => {
+                    const key = f.voteHeadId ? String(f.voteHeadId) : f.name.trim().toLowerCase();
+                    const existing = groupedMap.get(key);
+                    const amt = parseMoneyAmount(f.amount || (f as any).allocatedAmount || 0);
+                    if (existing) {
+                        const existingAmt = parseMoneyAmount(existing.amount || (existing as any).allocatedAmount || 0);
+                        existing.amount = existingAmt + amt;
+                        if ((existing as any).allocatedAmount !== undefined) {
+                            (existing as any).allocatedAmount = existingAmt + amt;
+                        }
+                    } else {
+                        groupedMap.set(key, { ...f, amount: amt });
+                    }
+                });
+                studentFeeStructures = Array.from(groupedMap.values());
+            }
             
             const baseAmount = studentFeeStructures.reduce((acc, f) => {
                 const amt = f.amount || (f as any).allocatedAmount || 0;
@@ -323,7 +349,9 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 const amt = f.amount || (f as any).allocatedAmount || 0;
                 const parsed = parseMoneyAmount(amt);
                 return {
+                    name: f.name,
                     description: f.name,
+                    voteheadName: f.name,
                     quantity: 1,
                     unitPrice: parsed,
                     amount: parsed
@@ -618,7 +646,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                         <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
                             {billingStudents.slice(0, 5).map((s, idx) => {
                                 const boarder = isStudentBoarder(s);
-                                const studentFeeStructures = activeFeeStructures.filter(f => {
+                                let studentFeeStructures = activeFeeStructures.filter(f => {
                                     const matchesCourse = !f.courseId || f.courseId === getStudentCourseId(s);
                                     if (!matchesCourse) return false;
 
@@ -629,6 +657,26 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
                                     return true;
                                 });
+
+                                if (selectedSem === 'annual') {
+                                    const groupedMap = new Map<string, typeof studentFeeStructures[0]>();
+                                    studentFeeStructures.forEach(f => {
+                                        const key = f.voteHeadId ? String(f.voteHeadId) : f.name.trim().toLowerCase();
+                                        const existing = groupedMap.get(key);
+                                        const amt = parseMoneyAmount(f.amount || (f as any).allocatedAmount || 0);
+                                        if (existing) {
+                                            const existingAmt = parseMoneyAmount(existing.amount || (existing as any).allocatedAmount || 0);
+                                            existing.amount = existingAmt + amt;
+                                            if ((existing as any).allocatedAmount !== undefined) {
+                                                (existing as any).allocatedAmount = existingAmt + amt;
+                                            }
+                                        } else {
+                                            groupedMap.set(key, { ...f, amount: amt });
+                                        }
+                                    });
+                                    studentFeeStructures = Array.from(groupedMap.values());
+                                }
+
                                 const baseAmount = studentFeeStructures.reduce((acc, f) => {
                                     const amt = f.amount || (f as any).allocatedAmount || 0;
                                     const parsed = parseMoneyAmount(amt);

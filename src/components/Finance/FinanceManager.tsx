@@ -4486,7 +4486,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
                                                     {items.map((item, idx) => {
-                                                        const name = item.name || item.voteheadName || 'Unnamed Item';
+                                                        const name = item.name || item.voteheadName || item.description || 'Unnamed Item';
                                                         const amount = Number(item.amount || item.unitPrice || 0);
                                                         const paid = Number(item.paid || 0);
                                                         const prio = item.priority !== undefined ? item.priority : '—';
