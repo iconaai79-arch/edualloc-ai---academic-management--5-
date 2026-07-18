@@ -72,7 +72,22 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         return map;
     }, [enrollments]);
 
+    const studentEnrollmentMap = useMemo(() => {
+        const map = new Map<string, any>();
+        enrollments.forEach(enr => {
+            if (enr.userId) {
+                map.set(enr.userId, enr);
+            }
+        });
+        return map;
+    }, [enrollments]);
+
     const isStudentBoarder = (student: User) => {
+        const enrollment = studentEnrollmentMap.get(student.id);
+        const enrResidence = enrollment?.metadata?.boardingStatus || enrollment?.metadata?.residenceType;
+        if (enrResidence === 'boarder' || enrResidence === 'boarding') {
+            return true;
+        }
         const metaResidence = student?.metadata?.boardingStatus || student?.metadata?.residenceType;
         if (metaResidence === 'boarder' || metaResidence === 'boarding') {
             return true;
