@@ -1436,11 +1436,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const manualFilteredStudents = useMemo(() => {
         if (!manualPayStudentSearch || manualPayStudentId) return [];
-        return props.students.filter(s =>
+        return studentFinanceData.filter(s =>
             s.name?.toLowerCase().includes(manualPayStudentSearch.toLowerCase()) ||
-            (s.admissionNumber || s.admission_number || '').toLowerCase().includes(manualPayStudentSearch.toLowerCase())
+            (s.admissionNumber || '').toLowerCase().includes(manualPayStudentSearch.toLowerCase())
         );
-    }, [manualPayStudentSearch, manualPayStudentId, props.students]);
+    }, [manualPayStudentSearch, manualPayStudentId, studentFinanceData]);
 
     const previewAllocations = useMemo(() => {
         if (!manualPayStudentId || manualPayAmount <= 0) return [];
@@ -2520,12 +2520,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Filter students for search dropdown
     const filteredStudents = useMemo(() => {
         if (!bursaryStudentSearch || bursaryStudentId) return [];
-        return props.students.filter(s => 
+        return studentFinanceData.filter(s => 
             s.name?.toLowerCase().includes(bursaryStudentSearch.toLowerCase()) ||
-            s.admissionNumber?.toLowerCase().includes(bursaryStudentSearch.toLowerCase()) ||
-            s.admission_number?.toLowerCase().includes(bursaryStudentSearch.toLowerCase())
+            (s.admissionNumber || '').toLowerCase().includes(bursaryStudentSearch.toLowerCase())
         );
-    }, [bursaryStudentSearch, bursaryStudentId, props.students]);
+    }, [bursaryStudentSearch, bursaryStudentId, studentFinanceData]);
 
     // Load bulk bursary disbursements on mount
     useEffect(() => {
@@ -3759,9 +3758,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 {activeTab === 'receipts' && receiptsMainTab === 'bursaries' && (() => {
                     const allocTotal = bulkBursaryAllocations.reduce((s, a) => s + (a.amount || 0), 0);
                     const remaining = bulkBursaryTotalAmount - allocTotal;
-                    const bulkFilteredStudents = !bulkBursaryStudentSearch ? [] : props.students.filter(s =>
+                    const bulkFilteredStudents = !bulkBursaryStudentSearch ? [] : studentFinanceData.filter(s =>
                         (s.name?.toLowerCase().includes(bulkBursaryStudentSearch.toLowerCase()) ||
-                        (s.admissionNumber || s.admission_number || '').toLowerCase().includes(bulkBursaryStudentSearch.toLowerCase())) &&
+                        (s.admissionNumber || '').toLowerCase().includes(bulkBursaryStudentSearch.toLowerCase())) &&
                         !bulkBursaryAllocations.some(a => a.studentId === s.id)
                     );
                     return (
@@ -11222,7 +11221,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                             {/* Student Statement */}
                             {reportsSubTab === 'student_statement' && (() => {
-                                const filteredStudents = props.students.filter((s: any) =>
+                                const filteredStudents = studentFinanceData.filter((s: any) =>
                                     s.name?.toLowerCase().includes(stmtSearch.toLowerCase()) ||
                                     (s.admissionNumber || '').toLowerCase().includes(stmtSearch.toLowerCase())
                                 ).slice(0, 30);

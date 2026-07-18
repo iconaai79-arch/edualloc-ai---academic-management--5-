@@ -354,7 +354,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                     voteheadName: f.name,
                     quantity: 1,
                     unitPrice: parsed,
-                    amount: parsed
+                    amount: parsed,
+                    priority: f.priority
                 };
             });
 
@@ -688,7 +689,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                     const parsed = parseMoneyAmount(amt);
                                     return {
                                         name: f.name,
-                                        amount: parsed
+                                        amount: parsed,
+                                        priority: f.priority
                                     };
                                 });
 
