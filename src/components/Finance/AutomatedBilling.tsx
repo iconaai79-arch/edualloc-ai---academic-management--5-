@@ -150,6 +150,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
     // Resolve selected semester to its name (fee structures store the human-readable name e.g. "Term 1")
     const selectedSemName = useMemo(() => {
+        if (selectedSem === 'annual') return 'Entire Academic Year (Annual)';
         const sem = semesters.find(s => s.id === selectedSem);
         return sem ? sem.name : selectedSem;
     }, [semesters, selectedSem]);
@@ -158,6 +159,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         return feeStructures.filter(f =>
             f.academicYearId === selectedAY &&
             (
+                selectedSem === 'annual' ||
                 String(f.term || '') === String(selectedSemName) ||
                 String(f.term || '') === String(selectedSem)
             )
@@ -226,7 +228,12 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 const route = routeFeeSettings.find(r => r.routeId === pref.routeId);
                 if (route) {
                     const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
-                    studentSum += Math.round(route.termFee * multiplier);
+                    let transportFee = Math.round(route.termFee * multiplier);
+                    if (selectedSem === 'annual') {
+                        const numTerms = semesters.length || 3;
+                        transportFee *= numTerms;
+                    }
+                    studentSum += transportFee;
                 }
             }
         }
@@ -307,10 +314,15 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                     const route = routeFeeSettings.find(r => r.routeId === pref.routeId);
                     if (route) {
                         const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
-                        transportAmount = Math.round(route.termFee * multiplier);
+                        let transportFee = Math.round(route.termFee * multiplier);
+                        if (selectedSem === 'annual') {
+                            const numTerms = semesters.length || 3;
+                            transportFee *= numTerms;
+                        }
+                        transportAmount = transportFee;
                         const prefLabel = pref.preference === 'round_trip' ? 'Round Trip' : 'One Way';
                         invoiceItems.push({
-                            description: `Transport Fee: ${route.routeName} (${prefLabel})`,
+                            description: `Transport Fee: ${route.routeName} (${prefLabel})${selectedSem === 'annual' ? ' - Annual' : ''}`,
                             quantity: 1,
                             unitPrice: transportAmount,
                             amount: transportAmount
@@ -394,6 +406,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                 className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
                             >
                                 <option value="">Select Term</option>
+                                <option value="annual">Entire Academic Year (Annual)</option>
                                 {semesters.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                         </div>
@@ -615,10 +628,15 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                         const route = routeFeeSettings.find(r => r.routeId === pref.routeId);
                                         if (route) {
                                             const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
-                                            transportAmount = Math.round(route.termFee * multiplier);
+                                            let transportFee = Math.round(route.termFee * multiplier);
+                                            if (selectedSem === 'annual') {
+                                                const numTerms = semesters.length || 3;
+                                                transportFee *= numTerms;
+                                            }
+                                            transportAmount = transportFee;
                                             const prefLabel = pref.preference === 'round_trip' ? 'Round Trip' : 'One Way';
                                             items.push({
-                                                name: `Transport Fee: ${route.routeName} (${prefLabel})`,
+                                                name: `Transport Fee: ${route.routeName} (${prefLabel})${selectedSem === 'annual' ? ' - Annual' : ''}`,
                                                 amount: transportAmount
                                             });
                                         }
