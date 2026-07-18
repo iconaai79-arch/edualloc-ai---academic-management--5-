@@ -1434,6 +1434,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return props.invoices.filter(inv => inv.studentId === selectedId && inv.status !== 'paid');
     }, [props.invoices, manualPayStudentId, reconcileStudentId, showPostModal]);
 
+    useEffect(() => {
+        if (studentPendingInvoices && studentPendingInvoices.length > 0) {
+            const firstPending = studentPendingInvoices.find(inv => inv.status === 'pending' || inv.status === 'partial') || studentPendingInvoices[0];
+            if (firstPending) {
+                if (showPostModal) {
+                    setManualPayInvoiceId(firstPending.id);
+                    setManualPayAmount(firstPending.totalAmount);
+                } else if (showReconcileModal) {
+                    setReconcileInvoiceId(firstPending.id);
+                }
+            }
+        } else {
+            if (showPostModal) {
+                setManualPayInvoiceId('');
+                setManualPayAmount(0);
+            } else if (showReconcileModal) {
+                setReconcileInvoiceId('');
+            }
+        }
+    }, [studentPendingInvoices, showPostModal, showReconcileModal]);
+
     const manualFilteredStudents = useMemo(() => {
         if (!manualPayStudentSearch || manualPayStudentId) return [];
         return studentFinanceData.filter(s =>
