@@ -16,14 +16,18 @@ import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 interface RetailStoresManagerProps {
     institutionId: string;
     isEducation?: boolean;
+    currentUser?: any;
 }
 
-export function RetailStoresManager({ institutionId, isEducation }: RetailStoresManagerProps) {
+export function RetailStoresManager({ institutionId, isEducation, currentUser: propUser }: RetailStoresManagerProps) {
     const [stores, setStores] = useState<RetailStore[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const user = apiService.getSession();
+    const sessionUser = apiService.getSession();
+    const user = propUser || sessionUser;
     const isSuperAdmin = user?.role === 'super_admin';
-    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    // For education institutions, treat admin + super_admin + store-related admin roles as full admins
+    const adminRoles = ['admin', 'super_admin', 'store_manager', 'store_keeper', 'principal', 'director', 'bursar'];
+    const isAdmin = adminRoles.includes(user?.role || '') || isEducation;
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<string>('all');
     const [selectedStore, setSelectedStore] = useState<RetailStore | null>(null);

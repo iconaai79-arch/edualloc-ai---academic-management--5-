@@ -313,7 +313,7 @@ export function RetailManager(props: RetailManagerProps) {
                         onEditUser={onEditUser}
                     />
                 )}
-                {activeView === 'stores' && <RetailStoresManager institutionId={institutionId} isEducation={isEducation} />}
+                {activeView === 'stores' && <RetailStoresManager institutionId={institutionId} isEducation={isEducation} currentUser={currentUser} />}
                 {activeView === 'wishlist' && <WishlistManager institutionId={institutionId} />}
 
                 {activeView === 'expenses' && (
