@@ -655,7 +655,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             {/* Issuance Registry Modal */}
             {isIssuing && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100 dark:border-slate-700">
                         <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-indigo-600">
                             <div>
                                 <h3 className="text-2xl font-black text-white uppercase tracking-tighter">
