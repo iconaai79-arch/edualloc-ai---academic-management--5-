@@ -53,6 +53,19 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const [pharmacySearch, setPharmacySearch] = useState('');
     const [isPharmacyLoading, setIsPharmacyLoading] = useState(false);
 
+    // Self-fetched stores (fallback when parent doesn't pass stores)
+    const [localStores, setLocalStores] = useState<any[]>([]);
+    // Merge prop stores + locally fetched stores (deduplicated by id)
+    const effectiveStores = useMemo(() => {
+        const merged = [...(stores || []), ...localStores];
+        const seen = new Set<string>();
+        return merged.filter(s => {
+            if (seen.has(s.id)) return false;
+            seen.add(s.id);
+            return true;
+        });
+    }, [stores, localStores]);
+
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -132,6 +145,12 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         });
 
         fetchInventory();
+
+        // Self-fetch retail stores so the dropdown is always populated
+        // even when the parent component doesn't pass stores as a prop.
+        apiService.fetchModuleRecords<any>('retail_stores', institutionId)
+            .then(data => setLocalStores(data || []))
+            .catch(() => { /* keep localStores empty */ });
 
         // Load pharmacy inventory for admin overview (edu institutions only)
         if (isEducation) {
@@ -1107,14 +1126,14 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                                         <select
                                                             value={item.storeId || ''}
                                                             onChange={e => {
-                                                                const selectedStore = stores.find(s => s.id === e.target.value);
+                                                                const selectedStore = effectiveStores.find(s => s.id === e.target.value);
                                                                 updateCell(item.id, 'storeId', e.target.value || null);
                                                                 updateCell(item.id, 'storeName', selectedStore ? selectedStore.name : null);
                                                             }}
                                                             className="w-full px-2 py-1.5 text-[10px] font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-600 dark:text-slate-300"
                                                         >
                                                             <option value="">— Not Assigned —</option>
-                                                            {stores.map(s => (
+                                                            {effectiveStores.map(s => (
                                                                 <option key={s.id} value={s.id}>
                                                                     🏢 {s.name}
                                                                 </option>
@@ -1562,7 +1581,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                 <select
                                     value={formData.storeId || ''}
                                     onChange={(e) => {
-                                        const selectedStore = stores.find(s => s.id === e.target.value);
+                                        const selectedStore = effectiveStores.find(s => s.id === e.target.value);
                                         setFormData({
                                             ...formData,
                                             storeId: e.target.value || undefined,
@@ -1572,7 +1591,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                     className="w-full p-3 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-bold text-indigo-800 dark:text-indigo-300 focus:ring-2 focus:ring-indigo-450 outline-none"
                                 >
                                     <option value="">— No Store / Not Assigned —</option>
-                                    {stores.map(s => (
+                                    {effectiveStores.map(s => (
                                         <option key={s.id} value={s.id}>
                                             {s.name} ({s.storeType?.replace('_', ' ')?.toUpperCase()})
                                         </option>
@@ -1583,7 +1602,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                         ✔ Kept in <strong>{formData.storeName}</strong>
                                     </p>
                                 )}
-                                {stores.length === 0 && (
+                                {effectiveStores.length === 0 && (
                                     <p className="mt-2 text-[10px] text-slate-400 italic">No stores configured. Set up Stores first.</p>
                                 )}
                             </div>
