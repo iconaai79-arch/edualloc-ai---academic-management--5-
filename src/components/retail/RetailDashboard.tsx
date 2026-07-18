@@ -56,10 +56,22 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
             const physicalStores = (stores || []).filter(s => s.storeType === 'main_store' || s.storeType === 'branch_store' || s.storeType === 'warehouse').length;
             const vanAgents = (stores || []).filter(s => s.storeType === 'van_stock').length;
 
-            const invValue = (inventory || []).reduce((sum, item) => {
-                const price = (item as any).costPrice || (item as any).basePrice || (item as any).srpPrice || 0;
-                return sum + (price * (item.quantity || 0));
+            // Use ?? (null-coalescing) NOT || so that explicit 0 values are respected.
+            // costPrice is the acquisition cost — the true inventory value for a school.
+            const costValue = (inventory || []).reduce((sum, item) => {
+                const cost = (item as any).costPrice ?? (item as any).basePrice ?? 0;
+                return sum + (cost * ((item as any).quantity || 0));
             }, 0);
+
+            // srpPrice is the assessed/listed unit price (used for valuation reference)
+            const srpValue = (inventory || []).reduce((sum, item) => {
+                const srp = (item as any).srpPrice ?? (item as any).basePrice ?? 0;
+                return sum + (srp * ((item as any).quantity || 0));
+            }, 0);
+
+            // For education, show cost value as the primary inventory value.
+            // For retail business, show SRP (selling price) value.
+            const invValue = isEducation ? costValue : srpValue;
 
             const pending = (transfers || []).filter(t => t.status === 'pending').length;
             const leads = (wishlist || []).length;
@@ -70,14 +82,28 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
                 totalInventoryValue: invValue,
                 pendingTransfers: pending,
                 activeWishlistLeads: leads,
-                commissionsThisMonth: 0, // Need sales records for this
+                commissionsThisMonth: 0,
             });
 
-            // Set some default empty data for charts if none exists
-            setSalesData([
-                { storeName: 'Main Store', amount: invValue * 0.4, color: 'bg-indigo-500' },
-                { storeName: 'Agents Total', amount: invValue * 0.1, color: 'bg-emerald-500' },
-            ]);
+            // Build per-store breakdown from real data (not fake multipliers)
+            const storeColors = ['bg-indigo-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-violet-500'];
+            const storeBreakdown = (stores || []).map((store, idx) => {
+                const storeItems = (inventory || []).filter(item => (item as any).storeId === store.id);
+                const storeValue = storeItems.reduce((sum, item) => {
+                    const cost = isEducation
+                        ? ((item as any).costPrice ?? (item as any).basePrice ?? 0)
+                        : ((item as any).srpPrice ?? (item as any).basePrice ?? 0);
+                    return sum + (cost * ((item as any).quantity || 0));
+                }, 0);
+                return { storeName: store.name, amount: storeValue, color: storeColors[idx % storeColors.length] };
+            }).filter(s => s.amount > 0);
+
+            // If no store assignments, show unassigned total
+            if (storeBreakdown.length === 0 && invValue > 0) {
+                storeBreakdown.push({ storeName: 'All Items', amount: invValue, color: 'bg-indigo-500' });
+            }
+
+            setSalesData(storeBreakdown);
 
             setPerformanceTrend([
                 { label: 'Mon', value: 30 },
@@ -194,7 +220,9 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
                             <Package className="w-6 h-6 text-indigo-400" />
                         </div>
                         <div>
-                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Inventory Value</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">
+                                {isEducation ? 'Inventory Cost Value' : 'Inventory Retail Value (SRP)'}
+                            </p>
                             <h3 className="text-3xl font-black text-white leading-tight">
                                 KES {stats.totalInventoryValue?.toLocaleString()}
                             </h3>
@@ -203,7 +231,7 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
                                 </span>
-                                Live Stock Valuation
+                                {isEducation ? 'Based on acquisition cost price' : 'Live Stock Valuation'}
                             </p>
                         </div>
                     </div>
