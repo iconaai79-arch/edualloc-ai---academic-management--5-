@@ -243,6 +243,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return initialMap;
     });
 
+    useEffect(() => {
+        if (!props.students || props.students.length === 0) return;
+        setOpeningBalancesMap(prev => {
+            const newMap = { ...prev };
+            props.students.forEach(s => {
+                if (newMap[s.id] === undefined) {
+                    newMap[s.id] = s.metadata?.openingBalance || 0;
+                }
+            });
+            return newMap;
+        });
+    }, [props.students]);
+
     // Importer State
     const [showImporter, setShowImporter] = useState(false);
     const [importerFile, setImporterFile] = useState<File | null>(null);
@@ -432,8 +445,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         openingBalance: openingBalancesMap[student.id] || 0
                     };
                     
-                    await apiService.saveModuleRecord('users', {
-                        id: student.id,
+                    await apiService.updateModuleRecord('users', student.id, {
                         metadata: updatedMetadata
                     });
                 }
