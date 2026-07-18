@@ -124,22 +124,25 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     }, [semesters, selectedSem]);
 
     const activeFeeStructures = useMemo(() => {
-        const filtered = feeStructures.filter(f =>
+        return feeStructures.filter(f =>
             f.academicYearId === selectedAY &&
             (
                 String(f.term || '') === String(selectedSemName) ||
                 String(f.term || '') === String(selectedSem)
             )
         );
-        // Deduplicate by voteHeadId + name to avoid showing the same votehead twice
+    }, [feeStructures, selectedAY, selectedSem, selectedSemName]);
+
+    const displayFeeStructures = useMemo(() => {
+        // Deduplicate by voteHeadId + name to avoid showing the same votehead twice in the summary list
         const seen = new Set<string>();
-        return filtered.filter(f => {
+        return activeFeeStructures.filter(f => {
             const key = f.voteHeadId ? String(f.voteHeadId) : String(f.name);
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
         });
-    }, [feeStructures, selectedAY, selectedSem, selectedSemName]);
+    }, [activeFeeStructures]);
 
     const routeFeeSettings = useMemo(() => {
         const saved = localStorage.getItem('eduai_transport_route_fee_settings');
@@ -503,10 +506,10 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest text-sm border-l-4 border-indigo-600 pl-4 text-left">Billing Preview Summary</h3>
                     
                     <div className="space-y-4 max-h-64 overflow-y-auto pr-4 custom-scrollbar">
-                        {activeFeeStructures.length === 0 ? (
+                        {displayFeeStructures.length === 0 ? (
                             <p className="text-center text-xs font-medium text-slate-400 p-4">No active fee structures configured for this academic year and semester.</p>
                         ) : (
-                            activeFeeStructures.map((f, i) => (
+                            displayFeeStructures.map((f, i) => (
                                 <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left">
                                     <div>
                                         <p className="text-sm font-bold text-slate-700">{f.name}</p>
