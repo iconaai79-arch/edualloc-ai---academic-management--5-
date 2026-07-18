@@ -98,6 +98,13 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         return map;
     }, [enrollments]);
 
+    const getStudentCourseId = (student: User) => {
+        if (student.courseId) return student.courseId;
+        const enr = studentEnrollmentMap.get(student.id);
+        if (!enr) return undefined;
+        return enr.metadata?.courseId || enr.metadata?.course_id || enr.courseId || enr.course_id;
+    };
+
     const isStudentBoarder = (student: User) => {
         const enrollment = studentEnrollmentMap.get(student.id);
         const enrResidence = enrollment?.metadata?.boardingStatus || enrollment?.metadata?.residenceType;
@@ -143,10 +150,10 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             return students.filter(s => studentClassMap.get(s.id) === selectedClass);
         }
         if (targetType === 'course') {
-            return students.filter(s => s.courseId === selectedCourseId);
+            return students.filter(s => getStudentCourseId(s) === selectedCourseId);
         }
         return students;
-    }, [students, targetType, selectedStudentId, selectedClass, selectedCourseId, studentClassMap]);
+    }, [students, targetType, selectedStudentId, selectedClass, selectedCourseId, studentClassMap, studentEnrollmentMap]);
 
     // Resolve selected semester to its name (fee structures store the human-readable name e.g. "Term 1")
     const selectedSemName = useMemo(() => {
@@ -205,7 +212,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         const boarder = isStudentBoarder(s);
         const studentFeeStructures = activeFeeStructures.filter(f => {
             // Course restriction filter
-            const matchesCourse = !f.courseId || f.courseId === s.courseId;
+            const matchesCourse = !f.courseId || f.courseId === getStudentCourseId(s);
             if (!matchesCourse) return false;
 
             // Boarding/Residence status filter
@@ -279,7 +286,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         const mockInvoices = billingStudents.map(s => {
             const boarder = isStudentBoarder(s);
             const studentFeeStructures = activeFeeStructures.filter(f => {
-                const matchesCourse = !f.courseId || f.courseId === s.courseId;
+                const matchesCourse = !f.courseId || f.courseId === getStudentCourseId(s);
                 if (!matchesCourse) return false;
 
                 const appTo = f.applicableTo || f.applicable_to || 'all';
@@ -596,7 +603,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                             {billingStudents.slice(0, 5).map((s, idx) => {
                                 const boarder = isStudentBoarder(s);
                                 const studentFeeStructures = activeFeeStructures.filter(f => {
-                                    const matchesCourse = !f.courseId || f.courseId === s.courseId;
+                                    const matchesCourse = !f.courseId || f.courseId === getStudentCourseId(s);
                                     if (!matchesCourse) return false;
 
                                     const appTo = f.applicableTo || f.applicable_to || 'all';
