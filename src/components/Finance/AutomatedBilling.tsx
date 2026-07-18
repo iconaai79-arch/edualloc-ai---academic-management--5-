@@ -8,6 +8,14 @@ import { UserIcon } from '../icons/UserIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { AcademicCapIcon } from '../icons/AcademicCapIcon';
 
+const parseMoneyAmount = (amt: any): number => {
+    if (amt === null || amt === undefined) return 0;
+    if (typeof amt === 'number') return amt;
+    const clean = String(amt).replace(/[^0-9.]/g, '');
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : parsed;
+};
+
 interface AutomatedBillingProps {
     feeStructures: FeeStructure[];
     students: User[];
@@ -225,8 +233,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         });
         let studentSum = studentFeeStructures.reduce((acc, f) => {
             const amt = f.amount || (f as any).allocatedAmount || 0;
-            const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
-            return acc + (isNaN(parsed) ? 0 : parsed);
+            const parsed = parseMoneyAmount(amt);
+            return acc + parsed;
         }, 0);
         
         if (includeTransport) {
@@ -299,18 +307,18 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             
             const baseAmount = studentFeeStructures.reduce((acc, f) => {
                 const amt = f.amount || (f as any).allocatedAmount || 0;
-                const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
-                return acc + (isNaN(parsed) ? 0 : parsed);
+                const parsed = parseMoneyAmount(amt);
+                return acc + parsed;
             }, 0);
             
             const invoiceItems = studentFeeStructures.map(f => {
                 const amt = f.amount || (f as any).allocatedAmount || 0;
-                const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                const parsed = parseMoneyAmount(amt);
                 return {
                     description: f.name,
                     quantity: 1,
-                    unitPrice: isNaN(parsed) ? 0 : parsed,
-                    amount: isNaN(parsed) ? 0 : parsed
+                    unitPrice: parsed,
+                    amount: parsed
                 };
             });
 
@@ -615,16 +623,16 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                 });
                                 const baseAmount = studentFeeStructures.reduce((acc, f) => {
                                     const amt = f.amount || (f as any).allocatedAmount || 0;
-                                    const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
-                                    return acc + (isNaN(parsed) ? 0 : parsed);
+                                    const parsed = parseMoneyAmount(amt);
+                                    return acc + parsed;
                                 }, 0);
 
                                 const items = studentFeeStructures.map(f => {
                                     const amt = f.amount || (f as any).allocatedAmount || 0;
-                                    const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
+                                    const parsed = parseMoneyAmount(amt);
                                     return {
                                         name: f.name,
-                                        amount: isNaN(parsed) ? 0 : parsed
+                                        amount: parsed
                                     };
                                 });
 

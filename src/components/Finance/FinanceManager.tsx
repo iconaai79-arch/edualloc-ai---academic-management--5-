@@ -51,6 +51,14 @@ const HRManager = React.lazy(() => import('../HR/HRManager').then(m => ({ defaul
 const StudentEnrollmentManager = React.lazy(() => import('../common/StudentEnrollmentManager').then(m => ({ default: m.StudentEnrollmentManager })));
 const CommunicationsManager = React.lazy(() => import('../CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
 
+const parseMoneyAmount = (amt: any): number => {
+    if (amt === null || amt === undefined) return 0;
+    if (typeof amt === 'number') return amt;
+    const clean = String(amt).replace(/[^0-9.]/g, '');
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : parsed;
+};
+
 interface FinanceManagerProps {
     invoices: Invoice[];
     receipts: Receipt[];
@@ -857,8 +865,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             );
             const invoiced = studentInvoices.reduce((sum, inv) => {
                 const amt = inv.totalAmount || inv.total_amount || 0;
-                const numAmt = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
-                return sum + (isNaN(numAmt) ? 0 : numAmt);
+                return sum + parseMoneyAmount(amt);
             }, 0);
             
             const studentReceipts = mappedReceipts.filter(rec => 
@@ -866,8 +873,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             );
             const paid = studentReceipts.reduce((sum, rec) => {
                 const amt = rec.amountPaid || rec.amount_paid || 0;
-                const numAmt = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
-                return sum + (isNaN(numAmt) ? 0 : numAmt);
+                return sum + parseMoneyAmount(amt);
             }, 0);
             
             const balance = Math.max(0, invoiced - paid);
@@ -922,11 +928,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
+        { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
         { id: 'student_invoices', label: 'Invoices', icon: ClipboardListIcon },
-        { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
         { id: 'gok_capitation', label: 'GoK Capitation', icon: BuildingLibraryIcon },
         { id: 'bursaries', label: 'NG-CDF Bursaries', icon: ScaleIcon },
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
@@ -2785,7 +2791,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         const isEdu = isEduInstitution(props.institution);
                         if (item.id === 'gok_capitation') return isEdu;
                         if (item.id === 'bursaries') return isEdu;
-                        if (item.id === 'wizard') return isEdu;
+                        if (item.id === 'wizard') return !isDrivingSchool;
                         if (item.id === 'billing') return isDrivingSchool;
                         return true;
                     }).map(item => (
@@ -4085,8 +4091,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
                                     KES {filteredStudentInvoices.reduce((sum, inv) => {
                                         const amt = inv.totalAmount || inv.total_amount || 0;
-                                        const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
-                                        return sum + (isNaN(parsed) ? 0 : parsed);
+                                        return sum + parseMoneyAmount(amt);
                                     }, 0).toLocaleString()}
                                 </h3>
                                 <p className="text-[10px] text-slate-500 font-semibold mt-1">Cumulative student billings</p>
@@ -4098,8 +4103,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
                                         const paid = allocations.reduce((s, r) => {
                                             const amt = r.amountPaid || r.amount_paid || 0;
-                                            const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
-                                            return s + (isNaN(parsed) ? 0 : parsed);
+                                            return s + parseMoneyAmount(amt);
                                         }, 0);
                                         return sum + paid;
                                     }, 0).toLocaleString()}
@@ -4113,12 +4117,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
                                         const paid = allocations.reduce((s, r) => {
                                             const amt = r.amountPaid || r.amount_paid || 0;
-                                            const parsed = typeof amt === 'string' ? parseFloat(amt.replace(/,/g, '')) : Number(amt);
-                                            return s + (isNaN(parsed) ? 0 : parsed);
+                                            return s + parseMoneyAmount(amt);
                                         }, 0);
                                         const totalAmt = inv.totalAmount || inv.total_amount || 0;
-                                        const parsedTotal = typeof totalAmt === 'string' ? parseFloat(totalAmt.replace(/,/g, '')) : Number(totalAmt);
-                                        return sum + Math.max(0, (isNaN(parsedTotal) ? 0 : parsedTotal) - paid);
+                                        return sum + Math.max(0, parseMoneyAmount(totalAmt) - paid);
                                     }, 0)).toLocaleString()}
                                 </h3>
                                 <p className="text-[10px] text-slate-500 font-semibold mt-1">Unpaid billing totals</p>
