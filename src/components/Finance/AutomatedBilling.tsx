@@ -107,10 +107,18 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     }, [enrollments]);
 
     const getStudentCourseId = (student: User) => {
-        if (student.courseId) return student.courseId;
         const enr = studentEnrollmentMap.get(student.id);
-        if (!enr) return undefined;
-        return enr.metadata?.courseId || enr.metadata?.course_id || enr.courseId || enr.course_id;
+        const gradeLevel = student.courseId || student.course_id || enr?.metadata?.gradeLevel || enr?.metadata?.stream || enr?.courseId || enr?.course_id;
+        if (!gradeLevel) return undefined;
+        
+        const matched = courses.find(c => 
+            c.id === gradeLevel ||
+            (c.name && c.name.toLowerCase() === gradeLevel.toLowerCase()) ||
+            (c.code && c.code.toLowerCase() === gradeLevel.toLowerCase())
+        );
+        if (matched) return matched.id;
+        
+        return gradeLevel;
     };
 
     const isStudentBoarder = (student: User) => {
