@@ -55,6 +55,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     // Boarding student registry status mapping
     const [bedAllocations, setBedAllocations] = useState<any[]>([]);
     const [enrollments, setEnrollments] = useState<any[]>([]);
+    const [nextInvoiceNum, setNextInvoiceNum] = useState(1001);
+    const [invoicePrefix, setInvoicePrefix] = useState('INV-');
 
     useEffect(() => {
         apiService.fetchBedAllocations(institution.id)
@@ -64,6 +66,16 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         apiService.fetchModuleRecords('student_enrollments', institution.id)
             .then(res => setEnrollments(res || []))
             .catch(err => console.error("Failed to load student enrollments for billing:", err));
+
+        apiService.fetchModuleRecords<any>('finance_numbering_configs', institution.id)
+            .then(configs => {
+                const configRecord = configs.find((c: any) => c.documentType === 'invoice' || c.document_type === 'invoice');
+                if (configRecord) {
+                    setInvoicePrefix(configRecord.prefix || 'INV-');
+                    setNextInvoiceNum(Number(configRecord.nextNumber || configRecord.next_number || 1001));
+                }
+            })
+            .catch(err => console.error("Failed to load invoice numbering config:", err));
     }, [institution.id]);
 
     const admissionNumberMap = useMemo(() => {
@@ -615,13 +627,16 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
                                 const totalAmount = baseAmount + transportAmount;
                                 const adm = s.admissionNumber || s.admission_number || admissionNumberMap.get(s.id) || 'No Adm';
+                                const previewInvoiceNumber = `${invoicePrefix}${nextInvoiceNum + idx}`;
 
                                 return (
                                     <div key={s.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <p className="text-sm font-black text-slate-800">{s.name}</p>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">ADM: {adm} • {boarder ? 'Boarder' : 'Day Scholar'}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                                                    INV #: {previewInvoiceNumber} • ADM: {adm} • {boarder ? 'Boarder' : 'Day Scholar'} • Term: {selectedSemName}
+                                                </p>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoice Subtotal</p>
