@@ -1189,16 +1189,16 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                             ) : (
                                                 stockTransactions
                                                     .filter(t => t.type === 'Issue')
-                                                    .filter(t => t.itemName.toLowerCase().includes(inventorySearch.toLowerCase()) || t.recipientOrSupplier.toLowerCase().includes(inventorySearch.toLowerCase()))
+                                                    .filter(t => (t.itemName || '').toLowerCase().includes(inventorySearch.toLowerCase()) || (t.recipientOrSupplier || '').toLowerCase().includes(inventorySearch.toLowerCase()))
                                                     .map(tx => (
                                                         <tr key={tx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
                                                             <td className="p-5">
                                                                 <div className="flex flex-col">
                                                                     <span className="text-xs font-bold text-slate-900 dark:text-white">
-                                                                        {new Date(tx.date).toLocaleDateString()}
+                                                                        {tx.date ? new Date(tx.date).toLocaleDateString() : 'N/A'}
                                                                     </span>
                                                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                                                        {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                        {tx.date ? new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                                                     </span>
                                                                 </div>
                                                             </td>

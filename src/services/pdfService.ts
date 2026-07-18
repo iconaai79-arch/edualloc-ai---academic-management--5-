@@ -6186,7 +6186,7 @@ export const generateIssuanceReportPdfDataUri = async (
         t.itemName,
         t.quantity,
         '', // Placeholder for signature image
-        new Date(t.date).toLocaleDateString()
+        t.date ? new Date(t.date).toLocaleDateString() : 'N/A'
     ]);
 
     doc.autoTable({
@@ -6244,7 +6244,7 @@ export const generateInventoryStatementPdfDataUri = async (
 
     const head = [['Date', 'Item', 'Type', 'Qty', 'Recipient/Supplier']];
     const body = (transactions || []).map(t => [
-        new Date(t.date).toLocaleDateString(),
+        t.date ? new Date(t.date).toLocaleDateString() : 'N/A',
         t.itemName,
         t.type,
         t.quantity,
@@ -6467,7 +6467,7 @@ export const generateInventorySummaryPdfDataUri = async (
         t.recipientOrSupplier?.toUpperCase() || 'N/A',
         t.itemName.toUpperCase(),
         t.quantity.toString(),
-        new Date(t.date).toLocaleDateString()
+        t.date ? new Date(t.date).toLocaleDateString() : 'N/A'
     ]);
 
     doc.autoTable({

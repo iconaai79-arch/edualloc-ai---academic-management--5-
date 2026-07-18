@@ -306,10 +306,10 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                                         <td className="p-6">
                                             <div className="flex flex-col">
                                                 <span className="text-xs font-bold text-slate-900 dark:text-white">
-                                                    {new Date(tx.date).toLocaleDateString()}
+                                                    {tx.date ? new Date(tx.date).toLocaleDateString() : 'N/A'}
                                                 </span>
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                                    {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    {tx.date ? new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                                 </span>
                                             </div>
                                         </td>

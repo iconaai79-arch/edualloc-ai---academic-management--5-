@@ -2219,7 +2219,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                         </div>
                                         <div className="text-right">
                                             <p className="font-mono font-black text-indigo-400">-{t.quantity}</p>
-                                            <p className="text-[9px] text-slate-600 uppercase font-black mt-1">{new Date(t.date).toLocaleDateString()}</p>
+                                            <p className="text-[9px] text-slate-600 uppercase font-black mt-1">{t.date ? new Date(t.date).toLocaleDateString() : 'N/A'}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -2544,9 +2544,13 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {[...(stockTransactions || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => (
+                                    {[...(stockTransactions || [])].sort((a, b) => {
+                                        const dateA = a.date ? new Date(a.date).getTime() : 0;
+                                        const dateB = b.date ? new Date(b.date).getTime() : 0;
+                                        return dateB - dateA;
+                                    }).map(t => (
                                         <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="px-6 py-5 font-bold text-slate-400 text-[10px]">{new Date(t.date).toLocaleDateString()}</td>
+                                            <td className="px-6 py-5 font-bold text-slate-400 text-[10px]">{t.date ? new Date(t.date).toLocaleDateString() : 'N/A'}</td>
                                             <td className="px-6 py-5">
                                                 <p className="font-black text-slate-900 dark:text-white uppercase text-xs">{t.itemName}</p>
                                             </td>
@@ -2796,10 +2800,10 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                                                (issuanceSubTab === 'staff' && recipient?.role !== 'student') || 
                                                                (issuanceSubTab === 'student' && recipient?.role === 'student');
                                             
-                                            const matchesSearch = t.recipientOrSupplier?.toLowerCase().includes(issuanceSearch.toLowerCase()) || 
-                                                                t.itemName.toLowerCase().includes(issuanceSearch.toLowerCase());
-                                            const matchesStart = !issuanceStartDate || new Date(t.date) >= new Date(issuanceStartDate);
-                                            const matchesEnd = !issuanceEndDate || new Date(t.date) <= new Date(issuanceEndDate);
+                                            const matchesSearch = (t.recipientOrSupplier || '').toLowerCase().includes(issuanceSearch.toLowerCase()) || 
+                                                                (t.itemName || '').toLowerCase().includes(issuanceSearch.toLowerCase());
+                                            const matchesStart = !issuanceStartDate || (t.date && new Date(t.date) >= new Date(issuanceStartDate));
+                                            const matchesEnd = !issuanceEndDate || (t.date && new Date(t.date) <= new Date(issuanceEndDate));
                                             return matchesRole && matchesSearch && matchesStart && matchesEnd;
                                         }).map(t => {
                                             const recipient = users.find(u => u.id === t.recipientId);
@@ -2864,10 +2868,10 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                                                        (issuanceSubTab === 'staff' && recipient?.role !== 'student') || 
                                                                        (issuanceSubTab === 'student' && recipient?.role === 'student');
                                                     
-                                                    const matchesSearch = t.recipientOrSupplier?.toLowerCase().includes(issuanceSearch.toLowerCase()) || 
-                                                                        t.itemName.toLowerCase().includes(issuanceSearch.toLowerCase());
-                                                    const matchesStart = !issuanceStartDate || new Date(t.date) >= new Date(issuanceStartDate);
-                                                    const matchesEnd = !issuanceEndDate || new Date(t.date) <= new Date(issuanceEndDate);
+                                                    const matchesSearch = (t.recipientOrSupplier || '').toLowerCase().includes(issuanceSearch.toLowerCase()) || 
+                                                                        (t.itemName || '').toLowerCase().includes(issuanceSearch.toLowerCase());
+                                                    const matchesStart = !issuanceStartDate || (t.date && new Date(t.date) >= new Date(issuanceStartDate));
+                                                    const matchesEnd = !issuanceEndDate || (t.date && new Date(t.date) <= new Date(issuanceEndDate));
                                                     return matchesRole && matchesSearch && matchesStart && matchesEnd;
                                                 });
 
@@ -2906,7 +2910,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                                                     <span className="text-[8px] text-slate-300 font-black uppercase">None</span>
                                                                 )}
                                                             </td>
-                                                            <td className="px-6 py-5 text-right font-bold text-slate-400 text-[10px]">{new Date(t.date).toLocaleDateString()}</td>
+                                                            <td className="px-6 py-5 text-right font-bold text-slate-400 text-[10px]">{t.date ? new Date(t.date).toLocaleDateString() : 'N/A'}</td>
                                                         </tr>
                                                     );
                                                 })})()}
@@ -2959,11 +2963,11 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                 <button
                                     onClick={async () => {
                                         const filteredTxns = stockTransactions.filter(t => {
-                                            const matchesSearch = t.recipientOrSupplier?.toLowerCase().includes(statementSearch.toLowerCase()) || 
-                                                                t.itemName.toLowerCase().includes(statementSearch.toLowerCase());
+                                            const matchesSearch = (t.recipientOrSupplier || '').toLowerCase().includes(statementSearch.toLowerCase()) || 
+                                                                (t.itemName || '').toLowerCase().includes(statementSearch.toLowerCase());
                                             const matchesType = !statementType || t.type === statementType;
-                                            const matchesStart = !statementStartDate || new Date(t.date) >= new Date(statementStartDate);
-                                            const matchesEnd = !statementEndDate || new Date(t.date) <= new Date(statementEndDate);
+                                            const matchesStart = !statementStartDate || (t.date && new Date(t.date) >= new Date(statementStartDate));
+                                            const matchesEnd = !statementEndDate || (t.date && new Date(t.date) <= new Date(statementEndDate));
                                             return matchesSearch && matchesType && matchesStart && matchesEnd;
                                         });
                                         const dataUri = await generateInventoryStatementPdfDataUri(
@@ -2995,16 +2999,16 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                             {stockTransactions
                                                 .filter(t => {
-                                                    const matchesSearch = t.recipientOrSupplier?.toLowerCase().includes(statementSearch.toLowerCase()) || 
-                                                                        t.itemName.toLowerCase().includes(statementSearch.toLowerCase());
+                                                    const matchesSearch = (t.recipientOrSupplier || '').toLowerCase().includes(statementSearch.toLowerCase()) || 
+                                                                        (t.itemName || '').toLowerCase().includes(statementSearch.toLowerCase());
                                                     const matchesType = !statementType || t.type === statementType;
-                                                    const matchesStart = !statementStartDate || new Date(t.date) >= new Date(statementStartDate);
-                                                    const matchesEnd = !statementEndDate || new Date(t.date) <= new Date(statementEndDate);
+                                                    const matchesStart = !statementStartDate || (t.date && new Date(t.date) >= new Date(statementStartDate));
+                                                    const matchesEnd = !statementEndDate || (t.date && new Date(t.date) <= new Date(statementEndDate));
                                                     return matchesSearch && matchesType && matchesStart && matchesEnd;
                                                 })
                                                 .map(t => (
                                                     <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
-                                                        <td className="px-6 py-5 font-bold text-slate-400 text-[10px]">{new Date(t.date).toLocaleDateString()}</td>
+                                                        <td className="px-6 py-5 font-bold text-slate-400 text-[10px]">{t.date ? new Date(t.date).toLocaleDateString() : 'N/A'}</td>
                                                         <td className="px-6 py-5">
                                                             <p className="font-black text-slate-900 dark:text-white uppercase text-xs">{t.itemName}</p>
                                                         </td>
