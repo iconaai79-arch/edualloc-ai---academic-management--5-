@@ -1333,6 +1333,8 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     )}
                 </div>
             )}
+        </>
+        )}
 
             {/* Redesigned Modal */}
             {isAddModalOpen && (
@@ -1802,8 +1804,6 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     </div>
                 </div>
             )}
-        </>
-        )}
         </div>
     );
 }
