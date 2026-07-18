@@ -55,7 +55,8 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
 
                 const instData = insts[0] || null;
                 const currentUser = apiService.getSession();
-                const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+                const adminRoles = ['admin', 'super_admin', 'store_manager', 'store_keeper', 'principal', 'director', 'bursar'];
+                const isAdmin = adminRoles.includes(currentUser?.role || '') || isEducation;
                 const userAssignedStoreId = currentUser?.departmentId;
 
                 const filteredSales = isAdmin
