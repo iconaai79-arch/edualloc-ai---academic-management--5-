@@ -1829,26 +1829,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setIsSavingOtherIncome(true);
         try {
             const instId = props.institution.id;
-            let receiptNumber = `REC-INC-${Date.now()}`;
-            try {
-                const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
-                const receiptConfig = configs.find(c => c.documentType === 'receipt' || c.document_type === 'receipt');
-                if (receiptConfig) {
-                    const nextNum = Number(receiptConfig.nextNumber || receiptConfig.next_number || 1001);
-                    const prefix = receiptConfig.prefix || 'REC-';
-                    receiptNumber = `${prefix}${nextNum}`;
-                    
-                    await apiService.updateModuleRecord('finance_numbering_configs', receiptConfig.id, {
-                        ...receiptConfig,
-                        nextNumber: nextNum + 1,
-                        next_number: nextNum + 1,
-                        updatedAt: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    });
-                }
-            } catch (err) {
-                console.error("Failed to generate custom receipt number for other income:", err);
-            }
+            const receiptNumber = await apiService.getNextDocumentNumber(instId, 'receipt');
 
             const formattedPaidFor = `${otherIncomeCategory} - ${otherIncomeDescription || 'Miscellaneous Income'} (From ${otherIncomePayer})`;
             
@@ -2575,9 +2556,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             // 1. Post individual receipts for each student
             for (const alloc of bulkBursaryAllocations) {
                 if (!alloc.studentId || alloc.amount <= 0) continue;
+                const receiptNumber = await apiService.getNextDocumentNumber(instId, 'receipt');
                 const receipt = {
                     id: `rcpt_bursary_${Date.now()}_${alloc.studentId.slice(-4)}`,
-                    receiptNumber: `BUR-${Date.now().toString().slice(-6)}-${alloc.admNo || alloc.studentId.slice(-3)}`,
+                    receiptNumber: receiptNumber,
                     institutionId: instId,
                     studentId: alloc.studentId,
                     amountPaid: alloc.amount,
@@ -2651,10 +2633,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const amount = Number(bursaryAmount);
             const instId = props.institution.id;
 
+            const receiptNumber = await apiService.getNextDocumentNumber(instId, 'receipt');
+
             // 1. Save standard receipt to student ledger
             const receipt = {
                 id: `rcpt_bursary_${Date.now()}`,
-                receiptNumber: `B-${(props.companyDetails?.globalReceiptPrefix || 'RCPT-').trim()}${Date.now().toString().slice(-6)}`,
+                receiptNumber: receiptNumber,
                 institutionId: instId,
                 studentId: bursaryStudentId,
                 amountPaid: amount,
@@ -3474,7 +3458,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
                                             {paginatedReceipts.map(rec => {
                                                 const student = rec.studentId ? props.students.find(s => s.id === rec.studentId) : null;
-                                                const admNum = student?.admissionNumber || student?.admission_number || '—';
+                                                const enrollment = student ? enrollments.find(e => e.userId === student.id) : null;
+                                                const admNum = enrollment?.admissionNumber || enrollment?.admission_number || student?.admissionNumber || student?.admission_number || '—';
                                                 const studentName = student?.name || 'Unknown Student';
                                                 const gradeName = student ? studentClassGroup(student) : '—';
 
@@ -4040,30 +4025,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     try {
                                                                         // 1. Save Finance Receipt
                                                                         const instId = props.institution.id;
-                                                                        let receiptNumber = `REC-GOODS-${Date.now().toString().slice(-6)}`;
-                                                                        try {
-                                                                            const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
-                                                                            const receiptConfig = configs.find(c => c.documentType === 'receipt' || c.document_type === 'receipt');
-                                                                            if (receiptConfig) {
-                                                                                const nextNum = Number(receiptConfig.nextNumber || receiptConfig.next_number || 1001);
-                                                                                const prefix = receiptConfig.prefix || 'REC-';
-                                                                                receiptNumber = `${prefix}${nextNum}`;
-                                                                                
-                                                                                await apiService.updateModuleRecord('finance_numbering_configs', receiptConfig.id, {
-                                                                                    ...receiptConfig,
-                                                                                    nextNumber: nextNum + 1,
-                                                                                    next_number: nextNum + 1,
-                                                                                    updatedAt: new Date().toISOString(),
-                                                                                    updated_at: new Date().toISOString()
-                                                                                });
-                                                                            }
-                                                                        } catch (err) {
-                                                                            console.error("Failed to generate custom receipt number for Goods in Lieu:", err);
-                                                                        }
+                                                                        const receiptNumber = await apiService.getNextDocumentNumber(instId, 'receipt');
 
                                                                         const receipt = {
                                                                             id: `rcpt_goods_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
                                                                             receipt_number: receiptNumber,
+                                                                            receiptNumber: receiptNumber,
                                                                             institution_id: instId,
                                                                             payment_date: new Date().toISOString().split('T')[0],
                                                                             amount_paid: Number(p.totalValue),

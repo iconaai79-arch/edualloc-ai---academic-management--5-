@@ -176,6 +176,56 @@ export const apiService = {
             return stored ? JSON.parse(stored) : null;
         } catch (e) { return null; }
     },
+    async getNextDocumentNumber(instId: string, docType: string): Promise<string> {
+        try {
+            const numberingConfigs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+            let config = numberingConfigs.find((c: any) => c.documentType === docType || c.document_type === docType);
+            
+            const defaultPrefixes: Record<string, string> = {
+                invoice: 'INV-',
+                receipt: 'REC-',
+                payment_voucher: 'PV-',
+                credit_note: 'CN-',
+                debit_note: 'DN-',
+                goods_in_lieu: 'GIL-'
+            };
+
+            if (!config) {
+                const prefix = defaultPrefixes[docType] || 'DOC-';
+                config = {
+                    id: `num_cfg_${docType}_${instId}_${Date.now()}`,
+                    institutionId: instId,
+                    institution_id: instId,
+                    documentType: docType,
+                    document_type: docType,
+                    prefix: prefix,
+                    nextNumber: 1001,
+                    next_number: 1001,
+                    updatedAt: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('finance_numbering_configs', config).catch(() => {});
+            }
+
+            const nextNum = Number(config.nextNumber || config.next_number || 1001);
+            const prefix = config.prefix || defaultPrefixes[docType] || 'DOC-';
+            const formattedNum = `${prefix}${nextNum}`;
+
+            await apiService.updateModuleRecord('finance_numbering_configs', config.id, {
+                ...config,
+                nextNumber: nextNum + 1,
+                next_number: nextNum + 1,
+                updatedAt: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            }).catch(() => {});
+
+            return formattedNum;
+        } catch (err) {
+            console.error(`[apiService] Failed to get next document number for ${docType}:`, err);
+            const fallbackPrefix = docType === 'invoice' ? 'INV-' : docType === 'receipt' ? 'REC-' : 'DOC-';
+            return `${fallbackPrefix}${Date.now().toString().slice(-6)}`;
+        }
+    },
     async getAuthToken(): Promise<string> {
         // 1. Try Supabase session (JWT)
         if (_supabase) {
@@ -2267,27 +2317,7 @@ export const apiService = {
         const paidForText = params.paidForLabel || paidForParts.join(', ');
 
         const receiptId = `RCT_${Date.now()}_${Math.random().toString(36).substring(2,6)}`;
-        let receiptNumber = `RCT-${Date.now().toString().slice(-6)}`;
-
-        try {
-            const numberingConfigs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
-            const receiptConfig = numberingConfigs.find((c: any) => c.documentType === 'receipt' || c.document_type === 'receipt');
-            if (receiptConfig) {
-                const nextNum = Number(receiptConfig.nextNumber || receiptConfig.next_number || 1001);
-                const prefix = receiptConfig.prefix || 'REC-';
-                receiptNumber = `${prefix}${nextNum}`;
-                
-                await apiService.updateModuleRecord('finance_numbering_configs', receiptConfig.id, {
-                    ...receiptConfig,
-                    nextNumber: nextNum + 1,
-                    next_number: nextNum + 1,
-                    updatedAt: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                });
-            }
-        } catch (numErr) {
-            console.error("[apiService] Failed to generate custom receipt number:", numErr);
-        }
+        const receiptNumber = await apiService.getNextDocumentNumber(instId, 'receipt');
 
         // Save the single grouped receipt
         // Link to targetInvoiceId if provided, or the first invoice paid, or null if it's purely prepayment
