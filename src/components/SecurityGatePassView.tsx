@@ -55,6 +55,7 @@ interface SecurityGatePassViewProps {
     currentInstitution: Institution;
     onLogGateAction: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
     onAddVisitor?: (visitor: Omit<Visitor, 'id'>) => Promise<void> | void;
+    onCheckoutVisitor?: (id: string) => void | Promise<void>;
     courses?: Course[];
     eventPins?: any[];
     events?: any[];
@@ -64,8 +65,8 @@ interface SecurityGatePassViewProps {
 }
 
 export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
-    vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor, courses = [],
-    eventPins, events, teacherCheckIns = [], onTeacherGateCheckIn, initialTab
+    vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor, 
+    onCheckoutVisitor, courses = [], eventPins, events, teacherCheckIns = [], onTeacherGateCheckIn, initialTab
 }) => {
     const [activeTab, setActiveTab] = useState<'vehicle' | 'parent' | 'staff' | 'settings'>(initialTab || 'vehicle');
     const [activeUsers, setActiveUsers] = useState<User[]>(users);
@@ -232,8 +233,13 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 
     // Walk-in registration state
     const [showWalkInForm, setShowWalkInForm] = useState(false);
+    const [walkInCategory, setWalkInCategory] = useState<string>('parent');
     const [walkInName, setWalkInName] = useState('');
     const [walkInPhone, setWalkInPhone] = useState('');
+    const [walkInIdNumber, setWalkInIdNumber] = useState('');
+    const [walkInPurpose, setWalkInPurpose] = useState('');
+    const [walkInCompany, setWalkInCompany] = useState('');
+    const [walkInHostName, setWalkInHostName] = useState('');
     const [walkInGenerating, setWalkInGenerating] = useState(false);
 
     const fetchHistoryAndEvents = async () => {
@@ -734,47 +740,109 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const handleWalkInRegister = async () => {
         const name = walkInName.trim();
         const phone = walkInPhone.trim();
+        const idNo = walkInIdNumber.trim();
+        const purp = walkInPurpose.trim();
+        const comp = walkInCompany.trim();
+        const host = walkInHostName.trim();
+
         if (!name) { alert('Please enter the visitor\'s name.'); return; }
+        if (walkInCategory !== 'parent' && !idNo) { alert('ID / Passport Number is required for non-parent check-ins.'); return; }
+        if (walkInCategory !== 'parent' && !purp) { alert('Purpose of entry is required.'); return; }
+
         setWalkInGenerating(true);
         try {
-            // Create or find user
-            let parentUser: any = null;
-            if (phone) {
-                const existing = await apiService.fetchModuleRecords('users', currentInstitution.id, undefined, {
-                    filter: { role: 'parent' }
-                });
-                parentUser = existing.find((u: any) => {
-                    return phonesMatch(u.phoneNumber || u.phone_number || '', phone);
-                });
-            }
-            if (!parentUser) {
-                const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                parentUser = {
-                    id: newUserId,
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeInStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            if (walkInCategory === 'parent') {
+                // Original parent event PIN check-in workflow
+                let parentUser: any = null;
+                if (phone) {
+                    const existing = await apiService.fetchModuleRecords('users', currentInstitution.id, undefined, {
+                        filter: { role: 'parent' }
+                    });
+                    parentUser = existing.find((u: any) => phonesMatch(u.phoneNumber || u.phone_number || '', phone));
+                }
+                if (!parentUser) {
+                    const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    parentUser = {
+                        id: newUserId,
+                        name,
+                        phoneNumber: phone || null,
+                        role: 'parent',
+                        institutionId: currentInstitution.id,
+                        createdAt: new Date().toISOString()
+                    };
+                    await apiService.saveModuleRecord('users', parentUser);
+                }
+
+                const result = await autoGeneratePinForParent(parentUser);
+                if (!result) {
+                    alert('No upcoming events found to assign a pass. Please create an event first.');
+                    setWalkInGenerating(false);
+                    return;
+                }
+
+                setSelectedParent(parentUser);
+                setSelectedPin(result.pin);
+                setAssociatedEvent(result.event);
+                setSelectedStudent(null);
+                setShowWalkInForm(false);
+                setWalkInName('');
+                setWalkInPhone('');
+                await performVerificationAndPrint(result.pin, parentUser, result.event, null);
+            } else {
+                // General visitor workflow (e.g. casual construction worker, delivery, contractor)
+                const categoryLabels: Record<string, string> = {
+                    contractor: 'Construction Contractor',
+                    casual: 'Casual Worker',
+                    delivery: 'Supplier/Delivery',
+                    guest: 'Official Guest',
+                    other: 'General Walk-in'
+                };
+                const label = categoryLabels[walkInCategory] || 'Visitor';
+                const formattedPurpose = `[${label}] ${purp}${comp ? ` (Company: ${comp})` : ''}`;
+                
+                const newVisitor: Omit<Visitor, 'id'> = {
                     name,
                     phoneNumber: phone,
-                    role: 'parent',
+                    purpose: formattedPurpose,
+                    visitDate: dateStr,
+                    timeIn: timeInStr,
                     institutionId: currentInstitution.id,
-                    createdAt: new Date().toISOString()
+                    hostId: currentUser.id,
+                    hostName: host || 'Security Gate',
+                    idNumber: idNo,
+                    status: 'checked_in'
                 };
-                await apiService.saveModuleRecord('users', parentUser);
-            }
 
-            const result = await autoGeneratePinForParent(parentUser);
-            if (!result) {
-                alert('No upcoming events found to assign a pass. Please create an event first.');
-                setWalkInGenerating(false);
-                return;
-            }
+                if (onAddVisitor) {
+                    await onAddVisitor(newVisitor);
+                } else {
+                    const record = {
+                        ...newVisitor,
+                        id: `vis_${Date.now()}`
+                    };
+                    await apiService.saveModuleRecord('visitors', record);
+                }
 
-            setSelectedParent(parentUser);
-            setSelectedPin(result.pin);
-            setAssociatedEvent(result.event);
-            setSelectedStudent(null);
-            setShowWalkInForm(false);
-            setWalkInName('');
-            setWalkInPhone('');
-            await performVerificationAndPrint(result.pin, parentUser, result.event, null);
+                // Print the walk-in gatepass directly
+                printEposWalkInGatePass(
+                    newVisitor,
+                    { name: host || 'Security Gate', role: 'Staff' } as any,
+                    currentInstitution
+                );
+
+                alert(`${label} entry logged successfully! Gatepass sent to printer.`);
+                
+                setShowWalkInForm(false);
+                setWalkInName('');
+                setWalkInPhone('');
+                setWalkInIdNumber('');
+                setWalkInPurpose('');
+                setWalkInCompany('');
+                setWalkInHostName('');
+            }
         } catch (err: any) {
             alert(err.message || 'Failed to register walk-in visitor.');
         } finally {
@@ -1195,193 +1263,293 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     )}
                                 </div>
                             </div>
-                        ) : activeTab === 'parent' ? (
+                            ) : activeTab === 'parent' ? (
                             <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 dark:border-slate-850">
-                                <div className="relative mb-4">
-                                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                                    <input
-                                        type="text"
-                                        value={parentSearchTerm}
-                                        onChange={e => {
-                                            setParentSearchTerm(e.target.value);
-                                            if (e.target.value.length < 3) {
-                                                setSelectedParent(null);
-                                                setSelectedStudent(null);
-                                            }
-                                        }}
-                                        onKeyUp={e => {
-                                            if (e.key === 'Enter') handleSearchParent();
-                                        }}
-                                        className="w-full pl-12 pr-40 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:ring-2 focus:ring-purple-500 outline-none text-base font-bold h-14 transition-all"
-                                        placeholder="Adm No, Phone, or PIN..."
-                                    />
-                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                                        <button 
-                                            type="button"
-                                            onClick={() => setParentScanning(true)}
-                                            className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-purple-600 dark:text-purple-400 rounded-xl transition-all"
-                                            title="Scan QR Pass"
-                                        >
-                                            <QrCodeIcon className="w-5 h-5" />
-                                        </button>
-                                        <button 
-                                            onClick={() => handleSearchParent()}
-                                            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-xs uppercase transition-all shadow-md shadow-purple-600/10"
-                                        >
-                                            Search
-                                        </button>
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6 px-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase text-slate-850 dark:text-slate-200 tracking-wider">Parents & Guests Registry</h3>
+                                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider mt-1">Verify invite PINs or register construction / casual workers</p>
                                     </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowWalkInForm(v => !v);
+                                            setSelectedParent(null);
+                                            setSelectedStudent(null);
+                                            setParentSearchTerm('');
+                                        }}
+                                        className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                                    >
+                                        {showWalkInForm ? '✕ Close Form' : '➕ Authorize Walk-In'}
+                                    </button>
                                 </div>
-                                <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold uppercase tracking-wider mb-6 px-2">Verify event PIN or student registration records for gate entry</p>
-                                
-                                {parentSearchTerm.length === 0 && !selectedParent && (
-                                    <div className="text-center py-12 bg-slate-50/40 dark:bg-slate-950/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                                        <QrCodeIcon className="w-14 h-14 text-slate-350 dark:text-slate-750 mx-auto mb-4" />
-                                        <p className="text-sm text-slate-500 dark:text-slate-400 px-8 font-medium">Scan visitor/parent invitation card or enter PIN to begin</p>
-                                        <button
-                                            onClick={() => setParentScanning(true)}
-                                            className="mt-6 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-750 hover:to-pink-750 text-white rounded-xl font-black uppercase text-xs tracking-widest transition-all shadow-lg shadow-purple-600/15"
-                                        >
-                                            Scan Invitee QR
-                                        </button>
-                                    </div>
-                                )}
-                                
-                                {selectedParent && (
-                                    <div className="p-6 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-800/50 rounded-3xl animate-in fade-in slide-in-from-bottom-4 space-y-6">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-14 h-14 bg-gradient-to-tr from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-md">
-                                                    {selectedParent.name.charAt(0)}
-                                                </div>
-                                                <div className="text-left">
-                                                    <h4 className="font-black text-lg text-slate-900 dark:text-white leading-tight">{selectedParent.name}</h4>
-                                                    <p className="text-[10px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest mt-1">{selectedParent.phoneNumber || 'No Phone Number'}</p>
-                                                </div>
+
+                                {!showWalkInForm ? (
+                                    <>
+                                        <div className="relative mb-4">
+                                            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                                            <input
+                                                type="text"
+                                                value={parentSearchTerm}
+                                                onChange={e => {
+                                                    setParentSearchTerm(e.target.value);
+                                                    if (e.target.value.length < 3) {
+                                                        setSelectedParent(null);
+                                                        setSelectedStudent(null);
+                                                    }
+                                                }}
+                                                onKeyUp={e => {
+                                                    if (e.key === 'Enter') handleSearchParent();
+                                                }}
+                                                className="w-full pl-12 pr-40 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:ring-2 focus:ring-purple-500 outline-none text-base font-bold h-14 transition-all dark:text-white"
+                                                placeholder="Adm No, Phone, or PIN..."
+                                            />
+                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setParentScanning(true)}
+                                                    className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-purple-600 dark:text-purple-400 rounded-xl transition-all"
+                                                    title="Scan QR Pass"
+                                                >
+                                                    <QrCodeIcon className="w-5 h-5" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleSearchParent()}
+                                                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-xs uppercase transition-all shadow-md shadow-purple-600/10"
+                                                >
+                                                    Search
+                                                </button>
                                             </div>
-                                            <span className={`px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border ${
-                                                selectedPin && selectedPin.status === 'used'
-                                                    ? 'bg-red-500/10 text-red-650 border-red-500/20'
-                                                    : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                                            }`}>
-                                                {selectedPin && selectedPin.status === 'used' ? (
-                                                    <>
-                                                        <XCircleIcon className="w-3.5 h-3.5 animate-pulse" /> DUPLICATE / USED
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <CheckCircleIcon className="w-3.5 h-3.5" /> ACTIVE PASS
-                                                    </>
-                                                )}
-                                            </span>
                                         </div>
                                         
-                                        {selectedStudent && (
-                                            <div className="pt-4 border-t border-purple-200/50 dark:border-purple-800/40">
-                                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2.5">Associated Student</p>
-                                                <div className="flex items-center gap-3 p-3 bg-white/50 dark:bg-slate-950/40 rounded-xl border border-purple-200/30 dark:border-purple-850">
-                                                    <UserIcon className="w-5 h-5 text-slate-400" />
-                                                    <span className="text-xs font-black text-slate-750 dark:text-slate-300">{selectedStudent.name}</span>
-                                                    {(selectedStudent.admissionNumber || selectedStudent.admission_number) && (
-                                                        <span className="px-2.5 py-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-black rounded-lg ml-auto">
-                                                            {selectedStudent.admissionNumber || selectedStudent.admission_number}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                        {parentSearchTerm.length === 0 && !selectedParent && (
+                                            <div className="text-center py-12 bg-slate-50/40 dark:bg-slate-950/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                                                <QrCodeIcon className="w-14 h-14 text-slate-350 dark:text-slate-750 mx-auto mb-4" />
+                                                <p className="text-sm text-slate-500 dark:text-slate-400 px-8 font-medium">Scan visitor/parent invitation card or enter PIN to begin</p>
+                                                <button
+                                                    onClick={() => setParentScanning(true)}
+                                                    className="mt-6 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-750 hover:to-pink-750 text-white rounded-xl font-black uppercase text-xs tracking-widest transition-all shadow-lg shadow-purple-600/15"
+                                                >
+                                                    Scan Invitee QR
+                                                </button>
                                             </div>
                                         )}
-
-                                        {selectedPin && (
-                                            <div className="pt-4 border-t border-purple-200/50 dark:border-purple-800/40 space-y-4">
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Event Invitation</p>
-                                                        <p className="text-xs font-black text-slate-800 dark:text-white mt-1.5 leading-tight">{associatedEvent?.title || 'Institution Event'}</p>
-                                                    </div>
-                                                    
-                                                    {(selectedPin.vehicleRegistration || selectedPin.vehicle_registration) && (
-                                                        <div>
-                                                            <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vehicle Reg Plate</p>
-                                                            <span className="inline-block px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 rounded-lg text-xs font-bold mt-1.5 font-mono">
-                                                                {selectedPin.vehicleRegistration || selectedPin.vehicle_registration}
-                                                            </span>
+                                        
+                                        {selectedParent && (
+                                            <div className="p-6 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-800/50 rounded-3xl animate-in fade-in slide-in-from-bottom-4 space-y-6">
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-14 h-14 bg-gradient-to-tr from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-md">
+                                                            {selectedParent.name.charAt(0)}
                                                         </div>
-                                                    )}
-                                                </div>
-
-                                                <div>
-                                                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Accompanying Guests</p>
-                                                    <div className="mt-2 space-y-1">
-                                                        {(() => {
-                                                            try {
-                                                                const parsed = JSON.parse(selectedPin.guests || '[]');
-                                                                if (Array.isArray(parsed) && parsed.length > 0) {
-                                                                    return parsed.map((g: string, idx: number) => (
-                                                                        <div key={idx} className="text-xs text-slate-600 dark:text-slate-400 font-bold flex items-center gap-1.5">
-                                                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> {g}
-                                                                        </div>
-                                                                    ));
-                                                                }
-                                                            } catch (e) {}
-                                                            return <span className="text-xs text-slate-450 dark:text-slate-500 italic">No accompanying guests</span>;
-                                                        })()}
+                                                        <div className="text-left">
+                                                            <h4 className="font-black text-lg text-slate-900 dark:text-white leading-tight">{selectedParent.name}</h4>
+                                                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest mt-1">{selectedParent.phoneNumber || 'No Phone Number'}</p>
+                                                        </div>
                                                     </div>
+                                                    <span className={`px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border ${
+                                                        selectedPin && selectedPin.status === 'used'
+                                                            ? 'bg-red-500/10 text-red-650 border-red-500/20'
+                                                            : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                                                    }`}>
+                                                        {selectedPin && selectedPin.status === 'used' ? (
+                                                            <>
+                                                                <XCircleIcon className="w-3.5 h-3.5 animate-pulse" /> DUPLICATE / USED
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <CheckCircleIcon className="w-3.5 h-3.5" /> ACTIVE PASS
+                                                            </>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                
+                                                {selectedStudent && (
+                                                    <div className="pt-4 border-t border-purple-200/50 dark:border-purple-800/40">
+                                                        <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2.5">Associated Student</p>
+                                                        <div className="flex items-center gap-3 p-3 bg-white/50 dark:bg-slate-950/40 rounded-xl border border-purple-200/30 dark:border-purple-850">
+                                                            <UserIcon className="w-5 h-5 text-slate-400" />
+                                                            <span className="text-xs font-black text-slate-750 dark:text-slate-300">{selectedStudent.name}</span>
+                                                            {(selectedStudent.admissionNumber || selectedStudent.admission_number) && (
+                                                                <span className="px-2.5 py-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-black rounded-lg ml-auto">
+                                                                    {selectedStudent.admissionNumber || selectedStudent.admission_number}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {selectedPin && (
+                                                    <div className="pt-4 border-t border-purple-200/50 dark:border-purple-800/40 space-y-4">
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Event Invitation</p>
+                                                                <p className="text-xs font-black text-slate-800 dark:text-white mt-1.5 leading-tight">{associatedEvent?.title || 'Institution Event'}</p>
+                                                            </div>
+                                                            
+                                                            {(selectedPin.vehicleRegistration || selectedPin.vehicle_registration) && (
+                                                                <div>
+                                                                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vehicle Reg Plate</p>
+                                                                    <span className="inline-block px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 rounded-lg text-xs font-bold mt-1.5 font-mono">
+                                                                        {selectedPin.vehicleRegistration || selectedPin.vehicle_registration}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div>
+                                                            <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Accompanying Guests</p>
+                                                            <div className="mt-2 space-y-1">
+                                                                {(() => {
+                                                                    try {
+                                                                        const parsed = JSON.parse(selectedPin.guests || '[]');
+                                                                        if (Array.isArray(parsed) && parsed.length > 0) {
+                                                                            return parsed.map((g: string, idx: number) => (
+                                                                                <div key={idx} className="text-xs text-slate-600 dark:text-slate-400 font-bold flex items-center gap-1.5">
+                                                                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> {g}
+                                                                                </div>
+                                                                            ));
+                                                                        }
+                                                                    } catch (e) {}
+                                                                    return <span className="text-xs text-slate-450 dark:text-slate-500 italic">No accompanying guests</span>;
+                                                                })()}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="pt-4 border-t border-purple-200/50 dark:border-purple-800/40">
+                                                    <button
+                                                        onClick={handleVerifyParent}
+                                                        className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-650 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg transition-all active:scale-[0.98] cursor-pointer"
+                                                    >
+                                                        Confirm Verification & print pass
+                                                    </button>
                                                 </div>
                                             </div>
                                         )}
-                                    </div>
-                                )}
-                                
-                                {parentSearchTerm.length >= 3 && !selectedParent && (
-                                    <div className="space-y-6">
-                                        <div className="text-center py-6">
-                                            <UserGroupIcon className="w-14 h-14 text-slate-350 dark:text-slate-700 mx-auto mb-3" />
-                                            <p className="text-slate-500 dark:text-slate-450 font-black uppercase text-xs tracking-wider">Visitor Record Not Found</p>
-                                            <p className="text-slate-400 text-[11px] font-medium mt-1 mb-5">Create a quick gate pass record for this walk-in visitor.</p>
-                                            <button
-                                                onClick={() => setShowWalkInForm(v => !v)}
-                                                className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-md"
-                                            >
-                                                {showWalkInForm ? 'Cancel Registration' : '+ Register Walk-In Visitor'}
-                                            </button>
-                                        </div>
+                                        
+                                        {parentSearchTerm.length >= 3 && !selectedParent && (
+                                            <div className="text-center py-12">
+                                                <UserGroupIcon className="w-14 h-14 text-slate-350 dark:text-slate-750 mx-auto mb-3" />
+                                                <p className="text-slate-500 dark:text-slate-450 font-black uppercase text-xs tracking-wider">Visitor Record Not Found</p>
+                                                <p className="text-slate-400 text-[11px] font-medium mt-1 mb-5">Create a quick gate pass record for this walk-in visitor.</p>
+                                                <button
+                                                    onClick={() => setShowWalkInForm(true)}
+                                                    className="px-6 py-3 bg-purple-600 hover:bg-purple-755 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-md cursor-pointer"
+                                                >
+                                                    + Register Walk-In Visitor
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="p-6 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-800/50 rounded-3xl space-y-4 animate-in fade-in slide-in-from-bottom-4 text-left">
+                                        <h4 className="font-black text-sm uppercase text-purple-700 dark:text-purple-300 tracking-wider">Walk-In Registration</h4>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Visitor Category *</label>
+                                                <select
+                                                    value={walkInCategory}
+                                                    onChange={e => setWalkInCategory(e.target.value)}
+                                                    className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-purple-200/50 dark:border-purple-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
+                                                >
+                                                    <option value="parent">Parent / Guardian</option>
+                                                    <option value="contractor">Construction Contractor</option>
+                                                    <option value="casual">Casual Worker / Labourer</option>
+                                                    <option value="delivery">Supplier / Delivery Agent</option>
+                                                    <option value="guest">Official Guest / Inspector</option>
+                                                    <option value="other">Other / Walk-in Visitor</option>
+                                                </select>
+                                            </div>
 
-                                        {showWalkInForm && (
-                                            <div className="p-6 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-800/50 rounded-3xl space-y-4 animate-in fade-in slide-in-from-bottom-4 text-left">
-                                                <h4 className="font-black text-sm uppercase text-purple-700 dark:text-purple-300 tracking-wider">Walk-In Registration</h4>
-                                                <div className="space-y-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Full Name *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={walkInName}
+                                                        onChange={e => setWalkInName(e.target.value)}
+                                                        placeholder="Guest's first & last name"
+                                                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-purple-200/50 dark:border-purple-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Phone Number</label>
+                                                    <input
+                                                        type="tel"
+                                                        value={walkInPhone}
+                                                        onChange={e => setWalkInPhone(e.target.value)}
+                                                        placeholder="e.g. 0712 345 678"
+                                                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-purple-200/50 dark:border-purple-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {walkInCategory !== 'parent' && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-2">
                                                     <div>
-                                                        <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Full Name *</label>
+                                                        <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">National ID / Passport No *</label>
                                                         <input
                                                             type="text"
-                                                            value={walkInName}
-                                                            onChange={e => setWalkInName(e.target.value)}
-                                                            placeholder="Guest's first & last name"
-                                                            className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-purple-200/50 dark:border-purple-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                            value={walkInIdNumber}
+                                                            onChange={e => setWalkInIdNumber(e.target.value)}
+                                                            placeholder="Enter ID number"
+                                                            className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-purple-200/50 dark:border-purple-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Phone Number</label>
+                                                        <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Company / Contractor Name</label>
                                                         <input
-                                                            type="tel"
-                                                            value={walkInPhone}
-                                                            onChange={e => setWalkInPhone(e.target.value)}
-                                                            placeholder="e.g. 0712 345 678"
-                                                            className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-purple-200/50 dark:border-purple-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                            type="text"
+                                                            value={walkInCompany}
+                                                            onChange={e => setWalkInCompany(e.target.value)}
+                                                            placeholder="e.g. Apex Construction Ltd"
+                                                            className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-purple-200/50 dark:border-purple-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
                                                         />
                                                     </div>
                                                 </div>
-                                                <button
-                                                    onClick={handleWalkInRegister}
-                                                    disabled={walkInGenerating || !walkInName.trim()}
-                                                    className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-750 hover:to-pink-750 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-4 shadow-md shadow-purple-600/10"
-                                                >
-                                                    <CheckCircleIcon className="w-4 h-4" />
-                                                    {walkInGenerating ? 'Generating Pass...' : 'Register & Print Pass'}
-                                                </button>
-                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center font-bold uppercase tracking-wider mt-2.5">Pass prints automatically upon saving.</p>
-                                            </div>
-                                        )}
+                                            )}
+
+                                            {walkInCategory !== 'parent' && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-2">
+                                                    <div>
+                                                        <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Purpose of Entry *</label>
+                                                        <input
+                                                            type="text"
+                                                            value={walkInPurpose}
+                                                            onChange={e => setWalkInPurpose(e.target.value)}
+                                                            placeholder="e.g. Building expansion repairs"
+                                                            className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-purple-200/50 dark:border-purple-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Host / Attending Supervisor</label>
+                                                        <input
+                                                            type="text"
+                                                            value={walkInHostName}
+                                                            onChange={e => setWalkInHostName(e.target.value)}
+                                                            placeholder="Supervisor or department"
+                                                            className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-purple-200/50 dark:border-purple-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={handleWalkInRegister}
+                                            disabled={
+                                                walkInGenerating || 
+                                                !walkInName.trim() || 
+                                                (walkInCategory !== 'parent' && !walkInIdNumber.trim()) || 
+                                                (walkInCategory !== 'parent' && !walkInPurpose.trim())
+                                            }
+                                            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-750 hover:to-pink-750 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-4 shadow-md shadow-purple-600/10 cursor-pointer"
+                                        >
+                                            <CheckCircleIcon className="w-4 h-4" />
+                                            {walkInGenerating ? 'Generating Pass...' : 'Authorize Entry & Print Pass'}
+                                        </button>
+                                        <p className="text-[10px] text-slate-450 dark:text-slate-500 text-center font-bold uppercase tracking-wider mt-2.5">Pass prints automatically upon saving.</p>
                                     </div>
                                 )}
                             </div>
@@ -1696,78 +1864,157 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 transition-all"
                                                 title="Refresh Check-ins"
                                             >
-                                                <ArrowPathIcon className={`w-4.5 h-4.5 ${loadingHistory ? 'animate-spin' : ''}`} />
                                             </button>
                                         </div>
                                         <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar animate-in fade-in">
                                             {(() => {
                                                 const checkedInPins = allEventPins
                                                     .filter(p => p.status === 'used')
-                                                    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
-                                                    .slice(0, 10);
+                                                    .map(p => {
+                                                        const parent = activeUsers.find(u => u.id === p.userId);
+                                                        const parentName = parent?.name || 'Invited Guest';
+                                                        const event = allEvents.find(e => e.id === p.eventId);
+                                                        const student = activeUsers.find(u => 
+                                                            u.role === 'student' && (
+                                                                u.parentIds?.includes(p.userId) || 
+                                                                parent?.studentIds?.includes(u.id) || 
+                                                                phonesMatch((u as any).parentPhone || '', parent?.phoneNumber || '')
+                                                            )
+                                                        );
+                                                        return {
+                                                            type: 'pin' as const,
+                                                            id: p.id,
+                                                            time: p.updatedAt || p.createdAt || new Date().toISOString(),
+                                                            name: parentName,
+                                                            phoneNumber: parent?.phoneNumber || '',
+                                                            subtitle: `Pass PIN: ${p.pin}`,
+                                                            details: `Event: ${event?.title || 'Institution Event'}`,
+                                                            studentName: student?.name,
+                                                            status: 'checked_in',
+                                                            raw: p,
+                                                            rawParent: parent,
+                                                            rawEvent: event,
+                                                            rawStudent: student
+                                                        };
+                                                    });
 
-                                                if (checkedInPins.length === 0) {
+                                                const walkIns = (visitors || [])
+                                                    .map(v => {
+                                                        return {
+                                                            type: 'walkin' as const,
+                                                            id: v.id,
+                                                            time: `${v.visitDate || todayStr}T${v.timeIn || '00:00'}`,
+                                                            name: v.name || 'Walk-in Visitor',
+                                                            phoneNumber: v.phoneNumber || '',
+                                                            subtitle: v.idNumber ? `ID: ${v.idNumber}` : 'Walk-in Guest',
+                                                            details: v.purpose || 'General Entry',
+                                                            studentName: undefined,
+                                                            status: v.status || (v.timeOut ? 'checked_out' : 'checked_in'),
+                                                            raw: v,
+                                                            rawParent: undefined,
+                                                            rawEvent: undefined,
+                                                            rawStudent: undefined
+                                                        };
+                                                    });
+
+                                                const consolidated = [...checkedInPins, ...walkIns]
+                                                    .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+                                                    .slice(0, 15);
+
+                                                if (consolidated.length === 0) {
                                                     return (
                                                         <div className="text-center py-12">
                                                             <UserGroupIcon className="w-12 h-12 text-slate-350 dark:text-slate-750 mx-auto mb-2 animate-pulse" />
-                                                            <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">No guest activity logged today</p>
+                                                            <p className="text-slate-400 dark:text-slate-550 text-[10px] font-black uppercase tracking-widest">No guest activity logged today</p>
                                                         </div>
                                                     );
                                                 }
 
-                                                return checkedInPins.map(pin => {
-                                                    const parent = activeUsers.find(u => u.id === pin.userId);
-                                                    const parentName = parent?.name || 'Invited Guest';
-                                                    const event = allEvents.find(e => e.id === pin.eventId);
-                                                    const student = activeUsers.find(u => 
-                                                        u.role === 'student' && (
-                                                            u.parentIds?.includes(pin.userId) || 
-                                                            parent?.studentIds?.includes(u.id) || 
-                                                            phonesMatch((u as any).parentPhone || '', parent?.phoneNumber || '')
-                                                        )
-                                                    );
-
+                                                return consolidated.map(item => {
+                                                    const isCheckedIn = item.status === 'checked_in';
                                                     return (
-                                                        <div key={pin.id} className="p-4.5 rounded-2xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 space-y-3.5 transition-all shadow-sm">
+                                                        <div key={item.id} className="p-4.5 rounded-2xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 space-y-3.5 transition-all shadow-sm">
                                                             <div className="flex justify-between items-start">
                                                                 <div>
-                                                                    <p className="font-black text-sm text-slate-900 dark:text-white uppercase leading-tight">{parentName}</p>
-                                                                    <p className="text-[9px] text-purple-600 dark:text-purple-400 font-black uppercase tracking-widest mt-1">Pass PIN: {pin.pin}</p>
+                                                                    <p className="font-black text-sm text-slate-900 dark:text-white uppercase leading-tight">{item.name}</p>
+                                                                    <p className="text-[9px] text-purple-650 dark:text-purple-400 font-black uppercase tracking-widest mt-1">{item.subtitle}</p>
                                                                 </div>
-                                                                <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-lg border border-emerald-500/20">Authorized In</span>
+                                                                <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border ${
+                                                                    isCheckedIn 
+                                                                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-450 border-emerald-500/20' 
+                                                                        : 'bg-slate-200/50 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                                                                }`}>
+                                                                    {isCheckedIn ? 'Checked In' : 'Checked Out'}
+                                                                </span>
                                                             </div>
                                                             <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase space-y-1.5 leading-relaxed bg-white/50 dark:bg-slate-950/50 p-2.5 rounded-xl border border-slate-200/30 dark:border-slate-850">
-                                                                <p><span className="text-slate-400">Target Event:</span> {event?.title || 'Institution Event'}</p>
-                                                                {student && <p><span className="text-slate-400">Student:</span> {student.name}</p>}
+                                                                <p className="line-clamp-2"><span className="text-slate-400">Activity:</span> {item.details}</p>
+                                                                {item.studentName && <p><span className="text-slate-400">Student:</span> {item.studentName}</p>}
+                                                                {item.phoneNumber && <p><span className="text-slate-400">Contact:</span> {item.phoneNumber}</p>}
                                                             </div>
                                                             <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-800/80">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setSelectedPin(pin);
-                                                                        setSelectedParent(parent || {
-                                                                            id: pin.userId,
-                                                                            name: parentName,
-                                                                            phoneNumber: '',
-                                                                            role: 'parent',
-                                                                            institutionId: currentInstitution.id
-                                                                        } as any);
-                                                                        setAssociatedEvent(event || null);
-                                                                        setSelectedStudent(student || null);
-                                                                    }}
-                                                                    className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
-                                                                >
-                                                                    View Details
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        printEposGatePass(pin, parent || { name: parentName }, event || { title: 'Institution Event' }, currentInstitution);
-                                                                    }}
-                                                                    className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-750 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-md shadow-purple-500/10"
-                                                                >
-                                                                    <PrinterIcon className="w-3.5 h-3.5" /> Reprint Ticket
-                                                                </button>
+                                                                {item.type === 'pin' ? (
+                                                                    <>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setSelectedPin(item.raw);
+                                                                                setSelectedParent(item.rawParent || {
+                                                                                    id: item.raw.userId,
+                                                                                    name: item.name,
+                                                                                    phoneNumber: item.phoneNumber,
+                                                                                    role: 'parent',
+                                                                                    institutionId: currentInstitution.id
+                                                                                } as any);
+                                                                                setAssociatedEvent(item.rawEvent || null);
+                                                                                setSelectedStudent(item.rawStudent || null);
+                                                                            }}
+                                                                            className="flex-1 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                                                        >
+                                                                            View Details
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                printEposGatePass(item.raw, item.rawParent || { name: item.name }, item.rawEvent || { title: 'Institution Event' }, currentInstitution);
+                                                                            }}
+                                                                            className="flex-1 py-2 bg-purple-650 hover:bg-purple-750 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-md shadow-purple-500/10 cursor-pointer"
+                                                                        >
+                                                                            <PrinterIcon className="w-3.5 h-3.5" /> Reprint Ticket
+                                                                        </button>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        {isCheckedIn && onCheckoutVisitor && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={async () => {
+                                                                                    if (window.confirm(`Are you sure you want to check out ${item.name}?`)) {
+                                                                                        await onCheckoutVisitor(item.id);
+                                                                                        alert(`${item.name} checked out successfully.`);
+                                                                                        fetchHistoryAndEvents();
+                                                                                    }
+                                                                                }}
+                                                                                className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-md shadow-red-650/10 cursor-pointer"
+                                                                            >
+                                                                                Check Out
+                                                                            </button>
+                                                                        )}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                printEposWalkInGatePass(
+                                                                                    item.raw,
+                                                                                    { name: item.raw.hostName || 'Security Gate', role: 'Staff' } as any,
+                                                                                    currentInstitution
+                                                                                );
+                                                                            }}
+                                                                            className="flex-1 py-2 bg-purple-650 hover:bg-purple-750 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-md shadow-purple-550/10 cursor-pointer"
+                                                                        >
+                                                                            <PrinterIcon className="w-3.5 h-3.5" /> Reprint Ticket
+                                                                        </button>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     );

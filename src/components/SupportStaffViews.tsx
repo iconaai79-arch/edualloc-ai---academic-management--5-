@@ -910,6 +910,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     currentInstitution={props.currentInstitution!}
                     onLogGateAction={props.onLogGateAction!}
                     onAddVisitor={props.onAddVisitor}
+                    onCheckoutVisitor={onCheckoutVisitor}
                     courses={courses}
                     eventPins={eventPins}
                     events={institutionEvents}
@@ -928,6 +929,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     currentInstitution={props.currentInstitution!}
                     onLogGateAction={props.onLogGateAction!}
                     onAddVisitor={props.onAddVisitor}
+                    onCheckoutVisitor={onCheckoutVisitor}
                     courses={courses}
                     eventPins={eventPins}
                     events={institutionEvents}
@@ -974,7 +976,9 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     // Simplify purpose categorization
                     let cat = 'Other';
                     const lp = p.toLowerCase();
-                    if (lp.includes('meeting') || lp.includes('visit') || lp.includes('parent')) cat = 'Official Visit';
+                    if (lp.includes('casual') || lp.includes('labour')) cat = 'Casual Worker';
+                    else if (lp.includes('construction') || lp.includes('contractor') || lp.includes('building')) cat = 'Construction/Contractor';
+                    else if (lp.includes('meeting') || lp.includes('visit') || lp.includes('parent')) cat = 'Official Visit';
                     else if (lp.includes('delivery') || lp.includes('courier')) cat = 'Delivery/Courier';
                     else if (lp.includes('interview') || lp.includes('job')) cat = 'HR/Interview';
                     else if (lp.includes('event') || lp.includes('pin')) cat = 'School Event';
