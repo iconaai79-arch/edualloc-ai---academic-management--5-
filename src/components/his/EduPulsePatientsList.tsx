@@ -222,6 +222,7 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
     const [selectedStream, setSelectedStream] = useState<string>('All');
     const [sortBy, setSortBy] = useState<'name' | 'adm' | 'recent'>('name');
     const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+    const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
     const [notification, setNotification] = useState('');
 
     const gradeOptions = useMemo(() => {
@@ -467,6 +468,12 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                                     {/* Actions */}
                                     <td className="px-7 py-5 text-right space-x-2">
                                         <button
+                                            onClick={() => setHistoryPatient(p)}
+                                            className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-600 hover:text-white border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105"
+                                        >
+                                            📋 History
+                                        </button>
+                                        <button
                                             onClick={() => setEditingPatient(p)}
                                             className="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 border border-amber-200 dark:border-amber-700/30 text-amber-700 dark:text-amber-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105"
                                         >
@@ -548,13 +555,17 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                                 </div>
                             )}
 
-                            <div className="flex gap-3">
+                            <div className="flex gap-2 flex-wrap mt-4">
+                                <button onClick={() => setHistoryPatient(p)}
+                                    className="flex-1 min-w-[70px] py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all animate-pulse-subtle">
+                                    📋 History
+                                </button>
                                 <button onClick={() => setEditingPatient(p)}
-                                    className="flex-1 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30 text-amber-700 dark:text-amber-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
+                                    className="flex-1 min-w-[70px] py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30 text-amber-700 dark:text-amber-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
                                     ✏ Edit
                                 </button>
                                 <button onClick={() => onSelectPatient(p.id)}
-                                    className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
+                                    className="flex-1 min-w-[70px] py-3 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
                                     Open 360 →
                                 </button>
                             </div>
@@ -571,6 +582,421 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                     onSave={handleSaveEdit}
                 />
             )}
+
+            {/* History Modal */}
+            {historyPatient && (
+                <PatientHistoryModal
+                    patient={historyPatient}
+                    institutionId={institutionId}
+                    onClose={() => setHistoryPatient(null)}
+                />
+            )}
+        </div>
+    );
+};
+
+/* ─── Patient History Modal ─── */
+const PatientHistoryModal: React.FC<{
+    patient: Patient;
+    institutionId?: string;
+    onClose: () => void;
+}> = ({ patient, institutionId, onClose }) => {
+    const [loading, setLoading] = useState(false);
+    const [events, setEvents] = useState<any[]>([]);
+    const [vitals, setVitals] = useState<any[]>([]);
+    const [prescriptions, setPrescriptions] = useState<any[]>([]);
+    const [activeTab, setActiveTab] = useState<'timeline' | 'prescriptions'>('timeline');
+
+    useEffect(() => {
+        const loadHistory = async () => {
+            if (!patient.id || !institutionId) return;
+            setLoading(true);
+            try {
+                // Fetch clinical events
+                const evData = await apiService.fetchModuleRecords('his_clinical_events', institutionId, undefined, {
+                    filter: { patient_id: patient.id },
+                    order: 'created_at.desc'
+                });
+                
+                // Fetch vitals
+                const vtData = await apiService.fetchModuleRecords('his_vital_statistics', institutionId, undefined, {
+                    filter: { patient_id: patient.id },
+                    order: 'recorded_at.desc'
+                });
+
+                // Fetch prescriptions
+                const rxData = await apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, {
+                    filter: { patient_id: patient.id },
+                    order: 'created_at.desc'
+                });
+
+                // Fetch prescription items for each prescription
+                const rxWithItems = await Promise.all((rxData || []).map(async (rx: any) => {
+                    try {
+                        const items = await apiService.fetchModuleRecords('his_prescription_items', undefined, undefined, {
+                            filter: { prescription_id: rx.id }
+                        });
+                        return { ...rx, items: items || [] };
+                    } catch (e) {
+                        console.error(`Failed to fetch items for rx ${rx.id}:`, e);
+                        return { ...rx, items: [] };
+                    }
+                }));
+
+                setEvents(evData || []);
+                setVitals(vtData || []);
+                setPrescriptions(rxWithItems);
+            } catch (err) {
+                console.error("Failed to load patient history:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadHistory();
+    }, [patient.id, institutionId]);
+
+    // Group vitals by their recordedAt string
+    const groupedVitals = useMemo(() => {
+        const groups: Record<string, any[]> = {};
+        vitals.forEach(v => {
+            const time = v.recordedAt || v.recorded_at || '';
+            if (time) {
+                const minuteKey = time.substring(0, 16); 
+                if (!groups[minuteKey]) {
+                    groups[minuteKey] = [];
+                }
+                groups[minuteKey].push(v);
+            }
+        });
+        return groups;
+    }, [vitals]);
+
+    // Combine all history events chronologically
+    const timelineItems = useMemo(() => {
+        const items: any[] = [];
+
+        // 1. Add visits (clinical events)
+        events.forEach(e => {
+            const sortTs = `${e.date || ''}T${e.time || '00:00'}:00`;
+            items.push({
+                id: e.id,
+                type: 'visit',
+                timestamp: sortTs,
+                displayDate: e.date ? `${e.date} @ ${e.time || '—'}` : '—',
+                title: e.event || 'Clinical Consultation',
+                subtitle: `Department: ${e.dept || 'OPD / General'} · Attending: ${e.provider || 'Staff'}`,
+                raw: e
+            });
+        });
+
+        // 2. Add vitals
+        Object.entries(groupedVitals).forEach(([minuteKey, vitalsList]) => {
+            const timeSample = vitalsList[0]?.recordedAt || vitalsList[0]?.recorded_at || minuteKey;
+            items.push({
+                id: `vitals_${minuteKey}`,
+                type: 'vitals',
+                timestamp: timeSample,
+                displayDate: timeSample ? new Date(timeSample).toLocaleString() : '—',
+                title: 'Diagnostics & Vitals Update',
+                subtitle: 'Vital parameters logged',
+                raw: vitalsList
+            });
+        });
+
+        // 3. Add prescriptions
+        prescriptions.forEach(rx => {
+            const sortTs = rx.createdAt || rx.created_at || '';
+            items.push({
+                id: rx.id,
+                type: 'prescription',
+                timestamp: sortTs,
+                displayDate: sortTs ? new Date(sortTs).toLocaleString() : '—',
+                title: 'Medical Prescription Issued',
+                subtitle: `Prescribed by ${rx.doctorName || 'Doctor'}`,
+                raw: rx
+            });
+        });
+
+        return items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    }, [events, groupedVitals, prescriptions]);
+
+    const age = calcAge(patient.dob);
+
+    return (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-white/5 overflow-hidden max-h-[90vh] flex flex-col">
+                
+                {/* Header */}
+                <div className="p-7 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-gradient-to-r from-blue-600 to-indigo-600">
+                    <div>
+                        <h2 className="text-xl font-black text-white uppercase tracking-tighter italic flex items-center gap-2">
+                            📋 Clinical History <span className="text-blue-200">Dossier</span>
+                        </h2>
+                        <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest mt-1 opacity-80">
+                            Patient: {patient.fullName} · {patient.admissionNumber || (patient as any).admission_number || 'No Adm No'}
+                        </p>
+                    </div>
+                    <button onClick={onClose} className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Patient Overview Details Strip */}
+                <div className="bg-slate-50 dark:bg-white/5 px-7 py-4 border-b border-slate-100 dark:border-white/5 grid grid-cols-2 md:grid-cols-4 gap-4 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <div>
+                        <span className="text-slate-400 block mb-0.5">Demographics</span>
+                        <span className="text-slate-900 dark:text-white">{patient.gender} · {age ? `${age} Yrs` : 'DOB: ' + (patient.dob || '—')}</span>
+                    </div>
+                    <div>
+                        <span className="text-slate-400 block mb-0.5">Class / Stream</span>
+                        <span className="text-slate-900 dark:text-white">
+                            {patient.gradeLevel || (patient as any).grade_level || '—'} {patient.stream ? `• ${patient.stream}` : ''}
+                        </span>
+                    </div>
+                    <div>
+                        <span className="text-slate-400 block mb-0.5">Blood Group</span>
+                        <span className="text-slate-900 dark:text-white">{patient.bloodGroup || '—'}</span>
+                    </div>
+                    <div>
+                        <span className="text-slate-400 block mb-0.5">Allergies</span>
+                        <span className={patient.allergies ? 'text-rose-500' : 'text-slate-900 dark:text-white'}>
+                            {patient.allergies ? `⚠ ${patient.allergies}` : 'No known allergies'}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Tab Navigation */}
+                <div className="flex border-b border-slate-100 dark:border-white/5 px-7 bg-white dark:bg-slate-900">
+                    <button
+                        onClick={() => setActiveTab('timeline')}
+                        className={`py-4 px-6 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${
+                            activeTab === 'timeline'
+                                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-white'
+                        }`}
+                    >
+                        Timeline Flow
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('prescriptions')}
+                        className={`py-4 px-6 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${
+                            activeTab === 'prescriptions'
+                                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-white'
+                        }`}
+                    >
+                        Prescriptions Dossier
+                    </button>
+                </div>
+
+                {/* Scrollable Content Container */}
+                <div className="flex-1 overflow-y-auto p-7 bg-slate-50/50 dark:bg-slate-950/20">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Compiling medical history...</span>
+                        </div>
+                    ) : activeTab === 'timeline' ? (
+                        timelineItems.length === 0 ? (
+                            <div className="text-center py-20">
+                                <svg className="w-16 h-16 text-slate-300 dark:text-slate-700 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest italic">No clinical logs recorded yet.</p>
+                            </div>
+                        ) : (
+                            <div className="relative border-l-2 border-slate-200 dark:border-white/5 pl-8 ml-4 space-y-8">
+                                {timelineItems.map((item) => (
+                                    <div key={item.id} className="relative group">
+                                        
+                                        {/* Timeline Dot & Icon */}
+                                        <div className={`absolute -left-[50px] top-0 w-9 h-9 rounded-2xl flex items-center justify-center border shadow-md transition-transform group-hover:scale-110 ${
+                                            item.type === 'visit'
+                                                ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400'
+                                                : item.type === 'vitals'
+                                                ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/30 text-rose-600 dark:text-rose-400'
+                                                : 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400'
+                                        }`}>
+                                            {item.type === 'visit' && (
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                                </svg>
+                                            )}
+                                            {item.type === 'vitals' && (
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                                </svg>
+                                            )}
+                                            {item.type === 'prescription' && (
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547" />
+                                                </svg>
+                                            )}
+                                        </div>
+
+                                        {/* Card content */}
+                                        <div className="bg-white dark:bg-slate-900/50 rounded-[2rem] border border-slate-200 dark:border-white/5 p-6 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-3">
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{item.displayDate}</span>
+                                                <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
+                                                    item.type === 'visit'
+                                                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                                                        : item.type === 'vitals'
+                                                        ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                                                        : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                                                }`}>
+                                                    {item.type}
+                                                </span>
+                                            </div>
+
+                                            <h3 className="text-sm font-black uppercase italic tracking-tight text-slate-900 dark:text-white">{item.title}</h3>
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider mt-0.5">{item.subtitle}</p>
+
+                                            {/* Details inside cards */}
+                                            {item.type === 'visit' && (
+                                                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5">
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Observation / Diagnosis</p>
+                                                    <p className="text-xs text-slate-900 dark:text-slate-200 font-bold bg-slate-50 dark:bg-white/5 p-3 rounded-xl italic">
+                                                        {item.raw.event}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {item.type === 'vitals' && (
+                                                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                    {item.raw.map((v: any, idx: number) => (
+                                                        <div key={idx} className="bg-slate-50 dark:bg-white/5 p-3 rounded-2xl border border-slate-100 dark:border-white/5 flex flex-col justify-center">
+                                                            <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1">{v.label}</span>
+                                                            <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+                                                                {v.value} <span className="text-[9px] font-bold text-slate-400">{v.unit}</span>
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {item.type === 'prescription' && (
+                                                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 space-y-3">
+                                                    {item.raw.notes && (
+                                                        <div>
+                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Clinician Notes</p>
+                                                            <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300 italic">"{item.raw.notes}"</p>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    <div>
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Prescribed Medications</p>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                            {item.raw.items && item.raw.items.map((med: any, idx: number) => (
+                                                                <div key={idx} className="bg-slate-50 dark:bg-white/5 p-3 rounded-2xl border border-slate-100 dark:border-white/5 flex items-center justify-between">
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase">{med.drugName}</p>
+                                                                        <p className="text-[9px] text-slate-400 mt-0.5">{med.dosage} · {med.frequency} · {med.duration}</p>
+                                                                    </div>
+                                                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-lg border border-indigo-500/20">
+                                                                        QTY: {med.quantity}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    ) : (
+                        // Prescriptions Dossier list
+                        prescriptions.length === 0 ? (
+                            <div className="text-center py-20">
+                                <svg className="w-16 h-16 text-slate-300 dark:text-slate-700 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547" />
+                                </svg>
+                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest italic">No medication prescriptions given.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {prescriptions.map((rx) => (
+                                    <div key={rx.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-[2.5rem] p-7 shadow-md">
+                                        <div className="flex justify-between items-start md:items-center flex-col md:flex-row gap-2 border-b border-slate-100 dark:border-white/5 pb-4 mb-4">
+                                            <div>
+                                                <h3 className="text-xs font-black uppercase text-indigo-600 dark:text-indigo-400">Prescription Reference: {rx.id}</h3>
+                                                <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-0.5">
+                                                    Issued on {rx.createdAt || rx.created_at ? new Date(rx.createdAt || rx.created_at).toLocaleString() : '—'}
+                                                </p>
+                                            </div>
+                                            <div className="flex gap-2 items-center">
+                                                <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest bg-slate-50 dark:bg-white/5 px-3 py-1 rounded-full border border-slate-200/50 dark:border-white/10">
+                                                    Dr. {rx.doctorName || 'Physician'}
+                                                </span>
+                                                <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
+                                                    rx.status === 'dispensed'
+                                                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                                                        : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                                }`}>
+                                                    {rx.status}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {rx.notes && (
+                                            <div className="mb-4">
+                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Prescription Notes</span>
+                                                <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300 italic bg-slate-50 dark:bg-white/5 p-3.5 rounded-2xl border border-slate-100 dark:border-white/5">
+                                                    "{rx.notes}"
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        <div>
+                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Medication Line Items</span>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {rx.items && rx.items.map((med: any, idx: number) => (
+                                                    <div key={idx} className="bg-slate-50 dark:bg-white/5 p-4 rounded-[2rem] border border-slate-100 dark:border-white/5 flex items-center justify-between">
+                                                        <div className="space-y-1">
+                                                            <p className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight">{med.drugName}</p>
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
+                                                                    Dosage: {med.dosage}
+                                                                </span>
+                                                                <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded">
+                                                                    {med.frequency}
+                                                                </span>
+                                                                <span className="text-[8px] font-black text-purple-500 uppercase tracking-widest bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded">
+                                                                    {med.duration}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-[10px] font-black text-slate-900 dark:text-white block">QTY: {med.quantity}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="p-7 bg-slate-50 dark:bg-white/5 border-t border-slate-100 dark:border-white/5 flex justify-end">
+                    <button
+                        onClick={onClose}
+                        className="px-8 py-3.5 bg-slate-900 dark:bg-white/5 text-white dark:text-slate-300 hover:bg-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                    >
+                        Close dossier
+                    </button>
+                </div>
+
+            </div>
         </div>
     );
 };
