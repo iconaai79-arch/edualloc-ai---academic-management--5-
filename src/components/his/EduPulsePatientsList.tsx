@@ -41,7 +41,12 @@ const EditPatientModal: React.FC<{
     onClose: () => void;
     onSave: (updated: Patient) => Promise<void>;
 }> = ({ patient, onClose, onSave }) => {
-    const [formData, setFormData] = useState({ ...patient });
+    const [formData, setFormData] = useState({
+        ...patient,
+        admissionNumber: patient.admissionNumber || (patient as any).admission_number || '',
+        gradeLevel: patient.gradeLevel || (patient as any).grade_level || '',
+        stream: patient.stream || ''
+    });
     const [isSaving, setIsSaving] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -71,7 +76,7 @@ const EditPatientModal: React.FC<{
                             Edit <span className="text-indigo-200">Student Record</span>
                         </h2>
                         <p className="text-[9px] font-black text-indigo-100 uppercase tracking-widest mt-1 opacity-80">
-                            Adm No: {patient.admissionNumber || 'N/A'}
+                            Adm No: {patient.admissionNumber || (patient as any).admission_number || 'N/A'}
                         </p>
                     </div>
                     <button onClick={onClose} className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all">
@@ -222,7 +227,8 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
     const gradeOptions = useMemo(() => {
         const grades = new Set<string>();
         patients.forEach(p => {
-            if (p.gradeLevel) grades.add(p.gradeLevel);
+            const grade = p.gradeLevel || (p as any).grade_level;
+            if (grade) grades.add(grade);
         });
         return ['All', ...Array.from(grades).sort()];
     }, [patients]);
@@ -239,18 +245,24 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
         return patients
             .filter(p => {
                 const q = searchTerm.toLowerCase();
+                const adm = p.admissionNumber || (p as any).admission_number || '';
+                const grade = p.gradeLevel || (p as any).grade_level || '';
                 const matchesSearch = !q
                     || p.fullName.toLowerCase().includes(q)
-                    || (p.admissionNumber || '').toLowerCase().includes(q)
+                    || adm.toLowerCase().includes(q)
                     || (p.contact || '').includes(q);
                 const matchesGender = genderFilter === 'All' || p.gender === genderFilter;
-                const matchesGrade = selectedGrade === 'All' || p.gradeLevel === selectedGrade;
+                const matchesGrade = selectedGrade === 'All' || grade === selectedGrade;
                 const matchesStream = selectedStream === 'All' || p.stream === selectedStream;
                 return matchesSearch && matchesGender && matchesGrade && matchesStream;
             })
             .sort((a, b) => {
                 if (sortBy === 'name') return a.fullName.localeCompare(b.fullName);
-                if (sortBy === 'adm') return (a.admissionNumber || '').localeCompare(b.admissionNumber || '');
+                if (sortBy === 'adm') {
+                    const admA = a.admissionNumber || (a as any).admission_number || '';
+                    const admB = b.admissionNumber || (b as any).admission_number || '';
+                    return admA.localeCompare(admB);
+                }
                 if (sortBy === 'recent') return (b.createdAt || '').localeCompare(a.createdAt || '');
                 return 0;
             });
@@ -401,9 +413,9 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                                             <div>
                                                 <p className="text-sm font-black italic tracking-tight text-slate-900 dark:text-white">{p.fullName}</p>
                                                 <div className="flex gap-1.5 mt-0.5 flex-wrap items-center">
-                                                    {p.gradeLevel && (
+                                                    {(p.gradeLevel || (p as any).grade_level) && (
                                                         <span className="text-[8px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/30 inline-block">
-                                                            {p.gradeLevel} {p.stream ? `• ${p.stream}` : ''}
+                                                            {p.gradeLevel || (p as any).grade_level} {p.stream ? `• ${p.stream}` : ''}
                                                         </span>
                                                     )}
                                                     {p.allergies && (
@@ -419,7 +431,7 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                                     {/* Adm No */}
                                     <td className="px-7 py-5">
                                         <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/30 px-3 py-1 rounded-full border border-indigo-200/50 dark:border-indigo-800/30">
-                                            {p.admissionNumber || '—'}
+                                            {p.admissionNumber || (p as any).admission_number || '—'}
                                         </span>
                                     </td>
 
@@ -498,11 +510,11 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                                         <h4 className="text-sm font-black uppercase italic text-slate-900 dark:text-white">{p.fullName}</h4>
                                         <div className="flex gap-2 items-center mt-1">
                                             <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                                                {p.admissionNumber || 'No Adm No'}
+                                                {p.admissionNumber || (p as any).admission_number || 'No Adm No'}
                                             </span>
-                                            {p.gradeLevel && (
+                                            {(p.gradeLevel || (p as any).grade_level) && (
                                                 <span className="text-[8px] font-black text-indigo-500 dark:text-indigo-300 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
-                                                    {p.gradeLevel} {p.stream ? `• ${p.stream}` : ''}
+                                                    {p.gradeLevel || (p as any).grade_level} {p.stream ? `• ${p.stream}` : ''}
                                                 </span>
                                             )}
                                         </div>
