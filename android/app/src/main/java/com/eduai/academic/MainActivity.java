@@ -12,8 +12,8 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Register local print plugin
-        registerPlugin(PrintPlugin.class);
+        // Register local plugins
+        this.registerPlugin(PrintPlugin.class);
         
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
