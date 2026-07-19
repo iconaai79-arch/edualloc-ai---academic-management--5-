@@ -239,6 +239,8 @@ CREATE TABLE IF NOT EXISTS his_patients (
     medical_history JSONB,
     allergies JSONB,
     admission_number TEXT,
+    grade_level TEXT,
+    stream TEXT,
     status TEXT DEFAULT 'Active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

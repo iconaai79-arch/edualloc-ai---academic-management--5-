@@ -3384,6 +3384,8 @@ export interface HISPatient {
     recordedBy?: string;
     admissionNumber?: string;
     admission_number?: string;
+    gradeLevel?: string;
+    stream?: string;
     createdAt?: string;
     updatedAt?: string;
 }

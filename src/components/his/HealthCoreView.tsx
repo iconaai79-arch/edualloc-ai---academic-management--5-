@@ -163,8 +163,10 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 }
             }
         };
-        // Auto-migrate to add admission_number column to public.his_patients if not exists
+        // Auto-migrate to add columns to public.his_patients if not exists
         apiService.runMigration("ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS admission_number text;").catch(() => {});
+        apiService.runMigration("ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS grade_level text;").catch(() => {});
+        apiService.runMigration("ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS stream text;").catch(() => {});
         loadInst();
         fetchAllWellnessData();
     }, [institutionId, fetchAllWellnessData]);

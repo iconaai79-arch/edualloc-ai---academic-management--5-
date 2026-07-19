@@ -22,6 +22,8 @@ interface Patient {
     emergencyContactPhone?: string;
     allergies?: string;
     institutionId?: string;
+    gradeLevel?: string;
+    stream?: string;
     createdAt?: string;
 }
 
@@ -91,6 +93,22 @@ const EditPatientModal: React.FC<{
                             <label className={labelCls}>Admission Number</label>
                             <input type="text" placeholder="ADM-0001" value={formData.admissionNumber || ''}
                                 onChange={e => setFormData(p => ({ ...p, admissionNumber: e.target.value }))}
+                                className={inputCls} />
+                        </div>
+                    </div>
+
+                    {/* Row: Grade Level & Stream */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className={labelCls}>Grade Level / Class</label>
+                            <input type="text" placeholder="FORM 3" value={formData.gradeLevel || ''}
+                                onChange={e => setFormData(p => ({ ...p, gradeLevel: e.target.value }))}
+                                className={inputCls} />
+                        </div>
+                        <div>
+                            <label className={labelCls}>Stream</label>
+                            <input type="text" placeholder="BLUE" value={formData.stream || ''}
+                                onChange={e => setFormData(p => ({ ...p, stream: e.target.value }))}
                                 className={inputCls} />
                         </div>
                     </div>
@@ -195,9 +213,27 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [genderFilter, setGenderFilter] = useState<'All' | 'Male' | 'Female'>('All');
+    const [selectedGrade, setSelectedGrade] = useState<string>('All');
+    const [selectedStream, setSelectedStream] = useState<string>('All');
     const [sortBy, setSortBy] = useState<'name' | 'adm' | 'recent'>('name');
     const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
     const [notification, setNotification] = useState('');
+
+    const gradeOptions = useMemo(() => {
+        const grades = new Set<string>();
+        patients.forEach(p => {
+            if (p.gradeLevel) grades.add(p.gradeLevel);
+        });
+        return ['All', ...Array.from(grades).sort()];
+    }, [patients]);
+
+    const streamOptions = useMemo(() => {
+        const streams = new Set<string>();
+        patients.forEach(p => {
+            if (p.stream) streams.add(p.stream);
+        });
+        return ['All', ...Array.from(streams).sort()];
+    }, [patients]);
 
     const filtered = useMemo(() => {
         return patients
@@ -208,7 +244,9 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                     || (p.admissionNumber || '').toLowerCase().includes(q)
                     || (p.contact || '').includes(q);
                 const matchesGender = genderFilter === 'All' || p.gender === genderFilter;
-                return matchesSearch && matchesGender;
+                const matchesGrade = selectedGrade === 'All' || p.gradeLevel === selectedGrade;
+                const matchesStream = selectedStream === 'All' || p.stream === selectedStream;
+                return matchesSearch && matchesGender && matchesGrade && matchesStream;
             })
             .sort((a, b) => {
                 if (sortBy === 'name') return a.fullName.localeCompare(b.fullName);
@@ -216,7 +254,7 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                 if (sortBy === 'recent') return (b.createdAt || '').localeCompare(a.createdAt || '');
                 return 0;
             });
-    }, [patients, searchTerm, genderFilter, sortBy]);
+    }, [patients, searchTerm, genderFilter, selectedGrade, selectedStream, sortBy]);
 
     const handleSaveEdit = async (updated: Patient) => {
         await apiService.saveModuleRecord('his_patients', { ...updated, institutionId });
@@ -284,6 +322,24 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                     ))}
                 </div>
 
+                {/* Class filter */}
+                <select value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}
+                    className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none min-w-[120px]">
+                    <option value="All">All Classes</option>
+                    {gradeOptions.filter(g => g !== 'All').map(g => (
+                        <option key={g} value={g}>{g}</option>
+                    ))}
+                </select>
+
+                {/* Stream filter */}
+                <select value={selectedStream} onChange={e => setSelectedStream(e.target.value)}
+                    className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none min-w-[120px]">
+                    <option value="All">All Streams</option>
+                    {streamOptions.filter(s => s !== 'All').map(s => (
+                        <option key={s} value={s}>{s}</option>
+                    ))}
+                </select>
+
                 {/* Sort */}
                 <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
                     className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none">
@@ -344,11 +400,18 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                                             </div>
                                             <div>
                                                 <p className="text-sm font-black italic tracking-tight text-slate-900 dark:text-white">{p.fullName}</p>
-                                                {p.allergies && (
-                                                    <span className="text-[8px] font-black text-rose-500 uppercase tracking-wider bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/30 px-1.5 py-0.5 rounded mt-0.5 inline-block">
-                                                        ⚠ {p.allergies.slice(0, 20)}{p.allergies.length > 20 ? '…' : ''}
-                                                    </span>
-                                                )}
+                                                <div className="flex gap-1.5 mt-0.5 flex-wrap items-center">
+                                                    {p.gradeLevel && (
+                                                        <span className="text-[8px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/30 inline-block">
+                                                            {p.gradeLevel} {p.stream ? `• ${p.stream}` : ''}
+                                                        </span>
+                                                    )}
+                                                    {p.allergies && (
+                                                        <span className="text-[8px] font-black text-rose-500 uppercase tracking-wider bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/30 px-1.5 py-0.5 rounded inline-block">
+                                                            ⚠ {p.allergies.slice(0, 20)}{p.allergies.length > 20 ? '…' : ''}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </td>
@@ -433,9 +496,16 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                                     </div>
                                     <div>
                                         <h4 className="text-sm font-black uppercase italic text-slate-900 dark:text-white">{p.fullName}</h4>
-                                        <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                                            {p.admissionNumber || 'No Adm No'}
-                                        </span>
+                                        <div className="flex gap-2 items-center mt-1">
+                                            <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                                                {p.admissionNumber || 'No Adm No'}
+                                            </span>
+                                            {p.gradeLevel && (
+                                                <span className="text-[8px] font-black text-indigo-500 dark:text-indigo-300 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
+                                                    {p.gradeLevel} {p.stream ? `• ${p.stream}` : ''}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${genderColor(p.gender)}`}>

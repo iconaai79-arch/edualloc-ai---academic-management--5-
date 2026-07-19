@@ -43,6 +43,8 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
         emergencyContactPhone: '',
         admissionNumber: '',
         allergies: '', // Newly suggested medical field
+        gradeLevel: '',
+        stream: '',
     });
 
     const [directorySearch, setDirectorySearch] = useState('');
@@ -79,6 +81,8 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
             allergies: Array.isArray(user.metadata?.allergies) 
                 ? user.metadata.allergies.join(', ') 
                 : (user.metadata?.allergies || ''),
+            gradeLevel: user.metadata?.gradeLevel || user.metadata?.class_level || '',
+            stream: user.metadata?.stream || '',
         });
         setIsAutoFilled(true);
         setDirectorySearch('');
@@ -97,6 +101,8 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
             emergencyContactPhone: '',
             admissionNumber: '',
             allergies: '',
+            gradeLevel: '',
+            stream: '',
         });
         setIsAutoFilled(false);
         setCurrentStep(1);
@@ -300,19 +306,49 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
                                 </div>
 
                                 {isEdu && (
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Admission Number</label>
-                                        <div className="relative group">
-                                            <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                            <input
-                                                type="text"
-                                                placeholder="E.G. ADM-1234"
-                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
-                                                value={formData.admissionNumber}
-                                                onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
-                                            />
+                                    <>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Admission Number</label>
+                                            <div className="relative group">
+                                                <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="E.G. ADM-1234"
+                                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                    value={formData.admissionNumber}
+                                                    onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Grade Level / Class</label>
+                                            <div className="relative group">
+                                                <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="E.G. FORM 3"
+                                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                    value={formData.gradeLevel}
+                                                    onChange={e => setFormData({ ...formData, gradeLevel: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Stream</label>
+                                            <div className="relative group">
+                                                <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="E.G. BLUE"
+                                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                    value={formData.stream}
+                                                    onChange={e => setFormData({ ...formData, stream: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         </div>
