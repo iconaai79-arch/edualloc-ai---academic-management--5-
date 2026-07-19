@@ -37,6 +37,7 @@ import { EmergencyTransferModal } from './EmergencyTransferModal';
 import { LabDiagnosticsView } from './LabDiagnosticsView';
 import { ModernPharmacyManager } from './ModernPharmacyManager';
 import { PharmacyView } from './PharmacyView';
+import { EduPulseHomeDashboard } from './EduPulseHomeDashboard';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
@@ -70,6 +71,26 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
     // EduPulse sidebar: track which primary nav item is active independently
     const [eduSidebarItem, setEduSidebarItem] = useState<string>('home');
+    const [allClinicalEvents, setAllClinicalEvents] = useState<any[]>([]);
+    const [allAppointments, setAllAppointments] = useState<any[]>([]);
+
+    const fetchAllWellnessData = React.useCallback(async () => {
+        if (!institutionId) return;
+        try {
+            const events = await apiService.fetchModuleRecords('his_clinical_events', institutionId);
+            const apps = await apiService.fetchModuleRecords('his_appointments', institutionId);
+            setAllClinicalEvents(events || []);
+            setAllAppointments(apps || []);
+        } catch (error) {
+            console.error("Failed to load aggregate wellness data:", error);
+        }
+    }, [institutionId]);
+
+    React.useEffect(() => {
+        if (eduSidebarItem === 'home') {
+            fetchAllWellnessData();
+        }
+    }, [eduSidebarItem, fetchAllWellnessData]);
 
     const handlePrintOphthalRx = async (od: any, os: any) => {
         if (!activePatient) {
@@ -144,7 +165,8 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
         // Auto-migrate to add admission_number column to public.his_patients if not exists
         apiService.runMigration("ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS admission_number text;").catch(() => {});
         loadInst();
-    }, [institutionId]);
+        fetchAllWellnessData();
+    }, [institutionId, fetchAllWellnessData]);
 
     const demoData = React.useMemo(() => {
         return institutionId ? generateInstitutionalDemoData(institutionId, 'admin') : null;
@@ -325,6 +347,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
             alert("Clinical record saved successfully");
             setIsAddVisitOpen(false);
             fetchPatientData();
+            fetchAllWellnessData();
         } catch (error) {
             console.error(error);
             alert("Record saving failed");
@@ -384,7 +407,13 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             return (
                                 <button
                                     key={item.id}
-                                    onClick={() => { setActiveModule(item.module); setEduSidebarItem(item.id); }}
+                                    onClick={() => { 
+                                        setActiveModule(item.module); 
+                                        setEduSidebarItem(item.id); 
+                                        if (item.id === 'home') {
+                                            setActivePatientId(null);
+                                        }
+                                    }}
                                     className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left transition-all duration-200 group ${
                                         isActive
                                             ? 'bg-white/20 text-white shadow-lg shadow-black/10'
@@ -578,7 +607,27 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 blur-[120px] rounded-full -mr-64 -mt-64"></div>
                     {(() => {
                         switch (activeModule) {
-                            case 'general': return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} onOpenTransferLetter={() => setIsTransferModalOpen(true)} />;
+                            case 'general': 
+                                if (isEdu && eduSidebarItem === 'home' && !activePatient) {
+                                    return (
+                                        <EduPulseHomeDashboard 
+                                            patients={patients} 
+                                            clinicalEvents={allClinicalEvents} 
+                                            appointments={allAppointments} 
+                                            onRegisterPatient={() => setIsRegisterModalOpen(true)} 
+                                            onAddVisit={() => setIsAddVisitOpen(true)} 
+                                            onScheduleAppointment={() => {
+                                                setActiveModule('appointments');
+                                                setEduSidebarItem('appointment');
+                                            }} 
+                                            onSelectPatient={(pId) => {
+                                                setActivePatientId(pId);
+                                                setEduSidebarItem('patients');
+                                            }}
+                                        />
+                                    );
+                                }
+                                return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} onOpenTransferLetter={() => setIsTransferModalOpen(true)} />;
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
                             case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} activePatientId={activePatientId} />;
                             case 'pharmacy': return <PharmacyView institutionId={institutionId} />;
