@@ -9,11 +9,11 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        // Register local print plugin BEFORE super.onCreate
-        registerPlugin(PrintPlugin.class);
-        
+    public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Register local print plugin
+        this.registerPlugin(PrintPlugin.class);
+        
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         
@@ -22,13 +22,13 @@ public class MainActivity extends BridgeActivity {
 
     private void createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Channel 1: Academic Updates
-            NotificationChannel academicChannel = new NotificationChannel(
-                    "academic_updates",
+            // Channel 1: Automation Updates
+            NotificationChannel automationChannel = new NotificationChannel(
+                    "automation_updates",
                     getString(R.string.channel_academic_updates_name),
                     NotificationManager.IMPORTANCE_DEFAULT
             );
-            academicChannel.setDescription(getString(R.string.channel_academic_updates_description));
+            automationChannel.setDescription(getString(R.string.channel_academic_updates_description));
 
             // Channel 2: System Alerts
             NotificationChannel systemChannel = new NotificationChannel(
@@ -40,7 +40,7 @@ public class MainActivity extends BridgeActivity {
 
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
-                manager.createNotificationChannel(academicChannel);
+                manager.createNotificationChannel(automationChannel);
                 manager.createNotificationChannel(systemChannel);
             }
         }

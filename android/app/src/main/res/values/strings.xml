@@ -1,14 +1,14 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">EduAi</string>
-    <string name="title_activity_main">EduAi Academic</string>
+    <string name="app_name">EduAi Automation</string>
+    <string name="title_activity_main">EduAi Automation</string>
     <string name="package_name">com.eduai.academic</string>
     <string name="custom_url_scheme">com.eduai.academic</string>
     <string name="shortcut_timetable">Timetable</string>
-    <string name="shortcut_timetable_long">View Academic Timetable</string>
+    <string name="shortcut_timetable_long">View Automation Timetable</string>
     <string name="shortcut_scan">Scan Doc</string>
-    <string name="shortcut_scan_long">Scan Academic Document</string>
-    <string name="channel_academic_updates_name">Academic Updates</string>
+    <string name="shortcut_scan_long">Scan Automation Document</string>
+    <string name="channel_academic_updates_name">Automation Updates</string>
     <string name="channel_academic_updates_description">Notifications about grades, assignments and timetable changes.</string>
     <string name="channel_system_alerts_name">System Alerts</string>
     <string name="channel_system_alerts_description">Important messages about your account and the portal.</string>
