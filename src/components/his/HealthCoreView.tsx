@@ -68,6 +68,8 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+    // EduPulse sidebar: track which primary nav item is active independently
+    const [eduSidebarItem, setEduSidebarItem] = useState<string>('home');
 
     const handlePrintOphthalRx = async (od: any, os: any) => {
         if (!activePatient) {
@@ -350,124 +352,226 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     const patientData = activePatient || (patients.length > 0 ? patients[0] : null);
 
     return (
-        <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-sans selection:bg-indigo-500/30">
-            <div className="p-8 pb-4 space-y-8">
-                <div className="flex flex-col md:flex-row justify-between md:items-end gap-6">
-                    <div className="flex items-center gap-4 mb-3">
-                        <div className="w-12 h-12 bg-indigo-600 rounded-[1.25rem] flex items-center justify-center text-white shadow-xl shadow-indigo-500/20">
-                            <SparklesIcon className="w-7 h-7" />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-black uppercase tracking-tighter italic">
-                                {isEdu ? <>Edu<span className="text-indigo-600 dark:text-indigo-400">Pulse</span></> : <>Quantum <span className="text-indigo-600 dark:text-indigo-400">Medical</span></>}
-                            </h1>
-                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em]">
-                                {isEdu ? "School Wellness & Care Hub" : "H.I.S Master Operating System"}
-                            </p>
-                        </div>
-                    </div>
+        <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-sans selection:bg-indigo-500/30 flex">
 
-                    <div className="flex flex-wrap gap-3 relative">
-                        <div className="relative group">
-                            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                            <input 
-                                type="text"
-                                placeholder="GLOBAL SEARCH (PATIENTS, RECORDS, STAFF)..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="bg-slate-100 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all w-full md:w-80 shadow-inner"
-                            />
-                            {searchTerm && (
-                                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 rounded-3xl shadow-2xl z-[100] overflow-hidden max-h-[400px] overflow-y-auto no-scrollbar animate-fade-in-down">
-                                    <div className="p-4 border-b border-slate-50 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 flex justify-between items-center">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search Results ({filteredPatients.length})</p>
-                                        <button onClick={() => setSearchTerm('')} className="p-1 hover:text-rose-500"><XIcon className="w-3 h-3" /></button>
-                                    </div>
-                                    {filteredPatients.length > 0 ? filteredPatients.map(p => (
-                                        <button key={p.id} onClick={() => { setActivePatientId(p.id); setSearchTerm(''); setActiveModule('general'); }} className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group border-b border-slate-50 dark:border-white/5 last:border-0 pointer-cursor">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-500 font-black text-xs">{p.fullName[0].toUpperCase()}</div>
-                                                <div>
-                                                    <p className="text-sm font-black uppercase tracking-tight">{p.fullName}</p>
-                                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{p.gender} • {p.contact || 'No Contact'}</p>
-                                                </div>
-                                            </div>
-                                            <ChevronRightIcon className="w-4 h-4 text-slate-350 group-hover:text-indigo-500 transition-all" />
-                                        </button>
-                                    )) : null}
-
-                                    {isEdu && filteredDirectoryUsers.length > 0 && (
-                                        <>
-                                            <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-[9px] font-black text-indigo-500 uppercase tracking-widest border-t border-b border-slate-50 dark:border-white/5">
-                                                Import from School Directory
-                                            </div>
-                                            {filteredDirectoryUsers.map(u => (
-                                                <button 
-                                                    key={u.id} 
-                                                    onClick={() => handleImportDirectoryUser(u)} 
-                                                    className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group border-b border-slate-50 dark:border-white/5 last:border-0 pointer-cursor"
-                                                >
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 font-black text-xs">
-                                                            {u.name[0].toUpperCase()}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-black uppercase tracking-tight">{u.name}</p>
-                                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                                                                {u.role.toUpperCase()} • {u.metadata?.gradeLevel || u.email || 'No Details'}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <span className="text-[8px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900">
-                                                        Import
-                                                    </span>
-                                                </button>
-                                            ))}
-                                        </>
-                                    )}
-
-                                    {filteredPatients.length === 0 && filteredDirectoryUsers.length === 0 && (
-                                        <div className="p-8 text-center text-[10px] font-black text-slate-500 uppercase tracking-widest italic animate-pulse">Patient Not Found</div>
-                                    )}
-                                </div>
-                            )}
+            {/* ── EduPulse Vertical Sidebar ── */}
+            {isEdu && (
+                <aside className="w-20 lg:w-64 min-h-screen bg-gradient-to-b from-indigo-700 via-indigo-800 to-indigo-900 flex flex-col flex-shrink-0 shadow-2xl shadow-indigo-950/50 z-20 sticky top-0 self-start h-screen">
+                    {/* Brand */}
+                    <div className="p-5 lg:p-6 border-b border-white/10 flex-shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg ring-1 ring-white/20">
+                                <SparklesIcon className="w-5 h-5 text-white" />
+                            </div>
+                            <div className="hidden lg:block">
+                                <p className="text-base font-black uppercase tracking-tighter italic text-white leading-none">
+                                    Edu<span className="text-indigo-200">Pulse</span>
+                                </p>
+                                <p className="text-[8px] font-black text-indigo-300 uppercase tracking-[0.25em] mt-1">School Wellness</p>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="flex bg-slate-100/50 dark:bg-white/5 p-1.5 rounded-2xl w-full overflow-x-auto scrollbar-hide border border-slate-200 dark:border-white/5 shadow-inner no-scrollbar">
-                    <div className="flex gap-1.5 min-w-max text-white">
+                    {/* Primary Navigation: Home, Patients, Appointment */}
+                    <nav className="flex-1 p-3 space-y-1 overflow-y-auto mt-2 no-scrollbar">
+                        <p className="hidden lg:block text-[8px] font-black text-indigo-300/50 uppercase tracking-widest px-3 mb-3">Main Menu</p>
                         {[
-                            { id: 'general', label: 'Patient 360', icon: HeartIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                            { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon, categories: ['Hospital', 'Clinic', 'Healthcare'] },
-                            { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                            { id: 'pharmacy', label: 'Pharmacy/Store', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                            { id: 'dental', label: 'Dental Core', icon: ScissorsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Healthcare'] },
-                            { id: 'eye', label: 'Ocular Hub', icon: EyeIcon, categories: ['Hospital', 'Clinic', 'Eye', 'Healthcare'] },
-                            { id: 'ear', label: 'ENT Hub', icon: SignalIcon, categories: ['Hospital', 'Clinic', 'Ear', 'Healthcare'] },
-                            { id: 'billing', label: 'Revenue/SHA', icon: CreditCardIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                            { id: 'broadcaster', label: 'Communications', icon: BellIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                            { id: 'appointments', label: 'Scheduling', icon: CalendarIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                            { id: 'attendance', label: 'Presence', icon: ClockIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                            { id: 'config', label: 'Nexus', icon: SettingsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                            { id: 'reports', label: 'Intelligence', icon: ChartBarIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                        ]
-                        .filter(mod => {
-                            if (isEdu) {
-                                return ['general', 'pharmacy', 'broadcaster', 'appointments', 'attendance', 'config', 'reports'].includes(mod.id);
-                            }
-                            const cat = institutionData?.category || 'Hospital';
-                            // Exact match or contains
-                            return mod.categories.some(c => cat.includes(c));
-                        })
-                        .map((mod) => (
-                            <button key={mod.id} onClick={() => setActiveModule(mod.id as HISModule)} className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeModule === mod.id ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl border border-slate-200 dark:border-slate-700/50 scale-105' : 'text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400'}`}>
-                                <mod.icon className="w-4 h-4" /> {mod.label}
-                            </button>
-                        ))}
+                            { id: 'home', label: 'Home', icon: HeartIcon, module: 'general' as HISModule },
+                            { id: 'patients', label: 'Patients', icon: UsersIcon, module: 'general' as HISModule },
+                            { id: 'appointment', label: 'Appointment', icon: CalendarIcon, module: 'appointments' as HISModule },
+                        ].map(item => {
+                            const isActive = eduSidebarItem === item.id;
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => { setActiveModule(item.module); setEduSidebarItem(item.id); }}
+                                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left transition-all duration-200 group ${
+                                        isActive
+                                            ? 'bg-white/20 text-white shadow-lg shadow-black/10'
+                                            : 'text-indigo-200 hover:bg-white/10 hover:text-white'
+                                    }`}
+                                >
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                                        isActive
+                                            ? 'bg-white text-indigo-600 shadow-md'
+                                            : 'bg-white/10 text-indigo-200 group-hover:bg-white/20 group-hover:text-white'
+                                    }`}>
+                                        <item.icon className="w-4 h-4" />
+                                    </div>
+                                    <span className="hidden lg:block text-[11px] font-black uppercase tracking-widest">{item.label}</span>
+                                </button>
+                            );
+                        })}
+
+                        <div className="my-4 mx-2 border-t border-white/10" />
+                        <p className="hidden lg:block text-[8px] font-black text-indigo-300/50 uppercase tracking-widest px-3 mb-2">More Tools</p>
+
+                        {[
+                            { id: 'pharmacy' as HISModule, label: 'Pharmacy', icon: BeakerIcon },
+                            { id: 'broadcaster' as HISModule, label: 'Communications', icon: BellIcon },
+                            { id: 'attendance' as HISModule, label: 'Attendance', icon: ClockIcon },
+                            { id: 'reports' as HISModule, label: 'Reports', icon: ChartBarIcon },
+                            { id: 'config' as HISModule, label: 'Settings', icon: SettingsIcon },
+                        ].map(item => {
+                            const isActive = activeModule === item.id && !['home','patients','appointment'].includes(eduSidebarItem);
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => { setActiveModule(item.id); setEduSidebarItem(''); }}
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 group ${
+                                        isActive
+                                            ? 'bg-white/15 text-white'
+                                            : 'text-indigo-300/70 hover:bg-white/10 hover:text-white'
+                                    }`}
+                                >
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                                        isActive
+                                            ? 'bg-white text-indigo-600 shadow-md'
+                                            : 'bg-white/10 text-indigo-300 group-hover:bg-white/20 group-hover:text-white'
+                                    }`}>
+                                        <item.icon className="w-3.5 h-3.5" />
+                                    </div>
+                                    <span className="hidden lg:block text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+                                </button>
+                            );
+                        })}
+                    </nav>
+
+                    {/* Bottom User Badge */}
+                    <div className="p-4 border-t border-white/10 flex-shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-sm font-black shadow ring-1 ring-white/20">
+                                {(userName || 'U')[0].toUpperCase()}
+                            </div>
+                            <div className="hidden lg:block min-w-0 flex-1">
+                                <p className="text-[10px] font-black text-white uppercase tracking-tight truncate">{userName || 'Staff'}</p>
+                                <p className="text-[8px] font-black text-indigo-300 uppercase tracking-widest capitalize">{(activeRole || 'user').replace(/_/g, ' ')}</p>
+                            </div>
+                        </div>
                     </div>
+                </aside>
+            )}
+
+            {/* ── Main Content Wrapper ── */}
+            <div className={isEdu ? 'flex-1 min-w-0 flex flex-col overflow-y-auto' : 'w-full'}>
+                <div className="p-8 pb-4 space-y-8">
+                    <div className="flex flex-col md:flex-row justify-between md:items-end gap-6">
+                        {!isEdu && (
+                            <div className="flex items-center gap-4 mb-3">
+                                <div className="w-12 h-12 bg-indigo-600 rounded-[1.25rem] flex items-center justify-center text-white shadow-xl shadow-indigo-500/20">
+                                    <SparklesIcon className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-black uppercase tracking-tighter italic">
+                                        Quantum <span className="text-indigo-600 dark:text-indigo-400">Medical</span>
+                                    </h1>
+                                    <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em]">
+                                        H.I.S Master Operating System
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-3 relative">
+                            <div className="relative group">
+                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                <input 
+                                    type="text"
+                                    placeholder="GLOBAL SEARCH (PATIENTS, RECORDS, STAFF)..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="bg-slate-100 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all w-full md:w-80 shadow-inner"
+                                />
+                                {searchTerm && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 rounded-3xl shadow-2xl z-[100] overflow-hidden max-h-[400px] overflow-y-auto no-scrollbar animate-fade-in-down">
+                                        <div className="p-4 border-b border-slate-50 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 flex justify-between items-center">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search Results ({filteredPatients.length})</p>
+                                            <button onClick={() => setSearchTerm('')} className="p-1 hover:text-rose-500"><XIcon className="w-3 h-3" /></button>
+                                        </div>
+                                        {filteredPatients.length > 0 ? filteredPatients.map(p => (
+                                            <button key={p.id} onClick={() => { setActivePatientId(p.id); setSearchTerm(''); setActiveModule('general'); }} className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group border-b border-slate-50 dark:border-white/5 last:border-0 pointer-cursor">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-500 font-black text-xs">{p.fullName[0].toUpperCase()}</div>
+                                                    <div>
+                                                        <p className="text-sm font-black uppercase tracking-tight">{p.fullName}</p>
+                                                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{p.gender} • {p.contact || 'No Contact'}</p>
+                                                    </div>
+                                                </div>
+                                                <ChevronRightIcon className="w-4 h-4 text-slate-350 group-hover:text-indigo-500 transition-all" />
+                                            </button>
+                                        )) : null}
+
+                                        {isEdu && filteredDirectoryUsers.length > 0 && (
+                                            <>
+                                                <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-[9px] font-black text-indigo-500 uppercase tracking-widest border-t border-b border-slate-50 dark:border-white/5">
+                                                    Import from School Directory
+                                                </div>
+                                                {filteredDirectoryUsers.map(u => (
+                                                    <button 
+                                                        key={u.id} 
+                                                        onClick={() => handleImportDirectoryUser(u)} 
+                                                        className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group border-b border-slate-50 dark:border-white/5 last:border-0 pointer-cursor"
+                                                    >
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 font-black text-xs">
+                                                                {u.name[0].toUpperCase()}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-black uppercase tracking-tight">{u.name}</p>
+                                                                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                                                                    {u.role.toUpperCase()} • {u.metadata?.gradeLevel || u.email || 'No Details'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900">
+                                                            Import
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+
+                                        {filteredPatients.length === 0 && filteredDirectoryUsers.length === 0 && (
+                                            <div className="p-8 text-center text-[10px] font-black text-slate-500 uppercase tracking-widest italic animate-pulse">Patient Not Found</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Horizontal module tabs — shown only in HIS/clinic mode; EduPulse uses the sidebar */}
+                    {!isEdu && (
+                        <div className="flex bg-slate-100/50 dark:bg-white/5 p-1.5 rounded-2xl w-full overflow-x-auto scrollbar-hide border border-slate-200 dark:border-white/5 shadow-inner no-scrollbar">
+                            <div className="flex gap-1.5 min-w-max text-white">
+                                {[
+                                    { id: 'general', label: 'Patient 360', icon: HeartIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                    { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon, categories: ['Hospital', 'Clinic', 'Healthcare'] },
+                                    { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                    { id: 'pharmacy', label: 'Pharmacy/Store', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                    { id: 'dental', label: 'Dental Core', icon: ScissorsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Healthcare'] },
+                                    { id: 'eye', label: 'Ocular Hub', icon: EyeIcon, categories: ['Hospital', 'Clinic', 'Eye', 'Healthcare'] },
+                                    { id: 'ear', label: 'ENT Hub', icon: SignalIcon, categories: ['Hospital', 'Clinic', 'Ear', 'Healthcare'] },
+                                    { id: 'billing', label: 'Revenue/SHA', icon: CreditCardIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                    { id: 'broadcaster', label: 'Communications', icon: BellIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                    { id: 'appointments', label: 'Scheduling', icon: CalendarIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                    { id: 'attendance', label: 'Presence', icon: ClockIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                    { id: 'config', label: 'Nexus', icon: SettingsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                    { id: 'reports', label: 'Intelligence', icon: ChartBarIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                ]
+                                .filter(mod => {
+                                    const cat = institutionData?.category || 'Hospital';
+                                    return mod.categories.some(c => cat.includes(c));
+                                })
+                                .map((mod) => (
+                                    <button key={mod.id} onClick={() => setActiveModule(mod.id as HISModule)} className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeModule === mod.id ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl border border-slate-200 dark:border-slate-700/50 scale-105' : 'text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400'}`}>
+                                        <mod.icon className="w-4 h-4" /> {mod.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
-            </div>
 
             <main className="p-8 pt-0">
                 <div className="glass-morphism dark:bg-white/5 rounded-[3rem] border border-slate-200 dark:border-white/5 p-10 min-h-[70vh] shadow-2xl relative overflow-hidden backdrop-blur-3xl">
@@ -554,6 +658,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                     </div>
                 </div>
             )}
+            </div>
         </div>
     );
 };
