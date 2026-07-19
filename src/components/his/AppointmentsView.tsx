@@ -22,12 +22,18 @@ interface AppointmentsViewProps {
     institutionId?: string;
     demoAppointments?: HISAppointment[];
     isEdu?: boolean;
+    /** School directory users — students the teacher can book on behalf of */
+    users?: any[];
 }
 
-export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, userName, institutionId, demoAppointments, isEdu }) => {
+export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, userName, institutionId, demoAppointments, isEdu, users = [] }) => {
     // In hospital/clinic context, lecturers (doctors) see a read-only mode with no scheduling button.
     // In EduPulse (school) context, 'lecturer' is a school teacher — they should still be able to add visits.
     const isDoctor = !isEdu && activeRole === 'lecturer';
+    // Filter users to students only (non-admin, non-lecturer roles) for the appointment booking picker
+    const studentList = users.filter(u => ['student', 'learner', 'pupil', 'child'].includes((u.role || '').toLowerCase()) || (u.role || '').toLowerCase().startsWith('student'));
+    // If no students matched strictly, fall back to all non-admin users as the student pool
+    const availableStudents = studentList.length > 0 ? studentList : users.filter(u => !['admin', 'super_admin', 'lecturer', 'teacher', 'his_admin', 'nurse'].includes((u.role || '').toLowerCase()));
     const [searchTerm, setSearchTerm] = useState('');
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
     const [isAddAppointmentOpen, setIsAddAppointmentOpen] = useState(false);
@@ -130,9 +136,16 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
 
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-6">
                 <div>
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Master Visit Registry</h3>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">
+                        {isEdu ? 'Student Visit Scheduler' : 'Master Visit Registry'}
+                    </h3>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
-                        {isDoctor ? `Practitioner: ${userName}` : 'Global Patient Scheduling Control'}
+                        {isDoctor
+                            ? `Practitioner: ${userName}`
+                            : isEdu
+                                ? `Teachers can book wellness visits on behalf of students`
+                                : 'Global Patient Scheduling Control'
+                        }
                     </p>
                 </div>
                 <div className="flex gap-4">
@@ -174,6 +187,11 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                                                 <div>
                                                     <p className="text-sm font-black italic tracking-tight">{app.patientName}</p>
                                                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight mt-0.5">{app.type}</p>
+                                                    {app.referredByTeacher && (
+                                                        <p className="text-[9px] text-indigo-500 font-black uppercase tracking-wider mt-1 italic bg-indigo-50/50 dark:bg-indigo-950/20 px-2 py-0.5 rounded border border-indigo-100/30 dark:border-indigo-900/30 inline-block">
+                                                            Ref: {app.referredByTeacher}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6">
@@ -230,6 +248,11 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                                             <div>
                                                 <h4 className="text-sm font-black uppercase italic">{app.patientName}</h4>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{app.type}</p>
+                                                {app.referredByTeacher && (
+                                                    <p className="text-[8px] text-indigo-500 font-black uppercase tracking-wider mt-1 italic">
+                                                        Ref: {app.referredByTeacher}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                         <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border italic ${(statusStyles as any)[app.status] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>{app.status}</span>
@@ -360,6 +383,9 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                     isOpen={isAddAppointmentOpen} 
                     onClose={() => setIsAddAppointmentOpen(false)} 
                     onAdd={handleCreateAppointment}
+                    isEdu={isEdu}
+                    referredBy={isEdu ? (userName || '') : ''}
+                    students={isEdu ? availableStudents : []}
                 />,
                 document.body
             )}
