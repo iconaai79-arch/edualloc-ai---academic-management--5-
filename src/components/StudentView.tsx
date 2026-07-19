@@ -275,8 +275,8 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                 apiService.fetchModuleRecords<Invoice>('invoices', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<Receipt>('receipts', currentInstitution.id).catch(() => [])
             ]).then(([invs, rcpts]) => {
-                setStudentInvoices(invs.filter(i => i.studentId === user.id || i.student_id === user.id));
-                setStudentReceipts(rcpts.filter(r => r.studentId === user.id || r.student_id === user.id));
+                setStudentInvoices(invs.filter(i => i.studentId === user.id || (i as any).student_id === user.id));
+                setStudentReceipts(rcpts.filter(r => r.studentId === user.id || (r as any).student_id === user.id));
             }).catch(err => {
                 console.error("Failed to fetch billing info", err);
             }).finally(() => {
@@ -688,7 +688,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center flex-wrap gap-4">
                         <div>
                             <p className="text-xs font-bold text-slate-500">Course: <span className="text-slate-800 dark:text-slate-200 font-extrabold">{course?.name || 'N/A'}</span></p>
-                            <p className="text-xs font-bold text-slate-500">Outstanding Balance: <span className="text-rose-600 font-extrabold">KES {((studentInvoices.reduce((s,i) => s + Number(i.totalAmount || i.total_amount || 0), 0) - studentReceipts.reduce((s,r) => s + Number(r.amountPaid || r.amount_paid || 0), 0)) || 0).toLocaleString()}</span></p>
+                            <p className="text-xs font-bold text-slate-500">Outstanding Balance: <span className="text-rose-600 font-extrabold">KES {((studentInvoices.reduce((s,i) => s + Number(i.totalAmount || (i as any).total_amount || 0), 0) - studentReceipts.reduce((s,r) => s + Number(r.amountPaid || (r as any).amount_paid || 0), 0)) || 0).toLocaleString()}</span></p>
                         </div>
 
                         <button

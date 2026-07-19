@@ -306,7 +306,7 @@ const TeacherCheckInAdminView: React.FC<TeacherCheckInAdminViewProps> = ({
                 history,
                 `${startDate} to ${endDate}`,
                 letterheadConfig,
-                footerImageUrl
+                footerImageUrl || null
             );
         } catch (error) {
             console.error('Error generating PDF:', error);

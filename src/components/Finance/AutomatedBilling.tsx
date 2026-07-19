@@ -108,7 +108,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
     const getStudentCourseId = (student: User) => {
         const enr = studentEnrollmentMap.get(student.id);
-        const gradeLevel = student.courseId || student.course_id || enr?.metadata?.gradeLevel || enr?.metadata?.stream || enr?.courseId || enr?.course_id;
+        const gradeLevel = student.courseId || (student as any).course_id || enr?.metadata?.gradeLevel || enr?.metadata?.stream || enr?.courseId || enr?.course_id;
         if (!gradeLevel) return undefined;
         
         const matched = courses.find(c => 

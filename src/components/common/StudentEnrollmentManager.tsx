@@ -7437,7 +7437,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     const filteredFeedbackGuests = eventMatchingPins.filter(p => {
                                         const user = users.find(u => u.id === p.userId);
                                         const userName = (user?.name || 'Guest / Anon').toLowerCase();
-                                        const userPhone = (user?.phoneNumber || user?.phone_number || '').toLowerCase();
+                                        const userPhone = (user?.phoneNumber || (user as any)?.phone_number || '').toLowerCase();
                                         const userEmail = (user?.email || '').toLowerCase();
                                         const sQuery = feedbackSearchTerm.toLowerCase();
                                         
@@ -7587,7 +7587,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                 {filteredFeedbackGuests.map((pin) => {
                                                                     const parentUser = users.find(u => u.id === pin.userId);
                                                                     const parentName = parentUser?.name || 'Guest / Anon';
-                                                                    const parentPhone = parentUser?.phoneNumber || parentUser?.phone_number || 'No Phone';
+                                                                    const parentPhone = parentUser?.phoneNumber || (parentUser as any)?.phone_number || 'No Phone';
                                                                     const hasFeedback = pin.rating !== undefined && pin.rating !== null;
                                                                     
                                                                     return (
@@ -8164,7 +8164,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         const isMock = pinRecord.id === 'mock-pin-id';
                                         const targetUser = isMock ? null : users.find(u => u.id === (pinRecord.userId || pinRecord.user_id));
                                         const targetName = isMock ? 'John Doe (Sample Attendee)' : (targetUser?.name || 'Parent/Guardian');
-                                        const targetPhone = isMock ? '+254 700 000 000' : (targetUser?.phoneNumber || targetUser?.phone_number || 'No Phone');
+                                        const targetPhone = isMock ? '+254 700 000 000' : (targetUser?.phoneNumber || (targetUser as any)?.phone_number || 'No Phone');
                                         
                                         const shortLinkPreview = previewShortUrl || `https://is.gd/KmF6f2`;
                                         const suffix = bulkFeedbackAddMsg.trim() ? ` ${bulkFeedbackAddMsg.trim()}` : '';

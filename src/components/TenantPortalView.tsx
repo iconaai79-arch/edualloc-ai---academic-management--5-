@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     User, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
-    Institution, AppNotification
+    Institution, AppNotification, PMInvoice
 } from '../types';
 import { apiService } from '../services/apiService';
 import { HomeIcon } from './icons/HomeIcon';
@@ -120,7 +120,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                 withholdingStatus: 'submitted',
                 withholdingCertificateNumber: certNo,
                 withholdingCertificateDate: certDate,
-                withholdingCertificateUrl: fileUrl
+                withholdingCertificateUrl: fileUrl || undefined
             };
 
             await apiService.saveModuleRecord('pm_invoices', updatedInvoice);

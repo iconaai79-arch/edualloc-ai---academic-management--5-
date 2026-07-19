@@ -2899,7 +2899,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 leaseId: inv.leaseId,
                 amount: totalWht,
                 paymentDate: new Date().toISOString().split('T')[0],
-                paymentMethod: 'Bank Transfer',
+                paymentMethod: 'Bank',
                 paymentType: 'Rent',
                 reference: inv.withholdingCertificateNumber || 'WHT CERT',
                 receiptNumber: `WHT-${inv.withholdingCertificateNumber || Date.now()}`,

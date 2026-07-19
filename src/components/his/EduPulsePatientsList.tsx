@@ -685,7 +685,7 @@ const PatientHistoryModal: React.FC<{
         try {
             const logo = institutionData?.logoUrl || null;
             const pdfDataUri = await generatePatientHistoryPdf(
-                patient,
+                patient as any,
                 events,
                 vitals,
                 prescriptions,

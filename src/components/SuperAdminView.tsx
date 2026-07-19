@@ -1086,8 +1086,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         try {
             const allInvoices = await apiService.fetchInvoices();
             const sortedInvoices = [...allInvoices].sort((a, b) => {
-                const dateA = new Date(a.createdAt || a.issueDate || 0).getTime();
-                const dateB = new Date(b.createdAt || b.issueDate || 0).getTime();
+                const dateA = new Date((a as any).createdAt || a.issueDate || 0).getTime();
+                const dateB = new Date((b as any).createdAt || b.issueDate || 0).getTime();
                 return dateA - dateB;
             });
 
@@ -1120,8 +1120,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         try {
             const allReceipts = await apiService.fetchReceipts();
             const sortedReceipts = [...allReceipts].sort((a, b) => {
-                const dateA = new Date(a.createdAt || a.paymentDate || 0).getTime();
-                const dateB = new Date(b.createdAt || b.paymentDate || 0).getTime();
+                const dateA = new Date((a as any).createdAt || a.paymentDate || 0).getTime();
+                const dateB = new Date((b as any).createdAt || b.paymentDate || 0).getTime();
                 return dateA - dateB;
             });
 

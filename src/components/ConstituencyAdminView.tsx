@@ -8,7 +8,7 @@ import {
     ArrowPathIcon, ChevronRightIcon, UserIcon, MapPinIcon 
 } from './icons';
 import { 
-    User, Institution, Role, NGCdfFund, NGCdfBursary, ActivityLog, SmsLog, SmsOutbox, SchoolRegistry
+    User, Institution, Role, NGCdfFund, NGCdfBursary, ActivityLog, SmsLog, SmsOutbox, SchoolRegistry, CompanyDetails
 } from '../types';
 import { apiService } from '../services/apiService';
 import { localDb } from '../services/localDb';

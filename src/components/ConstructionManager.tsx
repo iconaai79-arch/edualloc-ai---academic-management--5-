@@ -74,9 +74,13 @@ export const ConstructionManager: React.FC<ConstructionManagerProps> = ({ curren
 
         setIsUploading(true);
         try {
-            const result = await apiService.uploadToShowcaseCpanel(file, currentInstitution.id);
-            if (result.success) {
-                setNewProject(prev => ({ ...prev, images: [...prev.images, result.url] }));
+            const publicUrl = await apiService.uploadToShowcaseCpanel(
+                file,
+                (currentInstitution as any).showcaseConfig?.cpanelUploadUrl || 'https://showcase.eduai.co.ke/api/upload',
+                (currentInstitution as any).showcaseConfig?.cpanelSecret || 'showcase_secret'
+            );
+            if (publicUrl) {
+                setNewProject(prev => ({ ...prev, images: [...prev.images, publicUrl] }));
             }
         } catch (err) {
             console.error("Upload failed:", err);

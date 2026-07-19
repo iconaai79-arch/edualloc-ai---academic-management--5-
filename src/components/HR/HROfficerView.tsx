@@ -53,7 +53,7 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
             return a.includes('payroll') || a.includes('leave') || a.includes('staff') ||
                 a.includes('employee') || a.includes('attendance') || a.includes('user') ||
                 a.includes('onboard') || a.includes('offboard') || a.includes('hr') ||
-                (l.module || '') === 'HR';
+                ((l.module || '') as string) === 'HR';
         }),
     [activityLog]);
 

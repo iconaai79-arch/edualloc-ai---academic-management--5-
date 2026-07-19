@@ -45,7 +45,7 @@ export const MandatoryUpdateView: React.FC<MandatoryUpdateViewProps> = ({ user, 
         setIsSaving(true);
         try {
             await onUpdate(
-                { name, gender, phoneNumber: phone, email },
+                { name, gender, phoneNumber: phone, email, expertise: [] },
                 { newPassword }
             );
         } catch (err: any) {

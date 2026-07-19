@@ -78,7 +78,7 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
             (l.action || '').toLowerCase().includes('fine') ||
             (l.action || '').toLowerCase().includes('reservation') ||
             (l.action || '').toLowerCase().includes('catalog') ||
-            (l.module || '') === 'Library'
+            ((l.module || '') as string) === 'Library'
         ),
     [activityLog]);
     const [activeTab, setActiveTab] = useState<LibraryTab>('dashboard');

@@ -10136,8 +10136,8 @@ END $$;
                             if (type === 'student') {
                                 if (data.id) await onUpdateStudent(data);
                                 else {
-                                    const createdStudent = await onAddStudent(data);
-                                    if (settings?.billingModel === 'prepaid' && createdStudent?.checkoutRequestId) {
+                                    const createdStudent = await (onAddStudent(data) as any);
+                                    if ((settings as any)?.billingModel === 'prepaid' && createdStudent?.checkoutRequestId) {
                                         setPendingAdmissionPayment({
                                             student: createdStudent,
                                             checkoutRequestId: createdStudent.checkoutRequestId
@@ -10172,7 +10172,7 @@ END $$;
                                 if (data.id) {
                                     await onUpdateInvoice(data);
                                 } else {
-                                    const createdInv = await onAddInvoice(data);
+                                    const createdInv = await (onAddInvoice(data) as any);
                                     if (enrollWizard.student) setEnrollWizard(w => ({ ...w, open: true, step: 'payment', createdInvoiceId: createdInv?.id || null }));
                                 }
                             }

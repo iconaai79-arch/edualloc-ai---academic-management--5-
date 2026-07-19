@@ -5,7 +5,7 @@ import {
     SpeakerWaveIcon, DocumentTextIcon, ArrowPathIcon,
     HeartIcon, ShieldCheckIcon, MegaphoneIcon,
     PhotoIcon, PlusIcon, XIcon, VideoCameraIcon, CameraIcon, DevicePhoneMobileIcon,
-    ArrowUpTrayIcon, PaperAirplaneIcon
+    ArrowUpTrayIcon, PaperAirplaneIcon, TrashIcon
 } from './icons';
 import { SmartPoliticalImporterModal } from './SmartPoliticalImporterModal';
 import { CampaignProfile, VoterOutreach, CampaignEvent, User, PoliticalParty, County, Constituency, Ward, CampaignVillage, CampaignGroup, CampaignGroupMember, Role } from '../types';
@@ -381,7 +381,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                             <div className="space-y-6">
                                 <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-4">Core Agendas</h4>
                                 <div className="grid grid-cols-1 gap-4">
-                                    {(profile?.agendas || []).length > 0 ? profile.agendas.map((agenda, i) => (
+                                    {(profile?.agendas || []).length > 0 ? (profile?.agendas || []).map((agenda, i) => (
                                         <div key={i} className="flex gap-4 p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border-l-8 border-indigo-500 shadow-sm">
                                             <div className="w-10 h-10 shrink-0 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center font-black text-lg text-indigo-600 shadow-sm">{i+1}</div>
                                             <p className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight leading-relaxed">{agenda}</p>

@@ -70,12 +70,12 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Academic / Schools
     if (isSchoolInstitution(institution)) {
-        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
+        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
     }
 
     // Tertiary / Higher Ed
     if (isHigherEdInstitution(institution)) {
-        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
+        return ['admin', 'hod', 'tto', 'lecturer', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
     }
 
     // HIS / Health Information System
@@ -248,6 +248,15 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'hoi': return 'HOI';
             case 'nurse': return 'School Nurse';
             case 'cateress': return 'Cateress';
+            case 'finance': return 'Finance Manager';
+            case 'finance_officer': return 'Finance Officer';
+            case 'store': return 'Storekeeper';
+            case 'librarian': return 'Librarian';
+            case 'security': return 'Security Officer';
+            case 'info_desk': return 'Info Desk';
+            case 'transport_assistant': return 'Transport Coordinator';
+            case 'hr_officer': return 'HR Officer';
+            case 'event_manager': return 'Events Manager';
         }
     }
 

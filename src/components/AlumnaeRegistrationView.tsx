@@ -194,9 +194,9 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                     
                     let statusRes: any = { status: 'pending' };
                     if (onCheckPaymentStatus) {
-                        statusRes = await onCheckPaymentStatus(res.checkoutRequestId);
+                        statusRes = await onCheckPaymentStatus(res.checkoutRequestId!);
                     } else {
-                        statusRes = await apiService.checkPaymentStatus('ncba', res.checkoutRequestId, { institutionId: 'GLOBAL', phoneNumber: formData.phoneNumber });
+                        statusRes = await apiService.checkPaymentStatus('ncba', res.checkoutRequestId!, { institutionId: 'GLOBAL', phoneNumber: formData.phoneNumber });
                     }
                     
                     const statusStr = (statusRes?.status || '').toLowerCase();

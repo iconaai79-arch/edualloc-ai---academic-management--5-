@@ -838,8 +838,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const metaGrade = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || student.metadata?.gradeLevel || student.metadata?.stream;
         if (metaGrade) return metaGrade;
         
-        const invClass = mappedInvoices.find(i => i.studentId === student.id && i.className)?.className;
-        if (invClass) return invClass;
+        const invClass = mappedInvoices.find(i => (i as any).studentId === student.id && (i as any).className) as any;
+        if (invClass && invClass.className) return invClass.className;
         
         const courseName = props.courses?.find(c => c.id === student.courseId)?.name;
         if (courseName) return courseName;
@@ -860,20 +860,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const cls = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || studentClassGroup(s);
 
             const studentInvoices = mappedInvoices.filter(inv => 
-                (inv.studentId === s.id || inv.student_id === s.id) && 
+                (inv.studentId === s.id || (inv as any).student_id === s.id) && 
                 inv.status !== 'cancelled' && 
                 inv.status !== 'quote'
             );
             const invoiced = studentInvoices.reduce((sum, inv) => {
-                const amt = inv.totalAmount || inv.total_amount || 0;
+                const amt = inv.totalAmount || (inv as any).total_amount || 0;
                 return sum + parseMoneyAmount(amt);
             }, 0);
             
             const studentReceipts = mappedReceipts.filter(rec => 
-                rec.studentId === s.id || rec.student_id === s.id
+                rec.studentId === s.id || (rec as any).student_id === s.id
             );
             const paid = studentReceipts.reduce((sum, rec) => {
-                const amt = rec.amountPaid || rec.amount_paid || 0;
+                const amt = rec.amountPaid || (rec as any).amount_paid || 0;
                 return sum + parseMoneyAmount(amt);
             }, 0);
             
@@ -1532,7 +1532,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     remainingAmount -= allocated;
                     
                     allocations.push({
-                        invoiceNumber: inv.invoiceNumber || inv.invoice_number || 'INV',
+                        invoiceNumber: inv.invoiceNumber || (inv as any).invoice_number || 'INV',
                         description: item.description,
                         amount: allocated
                     });
@@ -1766,7 +1766,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             return;
         }
 
-        const currentSourceBudget = Number(sourceVH.allocatedAmount || sourceVH.allocated_amount || 0);
+        const currentSourceBudget = Number(sourceVH.allocatedAmount || (sourceVH as any).allocated_amount || 0);
         if (currentSourceBudget < voteTransferAmount) {
             alert(`Insufficient budget in source vote head "${sourceVH.name}". Current budget is KES ${currentSourceBudget.toLocaleString()}.`);
             return;
@@ -1794,8 +1794,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             };
             const updatedDest = {
                 ...destVH,
-                allocatedAmount: Number(destVH.allocatedAmount || destVH.allocated_amount || 0) + Number(voteTransferAmount),
-                allocated_amount: Number(destVH.allocatedAmount || destVH.allocated_amount || 0) + Number(voteTransferAmount),
+                allocatedAmount: Number(destVH.allocatedAmount || (destVH as any).allocated_amount || 0) + Number(voteTransferAmount),
+                allocated_amount: Number(destVH.allocatedAmount || (destVH as any).allocated_amount || 0) + Number(voteTransferAmount),
                 institutionId: props.institution.id
             };
 
@@ -2057,7 +2057,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         // Match by term string or term/semester ID
                         const matchedSem = (props.semesters || []).find(s => s.id === fs.term || s.name === fs.term);
                         if (matchedSem) {
-                            newAmounts[fs.voteHeadId][matchedSem.id] = fs.amount || fs.allocatedAmount || 0;
+                            newAmounts[fs.voteHeadId][matchedSem.id] = fs.amount || (fs as any).allocatedAmount || 0;
                         }
                         if (fs.applicableTo || fs.applicable_to) {
                             newTargets[fs.voteHeadId] = (fs.applicableTo || fs.applicable_to) as any;
@@ -2910,7 +2910,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="flex items-center gap-2 px-2">
                                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                                     <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                                        {activeTab === 'payroll' ? 'Human Capital Module' : 
+                                        {(activeTab as string) === 'payroll' ? 'Human Capital Module' : 
                                          activeTab === 'gok_capitation' ? 'GoK Capitation Module' :
                                          activeTab === 'transfers' ? 'Transfers Module' :
                                          'Finance Module'}
@@ -2921,10 +2921,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <div className="hidden md:flex items-center gap-4 px-6 border-l border-slate-100 dark:border-slate-800">
                             <div className="text-right">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    {activeTab === 'settings' ? 'Configuration' : activeTab === 'payroll' ? 'Human Capital' : 'Fiscal Status'}
+                                    {(activeTab as string) === 'settings' ? 'Configuration' : (activeTab as string) === 'payroll' ? 'Human Capital' : 'Fiscal Status'}
                                 </p>
                                 <p className="text-sm font-black text-slate-900 dark:text-white">
-                                    {activeTab === 'settings' ? 'Settings Mode' : activeTab === 'payroll' ? 'HR & Payroll' : 'Education Mode'}
+                                    {(activeTab as string) === 'settings' ? 'Settings Mode' : (activeTab as string) === 'payroll' ? 'HR & Payroll' : 'Education Mode'}
                                 </p>
                             </div>
                         </div>
@@ -4091,7 +4091,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Total Invoiced</span>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
                                     KES {filteredStudentInvoices.reduce((sum, inv) => {
-                                        const amt = inv.totalAmount || inv.total_amount || 0;
+                                        const amt = inv.totalAmount || (inv as any).total_amount || 0;
                                         return sum + parseMoneyAmount(amt);
                                     }, 0).toLocaleString()}
                                 </h3>
@@ -4101,9 +4101,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-450 tracking-wider">Collected / Paid</span>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
                                     KES {filteredStudentInvoices.reduce((sum, inv) => {
-                                        const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
+                                        const allocations = props.receipts.filter(r => (r.invoiceId || (r as any).invoice_id) === inv.id);
                                         const paid = allocations.reduce((s, r) => {
-                                            const amt = r.amountPaid || r.amount_paid || 0;
+                                            const amt = r.amountPaid || (r as any).amount_paid || 0;
                                             return s + parseMoneyAmount(amt);
                                         }, 0);
                                         return sum + paid;
@@ -4115,12 +4115,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <span className="text-[10px] font-black uppercase text-rose-650 tracking-wider">Outstanding Balance</span>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
                                     KES {Math.max(0, filteredStudentInvoices.reduce((sum, inv) => {
-                                        const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
+                                        const allocations = props.receipts.filter(r => (r.invoiceId || (r as any).invoice_id) === inv.id);
                                         const paid = allocations.reduce((s, r) => {
-                                            const amt = r.amountPaid || r.amount_paid || 0;
+                                            const amt = r.amountPaid || (r as any).amount_paid || 0;
                                             return s + parseMoneyAmount(amt);
                                         }, 0);
-                                        const totalAmt = inv.totalAmount || inv.total_amount || 0;
+                                        const totalAmt = inv.totalAmount || (inv as any).total_amount || 0;
                                         return sum + Math.max(0, parseMoneyAmount(totalAmt) - paid);
                                     }, 0)).toLocaleString()}
                                 </h3>
@@ -4228,14 +4228,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
                                         {paginatedStudentInvoices.map(inv => {
-                                            const studentId = inv.studentId || inv.student_id;
+                                            const studentId = inv.studentId || (inv as any).student_id;
                                             const student = studentId ? studentFinanceData.find(s => s.id === studentId) : null;
                                             const admNum = student?.admissionNumber || student?.admission_number || '—';
                                             const studentName = student?.name || 'Unknown Student';
                                             const gradeName = student ? studentClassGroup(student) : '—';
-                                            const allocations = props.receipts.filter(r => (r.invoiceId || r.invoice_id) === inv.id);
-                                            const paidAmount = allocations.reduce((sum, r) => sum + Number(r.amountPaid || r.amount_paid || 0), 0);
-                                            const totalAmount = Number(inv.totalAmount || inv.total_amount || 0);
+                                            const allocations = props.receipts.filter(r => (r.invoiceId || (r as any).invoice_id) === inv.id);
+                                            const paidAmount = allocations.reduce((sum, r) => sum + Number(r.amountPaid || (r as any).amount_paid || 0), 0);
+                                            const totalAmount = Number(inv.totalAmount || (inv as any).total_amount || 0);
 
                                             return (
                                                 <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
@@ -4255,7 +4255,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             }}
                                                         />
                                                     </td>
-                                                    <td className="px-6 py-4 text-xs font-black text-slate-800 dark:text-slate-100">{inv.invoiceNumber || inv.invoice_number || '—'}</td>
+                                                    <td className="px-6 py-4 text-xs font-black text-slate-800 dark:text-slate-100">{inv.invoiceNumber || (inv as any).invoice_number || '—'}</td>
                                                     <td className="px-6 py-4">
                                                         <div className="text-xs font-extrabold text-slate-800 dark:text-slate-200">{studentName}</div>
                                                         <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">ADM: {admNum}</div>
@@ -4352,7 +4352,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             )}
                                                             <button
                                                                 onClick={async () => {
-                                                                    if (!window.confirm(`Are you sure you want to permanently delete invoice ${inv.invoiceNumber || inv.invoice_number || ''}? This action cannot be undone.`)) return;
+                                                                    if (!window.confirm(`Are you sure you want to permanently delete invoice ${inv.invoiceNumber || (inv as any).invoice_number || ''}? This action cannot be undone.`)) return;
                                                                     try {
                                                                         await apiService.deleteModuleRecord('invoices', inv.id);
                                                                         const newSelected = new Set(selectedInvoiceIds);
@@ -5396,9 +5396,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </div>
                             <div className="space-y-4">
                                 {(props.expenses || []).map((exp, i) => {
-                                    const vh = (props.voteHeads || []).find(v => v.id === exp.voteHeadId || v.id === exp.vote_head_id);
+                                    const vh = (props.voteHeads || []).find(v => v.id === exp.voteHeadId || v.id === (exp as any).vote_head_id);
                                     const vhName = vh ? vh.name : 'General Expense';
-                                    const bank = (bankAccounts || []).find(b => b.id === exp.bankAccountId || b.id === exp.bank_account_id);
+                                    const bank = (bankAccounts || []).find(b => b.id === exp.bankAccountId || b.id === (exp as any).bank_account_id);
                                     const bankDetails = bank ? `${bank.bankName || bank.bank_name} - A/C ${bank.accountNumber || bank.account_number}` : 'Unspecified Bank';
                                     
                                     return (
@@ -5441,7 +5441,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         vhName,
                                                         bankDetails,
                                                         props.institution,
-                                                        props.companyDetails,
+                                                        props.companyDetails || {} as any,
                                                         props.institution.logoUrl || null,
                                                         null
                                                     )}
@@ -5651,7 +5651,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             >
                                                 <option value="">-- Choose Source --</option>
                                                 {(props.voteHeads || []).map(vh => {
-                                                    const budget = Number(vh.allocatedAmount || vh.allocated_amount || 0);
+                                                    const budget = Number(vh.allocatedAmount || (vh as any).allocated_amount || 0);
                                                     return (
                                                         <option key={vh.id} value={vh.id}>
                                                             {vh.name} (Available: KES {budget.toLocaleString()})
@@ -5670,7 +5670,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             >
                                                 <option value="">-- Choose Destination --</option>
                                                 {(props.voteHeads || []).map(vh => {
-                                                    const budget = Number(vh.allocatedAmount || vh.allocated_amount || 0);
+                                                    const budget = Number(vh.allocatedAmount || (vh as any).allocated_amount || 0);
                                                     return (
                                                         <option key={vh.id} value={vh.id}>
                                                             {vh.name} (Current: KES {budget.toLocaleString()})
@@ -9170,8 +9170,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             staffDetails: scheduleStaffAccounts,
                                             institution: props.institution,
                                             companyDetails: props.companyDetails,
-                                            logoUrl: props.logoUrl,
-                                            letterheadUrl: props.letterheadUrl
+                                            logoUrl: (props as any).logoUrl,
+                                            letterheadUrl: (props as any).letterheadUrl
                                         });
                                         setShowBankScheduleModal(false);
                                     }}

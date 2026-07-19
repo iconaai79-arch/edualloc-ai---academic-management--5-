@@ -187,9 +187,9 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                                                 <div>
                                                     <p className="text-sm font-black italic tracking-tight">{app.patientName}</p>
                                                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight mt-0.5">{app.type}</p>
-                                                    {app.referredByTeacher && (
+                                                    {(app as any).referredByTeacher && (
                                                         <p className="text-[9px] text-indigo-500 font-black uppercase tracking-wider mt-1 italic bg-indigo-50/50 dark:bg-indigo-950/20 px-2 py-0.5 rounded border border-indigo-100/30 dark:border-indigo-900/30 inline-block">
-                                                            Ref: {app.referredByTeacher}
+                                                            Ref: {(app as any).referredByTeacher}
                                                         </p>
                                                     )}
                                                 </div>
@@ -248,9 +248,9 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                                             <div>
                                                 <h4 className="text-sm font-black uppercase italic">{app.patientName}</h4>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{app.type}</p>
-                                                {app.referredByTeacher && (
+                                                {(app as any).referredByTeacher && (
                                                     <p className="text-[8px] text-indigo-500 font-black uppercase tracking-wider mt-1 italic">
-                                                        Ref: {app.referredByTeacher}
+                                                        Ref: {(app as any).referredByTeacher}
                                                     </p>
                                                 )}
                                             </div>

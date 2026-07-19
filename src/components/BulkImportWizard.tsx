@@ -3,8 +3,7 @@ import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
-import { XMarkIcon } from './icons/XMarkIcon';
-import { TableCellsIcon } from './icons/TableCellsIcon';
+import { XIcon } from './icons/XIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 
 interface BulkImportWizardProps {
@@ -67,7 +66,7 @@ export const BulkImportWizard: React.FC<BulkImportWizardProps> = ({
                         <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Import via Excel or CSV</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-50 rounded-full transition-colors">
-                        <XMarkIcon className="w-6 h-6 text-slate-400" />
+                        <XIcon className="w-6 h-6 text-slate-400" />
                     </button>
                 </div>
 

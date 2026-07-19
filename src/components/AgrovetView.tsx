@@ -68,12 +68,12 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
         setLoading(true);
         try {
             const [prodList, batchList, saleList, farmerList, animalList, consultList, creditList] = await Promise.all([
-                apiService.fetchModuleRecords<AgrovetProduct>('agrovet_products', institutionId, productLimit),
+                apiService.fetchModuleRecords<AgrovetProduct>('agrovet_products', institutionId, undefined, { limit: productLimit }),
                 apiService.fetchModuleRecords<AgrovetBatch>('agrovet_batches', institutionId),
-                apiService.fetchModuleRecords<AgrovetSale>('agrovet_sales', institutionId, saleLimit),
-                apiService.fetchModuleRecords<AgrovetFarmer>('agrovet_customers', institutionId, farmerLimit),
+                apiService.fetchModuleRecords<AgrovetSale>('agrovet_sales', institutionId, undefined, { limit: saleLimit }),
+                apiService.fetchModuleRecords<AgrovetFarmer>('agrovet_customers', institutionId, undefined, { limit: farmerLimit }),
                 apiService.fetchModuleRecords<AgrovetAnimal>('agrovet_animals', institutionId),
-                apiService.fetchModuleRecords<AgrovetConsultation>('agrovet_consultations', institutionId, consultationLimit),
+                apiService.fetchModuleRecords<AgrovetConsultation>('agrovet_consultations', institutionId, undefined, { limit: consultationLimit }),
                 apiService.fetchModuleRecords<AgrovetCreditNote>('agrovet_credit', institutionId),
             ]);
             setProducts(prodList || []);

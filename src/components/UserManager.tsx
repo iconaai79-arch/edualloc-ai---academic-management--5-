@@ -1057,7 +1057,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     (u.name || '').toLowerCase().includes(q) ||
                     (u.email || '').toLowerCase().includes(q) ||
                     (u.phoneNumber || '').toLowerCase().includes(q) ||
-                    (u.phone || '').toLowerCase().includes(q) ||
+                    ((u as any).phone || '').toLowerCase().includes(q) ||
                     (u.staffId || '').toLowerCase().includes(q) ||
                     (u.role || '').toLowerCase().includes(q) ||
                     instName.toLowerCase().includes(q)
@@ -1757,7 +1757,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                     </button>
                                                 </>
                                             )}
-                                            {isEdu && (u.role === 'teacher' || u.role === 'lecturer' || u.role === 'head_teacher' || u.role === 'dos') && (
+                                            {isEdu && ((u.role === 'teacher' || u.role === 'lecturer' || u.role === 'head_teacher' || u.role === 'dos') || (Array.isArray(u.roles) && u.roles.some((r: Role) => ['teacher', 'lecturer', 'head_teacher', 'dos'].includes(r)))) && (
                                                 <button
                                                     onClick={() => setManagingLessonsFor(u)}
                                                     className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-indigo-900/30 dark:text-emerald-300 rounded-md text-xs font-bold transition-all"

@@ -2026,7 +2026,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     <>
                                         <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest mb-6">Gate Log (Today's Staff)</h3>
                                         <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
-                                            {(teacherCheckIns || [])
+                                            {((teacherCheckIns || []) as any[])
                                                 .filter(c => (c.checkInDate || c.check_in_date) === todayStr)
                                                 .sort((a, b) => {
                                                     const timeA = a.morningCheckInTime || a.morning_check_in_time || a.afternoonCheckInTime || a.afternoon_check_in_time || '';
@@ -2075,7 +2075,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                         </div>
                                                     );
                                                 })}
-                                            {(teacherCheckIns || []).filter(c => (c.checkInDate || c.check_in_date) === todayStr).length === 0 && (
+                                            {((teacherCheckIns || []) as any[]).filter(c => (c.checkInDate || c.check_in_date) === todayStr).length === 0 && (
                                                 <div className="text-center py-12 animate-fade-in">
                                                     <ClockIcon className="w-12 h-12 text-slate-350 dark:text-slate-700 mx-auto mb-2 animate-pulse" />
                                                     <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">No staff check-ins logged today</p>

@@ -637,7 +637,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                                 if (isEdu && eduSidebarItem === 'patients' && !activePatient) {
                                     return (
                                         <EduPulsePatientsList
-                                            patients={patients}
+                                            patients={patients as any}
                                             onRegisterPatient={() => setIsRegisterModalOpen(true)}
                                             onSelectPatient={(pId) => setActivePatientId(pId)}
                                             onPatientUpdated={fetchPatients}

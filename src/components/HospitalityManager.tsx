@@ -99,7 +99,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
         try {
             const result = await apiService.uploadToGoogleDrive(file, currentInstitution.id);
             if (result.success) {
-                setNewItem(prev => ({ ...prev, images: [...prev.images, result.url] }));
+                setNewItem(prev => ({ ...prev, images: [...prev.images, result.url || ''] }));
             }
         } catch (err) {
             console.error("Upload failed:", err);

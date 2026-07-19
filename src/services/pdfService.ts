@@ -8926,7 +8926,7 @@ export const generatePMInspectionPdf = async (
         tenantTel: ''
     };
     try {
-        details = JSON.parse(inspection.repairsRequired);
+        details = JSON.parse(inspection.repairsRequired || '{}');
     } catch (e) {
         details = {
             waterMeterNo: '',

@@ -518,6 +518,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
             {activeTab === 'settings' && (
                 <SettingsManager
                     {...props}
+                    currentUser={props.currentUser!}
                     onAssociateSubjectToCourseLevel={onAssociateSubjectToCourseLevel}
                     onDisassociateSubjectFromCourseLevel={onDisassociateSubjectFromCourseLevel}
                     isAcademicsOfficer={true}

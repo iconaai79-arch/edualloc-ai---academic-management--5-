@@ -39,8 +39,8 @@ export const CampaignLoginView: React.FC<CampaignLoginViewProps> = ({ onLoginSuc
 
         try {
             // Using a generic member lookup for now, can be hardened later
-            const results = await apiService.fetchModuleRecords('campaign_members', {
-                email: email.toLowerCase().trim()
+            const results = await apiService.fetchModuleRecords('campaign_members', undefined, undefined, {
+                filter: { email: email.toLowerCase().trim() }
             });
 
             const member = results.find((m: any) => m.email?.toLowerCase() === email.toLowerCase().trim());

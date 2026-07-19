@@ -54,7 +54,7 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
 
     const hospitalityInsts = useMemo(() => {
         return institutions.filter(i => 
-            i.institutionId === 'all' || // Support for catch-all filters if any
+            i.id === 'all' || // Support for catch-all filters if any
             i.institutionType === 'Hospitality' || 
             i.category?.includes('Agency') || 
             i.category?.includes('Hotel') || 
@@ -106,7 +106,7 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
             setLoadingItems(true);
             try {
                 // Fetch packages with limit
-                const items = await apiService.fetchModuleRecords('hospitality_items', undefined, limit);
+                const items = await apiService.fetchModuleRecords('hospitality_items', undefined, undefined, { limit });
                 setAllPackages(items);
             } catch (err) {
                 console.error("Marketplace Data Load Error:", err);

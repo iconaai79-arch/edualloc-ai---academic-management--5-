@@ -10,10 +10,10 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        // Register local plugins
+        // Register local plugins before super.onCreate to ensure initialization by the bridge
         this.registerPlugin(PrintPlugin.class);
+
+        super.onCreate(savedInstanceState);
         
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);

@@ -106,7 +106,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
     React.useEffect(() => {
         if (showBankScheduleModal) {
             const currentPeriod = schedulePeriod || selectedStatutoryMonth || '';
-            const currentRecords = (payrollRecords || []).filter(r => r.period === currentPeriod || r.payPeriod === currentPeriod);
+            const currentRecords = (payrollRecords || []).filter(r => (r as any).period === currentPeriod || (r as any).payPeriod === currentPeriod);
             const mapped = currentRecords.map(r => {
                 const u = (staff || []).find(user => user.id === r.staffId || user.name === r.staffName);
                 return {
@@ -797,7 +797,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                         className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-700 dark:text-white"
                                     >
                                         <option value={selectedStatutoryMonth}>{selectedStatutoryMonth}</option>
-                                        {Array.from(new Set((payrollRecords || []).map(r => r.period || r.payPeriod || ''))).filter(p => p !== selectedStatutoryMonth).map(p => (
+                                        {Array.from(new Set((payrollRecords || []).map(r => (r as any).period || (r as any).payPeriod || ''))).filter(p => p !== selectedStatutoryMonth).map(p => (
                                             <option key={p} value={p}>{p}</option>
                                         ))}
                                     </select>

@@ -116,7 +116,7 @@ export const LocationSettings: React.FC<LocationSettingsProps> = ({ institution,
                 onSave(institution.id, { 
                     location: { latitude: lat, longitude: lon },
                     checkinRadiusEnabled,
-                    checkinRadiusMeters: checkinRadiusEnabled ? checkinRadiusMeters : null
+                    checkinRadiusMeters: checkinRadiusEnabled ? checkinRadiusMeters : undefined
                 });
             }
             setSaveStatus('saved');

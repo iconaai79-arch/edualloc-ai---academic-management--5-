@@ -118,10 +118,10 @@ export const Header: React.FC<HeaderProps> = ({
             ? currentUser.roles
             : (currentUser.role ? [currentUser.role] : []);
 
-        const roles = rawRoles.filter(r => r && (r as string) !== 'finance');
+        const roles = rawRoles.filter(r => r != null && r !== undefined);
 
-        // Ensure primary role is included if roles is present and not finance
-        if (currentUser.role && (currentUser.role as string) !== 'finance' && !roles.includes(currentUser.role)) {
+        // Ensure primary role is included
+        if (currentUser.role && !roles.includes(currentUser.role)) {
             roles.unshift(currentUser.role);
         }
         return [...new Set(roles)];

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { TimetableEntry, Subject, User, Room, Course, TimetableSettings, AcademicYear, Semester, Institution, CourseLevel, Conflict } from '../types';
+import type { TimetableEntry, Subject, User, Room, Course, TimetableSettings, AcademicYear, Semester, Institution, CourseLevel, Conflict, AllocationRequest } from '../types';
 import { generatePastelColor } from '../utils/colorUtils';
 import { timeToMinutes, generatePeriodLabels } from '../utils/timeUtils';
 import { getInitials } from '../utils/stringUtils';
@@ -568,12 +568,12 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                     </tbody>
                 </table>
             </div>
-            <style jsx>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
                 .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; }
-            `}</style>
+            `}} />
         </div>
     );
 

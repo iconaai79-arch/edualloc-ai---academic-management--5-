@@ -160,7 +160,7 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                                     }`}
                                 >
                                     <span className={`${activeTab === item.id ? 'text-white' : 'text-indigo-400 group-hover:text-white'} transition-colors`}>
-                                        {React.cloneElement(item.icon as React.ReactElement, { className: 'w-5 h-5' })}
+                                        {React.cloneElement(item.icon as any, { className: 'w-5 h-5' })}
                                     </span>
                                     {item.label}
                                 </button>
@@ -365,7 +365,7 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                             activeTab === item.id ? 'text-indigo-400' : 'text-slate-500'
                         }`}
                     >
-                        {React.cloneElement(item.icon as React.ReactElement, { 
+                        {React.cloneElement(item.icon as any, { 
                             className: `w-5 h-5 ${activeTab === item.id ? 'scale-110' : ''} transition-transform` 
                         })}
                         <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
