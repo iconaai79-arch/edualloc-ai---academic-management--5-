@@ -1,7 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { jsPDF } from 'jspdf';
 
-const Print = registerPlugin<any>('Print');
+const Print = registerPlugin<any>('EduaiPrint');
 
 function formatPrintDate(dateStr?: string): string {
     if (!dateStr) return new Date().toLocaleString();

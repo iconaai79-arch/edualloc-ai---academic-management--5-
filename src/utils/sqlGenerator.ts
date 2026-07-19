@@ -1530,6 +1530,7 @@ CREATE TABLE IF NOT EXISTS his_patients (
     insurance_provider VARCHAR(255),
     insurance_policy_number VARCHAR(100),
     contact TEXT,
+    admission_number TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

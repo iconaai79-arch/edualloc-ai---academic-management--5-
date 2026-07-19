@@ -388,40 +388,16 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
     // Print Badge pass simulation
     const handlePrintPass = (log: BuildingVisitorLog) => {
         const officeObj = offices.find(o => o.id === log.officeId);
-        const floorObj = officeObj ? floors.find(f => f.id === officeObj.floorId) : null;
+        const hostName = officeObj?.tenantName || 'N/A';
         
-        const timestamp = new Date().toLocaleString();
-        const existing = document.getElementById('visitor-pass-print-container');
-        if (existing) existing.remove();
-
-        const container = document.createElement('div');
-        container.id = 'visitor-pass-print-container';
-        container.className = 'print-only';
-
-        container.innerHTML = `
-            <div style="font-family: monospace; font-size: 11px; padding: 15px; border: 1px dashed #000; max-width: 250px; margin: 0 auto; text-align: center;">
-                <h3>${institution?.name || 'BUILDING MANAGEMENT'}</h3>
-                <p>VISITOR ENTRY PASS</p>
-                <hr style="border: 0.5px dashed #000;" />
-                <div style="text-align: left; margin: 10px 0; line-height: 1.4;">
-                    <div><b>NAME:</b> ${log.visitorName}</div>
-                    <div><b>ID NO:</b> ${log.idNumber}</div>
-                    <div><b>PHONE:</b> ${log.phoneNumber}</div>
-                    <div><b>OFFICE:</b> ${officeObj?.officeNumber || 'N/A'} - ${officeObj?.tenantName || 'N/A'}</div>
-                    <div><b>FLOOR:</b> ${floorObj?.floorName || 'N/A'}</div>
-                    <div><b>PLATE:</b> ${log.vehiclePlate || 'N/A'}</div>
-                    <div><b>DATE:</b> ${timestamp}</div>
-                </div>
-                <hr style="border: 0.5px dashed #000;" />
-                <div style="margin: 10px 0; padding: 10px; background: #eee; font-weight: bold; font-size: 14px; letter-spacing: 2px;">
-                    * QR CODE *
-                </div>
-                <p style="font-size: 8px;">Please retain this card. Scan at the exit checkpoints to clear departure.</p>
-            </div>
-        `;
-        document.body.appendChild(container);
-        window.print();
-        container.remove();
+        printService.printVisitorPass({
+            visitorData: log,
+            institution: institution || { name: 'Building Management' },
+            host: { name: hostName }
+        }).catch(err => {
+            console.error("Visitor pass printing failed:", err);
+            alert("Print failed: " + (err.message || err));
+        });
     };
 
     return (

@@ -30,7 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @CapacitorPlugin(
-    name = "Print",
+    name = "EduaiPrint",
     permissions = {
         @Permission(
             alias = "bluetooth",
@@ -100,7 +100,7 @@ public class PrintPlugin extends Plugin {
     }
 
     @PermissionCallback
-    private void bluetoothPermissionCallback(PluginCall call) {
+    public void bluetoothPermissionCallback(PluginCall call) {
         if (getPermissionState("bluetooth") == PermissionState.GRANTED) {
             retrievePairedDevices(call);
         } else {
@@ -211,7 +211,8 @@ public class PrintPlugin extends Plugin {
     @PluginMethod
     public void printRawNetwork(PluginCall call) {
         String ipAddress = call.getString("ipAddress");
-        Integer port = call.getInt("port", 9100);
+        Integer portInt = call.getInt("port", 9100);
+        int port = (portInt != null) ? portInt : 9100;
         String base64Bytes = call.getString("base64Bytes");
 
         if (ipAddress == null || ipAddress.isEmpty()) {

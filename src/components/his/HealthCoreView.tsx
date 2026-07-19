@@ -38,6 +38,7 @@ import { LabDiagnosticsView } from './LabDiagnosticsView';
 import { ModernPharmacyManager } from './ModernPharmacyManager';
 import { PharmacyView } from './PharmacyView';
 import { EduPulseHomeDashboard } from './EduPulseHomeDashboard';
+import { EduPulsePatientsList } from './EduPulsePatientsList';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
@@ -627,7 +628,19 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                                         />
                                     );
                                 }
+                                if (isEdu && eduSidebarItem === 'patients' && !activePatient) {
+                                    return (
+                                        <EduPulsePatientsList
+                                            patients={patients}
+                                            onRegisterPatient={() => setIsRegisterModalOpen(true)}
+                                            onSelectPatient={(pId) => setActivePatientId(pId)}
+                                            onPatientUpdated={fetchPatients}
+                                            institutionId={institutionId}
+                                        />
+                                    );
+                                }
                                 return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} onOpenTransferLetter={() => setIsTransferModalOpen(true)} />;
+
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
                             case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} activePatientId={activePatientId} />;
                             case 'pharmacy': return <PharmacyView institutionId={institutionId} />;
