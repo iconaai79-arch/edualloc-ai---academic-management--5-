@@ -489,7 +489,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             );
                             case 'billing': return <HISBillingView institutionId={institutionId} />;
                             case 'broadcaster': return <HISBroadcasterView />;
-                            case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} />;
+                            case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} isEdu={isEdu} />;
                             case 'config': return <HISConfigView demoStaff={demoData?.hisStaff} />;
                             case 'reports': return <HISReportsView activeRole={activeRole} institutionId={institutionId} patients={patients} users={users} />;
                             case 'attendance': return <StaffAttendanceView userName={userName} institutionId={institutionId} demoAttendance={demoData?.hisAttendance} />;

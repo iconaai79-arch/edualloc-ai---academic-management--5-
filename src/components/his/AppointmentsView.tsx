@@ -21,10 +21,13 @@ interface AppointmentsViewProps {
     userName?: string;
     institutionId?: string;
     demoAppointments?: HISAppointment[];
+    isEdu?: boolean;
 }
 
-export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, userName, institutionId, demoAppointments }) => {
-    const isDoctor = activeRole === 'lecturer';
+export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, userName, institutionId, demoAppointments, isEdu }) => {
+    // In hospital/clinic context, lecturers (doctors) see a read-only mode with no scheduling button.
+    // In EduPulse (school) context, 'lecturer' is a school teacher — they should still be able to add visits.
+    const isDoctor = !isEdu && activeRole === 'lecturer';
     const [searchTerm, setSearchTerm] = useState('');
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
     const [isAddAppointmentOpen, setIsAddAppointmentOpen] = useState(false);
