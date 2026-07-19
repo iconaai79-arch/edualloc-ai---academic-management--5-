@@ -7,6 +7,7 @@ import { SparklesIcon } from '../icons/SparklesIcon';
 import { HeartIcon, CalendarIcon, IdentificationIcon } from './HealthIcons';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { apiService } from '../../services/apiService';
+import { generatePatientHistoryPdf } from '../../services/pdfService';
 
 interface Patient {
     id: string;
@@ -33,6 +34,8 @@ interface EduPulsePatientsListProps {
     onSelectPatient: (patientId: string) => void;
     onPatientUpdated: () => void;
     institutionId?: string;
+    institutionData?: any;
+    onPreviewPdf?: (pdfUrl: string) => void;
 }
 
 /* ─── Inline Edit Modal ─── */
@@ -215,6 +218,8 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
     onSelectPatient,
     onPatientUpdated,
     institutionId,
+    institutionData,
+    onPreviewPdf,
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [genderFilter, setGenderFilter] = useState<'All' | 'Male' | 'Female'>('All');
@@ -224,6 +229,15 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
     const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
     const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
     const [notification, setNotification] = useState('');
+
+    // Pagination states
+    const itemsPerPage = 8;
+    const [currentPage, setCurrentPage] = useState(1);
+
+    // Reset pagination when search or filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, genderFilter, selectedGrade, selectedStream, sortBy]);
 
     const gradeOptions = useMemo(() => {
         const grades = new Set<string>();
@@ -268,6 +282,12 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                 return 0;
             });
     }, [patients, searchTerm, genderFilter, selectedGrade, selectedStream, sortBy]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+    const paginatedPatients = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filtered.slice(startIndex, startIndex + itemsPerPage);
+    }, [filtered, currentPage]);
 
     const handleSaveEdit = async (updated: Patient) => {
         await apiService.saveModuleRecord('his_patients', { ...updated, institutionId });
@@ -400,7 +420,7 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                                 </td>
                             </tr>
                         )}
-                        {filtered.map((p) => {
+                        {paginatedPatients.map((p) => {
                             const age = calcAge(p.dob);
                             return (
                                 <tr key={p.id} className="hover:bg-indigo-50/30 dark:hover:bg-white/5 transition-colors group">
@@ -504,7 +524,7 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                         </button>
                     </div>
                 )}
-                {filtered.map((p) => {
+                {paginatedPatients.map((p) => {
                     const age = calcAge(p.dob);
                     return (
                         <div key={p.id} className="bg-white dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-white/5 p-6 shadow-xl">
@@ -574,6 +594,53 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                 })}
             </div>
 
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900/50 rounded-[2rem] border border-slate-200 dark:border-white/5 p-6 shadow-md mt-6">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                        Page {currentPage} of {totalPages} · Showing {Math.min(filtered.length, (currentPage - 1) * itemsPerPage + 1)} to {Math.min(filtered.length, currentPage * itemsPerPage)} of {filtered.length} patients
+                    </span>
+                    <div className="flex gap-2 items-center">
+                        <button
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            className="px-4 py-2 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-300 disabled:opacity-40 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                        >
+                            ◄ Prev
+                        </button>
+                        {Array.from({ length: totalPages }).map((_, i) => {
+                            const pNum = i + 1;
+                            if (pNum === 1 || pNum === totalPages || Math.abs(pNum - currentPage) <= 1) {
+                                return (
+                                    <button
+                                        key={pNum}
+                                        onClick={() => setCurrentPage(pNum)}
+                                        className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${
+                                            currentPage === pNum
+                                                ? 'bg-indigo-600 text-white shadow-lg'
+                                                : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        {pNum}
+                                    </button>
+                                );
+                            }
+                            if (pNum === 2 || pNum === totalPages - 1) {
+                                return <span key={pNum} className="text-slate-400 text-xs">...</span>;
+                            }
+                            return null;
+                        })}
+                        <button
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            className="px-4 py-2 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-300 disabled:opacity-40 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                        >
+                            Next ►
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Edit Modal */}
             {editingPatient && (
                 <EditPatientModal
@@ -588,6 +655,8 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
                 <PatientHistoryModal
                     patient={historyPatient}
                     institutionId={institutionId}
+                    institutionData={institutionData}
+                    onPreviewPdf={onPreviewPdf}
                     onClose={() => setHistoryPatient(null)}
                 />
             )}
@@ -599,13 +668,38 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
 const PatientHistoryModal: React.FC<{
     patient: Patient;
     institutionId?: string;
+    institutionData?: any;
+    onPreviewPdf?: (pdfUrl: string) => void;
     onClose: () => void;
-}> = ({ patient, institutionId, onClose }) => {
+}> = ({ patient, institutionId, institutionData, onPreviewPdf, onClose }) => {
     const [loading, setLoading] = useState(false);
     const [events, setEvents] = useState<any[]>([]);
     const [vitals, setVitals] = useState<any[]>([]);
     const [prescriptions, setPrescriptions] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'timeline' | 'prescriptions'>('timeline');
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+    const handlePreviewPdf = async () => {
+        if (!onPreviewPdf) return;
+        setIsGeneratingPdf(true);
+        try {
+            const logo = institutionData?.logoUrl || null;
+            const pdfDataUri = await generatePatientHistoryPdf(
+                patient,
+                events,
+                vitals,
+                prescriptions,
+                institutionData || { name: 'Health Service' },
+                logo
+            );
+            onPreviewPdf(pdfDataUri);
+        } catch (err) {
+            console.error("Failed to generate patient history PDF:", err);
+            alert("Failed to generate PDF report.");
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
 
     useEffect(() => {
         const loadHistory = async () => {
@@ -987,7 +1081,25 @@ const PatientHistoryModal: React.FC<{
                 </div>
 
                 {/* Footer */}
-                <div className="p-7 bg-slate-50 dark:bg-white/5 border-t border-slate-100 dark:border-white/5 flex justify-end">
+                <div className="p-7 bg-slate-50 dark:bg-white/5 border-t border-slate-100 dark:border-white/5 flex justify-between items-center">
+                    {onPreviewPdf && (
+                        <button
+                            onClick={handlePreviewPdf}
+                            disabled={isGeneratingPdf}
+                            className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {isGeneratingPdf ? (
+                                <>
+                                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    Building PDF...
+                                </>
+                            ) : (
+                                <>
+                                    📄 Preview PDF Report
+                                </>
+                            )}
+                        </button>
+                    )}
                     <button
                         onClick={onClose}
                         className="px-8 py-3.5 bg-slate-900 dark:bg-white/5 text-white dark:text-slate-300 hover:bg-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"

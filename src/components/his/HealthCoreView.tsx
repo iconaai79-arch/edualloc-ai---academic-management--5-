@@ -642,6 +642,8 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                                             onSelectPatient={(pId) => setActivePatientId(pId)}
                                             onPatientUpdated={fetchPatients}
                                             institutionId={institutionId}
+                                            institutionData={institutionData}
+                                            onPreviewPdf={(url) => setPdfPreviewUrl(url)}
                                         />
                                     );
                                 }

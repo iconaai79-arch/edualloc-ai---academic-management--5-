@@ -9312,5 +9312,189 @@ export const downloadTeacherAttendanceReportPdf = async (
     document.body.removeChild(link);
 };
 
+export const generatePatientHistoryPdf = async (
+    patient: HISPatient,
+    events: any[],
+    vitals: any[],
+    prescriptions: any[],
+    institution: Institution,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
 
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = margin;
 
+    // 1. Header & Logo
+    if (logoImg) {
+        const logoWidth = 25;
+        const logoHeight = (logoImg.height * logoWidth) / logoImg.width;
+        doc.addImage(logoImg, 'PNG', margin, yPos, logoWidth, logoHeight);
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(institution.name || 'EduPulse Wellness Unit', pageWidth - margin, yPos + 5, { align: 'right' });
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`Email: ${institution.email || 'N/A'}`, pageWidth - margin, yPos + 11, { align: 'right' });
+    doc.text(`Phone: ${institution.phoneNumber || 'N/A'}`, pageWidth - margin, yPos + 15, { align: 'right' });
+
+    yPos += 35;
+    doc.setDrawColor(200);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+
+    // 2. Title
+    yPos += 15;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(30, 41, 59); // Slate-800
+    doc.text("PATIENT CLINICAL HISTORY DOSSIER", margin, yPos);
+    
+    doc.setFontSize(9);
+    doc.setTextColor(120);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    // 3. Patient Information Table
+    yPos += 10;
+    const infoHead = [['Field', 'Detail', 'Field', 'Detail']];
+    const infoBody = [
+        ['Full Name', patient.fullName.toUpperCase(), 'Date of Birth', patient.dob || '—'],
+        ['Gender', patient.gender || '—', 'Admission No', (patient as any).admissionNumber || (patient as any).admission_number || '—'],
+        ['Grade / Stream', `${(patient as any).gradeLevel || (patient as any).grade_level || '—'} / ${patient.stream || '—'}`, 'Blood Group', patient.bloodGroup || '—'],
+        ['Contact', patient.contact || '—', 'Known Allergies', patient.allergies || 'No known allergies'],
+    ];
+
+    doc.autoTable({
+        head: infoHead,
+        body: infoBody,
+        startY: yPos,
+        theme: 'grid',
+        headStyles: { fillColor: [71, 85, 105], textColor: 255 }, // Slate-600
+        styles: { fontSize: 8.5, cellPadding: 5 },
+        columnStyles: { 
+            0: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 35 }, 
+            2: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 35 } 
+        }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 12;
+
+    // 4. Clinical Timeline / Visits
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text("1. CLINICAL CONSULTATIONS & VISITS", margin, yPos);
+    yPos += 6;
+
+    if (!events || events.length === 0) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(150);
+        doc.text("No consultation visits recorded.", margin, yPos);
+        yPos += 10;
+    } else {
+        const visitHead = [['Date / Time', 'Diagnosis / Event Details', 'Department', 'Attending Practitioner']];
+        const visitBody = events.map(e => [
+            `${e.date || ''} ${e.time || ''}`,
+            e.event || 'Consultation',
+            e.dept || 'OPD / General',
+            e.provider || 'Staff'
+        ]);
+
+        doc.autoTable({
+            head: visitHead,
+            body: visitBody,
+            startY: yPos,
+            theme: 'striped',
+            headStyles: { fillColor: [15, 118, 110], textColor: 255 }, // Emerald/Teal
+            styles: { fontSize: 8.5, cellPadding: 5 }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 12;
+    }
+
+    // 5. Vital Statistics History
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text("2. DIAGNOSTICS & VITAL STATISTICS RECORD", margin, yPos);
+    yPos += 6;
+
+    if (!vitals || vitals.length === 0) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(150);
+        doc.text("No vital statistics logged.", margin, yPos);
+        yPos += 10;
+    } else {
+        const vitalsHead = [['Recorded Date / Time', 'Parameter Label', 'Measurement Value / Unit']];
+        const vitalsBody = vitals.map(v => [
+            v.recordedAt || v.recorded_at ? new Date(v.recordedAt || v.recorded_at).toLocaleString() : '—',
+            v.label || '—',
+            `${v.value || ''} ${v.unit || ''}`
+        ]);
+
+        doc.autoTable({
+            head: vitalsHead,
+            body: vitalsBody,
+            startY: yPos,
+            theme: 'striped',
+            headStyles: { fillColor: [190, 24, 74], textColor: 255 }, // Rose-700
+            styles: { fontSize: 8.5, cellPadding: 5 }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 12;
+    }
+
+    // 6. Prescriptions Dossier
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text("3. MEDICAL PRESCRIPTIONS ISSUED", margin, yPos);
+    yPos += 6;
+
+    if (!prescriptions || prescriptions.length === 0) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(150);
+        doc.text("No prescriptions issued.", margin, yPos);
+        yPos += 10;
+    } else {
+        const rxHead = [['Date / Ref', 'Prescribed Medications', 'Notes / Status', 'Attending Doctor']];
+        const rxBody = prescriptions.map(rx => {
+            const rxDate = rx.createdAt || rx.created_at ? new Date(rx.createdAt || rx.created_at).toLocaleDateString() : '—';
+            const medDetails = (rx.items || []).map((m: any) => 
+                `• ${m.drugName} (${m.dosage} - ${m.frequency} for ${m.duration}) [Qty: ${m.quantity}]`
+            ).join('\n') || 'No items listed';
+
+            return [
+                `${rxDate}\nID: ${rx.id}`,
+                medDetails,
+                `Notes: ${rx.notes || '—'}\nStatus: ${rx.status || 'pending'}`,
+                rx.doctorName || 'Staff Doctor'
+            ];
+        });
+
+        doc.autoTable({
+            head: rxHead,
+            body: rxBody,
+            startY: yPos,
+            theme: 'striped',
+            headStyles: { fillColor: [67, 56, 202], textColor: 255 }, // Indigo-700
+            styles: { fontSize: 8.5, cellPadding: 5 },
+            columnStyles: {
+                1: { cellWidth: 70 }
+            }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 12;
+    }
+
+    setupPdfFooter(doc, null, `${institution.name || 'EduPulse'} - Confidential Medical History File`);
+
+    return doc.output('datauristring');
+};
