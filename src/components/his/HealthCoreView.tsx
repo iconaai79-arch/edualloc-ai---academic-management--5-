@@ -247,7 +247,9 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
             const dob = userRecord.metadata?.dob || '';
             const gender = (userRecord.metadata?.gender || 'Unknown') as any;
             
-            const admNo = userRecord.admissionNumber || userRecord.metadata?.admissionNumber || '';
+            const admNo = userRecord.admissionNumber || userRecord.admission_number || userRecord.metadata?.admissionNumber || userRecord.metadata?.admission_number || '';
+            const grade = userRecord.metadata?.gradeLevel || userRecord.metadata?.class_level || userRecord.metadata?.grade_level || '';
+            const stream = userRecord.metadata?.stream || '';
             const record: HISPatient = {
                 id: newPatientId,
                 institutionId,
@@ -262,6 +264,8 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 emergencyContactPhone: '',
                 status: 'active',
                 admissionNumber: admNo,
+                gradeLevel: grade,
+                stream: stream,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
