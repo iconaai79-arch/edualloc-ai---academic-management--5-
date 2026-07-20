@@ -233,6 +233,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [roleModalUser, setRoleModalUser] = useState<User | null>(null);
     const [roleModalNewRole, setRoleModalNewRole] = useState<string>('');
     const [roleModalSaving, setRoleModalSaving] = useState(false);
+    const [roleModalSourceTab, setRoleModalSourceTab] = useState<'teachers' | 'support_staff'>('support_staff');
     const [users, setUsers] = useState<User[]>([]);
     const [instructors, setInstructors] = useState<User[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
@@ -4663,6 +4664,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 onClick={() => {
                                                     setRoleModalUser(teacher);
                                                     setRoleModalNewRole(teacher.role || 'teacher');
+                                                    setRoleModalSourceTab('teachers');
                                                 }}
                                                 className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all"
                                                 title="Manage Role"
@@ -4820,6 +4822,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 onClick={() => {
                                                     setRoleModalUser(staff);
                                                     setRoleModalNewRole(staff.role || '');
+                                                    setRoleModalSourceTab('support_staff');
                                                 }}
                                                 className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all"
                                                 title="Manage Role"
@@ -6524,10 +6527,28 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400"
                             >
                                 <option value="">-- Select Role --</option>
-                                {getRolesForInstitution(currentInstitution).map(r => (
-                                    <option key={r} value={r}>{formatRoleDisplayName(r as any)}</option>
-                                ))}
+                                {getRolesForInstitution(currentInstitution)
+                                    .filter(r => {
+                                        const isTeacherRole = teacherRoles.includes(r as any);
+                                        if (roleModalSourceTab === 'teachers') return isTeacherRole;
+                                        // Support staff: exclude pure teacher roles and non-staff roles
+                                        return !isTeacherRole && !nonSupportRoles.includes(r as any);
+                                    })
+                                    .map(r => (
+                                        <option key={r} value={r}>{formatRoleDisplayName(r as any)}</option>
+                                    ))
+                                }
                             </select>
+                            {roleModalNewRole && teacherRoles.includes(roleModalNewRole as any) && roleModalSourceTab === 'support_staff' && (
+                                <p className="mt-2 text-[10px] font-bold text-amber-500 uppercase tracking-wider">
+                                    ⚠ Assigning a teacher role will move this user to the Teachers list.
+                                </p>
+                            )}
+                            {roleModalNewRole && !teacherRoles.includes(roleModalNewRole as any) && roleModalSourceTab === 'teachers' && (
+                                <p className="mt-2 text-[10px] font-bold text-amber-500 uppercase tracking-wider">
+                                    ⚠ Assigning a non-teacher role will move this user to the Support Staff list.
+                                </p>
+                            )}
                         </div>
 
                         <div className="flex gap-3">
