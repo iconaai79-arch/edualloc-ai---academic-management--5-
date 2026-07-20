@@ -180,6 +180,17 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const [staffCheckInType, setStaffCheckInType] = useState<'Morning' | 'Afternoon'>('Morning');
     const [staffScanning, setStaffScanning] = useState(false);
 
+    // Casual/Contractor Walk-in State (Staff Gate Tab)
+    const [showWorkerWalkIn, setShowWorkerWalkIn] = useState(false);
+    const [workerCategory, setWorkerCategory] = useState('casual');
+    const [workerName, setWorkerName] = useState('');
+    const [workerPhone, setWorkerPhone] = useState('');
+    const [workerIdNumber, setWorkerIdNumber] = useState('');
+    const [workerCompany, setWorkerCompany] = useState('');
+    const [workerPurpose, setWorkerPurpose] = useState('');
+    const [workerSupervisor, setWorkerSupervisor] = useState('');
+    const [workerSaving, setWorkerSaving] = useState(false);
+
     const todayStr = React.useMemo(() => new Date().toISOString().split('T')[0], []);
 
     const filteredStaff = React.useMemo(() => {
@@ -734,6 +745,62 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         }
 
         await performVerificationAndPrint(pinToUse, selectedParent, eventToUse, selectedStudent);
+    };
+
+    // Handle casual/contractor walk-in from Staff Gate tab
+    const handleWorkerWalkIn = async () => {
+        const name = workerName.trim();
+        const idNo = workerIdNumber.trim();
+        const purp = workerPurpose.trim();
+        if (!name) { alert('Please enter the worker\'s full name.'); return; }
+        if (!idNo) { alert('National ID / Passport Number is required.'); return; }
+        if (!purp) { alert('Please state the purpose of entry.'); return; }
+        setWorkerSaving(true);
+        try {
+            const categoryLabels: Record<string, string> = {
+                casual: 'Casual Worker',
+                contractor: 'Construction Contractor',
+                technician: 'Technician / Artisan',
+                cleaner: 'Cleaning Crew',
+                delivery: 'Supplier / Delivery',
+                other: 'General Worker'
+            };
+            const label = categoryLabels[workerCategory] || 'Worker';
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeInStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const formattedPurpose = `[${label}] ${purp}${workerCompany ? ` (Company: ${workerCompany})` : ''}`;
+            const newVisitor: Omit<Visitor, 'id'> = {
+                name,
+                phoneNumber: workerPhone.trim(),
+                purpose: formattedPurpose,
+                visitDate: dateStr,
+                timeIn: timeInStr,
+                institutionId: currentInstitution.id,
+                hostId: currentUser.id,
+                hostName: workerSupervisor.trim() || currentUser.name,
+                idNumber: idNo,
+                status: 'checked_in'
+            };
+            if (onAddVisitor) {
+                await onAddVisitor(newVisitor);
+            } else {
+                await apiService.saveModuleRecord('visitors', { ...newVisitor, id: `vis_${Date.now()}` });
+            }
+            printEposWalkInGatePass(
+                newVisitor,
+                { name: workerSupervisor.trim() || currentUser.name, role: 'Supervisor' } as any,
+                currentInstitution
+            );
+            alert(`${label} entry logged and gate pass printed for ${name}.`);
+            setShowWorkerWalkIn(false);
+            setWorkerName(''); setWorkerPhone(''); setWorkerIdNumber('');
+            setWorkerCompany(''); setWorkerPurpose(''); setWorkerSupervisor('');
+            setWorkerCategory('casual');
+        } catch (err: any) {
+            alert(err.message || 'Failed to log worker entry.');
+        } finally {
+            setWorkerSaving(false);
+        }
     };
 
     // Handle walk-in registration (creates user + PIN from scratch)
@@ -1615,6 +1682,114 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                 className="mt-6 px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-750 hover:to-violet-750 text-white rounded-xl font-black uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-600/15"
                                             >
                                                 Open ID Scanner
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Casual / Contractor Quick Walk-In */}
+                                <div className="mt-4">
+                                    {!showWorkerWalkIn ? (
+                                        <button
+                                            onClick={() => setShowWorkerWalkIn(true)}
+                                            className="w-full py-3.5 border-2 border-dashed border-amber-400/60 dark:border-amber-600/40 text-amber-600 dark:text-amber-400 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <UserGroupIcon className="w-4 h-4" />
+                                            + Log Casual Worker / Contractor Entry
+                                        </button>
+                                    ) : (
+                                        <div className="p-5 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-300/60 dark:border-amber-700/40 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-2">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="font-black text-sm uppercase text-amber-700 dark:text-amber-400 tracking-wider">Worker Walk-In Entry</h4>
+                                                <button onClick={() => setShowWorkerWalkIn(false)} className="text-xs text-slate-400 hover:text-red-500 font-black uppercase transition-all">✕ Close</button>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Worker Category *</label>
+                                                <select
+                                                    value={workerCategory}
+                                                    onChange={e => setWorkerCategory(e.target.value)}
+                                                    className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-amber-200/50 dark:border-amber-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-white"
+                                                >
+                                                    <option value="casual">Casual Worker / Labourer</option>
+                                                    <option value="contractor">Construction Contractor</option>
+                                                    <option value="technician">Technician / Artisan</option>
+                                                    <option value="cleaner">Cleaning Crew</option>
+                                                    <option value="delivery">Supplier / Delivery Agent</option>
+                                                    <option value="other">Other / General Worker</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Full Name *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={workerName}
+                                                        onChange={e => setWorkerName(e.target.value)}
+                                                        placeholder="Worker's full name"
+                                                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-amber-200/50 dark:border-amber-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-white"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">National ID / Passport *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={workerIdNumber}
+                                                        onChange={e => setWorkerIdNumber(e.target.value)}
+                                                        placeholder="ID or passport number"
+                                                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-amber-200/50 dark:border-amber-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-white"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Phone Number</label>
+                                                    <input
+                                                        type="tel"
+                                                        value={workerPhone}
+                                                        onChange={e => setWorkerPhone(e.target.value)}
+                                                        placeholder="e.g. 0712 345 678"
+                                                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-amber-200/50 dark:border-amber-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-white"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Company / Contractor Name</label>
+                                                    <input
+                                                        type="text"
+                                                        value={workerCompany}
+                                                        onChange={e => setWorkerCompany(e.target.value)}
+                                                        placeholder="e.g. Apex Construction Ltd"
+                                                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-amber-200/50 dark:border-amber-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-white"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Purpose of Entry *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={workerPurpose}
+                                                        onChange={e => setWorkerPurpose(e.target.value)}
+                                                        placeholder="e.g. Roof repair, block B"
+                                                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-amber-200/50 dark:border-amber-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-white"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-1.5 ml-1">Supervising Officer</label>
+                                                    <input
+                                                        type="text"
+                                                        value={workerSupervisor}
+                                                        onChange={e => setWorkerSupervisor(e.target.value)}
+                                                        placeholder="Name of staff supervisor"
+                                                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-amber-200/50 dark:border-amber-800/50 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-white"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                onClick={handleWorkerWalkIn}
+                                                disabled={workerSaving || !workerName.trim() || !workerIdNumber.trim() || !workerPurpose.trim()}
+                                                className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-amber-500/10 cursor-pointer"
+                                            >
+                                                <CheckCircleIcon className="w-4 h-4" />
+                                                {workerSaving ? 'Logging Entry...' : 'Authorize Entry & Print Pass'}
                                             </button>
                                         </div>
                                     )}
