@@ -1691,7 +1691,9 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Purpose of Visit</label>
                                     <select className="form-select" value={walkInForm.purpose} onChange={(e) => setWalkInForm({ ...walkInForm, purpose: e.target.value })} required>
-                                        <option value="">Select Purpose</option>
+                                        <option value="">Select Purpose / Category</option>
+                                        <option value="Casual Worker / Labourer">Casual Worker / Labourer</option>
+                                        <option value="Construction Contractor">Construction Contractor</option>
                                         <option value="Official">Official Business</option>
                                         <option value="Personal">Personal Visit</option>
                                         <option value="Delivery">Delivery / Courier</option>
