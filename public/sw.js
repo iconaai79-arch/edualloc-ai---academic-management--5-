@@ -10,6 +10,8 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass through fetch requests
-  event.respondWith(fetch(event.request));
+  // Only intercept same-origin requests to prevent breaking cross-origin calls (like local Dahua requests)
+  if (event.request.url.startsWith(self.location.origin)) {
+    event.respondWith(fetch(event.request));
+  }
 });

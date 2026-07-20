@@ -121,22 +121,27 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         setTestingDahua(true);
         const baseUrl = `http://${dahuaConfig.ipAddress}:${dahuaConfig.port || 80}`;
         const testUrl = `${baseUrl}/cgi-bin/magicBox.cgi?action=getSystemInfo`;
-        
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 seconds timeout
             
-            const headers: Record<string, string> = {};
-            if (dahuaConfig.username && dahuaConfig.password) {
-                headers['Authorization'] = `Basic ${btoa(`${dahuaConfig.username}:${dahuaConfig.password}`)}`;
+            const isNative = Capacitor.isNativePlatform();
+            const fetchOptions: RequestInit = {
+                method: 'GET',
+                signal: controller.signal
+            };
+
+            if (isNative) {
+                const headers: Record<string, string> = {};
+                if (dahuaConfig.username && dahuaConfig.password) {
+                    headers['Authorization'] = `Basic ${btoa(`${dahuaConfig.username}:${dahuaConfig.password}`)}`;
+                }
+                fetchOptions.headers = headers;
+            } else {
+                fetchOptions.mode = 'no-cors';
             }
 
-            await fetch(testUrl, {
-                method: 'GET',
-                mode: 'no-cors',
-                headers,
-                signal: controller.signal
-            });
+            await fetch(testUrl, fetchOptions);
             clearTimeout(timeoutId);
             alert("Connection test initiated! The device responded and is reachable on the network.");
         } catch (err: any) {
@@ -231,16 +236,22 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         console.log(`Dahua Integration: Syncing card record for ${user.name} (ID: ${userId}, Card: ${cardNo})`);
         
         try {
-            const headers: Record<string, string> = {};
-            if (dahuaConfig.username && dahuaConfig.password) {
-                headers['Authorization'] = `Basic ${btoa(`${dahuaConfig.username}:${dahuaConfig.password}`)}`;
+            const isNative = Capacitor.isNativePlatform();
+            const fetchOptions: RequestInit = {
+                method: 'GET'
+            };
+
+            if (isNative) {
+                const headers: Record<string, string> = {};
+                if (dahuaConfig.username && dahuaConfig.password) {
+                    headers['Authorization'] = `Basic ${btoa(`${dahuaConfig.username}:${dahuaConfig.password}`)}`;
+                }
+                fetchOptions.headers = headers;
+            } else {
+                fetchOptions.mode = 'no-cors';
             }
 
-            await fetch(cardUrl, { 
-                method: 'GET',
-                mode: 'no-cors',
-                headers
-            });
+            await fetch(cardUrl, fetchOptions);
             console.log("Dahua Integration: User card sync dispatched successfully.");
         } catch (err: any) {
             console.error("Dahua Integration: Error dispatching user record to device:", err);
