@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { InventoryItem, User, StockTransaction, Department, Institution } from '../types';
 import { checkStoreHours } from '../utils/storeHours';
 import { PlusIcon } from './icons/PlusIcon';
@@ -339,7 +340,7 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                 </div>
             </div>
 
-            {isIssuing && (
+            {isIssuing && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
                         <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-indigo-600">
@@ -544,7 +545,8 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

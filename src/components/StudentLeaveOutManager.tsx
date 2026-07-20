@@ -318,7 +318,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
     );
 
     const isClassTeacher = useMemo(() => {
-        if (['admin', 'head_teacher', 'dos', 'deputy', 'super_admin'].includes(currentUser.role)) {
+        if (['admin', 'head_teacher', 'dos', 'deputy', 'super_admin', 'managing_director', 'hoi'].includes(currentUser.role)) {
             return true;
         }
         return courses.some(c => 
@@ -328,7 +328,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
 
     const students = useMemo(() => {
         const allStudents = users.filter(u => u.role === 'student');
-        if (['admin', 'head_teacher', 'dos', 'deputy', 'super_admin'].includes(currentUser.role)) {
+        if (['admin', 'head_teacher', 'dos', 'deputy', 'super_admin', 'managing_director', 'hoi'].includes(currentUser.role)) {
             return allStudents;
         }
         const myClassLevels = new Set<string>();

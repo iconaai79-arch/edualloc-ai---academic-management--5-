@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { Book, User, LibraryTransaction, LibrarySettings } from '../types';
 import { PlusIcon } from './icons/PlusIcon';
 import { SearchIcon } from './icons/SearchIcon';
@@ -653,7 +654,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             </div>
 
             {/* Issuance Registry Modal */}
-            {isIssuing && (
+            {isIssuing && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100 dark:border-slate-700">
                         <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-indigo-600">
@@ -922,10 +923,11 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {isBulkIssuing && (
+            {isBulkIssuing && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in text-left">
                     <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-5xl shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-indigo-650 text-white flex-shrink-0">
@@ -1203,7 +1205,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                         </div>
                     </div>
                 </div>
-            )}
+            ), document.body)}
 
             <style>{`
                 @keyframes scan {

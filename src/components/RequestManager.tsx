@@ -103,7 +103,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
         }
 
         if (statusFilter === 'action_required') {
-            if (['admin', 'head_teacher', 'deputy', 'dos', 'super_admin'].includes(currentUser?.role)) {
+            if (['admin', 'head_teacher', 'deputy', 'dos', 'super_admin', 'managing_director', 'hoi'].includes(currentUser?.role)) {
                 relevantRequests = relevantRequests.filter(req => req && ['pending', 'hod_approved', 'deallocation_pending', 'change_request_pending'].includes(req.status));
             } else if (currentUser?.role === 'hod' || currentUser?.role === 'tto') {
                 relevantRequests = relevantRequests.filter(req => req && req.status === 'pending');
@@ -128,7 +128,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
         
         // Ensure user sees the button even in 'all' view if they have permission to act on the pending items
         const isHodViewingPending = currentUser && (currentUser.role === 'hod' || currentUser.role === 'tto');
-        const isAdminViewingFinal = currentUser && ['admin', 'head_teacher', 'deputy', 'dos', 'super_admin'].includes(currentUser.role);
+        const isAdminViewingFinal = currentUser && ['admin', 'head_teacher', 'deputy', 'dos', 'super_admin', 'managing_director', 'hoi'].includes(currentUser.role);
 
         const allowBulk = (isHodViewingPending || isAdminViewingFinal) && standardPendingRequests.length > 0;
 

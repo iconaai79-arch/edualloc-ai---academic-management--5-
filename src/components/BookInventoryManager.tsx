@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import type { Book, User } from '../types';
 import { PlusIcon } from './icons/PlusIcon';
 import { SearchIcon } from './icons/SearchIcon';
@@ -300,7 +301,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
             </div>
 
             {/* Add/Edit Modal */}
-            {isAddingBook && (
+            {isAddingBook && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-2xl shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
                         <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center">
@@ -400,7 +401,8 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {qrBook && (

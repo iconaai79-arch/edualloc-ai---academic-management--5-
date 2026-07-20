@@ -1775,7 +1775,7 @@ Please change it after login.`;
     });
 
     const activeRole = currentUser?.role;
-    const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy'].includes(activeRole || '');
+    const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'managing_director', 'hoi'].includes(activeRole || '');
 
     // Render logic moved from App.tsx into component to reuse for perspective switching
     // Wrapped in Suspense to handle lazy loading
