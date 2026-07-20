@@ -230,6 +230,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         role: '',
         gender: '' as 'Male' | 'Female' | 'Other' | ''
     });
+    const [roleModalUser, setRoleModalUser] = useState<User | null>(null);
+    const [roleModalNewRole, setRoleModalNewRole] = useState<string>('');
+    const [roleModalSaving, setRoleModalSaving] = useState(false);
     const [users, setUsers] = useState<User[]>([]);
     const [instructors, setInstructors] = useState<User[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
@@ -3405,6 +3408,28 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
     };
 
+    // Handle Change User Role
+    const handleChangeUserRole = async () => {
+        if (!roleModalUser || !roleModalNewRole) return;
+        setRoleModalSaving(true);
+        try {
+            await apiService.updateModuleRecord('users', roleModalUser.id, {
+                ...roleModalUser,
+                role: roleModalNewRole as any,
+                updatedAt: new Date().toISOString()
+            });
+            setStatusMsg({ type: 'success', message: `Role updated to "${formatRoleDisplayName(roleModalNewRole as any)}" for ${roleModalUser.name}.` });
+            setRoleModalUser(null);
+            setRoleModalNewRole('');
+            loadAllData();
+        } catch (err: any) {
+            setStatusMsg({ type: 'error', message: `Failed to update role: ${err.message}` });
+        } finally {
+            setRoleModalSaving(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
     // Available Cohorts / Grade Levels
     const cohortsList = useMemo(() => {
         if (context === 'driving_school') {
@@ -4544,6 +4569,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <div className="shrink-0 flex items-center gap-1">
                                             <button
                                                 onClick={() => {
+                                                    setRoleModalUser(teacher);
+                                                    setRoleModalNewRole(teacher.role || 'teacher');
+                                                }}
+                                                className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all"
+                                                title="Manage Role"
+                                            >
+                                                <ShieldCheck className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => {
                                                     setEditingStaff(teacher);
                                                     const supervisedLevel = courses.flatMap(c => c.levels || []).find(lvl => lvl.classTeacherId === teacher.id);
                                                     setIsClassSupervisor(!!supervisedLevel);
@@ -4689,6 +4724,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                                         {/* Actions */}
                                         <div className="shrink-0 flex items-center gap-1">
+                                            <button
+                                                onClick={() => {
+                                                    setRoleModalUser(staff);
+                                                    setRoleModalNewRole(staff.role || '');
+                                                }}
+                                                className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all"
+                                                title="Manage Role"
+                                            >
+                                                <ShieldCheck className="w-4 h-4" />
+                                            </button>
                                             <button
                                                 onClick={() => {
                                                     setEditingStaff(staff);
@@ -6351,6 +6396,64 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Manage Role Modal */}
+            {roleModalUser && createPortal(
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md z-[110] flex items-center justify-center p-4" onClick={() => { setRoleModalUser(null); setRoleModalNewRole(''); }}>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-3xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-5 border-b border-slate-100 dark:border-slate-800 pb-4">
+                            <div className="flex items-center gap-2">
+                                <ShieldCheck className="w-5 h-5 text-indigo-500" />
+                                <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Manage Role</h3>
+                            </div>
+                            <button onClick={() => { setRoleModalUser(null); setRoleModalNewRole(''); }} className="w-9 h-9 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white transition-all">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+                            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">User</div>
+                            <div className="text-base font-black text-slate-800 dark:text-white">{roleModalUser.name}</div>
+                            <div className="text-xs text-slate-400 mt-0.5">{roleModalUser.email || roleModalUser.phoneNumber || 'No contact info'}</div>
+                            <div className="mt-2 inline-flex items-center gap-1 px-2.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
+                                Current: {formatRoleDisplayName((roleModalUser.role || '') as any)}
+                            </div>
+                        </div>
+
+                        <div className="mb-5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1.5">New Role</label>
+                            <select
+                                value={roleModalNewRole}
+                                onChange={e => setRoleModalNewRole(e.target.value)}
+                                className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            >
+                                <option value="">-- Select Role --</option>
+                                {getRolesForInstitution(currentInstitution).map(r => (
+                                    <option key={r} value={r}>{formatRoleDisplayName(r as any)}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => { setRoleModalUser(null); setRoleModalNewRole(''); }}
+                                className="flex-1 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleChangeUserRole}
+                                disabled={!roleModalNewRole || roleModalSaving || roleModalNewRole === roleModalUser.role}
+                                className="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {roleModalSaving ? <RotateCcw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                                {roleModalSaving ? 'Saving...' : 'Update Role'}
+                            </button>
+                        </div>
                     </div>
                 </div>,
                 document.body
