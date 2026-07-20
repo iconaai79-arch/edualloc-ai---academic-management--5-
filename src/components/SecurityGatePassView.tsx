@@ -155,6 +155,96 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             setTestingDahua(false);
         }
     };
+    
+    const [syncingDahuaLogs, setSyncingDahuaLogs] = useState(false);
+
+    const syncDahuaAccessLogs = async () => {
+        if (!dahuaConfig.enabled || !dahuaConfig.ipAddress || syncingDahuaLogs) return;
+        setSyncingDahuaLogs(true);
+        try {
+            const baseUrl = `http://${dahuaConfig.ipAddress}:${dahuaConfig.port || 80}`;
+            const queryUrl = `${baseUrl}/cgi-bin/recordFinder.cgi?action=find&name=AccessControlCardRec&count=30`;
+            
+            const isNative = Capacitor.isNativePlatform();
+            const fetchOptions: RequestInit = { method: 'GET' };
+
+            if (isNative) {
+                const headers: Record<string, string> = {};
+                if (dahuaConfig.username && dahuaConfig.password) {
+                    headers['Authorization'] = `Basic ${btoa(`${dahuaConfig.username}:${dahuaConfig.password}`)}`;
+                }
+                fetchOptions.headers = headers;
+            } else {
+                fetchOptions.mode = 'no-cors';
+            }
+
+            const response = await fetch(queryUrl, fetchOptions);
+            const text = await response.text();
+            
+            if (text && text.includes('records[')) {
+                const recordsMap: Record<string, any> = {};
+                const lines = text.split('\n');
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || !trimmed.includes('=')) continue;
+                    const idxEq = trimmed.indexOf('=');
+                    const key = trimmed.substring(0, idxEq).trim();
+                    const val = trimmed.substring(idxEq + 1).trim();
+                    const match = key.match(/records\[(\d+)\]\.(.+)/);
+                    if (match) {
+                        const index = match[1];
+                        const field = match[2];
+                        if (!recordsMap[index]) recordsMap[index] = {};
+                        recordsMap[index][field] = val;
+                    }
+                }
+
+                const records = Object.values(recordsMap);
+                for (const rec of records) {
+                    const cardNo = (rec.CardNo || rec.cardNo || '').toString().trim();
+                    const userId = (rec.UserID || rec.userID || '').toString().trim();
+                    const createTime = rec.CreateTime || rec.createTime;
+
+                    if (!cardNo && !userId) continue;
+
+                    const matchedStaff = (users || []).find(u => {
+                        if (!u || !u.role || ['student', 'parent', 'customer', 'visitor'].includes(u.role)) return false;
+                        const uStaffId = (u.staffId || '').trim();
+                        const uId = (u.id || '').trim();
+                        const uPhone = (u.phoneNumber || '').replace(/\D/g, '');
+                        const cleanCardNo = cardNo.replace(/\D/g, '');
+
+                        if (userId && (uStaffId === userId || uId.startsWith(userId) || uId === userId)) return true;
+                        if (cleanCardNo && cleanCardNo.length >= 4 && uPhone && (uPhone.endsWith(cleanCardNo) || cleanCardNo.endsWith(uPhone))) return true;
+                        return false;
+                    });
+
+                    if (matchedStaff && onTeacherGateCheckIn) {
+                        let punchHour = new Date().getHours();
+                        if (createTime) {
+                            const parsed = new Date(createTime);
+                            if (!isNaN(parsed.getTime())) punchHour = parsed.getHours();
+                        }
+                        const checkinType = punchHour < 12 ? 'Morning' : 'Afternoon';
+                        await onTeacherGateCheckIn(matchedStaff.id, checkinType, 'Dahua Biometric Terminal', `Biometric Login Verified (${createTime || 'Today'})`);
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn("Dahua log sync attempt completed:", err);
+        } finally {
+            setSyncingDahuaLogs(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!dahuaConfig.enabled || !dahuaConfig.ipAddress) return;
+        syncDahuaAccessLogs();
+        const intervalId = setInterval(() => {
+            syncDahuaAccessLogs();
+        }, 30000);
+        return () => clearInterval(intervalId);
+    }, [dahuaConfig.enabled, dahuaConfig.ipAddress, users]);
 
     useEffect(() => {
         setActiveUsers(users);
@@ -1284,6 +1374,21 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                 Save Settings
                                             </button>
                                         </div>
+
+                                        <button 
+                                            type="button"
+                                            onClick={async () => {
+                                                await syncDahuaAccessLogs();
+                                                alert("Dahua biometric log sync initiated!");
+                                            }}
+                                            disabled={syncingDahuaLogs}
+                                            className={`w-full mt-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest active:scale-95 transition-all bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg flex items-center justify-center gap-2 ${
+                                                syncingDahuaLogs ? 'opacity-50 cursor-not-allowed' : ''
+                                            }`}
+                                        >
+                                            <ArrowPathIcon className={`w-4 h-4 ${syncingDahuaLogs ? 'animate-spin' : ''}`} />
+                                            {syncingDahuaLogs ? 'Syncing Biometric Logs...' : 'Sync Biometric Terminal Logs'}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
