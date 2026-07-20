@@ -119,19 +119,22 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         }
         
         setTestingDahua(true);
-        const authPrefix = dahuaConfig.username && dahuaConfig.password 
-            ? `${dahuaConfig.username}:${dahuaConfig.password}@` 
-            : '';
-        const baseUrl = `http://${authPrefix}${dahuaConfig.ipAddress}:${dahuaConfig.port || 80}`;
+        const baseUrl = `http://${dahuaConfig.ipAddress}:${dahuaConfig.port || 80}`;
         const testUrl = `${baseUrl}/cgi-bin/magicBox.cgi?action=getSystemInfo`;
         
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 seconds timeout
             
+            const headers: Record<string, string> = {};
+            if (dahuaConfig.username && dahuaConfig.password) {
+                headers['Authorization'] = `Basic ${btoa(`${dahuaConfig.username}:${dahuaConfig.password}`)}`;
+            }
+
             await fetch(testUrl, {
                 method: 'GET',
                 mode: 'no-cors',
+                headers,
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
@@ -222,19 +225,21 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         const cardNo = resolveCardNo(user);
         const userId = user.staffId || user.id.substring(0, 8);
         
-        const authPrefix = dahuaConfig.username && dahuaConfig.password 
-            ? `${dahuaConfig.username}:${dahuaConfig.password}@` 
-            : '';
-        
-        const baseUrl = `http://${authPrefix}${dahuaConfig.ipAddress}:${dahuaConfig.port || 80}`;
+        const baseUrl = `http://${dahuaConfig.ipAddress}:${dahuaConfig.port || 80}`;
         const cardUrl = `${baseUrl}/cgi-bin/recordUpdater.cgi?action=insert&name=AccessControlCard&CardNo=${cardNo}&UserID=${userId}&CardStatus=0&CardType=0`;
         
         console.log(`Dahua Integration: Syncing card record for ${user.name} (ID: ${userId}, Card: ${cardNo})`);
         
         try {
+            const headers: Record<string, string> = {};
+            if (dahuaConfig.username && dahuaConfig.password) {
+                headers['Authorization'] = `Basic ${btoa(`${dahuaConfig.username}:${dahuaConfig.password}`)}`;
+            }
+
             await fetch(cardUrl, { 
                 method: 'GET',
-                mode: 'no-cors'
+                mode: 'no-cors',
+                headers
             });
             console.log("Dahua Integration: User card sync dispatched successfully.");
         } catch (err: any) {
