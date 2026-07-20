@@ -907,7 +907,10 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             printEposWalkInGatePass(
                 newVisitor,
                 { name: workerSupervisor.trim() || currentUser.name, role: 'Supervisor' } as any,
-                currentInstitution
+                currentInstitution,
+                undefined,
+                undefined,
+                currentUser?.name
             );
             alert(`${label} entry logged and gate pass printed for ${name}.`);
             setShowWorkerWalkIn(false);
@@ -1015,7 +1018,10 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 printEposWalkInGatePass(
                     newVisitor,
                     { name: host || 'Security Gate', role: 'Staff' } as any,
-                    currentInstitution
+                    currentInstitution,
+                    undefined,
+                    undefined,
+                    currentUser?.name
                 );
 
                 alert(`${label} entry logged successfully! Gatepass sent to printer.`);
@@ -2314,7 +2320,10 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                                                 printEposWalkInGatePass(
                                                                                     item.raw,
                                                                                     { name: item.raw.hostName || 'Security Gate', role: 'Staff' } as any,
-                                                                                    currentInstitution
+                                                                                    currentInstitution,
+                                                                                    undefined,
+                                                                                    undefined,
+                                                                                    currentUser?.name
                                                                                 );
                                                                             }}
                                                                             className="flex-1 py-2 bg-purple-650 hover:bg-purple-750 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-md shadow-purple-550/10 cursor-pointer"

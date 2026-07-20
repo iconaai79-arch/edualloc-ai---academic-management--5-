@@ -679,7 +679,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             printEposGatePass(foundPin, parent, event, props.currentInstitution);
         } else {
             const hostUser = localUsers.find(u => u.id === v.hostId);
-            printEposWalkInGatePass(v, hostUser, props.currentInstitution);
+            printEposWalkInGatePass(v, hostUser, props.currentInstitution, undefined, undefined, user?.name || undefined);
         }
     };
 
