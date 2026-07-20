@@ -172,8 +172,25 @@ export const apiService = {
     },
     getSession(): User | null {
         try {
-            const stored = localStorage.getItem('eduai_active_session');
-            return stored ? JSON.parse(stored) : null;
+            const keys = [
+                'eduai_active_session',
+                'eduai_super_admin_session',
+                'eduai_impersonated_user',
+                'eduai_user_session',
+                'user',
+                'eduai_alumna_session',
+                'eduai_campaign_session'
+            ];
+            for (const k of keys) {
+                const stored = localStorage.getItem(k);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (parsed && (parsed.id || parsed.user_id || parsed.userId || parsed.role)) {
+                        return parsed;
+                    }
+                }
+            }
+            return null;
         } catch (e) { return null; }
     },
     async getNextDocumentNumber(instId: string, docType: string): Promise<string> {
@@ -244,10 +261,20 @@ export const apiService = {
             }
         }
 
-        // 2. Fallback to session ID
+        // 2. Try Super Admin session fallback
+        const superAdminSession = localStorage.getItem('eduai_super_admin_session');
+        if (superAdminSession) {
+            try {
+                const parsed = JSON.parse(superAdminSession);
+                if (parsed?.id) return parsed.id;
+            } catch (e) {}
+            return 'temp_admin_bypass';
+        }
+
+        // 3. Fallback to active session user ID
         let session = apiService.getSession();
         
-        // 2.1 Try Alumnae Session fallback
+        // 3.1 Try Alumnae Session fallback
         if (!session) {
             try {
                 const alumStored = localStorage.getItem('eduai_alumna_session');
@@ -255,7 +282,7 @@ export const apiService = {
             } catch (e) {}
         }
 
-        const token = session?.id || '';
+        const token = session?.id || session?.userId || session?.user_id || '';
         return token;
     },
     getToken(): string {

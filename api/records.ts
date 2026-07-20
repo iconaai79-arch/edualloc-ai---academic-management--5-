@@ -89,8 +89,8 @@ async function getAuthUser(supabase: any, authHeader?: string) {
       }
     }
 
-    // 4. Try Temp Admin bypass (Development / Maintenance Mode)
-    if (token && token.startsWith('temp_admin_')) {
+    // 4. Try Temp Admin / Super Admin bypass (Development / Maintenance Mode)
+    if (token && (token.startsWith('temp_admin_') || token.startsWith('admin_') || token === 'admin' || token === 'super_admin' || token === 'temp_admin_bypass')) {
        console.log(`[getAuthUser] Bypass active for ${token.substring(0, 15)}...`);
        return { id: token, institutionId: 'GLOBAL', role: 'super_admin' };
     }
