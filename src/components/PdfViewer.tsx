@@ -218,11 +218,39 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, className, title, sty
         };
     }, [src, isMobile]);
 
+    const [objectUrl, setObjectUrl] = useState<string>('');
+
+    useEffect(() => {
+        if (!src) return;
+        if (src.startsWith('data:application/pdf;base64,')) {
+            try {
+                const base64 = src.split(',')[1];
+                const binaryStr = atob(base64);
+                const len = binaryStr.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                setObjectUrl(url);
+                return () => {
+                    URL.revokeObjectURL(url);
+                };
+            } catch (err) {
+                console.error("Failed to convert data URI to blob URL:", err);
+                setObjectUrl(src);
+            }
+        } else {
+            setObjectUrl(src);
+        }
+    }, [src]);
+
     // Desktop fallback: render standard iframe
     if (!isMobile) {
         return (
             <iframe
-                src={src}
+                src={objectUrl || src}
                 className={className}
                 title={title || "PDF Preview"}
                 style={style}
