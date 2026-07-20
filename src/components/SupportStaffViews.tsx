@@ -644,7 +644,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 }
 
                 if (pin) {
-                    printEposGatePass(pin, parent, event, props.currentInstitution);
+                    printEposGatePass(pin, parent, event, props.currentInstitution, user?.name);
                     const updatedPin = {
                         ...pin,
                         status: 'used'
@@ -676,7 +676,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 institutionId: user.institutionId
             } as User);
             const event = institutionEvents.find(e => e.id === foundPin.eventId);
-            printEposGatePass(foundPin, parent, event, props.currentInstitution);
+            printEposGatePass(foundPin, parent, event, props.currentInstitution, user?.name);
         } else {
             const hostUser = localUsers.find(u => u.id === v.hostId);
             printEposWalkInGatePass(v, hostUser, props.currentInstitution, undefined, undefined, user?.name || undefined);

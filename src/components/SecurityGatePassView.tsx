@@ -18,8 +18,8 @@ import { phonesMatch, phoneContains } from '../utils/stringUtils';
 import { printService, getPrinterConfig, savePrinterConfig, getBluetoothPrinters, PrinterConfig } from '../services/printService';
 import { Capacitor } from '@capacitor/core';
 
-export const printEposGatePass = (pin: any, parent: any, event: any, institution: any) => {
-    printService.printEventPass({ pin, parent, event, institution }).catch(err => {
+export const printEposGatePass = (pin: any, parent: any, event: any, institution: any, securityOfficerName?: string) => {
+    printService.printEventPass({ pin, parent, event, institution, securityOfficerName }).catch(err => {
         console.error("Event gatepass printing failed:", err);
         alert("Print failed: " + (err.message || err));
     });
@@ -755,7 +755,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             }
 
             if (pin) {
-                printEposGatePass(pin, parent, event, currentInstitution);
+                printEposGatePass(pin, parent, event, currentInstitution, currentUser?.name);
                 const updatedPin = {
                     ...pin,
                     status: 'used'

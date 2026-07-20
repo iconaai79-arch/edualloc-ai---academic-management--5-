@@ -32,11 +32,13 @@ const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | n
     return new Promise((resolve) => {
         if (!url) return resolve(null);
         const img = new Image();
-        img.crossOrigin = "Anonymous";
+        if (!url.startsWith('data:')) {
+            img.crossOrigin = "Anonymous";
+        }
         img.src = url;
         img.onload = () => resolve(img);
-        img.onerror = () => {
-            console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url);
+        img.onerror = (e) => {
+            console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url, e);
             resolve(null);
         };
     });
@@ -366,11 +368,11 @@ export const printService = {
         const config = getPrinterConfig();
 
         if (config.type === 'system' || !Capacitor.isNativePlatform()) {
-            const resolvedVisitorSig = params.visitorSignature || params.visitorData.visitorSignature || params.visitorData.visitor_signature || null;
-            const resolvedHostSig = params.hostSignature || params.visitorData.hostSignature || params.visitorData.host_signature || null;
-            const resolvedOfficerName = params.securityOfficerName || params.visitorData.securityOfficerName || params.visitorData.security_officer_name || null;
-            const resolvedHostName = params.visitorData.hostName || params.host?.name || 'N/A';
-            const timestamp = params.visitorData.timeIn ? formatPrintDate(params.visitorData.timeIn) : new Date().toLocaleString();
+            const resolvedVisitorSig = params.visitorSignature || params.visitorData?.visitorSignature || params.visitorData?.visitor_signature || null;
+            const resolvedHostSig = params.hostSignature || params.visitorData?.hostSignature || params.visitorData?.host_signature || null;
+            const resolvedOfficerName = params.securityOfficerName || params.visitorData?.securityOfficerName || params.visitorData?.security_officer_name || params.visitorData?.verifiedBy || params.visitorData?.verified_by || 'Security Officer';
+            const resolvedHostName = params.visitorData?.hostName || params.host?.name || 'N/A';
+            const timestamp = params.visitorData?.timeIn ? formatPrintDate(params.visitorData.timeIn) : new Date().toLocaleString();
 
             if (Capacitor.isNativePlatform()) {
                 try {
@@ -547,13 +549,15 @@ export const printService = {
         parent: any;
         event: any;
         institution: any;
+        securityOfficerName?: string;
     }): Promise<void> {
         const config = getPrinterConfig();
+        const resolvedOfficerName = params.securityOfficerName || params.pin?.securityOfficerName || params.pin?.security_officer_name || params.pin?.verifiedBy || params.pin?.verified_by || 'Security Officer';
 
         if (config.type === 'system' || !Capacitor.isNativePlatform()) {
             if (Capacitor.isNativePlatform()) {
                 try {
-                    const base64Pdf = await generateEventPassPdfBase64(params.pin, params.parent, params.event, params.institution);
+                    const base64Pdf = await generateEventPassPdfBase64(params.pin, params.parent, params.event, params.institution, resolvedOfficerName);
                     await this.printPdf(base64Pdf, "Event Pass");
                 } catch (err) {
                     console.error("Failed to generate/print native event pass PDF:", err);
@@ -617,8 +621,8 @@ export const printService = {
                         </head>
                         <body>
                             <div class="text-center">
-                                ${params.institution.logoUrl || params.institution.logo_url ? `
-                                    <img src="${params.institution.logoUrl || params.institution.logo_url}" style="max-height: 40px; max-width: 120px; object-fit: contain; margin-bottom: 6px;" alt="Logo" /><br/>
+                                ${(params.institution.logoUrl || params.institution.logo_url || params.institution.logo) ? `
+                                    <img src="${params.institution.logoUrl || params.institution.logo_url || params.institution.logo}" style="max-height: 40px; max-width: 120px; object-fit: contain; margin-bottom: 6px;" alt="Logo" /><br/>
                                 ` : ''}
                                 <div class="bold title">${params.institution.name || 'Academic Institution'}</div>
                                 <div class="subtitle">Gate Entry Pass</div>
@@ -667,6 +671,9 @@ export const printService = {
                             <div class="separator"></div>
 
                             <div class="text-center footer">
+                                ${resolvedOfficerName ? `
+                                    <div class="bold" style="font-size: 10px; margin-bottom: 4px; text-transform: uppercase;">SECURITY OFFICER: ${resolvedOfficerName}</div>
+                                ` : ''}
                                 <div class="bold">ENTRY APPROVED</div>
                                 <div style="margin-top: 4px;">Thank you for attending.</div>
                                 <div style="font-size: 8px; margin-top: 4px; color: #555;">Eduai OS Support: 0723348912</div>
@@ -700,7 +707,8 @@ export const printService = {
             params.parent,
             params.event,
             params.institution,
-            config.paperWidth || 80
+            config.paperWidth || 80,
+            resolvedOfficerName
         );
         const base64Bytes = arrayBufferToBase64(escPosBytes);
 
@@ -818,7 +826,7 @@ export function formatVisitorPassEscPos(
     const resolvedHostName = visitorData.hostName || host?.name || 'N/A';
     formatRow("HOST:", resolvedHostName);
 
-    const resolvedOfficerName = securityOfficerName || visitorData.securityOfficerName || visitorData.security_officer_name || null;
+    const resolvedOfficerName = securityOfficerName || visitorData?.securityOfficerName || visitorData?.security_officer_name || visitorData?.verifiedBy || visitorData?.verified_by || 'Security Officer';
 
     if (visitorData.vehiclePlate) {
         const vPlate = visitorData.vehiclePlate + (visitorData.vehicleModel ? ` (${visitorData.vehicleModel})` : '');
@@ -881,7 +889,8 @@ export function formatEventPassEscPos(
     parent: any,
     event: any,
     institution: any,
-    width: 58 | 80
+    width: 58 | 80,
+    securityOfficerName?: string
 ): Uint8Array {
     const cols = width === 58 ? 32 : 48;
     const bytes: number[] = [];
@@ -997,6 +1006,12 @@ export function formatEventPassEscPos(
 
     // 4. Footer
     alignCenter();
+    if (securityOfficerName) {
+        boldOn();
+        addText(`SECURITY OFFICER: ${securityOfficerName.toUpperCase()}`);
+        feed();
+        boldOff();
+    }
     boldOn();
     addText("ENTRY APPROVED");
     feed();
@@ -1020,14 +1035,14 @@ async function generateVisitorPassPdfBase64(
     visitorSignature?: string,
     securityOfficerName?: string
 ): Promise<string> {
-    const logoUrl = institution?.logoUrl || institution?.logo_url || null;
+    const logoUrl = institution?.logoUrl || institution?.logo_url || institution?.logo || null;
     const [logoImg, visitorSigImg, hostSigImg] = await Promise.all([
         loadImage(logoUrl),
         loadImage(visitorSignature),
         loadImage(hostSignature)
     ]);
 
-    const resolvedOfficerName = securityOfficerName || visitorData.securityOfficerName || visitorData.security_officer_name || null;
+    const resolvedOfficerName = securityOfficerName || visitorData?.securityOfficerName || visitorData?.security_officer_name || visitorData?.verifiedBy || visitorData?.verified_by || 'Security Officer';
     const hasId = !!visitorData.idNumber;
     const hasVehicle = !!visitorData.vehiclePlate;
     const hasOfficer = !!resolvedOfficerName;
@@ -1158,9 +1173,10 @@ async function generateVisitorPassPdfBase64(
     return doc.output('datauristring');
 }
 
-async function generateEventPassPdfBase64(pin: any, parent: any, event: any, institution: any): Promise<string> {
-    const logoUrl = institution?.logoUrl || institution?.logo_url || null;
+async function generateEventPassPdfBase64(pin: any, parent: any, event: any, institution: any, securityOfficerName?: string): Promise<string> {
+    const logoUrl = institution?.logoUrl || institution?.logo_url || institution?.logo || null;
     const logoImg = await loadImage(logoUrl);
+    const resolvedOfficerName = securityOfficerName || pin?.securityOfficerName || pin?.security_officer_name || pin?.verifiedBy || pin?.verified_by || 'Security Officer';
 
     const guests = (() => {
         try {
@@ -1256,6 +1272,10 @@ async function generateEventPassPdfBase64(pin: any, parent: any, event: any, ins
     yPos += 5;
 
     // Footer
+    if (resolvedOfficerName) {
+        centerText(`SECURITY OFFICER: ${resolvedOfficerName.toUpperCase()}`, yPos, true);
+        yPos += 4.5;
+    }
     centerText("ENTRY APPROVED", yPos, true);
 
     return doc.output('datauristring');
