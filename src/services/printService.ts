@@ -434,8 +434,8 @@ export const printService = {
                         </head>
                         <body>
                             <div class="text-center">
-                                ${params.institution.logoUrl || params.institution.logo_url ? `
-                                    <img src="${params.institution.logoUrl || params.institution.logo_url}" style="max-height: 40px; max-width: 120px; object-fit: contain; margin: 0 auto 6px auto; display: block;" alt="Logo" /><br/>
+                                ${(params.institution.logoUrl || params.institution.logo_url || params.institution.logo) ? `
+                                    <img src="${params.institution.logoUrl || params.institution.logo_url || params.institution.logo}" style="max-height: 45px; max-width: 130px; object-fit: contain; margin: 0 auto 6px auto; display: block;" alt="Logo" /><br/>
                                 ` : ''}
                                 <div class="bold title">${params.institution.name || 'Academic Institution'}</div>
                                 <div class="subtitle">Gate Entry Pass</div>
@@ -450,7 +450,6 @@ export const printService = {
                                 ${params.visitorData.idNumber ? `<tr><td class="info-label">ID/REF:</td><td>${params.visitorData.idNumber}</td></tr>` : ''}
                                 <tr><td class="info-label">PURPOSE:</td><td>${params.visitorData.purpose || 'N/A'}</td></tr>
                                 <tr><td class="info-label">HOST:</td><td>${resolvedHostName}</td></tr>
-                                ${resolvedOfficerName ? `<tr><td class="info-label">OFFICER:</td><td>${resolvedOfficerName}</td></tr>` : ''}
                                 ${params.visitorData.vehiclePlate ? `<tr><td class="info-label">VEHICLE:</td><td class="bold">${params.visitorData.vehiclePlate}${params.visitorData.vehicleModel ? ` (${params.visitorData.vehicleModel})` : ''}</td></tr>` : ''}
                                 <tr><td class="info-label">TIME:</td><td>${timestamp}</td></tr>
                             </table>
@@ -481,6 +480,9 @@ export const printService = {
                             <div class="separator"></div>
 
                             <div class="text-center footer">
+                                ${resolvedOfficerName ? `
+                                    <div class="bold" style="font-size: 10px; margin-bottom: 4px; text-transform: uppercase;">SECURITY OFFICER: ${resolvedOfficerName}</div>
+                                ` : ''}
                                 <div class="bold">VISITOR APPROVED ENTRY</div>
                                 <div style="margin-top: 4px;">Please keep this pass visible.</div>
                                 <div style="font-size: 8px; margin-top: 4px; color: #555;">Eduai OS Support: 0723348912</div>
@@ -817,9 +819,6 @@ export function formatVisitorPassEscPos(
     formatRow("HOST:", resolvedHostName);
 
     const resolvedOfficerName = securityOfficerName || visitorData.securityOfficerName || visitorData.security_officer_name || null;
-    if (resolvedOfficerName) {
-        formatRow("OFFICER:", resolvedOfficerName);
-    }
 
     if (visitorData.vehiclePlate) {
         const vPlate = visitorData.vehiclePlate + (visitorData.vehicleModel ? ` (${visitorData.vehicleModel})` : '');
@@ -856,6 +855,12 @@ export function formatVisitorPassEscPos(
 
     // 5. Footer
     alignCenter();
+    if (resolvedOfficerName) {
+        boldOn();
+        addText(`SECURITY OFFICER: ${resolvedOfficerName.toUpperCase()}`);
+        feed();
+        boldOff();
+    }
     boldOn();
     addText("VISITOR APPROVED ENTRY");
     feed();
@@ -1093,10 +1098,6 @@ async function generateVisitorPassPdfBase64(
     const resolvedHostName = visitorData.hostName || (host && host.name) || 'N/A';
     drawKeyValue("HOST:     ", resolvedHostName, yPos); yPos += 5;
     
-    if (hasOfficer) {
-        drawKeyValue("OFFICER:  ", resolvedOfficerName, yPos); yPos += 5;
-    }
-    
     if (hasVehicle) {
         drawKeyValue("VEHICLE:  ", visitorData.vehiclePlate + (visitorData.vehicleModel ? ` (${visitorData.vehicleModel})` : ''), yPos); yPos += 5;
     }
@@ -1141,6 +1142,10 @@ async function generateVisitorPassPdfBase64(
 
     // Footer
     doc.setFontSize(8.5);
+    if (resolvedOfficerName) {
+        centerText(`SECURITY OFFICER: ${resolvedOfficerName.toUpperCase()}`, yPos, true);
+        yPos += 4;
+    }
     centerText("VISITOR APPROVED ENTRY", yPos, true);
     yPos += 4;
     centerText("Please keep this pass visible.", yPos, false);
