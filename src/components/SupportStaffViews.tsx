@@ -277,7 +277,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [isRegistering, setIsRegistering] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'found' | 'none'>('idle');
     const [customHostName, setCustomHostName] = useState('');
-    const [walkInForm, setWalkInForm] = useState({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
+    const [walkInForm, setWalkInForm] = useState({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '', company: '' });
     const [walkInSuccess, setWalkInSuccess] = useState(false);
     const [hostSearch, setHostSearch] = useState('');
     const [showHostDropdown, setShowHostDropdown] = useState(false);
@@ -418,12 +418,25 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         if (matches.length > 0) {
             const returning = [...matches].sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''))[0];
             if (returning) {
+                // Try to extract company name from purpose if it contains "(Company: ...)"
+                let companyStr = '';
+                const companyMatch = (returning.purpose || '').match(/\(Company:\s*([^\)]+)\)/);
+                if (companyMatch) {
+                    companyStr = companyMatch[1].trim();
+                }
+
+                // Clean the purpose name from company tags
+                let cleanPurpose = returning.purpose || '';
+                cleanPurpose = cleanPurpose.replace(/\(Company:\s*[^\)]+\)/, '').trim();
+
                 setWalkInForm({ 
                     ...walkInForm, 
                     name: returning.name || returning.fullName || '', 
                     idNumber: returning.idNumber || (returning as any).id_number || (returning as any).nationalId || '', 
                     vehiclePlate: returning.vehiclePlate || (returning as any).vehicle_plate || '', 
-                    vehicleModel: returning.vehicleModel || (returning as any).vehicle_model || '' 
+                    vehicleModel: returning.vehicleModel || (returning as any).vehicle_model || '',
+                    company: companyStr,
+                    purpose: cleanPurpose
                 });
                 setLookupStatus('found');
             }
@@ -443,10 +456,14 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 finalHostName = customHostName.trim();
             }
 
+            const finalPurpose = walkInForm.company.trim() 
+                ? `${walkInForm.purpose} (Company: ${walkInForm.company.trim()})`
+                : walkInForm.purpose;
+
             const visitorPayload: any = {
                 name: walkInForm.name,
                 phoneNumber: walkInForm.phone,
-                purpose: walkInForm.purpose,
+                purpose: finalPurpose,
                 hostId: finalHostId,
                 hostName: finalHostName || undefined,
                 vehiclePlate: walkInForm.vehiclePlate.toUpperCase(),
@@ -545,7 +562,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 const c = ref.current;
                 if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height);
             });
-            setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
+            setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '', company: '' });
 
             // Show brief inline success toast instead of blocking alert
             setWalkInSuccess(true);
@@ -1700,6 +1717,17 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                         <option value="Service">Maintenance / Service</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Company / Contractor Name (Optional)</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    value={walkInForm.company}
+                                    onChange={(e) => setWalkInForm({ ...walkInForm, company: e.target.value })}
+                                    placeholder="e.g. Apex Construction Ltd, Coca-Cola"
+                                />
                             </div>
 
                             {/* Today's Events — optional event check-in */}
