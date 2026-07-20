@@ -59,14 +59,24 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                 const headers = data[0].filter(h => !!h).map(h => String(h));
                 setRawHeaders(headers);
                 
-                // Auto-map based on similar names
+                // Auto-map based on similar names and common aliases
                 const initialMapping: Record<string, string> = {};
                 fields.forEach(f => {
-                    const match = headers.find(h => 
-                        h.toLowerCase().includes(f.label.toLowerCase()) || 
-                        h.toLowerCase().includes(f.key.toLowerCase()) ||
-                        f.label.toLowerCase().includes(h.toLowerCase())
-                    );
+                    const match = headers.find(h => {
+                        const hLow = h.toLowerCase();
+                        const fLabelLow = f.label.toLowerCase();
+                        const fKeyLow = f.key.toLowerCase();
+
+                        if (hLow.includes(fLabelLow) || hLow.includes(fKeyLow) || fLabelLow.includes(hLow)) return true;
+
+                        if (f.key === 'secondaryPhone') {
+                            return hLow.includes('secondary') || hLow.includes('alt') || hLow.includes('phone 2') || hLow.includes('phone2') || hLow.includes('mobile 2') || hLow.includes('contact 2') || hLow.includes('other phone');
+                        }
+                        if (f.key === 'admissionNumber') {
+                            return hLow.includes('adm') || hLow.includes('reg') || hLow.includes('student id') || hLow.includes('index');
+                        }
+                        return false;
+                    });
                     if (match) initialMapping[f.key] = match;
                 });
                 setHeaderMapping(initialMapping);

@@ -445,7 +445,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         ),
         { key: 'parentName', label: 'Guardian / Parent Name' },
         { key: 'parentPhone', label: 'Parent Phone Number' },
-        { key: 'parentEmail', label: 'Parent Email Address' }
+        { key: 'parentEmail', label: 'Parent Email Address' },
+        { key: 'secondaryPhone', label: 'Secondary / Alternative Phone' }
     ], [context]);
 
     const secondaryPhoneFields = useMemo(() => [
@@ -1247,6 +1248,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             }
                         }
 
+                        const secondaryPhoneVal = item.secondaryPhone || existingEnrollment?.metadata?.secondaryPhone || '';
+
                         const metadataObj = {
                             ...(existingEnrollment?.metadata || {}),
                             gender: item.gender || existingEnrollment?.metadata?.gender || '',
@@ -1257,6 +1260,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             parentPhone: parentPhoneVal,
                             parentEmail: parentEmailVal,
                             parentRelation: parentRelationVal,
+                            secondaryPhone: secondaryPhoneVal,
                             parents: importedParents
                         };
 
@@ -1319,7 +1323,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 await Promise.all(batch.map(async (item) => {
                     const admNo = item.admissionNumber ? String(item.admissionNumber).trim() : '';
                     const nameRaw = item.name ? String(item.name).trim().toLowerCase() : '';
-                    const newSecPhone = item.secondaryPhone ? String(item.secondaryPhone).trim() : '';
+                    const newSecPhone = item.secondaryPhone ? String(item.secondaryPhone).trim() : (item.parentPhone ? String(item.parentPhone).trim() : '');
                     const displayName = item.name || admNo || 'Unknown';
 
                     if (!newSecPhone) {
