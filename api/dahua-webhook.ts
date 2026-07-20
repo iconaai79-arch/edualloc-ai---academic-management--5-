@@ -88,6 +88,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (users && users.length > 0) {
                     matchedUserId = users[0].id;
                     matchedInstitutionId = users[0].institution_id;
+                } else {
+                    const searchPin = userId || cardNo;
+                    if (searchPin) {
+                        const { data: enrollments } = await supabase
+                            .from('biometric_enrollments')
+                            .select('staff_id, institution_id')
+                            .eq('device_pin', searchPin)
+                            .eq('is_active', true)
+                            .limit(1);
+
+                        if (enrollments && enrollments.length > 0) {
+                            matchedUserId = enrollments[0].staff_id;
+                            matchedInstitutionId = enrollments[0].institution_id;
+                        }
+                    }
                 }
 
                 // Store in staff_attendance_logs

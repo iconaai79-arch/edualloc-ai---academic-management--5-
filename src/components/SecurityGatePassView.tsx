@@ -199,6 +199,13 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     }
                 }
 
+                let enrollments: any[] = [];
+                try {
+                    enrollments = await apiService.fetchModuleRecords('biometric_enrollments', currentInstitution?.id);
+                } catch (e) {
+                    console.warn("Could not fetch biometric enrollments:", e);
+                }
+
                 const records = Object.values(recordsMap);
                 for (const rec of records) {
                     const cardNo = (rec.CardNo || rec.cardNo || '').toString().trim();
@@ -216,6 +223,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 
                         if (userId && (uStaffId === userId || uId.startsWith(userId) || uId === userId)) return true;
                         if (cleanCardNo && cleanCardNo.length >= 4 && uPhone && (uPhone.endsWith(cleanCardNo) || cleanCardNo.endsWith(uPhone))) return true;
+                        
+                        // Check custom device_pin in biometric_enrollments
+                        const isEnrolled = enrollments.some(e => e.staff_id === u.id && (e.device_pin === userId || e.device_pin === cardNo || e.device_pin === cleanCardNo));
+                        if (isEnrolled) return true;
+
                         return false;
                     });
 
