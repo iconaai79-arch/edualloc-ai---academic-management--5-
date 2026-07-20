@@ -25,9 +25,11 @@ interface ExcelSmartImporterProps {
     onComplete: (data: any[]) => void;
     onClose: () => void;
     children?: React.ReactNode;
+    title?: string;
+    description?: string;
 }
 
-export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, onComplete, onClose, children }) => {
+export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, onComplete, onClose, children, title, description }) => {
     const [step, setStep] = useState(1);
     const [headerMapping, setHeaderMapping] = useState<Record<string, string>>({});
     const [rawHeaders, setRawHeaders] = useState<string[]>([]);
@@ -95,8 +97,10 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                     }
                 });
 
-                // Validation: Skip if required name is missing or empty
-                if (!obj.name || obj.name.trim() === '') return null;
+                // Validation: Skip if both name and admissionNumber are missing/empty
+                const hasName = obj.name && obj.name.trim() !== '';
+                const hasAdmNo = obj.admissionNumber && obj.admissionNumber.trim() !== '';
+                if (!hasName && !hasAdmNo) return null;
 
                 // Stable ID: If KNEC or UIC exists, use it to allow UPSERT (update existing)
                 // Otherwise use a random ID. This prevents "Registry Conflict" on re-imports.
@@ -108,7 +112,7 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                 
                 // Ensure slug uniqueness by appending the short ID
                 const hash = baseId.split('_').pop() || '000';
-                obj.slug = `${slugify(obj.name)}-${hash.substring(0, 5)}`;
+                obj.slug = `${slugify(obj.name || obj.admissionNumber || 'record')}-${hash.substring(0, 5)}`;
                 
                 obj.createdAt = new Date().toISOString();
                 obj.updatedAt = new Date().toISOString();
@@ -131,9 +135,11 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                         <div className="w-14 h-14 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-xl">
                             <FileSpreadsheet className="w-8 h-8" />
                         </div>
-                        <div>
-                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Smart <span className="text-emerald-600 italic">Excel Importer</span></h3>
-                            <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1">Cross-format intelligence mapping tool</p>
+                    <div>
+                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">
+                                {title ? <span className="text-emerald-600 italic">{title}</span> : <>Smart <span className="text-emerald-600 italic">Excel Importer</span></>}
+                            </h3>
+                            <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1">{description || 'Cross-format intelligence mapping tool'}</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="w-12 h-12 bg-white dark:bg-slate-950 rounded-2xl flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-colors shadow-sm">
