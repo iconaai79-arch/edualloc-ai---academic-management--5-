@@ -1204,8 +1204,9 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                             </button>
                         </div>
                     </div>
-                </div>
-            ), document.body)}
+                </div>,
+                document.body
+            )}
 
             <style>{`
                 @keyframes scan {
