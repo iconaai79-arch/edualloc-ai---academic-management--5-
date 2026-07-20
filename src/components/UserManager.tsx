@@ -51,7 +51,7 @@ const parseExpertise = (expertiseString: string): string[] => {
 };
 
 
-const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher', 'driving_instructor'];
+const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher', 'driving_instructor', 'operation_manager', 'operations_manager'];
 
 const REQUIRED_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'role'];
 const ALL_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'email', 'phoneNumber', 'staffId', 'role', 'roles', 'departmentName', 'expertise', 'gender'];
@@ -1034,7 +1034,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         const baseAdminRoles = [
             'admin', 'super_admin', 'head_teacher', 'dos', 'deputy', 'hod', 'academics_officer', 'registrar',
             'property_admin', 'cooperative_manager', 'agrovet_admin', 'his_admin', 'carwash_admin', 
-            'transport_admin', 'mechanic_admin', 'director', 'finance', 'finance_officer', 'managing_director', 'hoi'
+            'transport_admin', 'mechanic_admin', 'director', 'finance', 'finance_officer', 'managing_director', 'hoi',
+            'operation_manager', 'operations_manager'
         ];
         return baseAdminRoles.includes(r) || (currentUser.roles && (currentUser.roles.includes('admin') || currentUser.roles.includes('super_admin')));
     }, [currentUser]);

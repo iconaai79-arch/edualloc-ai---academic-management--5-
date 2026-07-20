@@ -790,7 +790,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     const isCoreAdmin = useMemo(() => {
         const role = props.currentUser?.role;
-        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto', 'director', 'finance', 'finance_officer', 'mechanic_admin', 'managing_director', 'hoi'].includes(role || '');
+        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto', 'director', 'finance', 'finance_officer', 'mechanic_admin', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(role || '');
     }, [props.currentUser?.role]);
 
     const tabs = useMemo(() => {
@@ -1069,7 +1069,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
             if (tab.id === 'ai_hub') {
                 const roleToCheck = props.activeRole || props.currentUser?.role;
-                return ['admin', 'super_admin', 'head_teacher', 'director', 'dos', 'managing_director', 'hoi'].includes(roleToCheck || '') || !!localStorage.getItem('eduai_super_admin_session');
+                return ['admin', 'super_admin', 'head_teacher', 'director', 'dos', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(roleToCheck || '') || !!localStorage.getItem('eduai_super_admin_session');
             }
 
             if (tab.id === 'reports') {
@@ -1079,7 +1079,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
 
             if (tab.id === 'showcase') {
-                return (isSchool || isEdu) && !isDS && ['admin', 'head_teacher', 'dos', 'super_admin', 'managing_director', 'hoi'].includes(roleToUse || '');
+                return (isSchool || isEdu) && !isDS && ['admin', 'head_teacher', 'dos', 'super_admin', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(roleToUse || '');
             }
 
             if (tab.id === 'enrollment') {

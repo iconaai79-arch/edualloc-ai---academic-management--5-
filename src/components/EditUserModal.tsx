@@ -4,7 +4,7 @@ import { RETAIL_SUBTYPES } from '../constants';
 import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isDSInstitution } from '../utils/roleUtils';
 import { apiService } from '../services/apiService';
 
-const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher', 'driving_instructor'];
+const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher', 'driving_instructor', 'operation_manager', 'operations_manager'];
 
 interface EditUserModalProps {
   user: User;

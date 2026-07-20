@@ -68,7 +68,7 @@ export function RetailRequisitions({
     const [localInventory, setLocalInventory] = useState<RetailInventoryItem[]>([]);
 
     const headTeachers = (allUsers || []).filter(u => 
-        (u.role === 'head_teacher' || u.role === 'admin') && 
+        (u.role === 'head_teacher' || u.role === 'admin' || u.role === 'managing_director' || u.role === 'hoi' || u.role === 'operation_manager' || u.role === 'operations_manager') && 
         u.institutionId === institutionId
     );
 
@@ -229,12 +229,16 @@ export function RetailRequisitions({
         }
     };
 
+    const isOpsManager = currentUser.role === 'operation_manager' || currentUser.role === 'operations_manager';
+    const isMD = ['managing_director', 'head_teacher', 'admin', 'hoi', 'director'].includes(currentUser.role);
+    const isFinance = currentUser.role === 'finance' || currentUser.role === 'finance_officer';
+
     const myRequisitions = requisitions.filter(r => {
-        if (currentUser.role === 'head_teacher' || currentUser.role === 'admin') {
+        if (isOpsManager || isMD || currentUser.role === 'admin') {
             return r.institutionId === institutionId;
         }
-        if (currentUser.role === 'finance' || currentUser.role === 'finance_officer') {
-            return r.institutionId === institutionId && r.status !== 'pending' && r.status !== 'rejected';
+        if (isFinance) {
+            return r.institutionId === institutionId && r.status !== 'pending' && r.status !== 'ops_approved' && r.status !== 'rejected';
         }
         return r.requestedBy === currentUser.id || retailStores.some(s => s.id === r.storeId);
     });
@@ -291,14 +295,16 @@ export function RetailRequisitions({
                                     <td className="py-5">
                                         <span className={`px-2.5 py-1 rounded-xl text-[8px] font-black uppercase tracking-widest border ${
                                             req.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                            req.status === 'ops_approved' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                                             req.status === 'accepted' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                                             req.status === 'rejected' ? 'bg-rose-50 text-rose-600 border-rose-100' :
                                             req.status === 'ordered' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
                                             req.status === 'received' ? 'bg-teal-50 text-teal-600 border-teal-100' :
                                             'bg-slate-50 text-slate-500 border-slate-100'
                                         }`}>
-                                            {req.status === 'pending' ? 'Pending Review' :
-                                             req.status === 'accepted' ? 'Approved by Principal' :
+                                            {req.status === 'pending' ? 'Pending Ops Review' :
+                                             req.status === 'ops_approved' ? 'Forwarded to MD' :
+                                             req.status === 'accepted' ? 'Approved by MD' :
                                              req.status === 'rejected' ? 'Rejected' :
                                              req.status === 'ordered' ? 'LPO Dispatched' :
                                              req.status === 'received' ? 'Received' :
@@ -715,14 +721,108 @@ export function RetailRequisitions({
                                 </div>
                             )}
 
-                            {selectedReqForReview.status === 'pending' && (currentUser.role === 'head_teacher' || currentUser.role === 'admin') && (
+                            {/* Operation Manager Stage: Forward to MD */}
+                            {selectedReqForReview.status === 'pending' && (isOpsManager || currentUser.role === 'admin') && (
                                 <div className="space-y-4 pt-4 border-t border-slate-100">
                                     {!showRejectInput ? (
                                         <div className="flex gap-4">
                                             <button
                                                 onClick={async () => {
                                                     if (onUpdateRequisition) {
-                                                        await onUpdateRequisition(selectedReqForReview.id, { status: 'accepted' });
+                                                        await onUpdateRequisition(selectedReqForReview.id, { 
+                                                            status: 'ops_approved',
+                                                            opsApprovedBy: currentUser.id,
+                                                            opsApprovedAt: new Date().toISOString()
+                                                        });
+                                                        
+                                                        // Notify Managing Directors
+                                                        const mdUsers = (allUsers || []).filter(u => 
+                                                            ['managing_director', 'head_teacher', 'hoi', 'director', 'admin'].includes(u.role) && 
+                                                            u.institutionId === institutionId
+                                                        );
+                                                        for (const md of mdUsers) {
+                                                            await apiService.createNotification(
+                                                                md.id, 
+                                                                `Stock Requisition forwarded by Operation Manager ${currentUser.name} (Value: KES ${selectedReqForReview.totalEstimatedCost?.toLocaleString()}). Pending your final approval.`, 
+                                                                'info'
+                                                            );
+                                                        }
+                                                        
+                                                        setIsReviewModalOpen(false);
+                                                        alert("Requisition reviewed & forwarded to Managing Director for final approval!");
+                                                    }
+                                                }}
+                                                className="flex-1 py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                            >
+                                                Forward to Managing Director
+                                            </button>
+                                            <button
+                                                onClick={() => setShowRejectInput(true)}
+                                                className="flex-1 py-4 bg-red-50 text-red-600 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-red-100 hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                Reject Request
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4 animate-in slide-in-from-bottom-2 duration-300">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Rejection Note / Reason</label>
+                                                <textarea
+                                                    value={rejectReason}
+                                                    onChange={(e) => setRejectReason(e.target.value)}
+                                                    placeholder="Provide a brief reason for rejecting this requisition..."
+                                                    className="w-full p-4 border border-slate-200 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-red-500 outline-none bg-transparent"
+                                                    rows={3}
+                                                />
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <button
+                                                    onClick={() => setShowRejectInput(false)}
+                                                    className="flex-1 py-4 border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all"
+                                                >
+                                                    Back
+                                                </button>
+                                                <button
+                                                    disabled={!rejectReason.trim()}
+                                                    onClick={async () => {
+                                                        if (onUpdateRequisition) {
+                                                            await onUpdateRequisition(selectedReqForReview.id, { status: 'rejected', rejectionReason: rejectReason });
+                                                            
+                                                            await apiService.createNotification(
+                                                                selectedReqForReview.requestedBy,
+                                                                `Your Requisition (Value: KES ${selectedReqForReview.totalEstimatedCost?.toLocaleString()}) was rejected by ${currentUser.name}. Note: ${rejectReason}`,
+                                                                'warning'
+                                                            );
+                                                            
+                                                            setIsReviewModalOpen(false);
+                                                            setShowRejectInput(false);
+                                                            setRejectReason('');
+                                                            alert("Requisition rejected and sender notified.");
+                                                        }
+                                                    }}
+                                                    className="flex-1 py-4 bg-red-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-red-100 hover:bg-red-700 disabled:opacity-50 transition-all active:scale-95"
+                                                >
+                                                    Confirm Rejection
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Managing Director Stage: Final Approval & Forward to Finance */}
+                            {(selectedReqForReview.status === 'ops_approved' || (selectedReqForReview.status === 'pending' && !isOpsManager)) && isMD && (
+                                <div className="space-y-4 pt-4 border-t border-slate-100">
+                                    {!showRejectInput ? (
+                                        <div className="flex gap-4">
+                                            <button
+                                                onClick={async () => {
+                                                    if (onUpdateRequisition) {
+                                                        await onUpdateRequisition(selectedReqForReview.id, { 
+                                                            status: 'accepted',
+                                                            finalApprovedBy: currentUser.id,
+                                                            finalApprovedAt: new Date().toISOString()
+                                                        });
                                                         
                                                         // Notify Finance Users
                                                         const financeUsers = (allUsers || []).filter(u => 
@@ -732,13 +832,13 @@ export function RetailRequisitions({
                                                         for (const fu of financeUsers) {
                                                             await apiService.createNotification(
                                                                 fu.id, 
-                                                                `Stock Requisition approved by ${currentUser.name} (Value: KES ${selectedReqForReview.totalEstimatedCost?.toLocaleString()}). Please dispatch LPO.`, 
+                                                                `Stock Requisition final approval granted by ${currentUser.name} (Value: KES ${selectedReqForReview.totalEstimatedCost?.toLocaleString()}). Please dispatch LPO.`, 
                                                                 'success'
                                                             );
                                                         }
                                                         
                                                         setIsReviewModalOpen(false);
-                                                        alert("Requisition approved and forwarded to Finance!");
+                                                        alert("Requisition final approval granted and forwarded to Finance!");
                                                     }
                                                 }}
                                                 className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center gap-2"

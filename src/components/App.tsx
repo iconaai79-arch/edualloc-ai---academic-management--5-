@@ -649,7 +649,7 @@ export const App: React.FC = () => {
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
 
-    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'nurse', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception', 'mechanic_admin', 'finance_officer', 'managing_director', 'hoi'].includes(activeRole || '');
+    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'nurse', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception', 'mechanic_admin', 'finance_officer', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -1047,7 +1047,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
             // ── Module Onboarding: show wizard for edu admins with no active modules ──
             const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'];
-            const isEduAdmin = EDU_TYPES.includes(instTypeLower) && currentUser && currentUser.role !== 'super_admin' && ['admin', 'head_teacher', 'dos', 'deputy', 'managing_director', 'hoi'].includes(currentUser.role);
+            const isEduAdmin = EDU_TYPES.includes(instTypeLower) && currentUser && currentUser.role !== 'super_admin' && ['admin', 'head_teacher', 'dos', 'deputy', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(currentUser.role);
             if (isEduAdmin && activeInst) {
                 const activeModules = (imsPhase1 || []).filter((m: any) => m.institutionId === activeInst.id && (m.status === 'active' || m.status === 'trial'));
                 const dismissedKey = `edu_onboarding_dismissed_${activeInst.id}`;
