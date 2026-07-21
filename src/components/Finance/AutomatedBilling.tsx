@@ -255,7 +255,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         if (includeTransport) {
             const pref = studentCommutePrefs[s.id];
             if (pref && pref.preference !== 'none') {
-                const route = routeFeeSettings.find(r => r.routeId === pref.routeId);
+                const route = routeFeeSettings.find((r: any) => r.routeId === pref.routeId);
                 if (route) {
                     const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
                     let transportFee = Math.round(route.termFee * multiplier);
@@ -363,7 +363,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             if (includeTransport) {
                 const pref = studentCommutePrefs[s.id];
                 if (pref && pref.preference !== 'none') {
-                    const route = routeFeeSettings.find(r => r.routeId === pref.routeId);
+                    const route = routeFeeSettings.find((r: any) => r.routeId === pref.routeId);
                     if (route) {
                         const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
                         let transportFee = Math.round(route.termFee * multiplier);
@@ -374,10 +374,13 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                         transportAmount = transportFee;
                         const prefLabel = pref.preference === 'round_trip' ? 'Round Trip' : 'One Way';
                         invoiceItems.push({
+                            name: 'Transport Fee',
                             description: `Transport Fee: ${route.routeName} (${prefLabel})${selectedSem === 'annual' ? ' - Annual' : ''}`,
+                            voteheadName: 'Transport',
                             quantity: 1,
                             unitPrice: transportAmount,
-                            amount: transportAmount
+                            amount: transportAmount,
+                            priority: 99
                         });
                     }
                 }
@@ -628,7 +631,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                         )}
                         
                         {/* Transport Preview Items */}
-                        {includeTransport && routeFeeSettings.map(r => (
+                        {includeTransport && routeFeeSettings.map((r: any) => (
                             <div key={r.routeId} className="flex justify-between items-center p-4 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 text-left">
                                 <div>
                                     <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">{r.routeName}</p>
@@ -698,7 +701,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                 if (includeTransport) {
                                     const pref = studentCommutePrefs[s.id];
                                     if (pref && pref.preference !== 'none') {
-                                        const route = routeFeeSettings.find(r => r.routeId === pref.routeId);
+                                        const route = routeFeeSettings.find((r: any) => r.routeId === pref.routeId);
                                         if (route) {
                                             const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
                                             let transportFee = Math.round(route.termFee * multiplier);
@@ -710,7 +713,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                             const prefLabel = pref.preference === 'round_trip' ? 'Round Trip' : 'One Way';
                                             items.push({
                                                 name: `Transport Fee: ${route.routeName} (${prefLabel})${selectedSem === 'annual' ? ' - Annual' : ''}`,
-                                                amount: transportAmount
+                                                amount: transportAmount,
+                                                priority: 99
                                             });
                                         }
                                     }

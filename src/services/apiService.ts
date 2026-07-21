@@ -282,7 +282,7 @@ export const apiService = {
             } catch (e) {}
         }
 
-        const token = session?.id || session?.userId || session?.user_id || '';
+        const token = session?.id || (session as any)?.userId || (session as any)?.user_id || '';
         return token;
     },
     getToken(): string {
@@ -2242,7 +2242,8 @@ export const apiService = {
         });
 
         // Sort invoices: if targetInvoiceId is provided, place it first, then others sorted by issueDate/createdAt
-        const sortedInvoices = [...unpaidInvoices].sort((a: any, b: any) => {
+        const isTargetingOpeningBalance = params.targetInvoiceId?.startsWith('__opening_balance__');
+        const sortedInvoices = isTargetingOpeningBalance ? [] : [...unpaidInvoices].sort((a: any, b: any) => {
             if (params.targetInvoiceId) {
                 if (a.id === params.targetInvoiceId) return -1;
                 if (b.id === params.targetInvoiceId) return 1;

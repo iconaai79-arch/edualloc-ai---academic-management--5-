@@ -1518,8 +1518,34 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const studentPendingInvoices = useMemo(() => {
         const selectedId = showPostModal ? manualPayStudentId : reconcileStudentId;
         if (!selectedId) return [];
-        return props.invoices.filter(inv => inv.studentId === selectedId && inv.status !== 'paid');
-    }, [props.invoices, manualPayStudentId, reconcileStudentId, showPostModal]);
+        const regularInvoices = props.invoices.filter(inv => inv.studentId === selectedId && inv.status !== 'paid');
+
+        // Inject a synthetic "Opening Balance" invoice if the student has one
+        const studentData = studentFinanceData.find(s => s.id === selectedId);
+        const openingBal = studentData?.totals?.openingBalance ?? 0;
+        if (openingBal > 0) {
+            const receiptsPaidToOpening = (props.receipts || []).filter((r: any) => {
+                const belongsToStudent = r.studentId === selectedId;
+                const invId = r.invoiceId || r.invoice_id;
+                const isOpeningBalReceipt = !invId || invId.startsWith('__opening_balance__');
+                return belongsToStudent && isOpeningBalReceipt;
+            }).reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0);
+            const openingBalanceRemaining = Math.max(0, openingBal - receiptsPaidToOpening);
+            if (openingBalanceRemaining > 0) {
+                const syntheticEntry: any = {
+                    id: `__opening_balance__${selectedId}`,
+                    studentId: selectedId,
+                    invoiceNumber: 'Opening Balance',
+                    description: 'Brought Forward Opening Balance',
+                    totalAmount: openingBalanceRemaining,
+                    status: 'pending',
+                    isOpeningBalance: true,
+                };
+                return [syntheticEntry, ...regularInvoices];
+            }
+        }
+        return regularInvoices;
+    }, [props.invoices, props.receipts, studentFinanceData, manualPayStudentId, reconcileStudentId, showPostModal]);
 
     useEffect(() => {
         if (studentPendingInvoices && studentPendingInvoices.length > 0) {
@@ -1529,7 +1555,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     setManualPayInvoiceId(firstPending.id);
                     setManualPayAmount(firstPending.totalAmount);
                 } else if (showReconcileModal) {
-                    setReconcileInvoiceId(firstPending.id);
+                    // Don't auto-select opening balance synthetic entry for reconcile
+                    if (!(firstPending as any).isOpeningBalance) {
+                        setReconcileInvoiceId(firstPending.id);
+                    }
                 }
             }
         } else {
@@ -8808,7 +8837,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 <button
                                     onClick={handlePostManualPayment}
-                                    disabled={isSavingManualPay || !manualPayStudentId || !manualPayInvoiceId || manualPayAmount <= 0}
+                                    disabled={isSavingManualPay || !manualPayStudentId || (!manualPayInvoiceId && !studentPendingInvoices.some((inv: any) => inv.isOpeningBalance && inv.id === manualPayInvoiceId)) || manualPayAmount <= 0}
                                     className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all text-center disabled:opacity-50 mt-4 active:scale-[0.98]"
                                 >
                                     {isSavingManualPay ? 'Saving Receipt...' : 'Confirm and Post Receipt'}
@@ -11308,18 +11337,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     studentInvoices.some((i: any) => i.id === r.invoiceId)
                                 );
 
-                                const totalInvoiced = studentInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
+                                const openingBalForStmt = (() => {
+                                    const sd = studentFinanceData.find(s => s.id === stmtStudentId);
+                                    return sd?.totals?.openingBalance ?? 0;
+                                })();
+                                const totalInvoiced = openingBalForStmt + studentInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
                                 const totalPaid = studentReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
                                 const balance = totalInvoiced - totalPaid;
 
-                                const allEntries = [
+                                const allEntries: Array<{ date: string; eType: 'invoice' | 'payment' | 'opening'; data: any }> = [
+                                    ...(openingBalForStmt > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: openingBalForStmt } }] : []),
                                     ...studentInvoices.map((i: any) => ({ date: i.issueDate || i.createdAt || '', eType: 'invoice' as const, data: i })),
                                     ...studentReceipts.map((r: any) => ({ date: r.createdAt || r.date || '', eType: 'payment' as const, data: r })),
                                 ].sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
 
                                 let running = 0;
                                 const ledger = allEntries.map(entry => {
-                                    if (entry.eType === 'invoice') {
+                                    if (entry.eType === 'opening') {
+                                        running += entry.data.amount || 0;
+                                        return { date: '—', description: 'Opening Balance (Brought Forward)', debit: entry.data.amount || 0, credit: 0, balance: running, eType: 'invoice' as const };
+                                    } else if (entry.eType === 'invoice') {
                                         running += entry.data.totalAmount || 0;
                                         return { date: (entry.date || '').split('T')[0] || '—', description: `Invoice ${entry.data.invoiceNumber || entry.data.id?.slice(-8)} — School Fees`, debit: entry.data.totalAmount || 0, credit: 0, balance: running, eType: 'invoice' as const };
                                     } else {

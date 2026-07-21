@@ -5939,10 +5939,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                          }}
                                         onDeleteParent={() => { }}
                                         departments={departments}
-                                        onSubmitEnrollmentRequest={async (sids, sig) => { }}
+                                        onSubmitEnrollmentRequest={async (sids: any, sig: any) => { }}
                                         assignments={assignments}
                                         submissions={submissions}
-                                        onAddSubmission={async (d) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }}
+                                        onAddSubmission={async (d: any) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }}
                                         lessonRatings={lessonRatings}
                                         onAddLessonRating={() => { }}
                                         onRateLesson={() => { }}
@@ -6104,10 +6104,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             retailStores={retailStores}
                                             inventory={retailInventory}
                                             retailExpenses={retailExpenses}
-                                            onAddRetailExpense={async (exp) => { await apiService.saveModuleRecord('retail_expenses', { ...exp, id: `exp_${Date.now()}`, date: new Date().toISOString().split('T')[0], recordedById: currentUser.id, institutionId: currentUser.institutionId }); loadData(); }}
+                                            onAddRetailExpense={async (exp: any) => { await apiService.saveModuleRecord('retail_expenses', { ...exp, id: `exp_${Date.now()}`, date: new Date().toISOString().split('T')[0], recordedById: currentUser.id, institutionId: currentUser.institutionId }); loadData(); }}
                                             requisitions={requisitions}
                                             onAddRequisition={handleAddRequisition}
-                                            onUpdateRequisition={async (id, data) => { const existing = requisitions.find(r => r.id === id); if (existing) { await apiService.saveModuleRecord('requisitions', { ...existing, ...data }); loadData(); } }}
+                                            onUpdateRequisition={async (id: any, data: any) => { const existing = requisitions.find(r => r.id === id); if (existing) { await apiService.saveModuleRecord('requisitions', { ...existing, ...data }); loadData(); } }}
                                             isEducation={true}
                                             allUsers={users}
                                             allCourses={courses}
@@ -6134,7 +6134,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             invoices={invoices}
                                             receipts={receipts}
                                             expenses={expenses}
-                                            onAddExpense={async (exp) => {
+                                            onAddExpense={async (exp: any) => {
                                                 await apiService.saveModuleRecord('expenses', exp);
                                             }}
                                             goals={financialGoals}
@@ -6155,8 +6155,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             voteHeads={voteHeads}
                                             courses={courses}
                                             onRefreshData={loadData}
-                                            onGenerateInvoices={async (invoicesList) => {
-                                                await Promise.all(invoicesList.map(inv => apiService.saveModuleRecord('invoices', {
+                                            onGenerateInvoices={async (invoicesList: any) => {
+                                                await Promise.all(invoicesList.map((inv: any) => apiService.saveModuleRecord('invoices', {
                                                     ...inv,
                                                     institutionId: activeInstitution!.id,
                                                     createdAt: new Date().toISOString()
@@ -6217,8 +6217,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             buildings={buildings}
                                             leaveOutRequests={leaveOutRequests}
                                             incidents={incidents}
-                                            onUpdateLeaveOutStatus={async (id, status) => { const existing = leaveOutRequests.find(r => r.id === id); if (existing) { await apiService.saveModuleRecord('leave_out_requests', { ...existing, status, approvedBy: currentUser.id, updatedAt: new Date().toISOString() }); loadData(); } }}
-                                            onAddIncident={async (data) => {
+                                            onUpdateLeaveOutStatus={async (id: any, status: any) => { const existing = leaveOutRequests.find(r => r.id === id); if (existing) { await apiService.saveModuleRecord('leave_out_requests', { ...existing, status, approvedBy: currentUser.id, updatedAt: new Date().toISOString() }); loadData(); } }}
+                                            onAddIncident={async (data: any) => {
                                                 await apiService.saveModuleRecord('discipline_incidents', {
                                                     ...data,
                                                     id: `disc_${Date.now()}`,
@@ -6275,7 +6275,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                         users={users}
                                         companyDetails={companyDetails}
                                         onDataChange={loadData}
-                                        onSendSms={async (phone, msg) => {
+                                        onSendSms={async (phone: any, msg: any) => {
                                             try {
                                                 const pages = Math.ceil(msg.length / 160) || 1;
                                                 await apiService.sendSms(phone, msg, companyDetails?.smsConfig, pages, currentUser?.institutionId);
@@ -6288,8 +6288,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                         }}
                                         smsConfig={companyDetails.smsConfig}
                                         smsBalance={activeInstitution?.smsBalance || 0}
-                                        onAddJob={async (j) => { await apiService.saveModuleRecord('carwash_jobs', { ...j, id: `job_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
-                                        onUpdateJobStatus={async (id, status) => { const existing = jobs.find(x => x.id === id); if (existing) { await apiService.saveModuleRecord('carwash_jobs', { ...existing, status }); loadData(); } }}
+                                        onAddJob={async (j: any) => { await apiService.saveModuleRecord('carwash_jobs', { ...j, id: `job_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
+                                        onUpdateJobStatus={async (id: any, status: any) => { const existing = jobs.find(x => x.id === id); if (existing) { await apiService.saveModuleRecord('carwash_jobs', { ...existing, status }); loadData(); } }}
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                         onLogAction={handleLogAction}
                                     />
@@ -6400,7 +6400,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                              activeRole={(activeRole as any) || undefined}
                                              onLogAction={handleLogAction}
                                              onRefreshData={loadData}
-                                             onSaveTimetableSettings={(c) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
+                                             onSaveTimetableSettings={(c: any) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
                                              retailStores={retailStores}
                                              inventory={retailInventory}
                                              retailExpenses={retailExpenses}
@@ -6436,7 +6436,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                     setShowAlumnaePortal(true);
                                     setShowCommunityHub(false);
                                  }}
-                                 onEnterWarRoom={(profile) => {
+                                 onEnterWarRoom={(profile: any) => {
                                      setActiveCampaignProfile(profile);
                                      if (activeCampaignMember) {
                                          setShowCampaignPortal(true);
@@ -6474,7 +6474,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                             <HospitalityMarketplace 
                                 institutions={institutions}
                                 onBack={() => window.location.href = '/?view=community'}
-                                onViewStore={(id) => window.location.href = `/?shop=${id}`}
+                                onViewStore={(id: any) => window.location.href = `/?shop=${id}`}
                             />
                         ) : showAlumnaeActivation ? (
                             <AlumnaeActivationView 
@@ -6714,7 +6714,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                             />
                         ) : showCampaignLogin ? (
                             <CampaignLoginView 
-                                onLoginSuccess={(member) => {
+                                onLoginSuccess={(member: any) => {
                                     setActiveCampaignMember(member);
                                     localStorage.setItem('eduai_campaign_session', JSON.stringify(member));
                                     setShowCampaignLogin(false);

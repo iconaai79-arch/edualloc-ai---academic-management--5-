@@ -518,6 +518,17 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
             {activeTab === 'settings' && (
                 <SettingsManager
                     {...props}
+                    departments={props.departments || []}
+                    subjects={props.subjects || []}
+                    buildings={props.buildings || []}
+                    rooms={props.rooms || []}
+                    courses={props.courses || []}
+                    academicYears={props.academicYears || []}
+                    semesters={props.semesters || []}
+                    themeColor={props.themeColor || '#4f46e5'}
+                    timetableSettings={props.timetableSettings || {} as any}
+                    examTimetableSettings={props.examTimetableSettings || {} as any}
+                    users={props.users || []}
                     currentUser={props.currentUser!}
                     onAssociateSubjectToCourseLevel={onAssociateSubjectToCourseLevel}
                     onDisassociateSubjectFromCourseLevel={onDisassociateSubjectFromCourseLevel}
