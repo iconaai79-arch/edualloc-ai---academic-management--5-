@@ -246,11 +246,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     useEffect(() => {
         if (!props.students || props.students.length === 0) return;
         setOpeningBalancesMap(prev => {
-            const newMap = { ...prev };
+            const newMap: Record<string, number> = {};
             props.students.forEach(s => {
-                if (newMap[s.id] === undefined) {
-                    newMap[s.id] = s.metadata?.openingBalance || 0;
-                }
+                newMap[s.id] = parseMoneyAmount(s.metadata?.openingBalance ?? prev[s.id] ?? 0);
             });
             return newMap;
         });
@@ -940,16 +938,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const adm = enrollment?.admissionNumber || s.admissionNumber || s.admission_number || '—';
             const cls = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || studentClassGroup(s);
 
+            const openingBal = parseMoneyAmount(openingBalancesMap[s.id] ?? s.metadata?.openingBalance ?? 0);
+
             const studentInvoices = mappedInvoices.filter(inv => 
                 (inv.studentId === s.id || (inv as any).student_id === s.id) && 
                 inv.status !== 'cancelled' && 
                 inv.status !== 'quote'
             );
-            const invoiced = studentInvoices.reduce((sum, inv) => {
+            const invoicedWithoutOpening = studentInvoices.reduce((sum, inv) => {
                 const amt = inv.totalAmount || (inv as any).total_amount || 0;
                 return sum + parseMoneyAmount(amt);
             }, 0);
             
+            const totalInvoiced = openingBal + invoicedWithoutOpening;
+
             const studentReceipts = mappedReceipts.filter(rec => 
                 rec.studentId === s.id || (rec as any).student_id === s.id
             );
@@ -958,22 +960,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return sum + parseMoneyAmount(amt);
             }, 0);
             
-            const balance = Math.max(0, invoiced - paid);
-            const prepayment = Math.max(0, paid - invoiced);
+            const netBalance = totalInvoiced - paid;
+            const balance = Math.max(0, netBalance);
+            const prepayment = Math.max(0, -netBalance);
             
             return {
                 ...s,
                 admissionNumber: adm,
                 className: cls,
+                openingBalance: openingBal,
                 totals: {
-                    invoiced,
+                    openingBalance: openingBal,
+                    invoicedWithoutOpening,
+                    invoiced: totalInvoiced,
                     paid,
                     balance,
                     prepayment
                 }
             };
         });
-    }, [props.students, mappedInvoices, mappedReceipts, enrollments]);
+    }, [props.students, mappedInvoices, mappedReceipts, enrollments, openingBalancesMap]);
 
     const filteredOpeningBalanceStudents = useMemo(() => {
         return studentFinanceData.filter(student => {
