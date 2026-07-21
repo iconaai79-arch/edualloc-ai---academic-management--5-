@@ -129,7 +129,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // Translate DS structures to standard Dashboard Invoice models dynamically
     const mappedInvoices = useMemo(() => {
-        if (!isDrivingSchool) return props.invoices;
+        const baseInvoices = (props.invoices || []).filter((inv: any) => {
+            const invNo = inv.invoiceNumber || inv.invoice_number;
+            return !invNo?.startsWith('REMEDIAL-');
+        });
+        if (!isDrivingSchool) return baseInvoices;
         return dsInvoices.map((dsInv: any) => ({
             id: dsInv.id,
             invoiceNumber: dsInv.invoiceNumber || dsInv.invoice_number || dsInv.id,
@@ -151,7 +155,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // Translate DS payments to standard Dashboard Receipt models dynamically
     const mappedReceipts = useMemo(() => {
-        if (!isDrivingSchool) return props.receipts;
+        const baseReceipts = (props.receipts || []).filter((r: any) => {
+            const invId = r.invoiceId || r.invoice_id;
+            if (invId) {
+                const targetInvoice = props.invoices.find((i: any) => i.id === invId);
+                const invNo = (targetInvoice as any)?.invoiceNumber || (targetInvoice as any)?.invoice_number;
+                if (invNo?.startsWith('REMEDIAL-')) return false;
+            }
+            return true;
+        });
+        if (!isDrivingSchool) return baseReceipts;
         return dsPayments.map((dsPay: any) => ({
             id: dsPay.id,
             receiptNumber: dsPay.receiptNumber || dsPay.receipt_number || dsPay.id,
@@ -1521,7 +1534,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const studentPendingInvoices = useMemo(() => {
         const selectedId = showPostModal ? manualPayStudentId : reconcileStudentId;
         if (!selectedId) return [];
-        const regularInvoices = props.invoices.filter(inv => inv.studentId === selectedId && inv.status !== 'paid');
+        const regularInvoices = mappedInvoices.filter(inv => inv.studentId === selectedId && inv.status !== 'paid');
 
         // Inject a synthetic "Opening Balance" invoice if the student has one
         const studentData = studentFinanceData.find(s => s.id === selectedId);
@@ -1695,7 +1708,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const filteredReceipts = useMemo(() => {
         const query = searchReceiptQuery.toLowerCase();
-        return (props.receipts || []).filter(rec => {
+        return mappedReceipts.filter(rec => {
             // Determine if the receipt belongs to the current tab
             const isStudentFee = !!rec.studentId;
             if (receiptsMainTab === 'student_fees' && !isStudentFee) return false;

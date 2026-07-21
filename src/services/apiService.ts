@@ -3495,6 +3495,8 @@ export const apiService = {
     },
     async allocatePrepaymentsToInvoice(invoice: any) {
         try {
+            const invNo = invoice.invoiceNumber || invoice.invoice_number;
+            if (invNo?.startsWith('REMEDIAL-')) return;
             const studentId = invoice.studentId || invoice.student_id;
             if (!studentId) return;
 
