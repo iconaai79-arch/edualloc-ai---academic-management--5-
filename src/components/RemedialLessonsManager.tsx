@@ -311,7 +311,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 className
             };
 
-            await apiService.saveModuleRecord('invoices', newInvoice);
+            const saved = await apiService.saveModuleRecord('invoices', newInvoice);
+            if (saved) {
+                await apiService.allocatePrepaymentsToInvoice(saved);
+            }
             onLogAction?.(`Generated term remedial fee invoice of KES ${termFee} for ${studentName}`);
             loadData();
         } catch (err: any) {
@@ -353,7 +356,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     className: student.className
                 };
 
-                await apiService.saveModuleRecord('invoices', newInvoice);
+                const saved = await apiService.saveModuleRecord('invoices', newInvoice);
+                if (saved) {
+                    await apiService.allocatePrepaymentsToInvoice(saved);
+                }
                 onLogAction?.(`Generated term remedial fee invoice of KES ${termFee} for ${student.studentName}`);
                 successCount++;
             } catch (e) {

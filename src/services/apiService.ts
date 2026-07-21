@@ -3492,6 +3492,108 @@ export const apiService = {
     async shareMarketingAsset(platform: string, asset: any): Promise<boolean> {
         await new Promise(resolve => setTimeout(resolve, 1000));
         return true;
+    },
+    async allocatePrepaymentsToInvoice(invoice: any) {
+        try {
+            const studentId = invoice.studentId || invoice.student_id;
+            if (!studentId) return;
+
+            const allReceipts = await apiService.fetchModuleRecords<any>('receipts').catch(() => []);
+            const studentReceipts = allReceipts.filter((rec: any) => 
+                (rec.studentId === studentId || rec.student_id === studentId)
+            );
+
+            const prepaymentReceipts: Array<{ receipt: any; unallocatedAmount: number; allocations: any[] }> = [];
+
+            studentReceipts.forEach((r: any) => {
+                let allocs: any[] = [];
+                try {
+                    allocs = typeof r.allocations === 'string' ? JSON.parse(r.allocations) : r.allocations;
+                } catch (e) {}
+                if (!Array.isArray(allocs)) return;
+
+                const prepAlloc = allocs.find((a: any) => a.invoiceNumber === 'Prepayment');
+                if (prepAlloc && Number(prepAlloc.amount) > 0) {
+                    prepaymentReceipts.push({
+                        receipt: r,
+                        unallocatedAmount: Number(prepAlloc.amount),
+                        allocations: allocs
+                    });
+                }
+            });
+
+            if (prepaymentReceipts.length === 0) return;
+
+            let invoiceModified = false;
+            const invoiceItems = Array.isArray(invoice.items) ? [...invoice.items] : [];
+
+            for (const item of invoiceItems) {
+                const itemTotal = Number(item.amount || item.totalAmount || 0);
+                const itemPaid = Number(item.paid || 0);
+                let itemRemaining = itemTotal - itemPaid;
+
+                if (itemRemaining <= 0) continue;
+
+                for (const prep of prepaymentReceipts) {
+                    if (itemRemaining <= 0) break;
+                    if (prep.unallocatedAmount <= 0) continue;
+
+                    const allocated = Math.min(itemRemaining, prep.unallocatedAmount);
+
+                    item.paid = itemPaid + allocated;
+                    itemRemaining -= allocated;
+                    invoiceModified = true;
+
+                    prep.unallocatedAmount -= allocated;
+                    const prepAllocIndex = prep.allocations.findIndex((a: any) => a.invoiceNumber === 'Prepayment');
+                    if (prepAllocIndex !== -1) {
+                        const prepAlloc = prep.allocations[prepAllocIndex];
+                        if (prep.unallocatedAmount === 0) {
+                            prep.allocations.splice(prepAllocIndex, 1);
+                        } else {
+                            prep.allocations[prepAllocIndex] = {
+                                ...prepAlloc,
+                                amount: prep.unallocatedAmount
+                            };
+                        }
+                    }
+
+                    prep.allocations.push({
+                        invoiceId: invoice.id,
+                        invoiceNumber: invoice.invoiceNumber || invoice.invoice_number,
+                        voteHeadId: item.voteHeadId || item.vote_head_id,
+                        description: item.description || item.name || 'Fees',
+                        amount: allocated
+                    });
+
+                    const currentInvId = prep.receipt.invoiceId || prep.receipt.invoice_id;
+                    if (!currentInvId) {
+                        prep.receipt.invoiceId = invoice.id;
+                        prep.receipt.invoice_id = invoice.id;
+                    }
+                }
+            }
+
+            if (invoiceModified) {
+                for (const prep of prepaymentReceipts) {
+                    await apiService.saveModuleRecord('receipts', {
+                        ...prep.receipt,
+                        allocations: JSON.stringify(prep.allocations)
+                    });
+                }
+
+                const updatedItemsPaid = invoiceItems.reduce((sum, it) => sum + Number(it.paid || 0), 0);
+                const newStatus = updatedItemsPaid >= Number(invoice.totalAmount || (invoice as any).total_amount) ? 'paid' : 'partial';
+
+                await apiService.saveModuleRecord('invoices', {
+                    ...invoice,
+                    items: invoiceItems,
+                    status: newStatus
+                });
+            }
+        } catch (err) {
+            console.error("[apiService] Failed to automatically allocate prepayments:", err);
+        }
     }
 };
 

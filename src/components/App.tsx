@@ -6156,11 +6156,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             courses={courses}
                                             onRefreshData={loadData}
                                             onGenerateInvoices={async (invoicesList: any) => {
-                                                await Promise.all(invoicesList.map((inv: any) => apiService.saveModuleRecord('invoices', {
-                                                    ...inv,
-                                                    institutionId: activeInstitution!.id,
-                                                    createdAt: new Date().toISOString()
-                                                })));
+                                                for (const inv of invoicesList) {
+                                                    const saved = await apiService.saveModuleRecord('invoices', {
+                                                        ...inv,
+                                                        institutionId: activeInstitution!.id,
+                                                        createdAt: new Date().toISOString()
+                                                    });
+                                                    if (saved) {
+                                                        await apiService.allocatePrepaymentsToInvoice(saved);
+                                                    }
+                                                }
                                                 await loadData();
                                             }}
                                             users={users.filter(u => u.institutionId === (activeInstitution?.id || currentUser?.institutionId))}
