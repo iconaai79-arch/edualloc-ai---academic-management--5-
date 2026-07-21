@@ -1328,11 +1328,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [manualPayStudentSearch, setManualPayStudentSearch] = useState('');
     const [manualPayInvoiceId, setManualPayInvoiceId] = useState('');
     const [manualPayAmount, setManualPayAmount] = useState<number>(0);
-    const [manualPayDate, setManualPayDate] = useState('');
+    const [manualPayDate, setManualPayDate] = useState(new Date().toISOString().split('T')[0]);
     const [manualPayMethod, setManualPayMethod] = useState('Cash');
     const [manualPayReference, setManualPayReference] = useState('');
     const [isSavingManualPay, setIsSavingManualPay] = useState(false);
     const [manualPayBankAccountId, setManualPayBankAccountId] = useState('');
+    const [nextReceiptNumber, setNextReceiptNumber] = useState('');
+    const [useCustomReceiptNumber, setUseCustomReceiptNumber] = useState(false);
+    const [customReceiptNumber, setCustomReceiptNumber] = useState('');
 
     // Reconcile form states
     const [reconcileStudentId, setReconcileStudentId] = useState('');
@@ -1794,6 +1797,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     };
 
     useEffect(() => {
+        if (showPostModal && props.institution?.id) {
+            apiService.fetchModuleRecords('finance_numbering_configs', props.institution.id)
+                .then((configs: any[]) => {
+                    const rConfig = configs.find(c => c.documentType === 'receipt' || c.document_type === 'receipt');
+                    const nextNum = rConfig ? Number(rConfig.nextNumber || rConfig.next_number || 1001) : 1001;
+                    const prefix = rConfig?.prefix || 'REC-';
+                    setNextReceiptNumber(`${prefix}${nextNum}`);
+                })
+                .catch(() => {
+                    setNextReceiptNumber('');
+                });
+        }
+    }, [showPostModal, props.institution?.id]);
+
+    useEffect(() => {
         if (activeTab === 'receipts') {
             fetchBankFeeds();
         }
@@ -1814,7 +1832,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 paymentDate: manualPayDate || new Date().toISOString().split('T')[0],
                 institutionId: props.institution.id,
                 targetInvoiceId: manualPayInvoiceId || undefined,
-                bankAccountId: manualPayBankAccountId || undefined
+                bankAccountId: manualPayBankAccountId || undefined,
+                customReceiptNumber: useCustomReceiptNumber ? customReceiptNumber : undefined
             });
 
             if (props.onRefreshData) {
@@ -1829,6 +1848,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setManualPayAmount(0);
             setManualPayReference('');
             setManualPayBankAccountId('');
+            setManualPayDate(new Date().toISOString().split('T')[0]);
+            setUseCustomReceiptNumber(false);
+            setCustomReceiptNumber('');
             setShowPostModal(false);
         } catch (e: any) {
             alert("Failed to post receipt: " + (e.message || e));
@@ -8802,6 +8824,43 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         ))}
                                     </select>
                                 </div>
+
+                                {nextReceiptNumber && (
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-950/20 rounded-2xl border border-slate-100 dark:border-slate-850 flex flex-col md:flex-row md:items-center justify-between gap-3 text-left">
+                                        <div>
+                                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Expected Receipt Number</span>
+                                            <p className="text-xs font-black text-slate-800 dark:text-slate-200 mt-0.5">{nextReceiptNumber}</p>
+                                        </div>
+                                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={useCustomReceiptNumber}
+                                                onChange={(e) => {
+                                                    setUseCustomReceiptNumber(e.target.checked);
+                                                    if (e.target.checked && !customReceiptNumber) {
+                                                        setCustomReceiptNumber(nextReceiptNumber);
+                                                    }
+                                                }}
+                                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                            />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Use Custom Number</span>
+                                        </label>
+                                    </div>
+                                )}
+
+                                {useCustomReceiptNumber && (
+                                    <div className="space-y-1 animate-in slide-in-from-top-2 duration-200 text-left">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Custom Receipt Number *</label>
+                                        <input
+                                            type="text"
+                                            value={customReceiptNumber}
+                                            onChange={(e) => setCustomReceiptNumber(e.target.value)}
+                                            placeholder="Enter custom receipt number (e.g. REC-Manual-01)"
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                            required
+                                        />
+                                    </div>
+                                )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">

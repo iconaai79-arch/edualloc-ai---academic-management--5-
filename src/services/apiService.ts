@@ -2213,6 +2213,7 @@ export const apiService = {
         paidForLabel?: string;
         targetInvoiceId?: string;
         bankAccountId?: string;
+        customReceiptNumber?: string;
     }) {
         const amountPaidNum = Number(params.amount);
         const instId = params.institutionId;
@@ -2379,7 +2380,7 @@ export const apiService = {
         const paidForText = params.paidForLabel || paidForParts.join(', ');
 
         const receiptId = `RCT_${Date.now()}_${Math.random().toString(36).substring(2,6)}`;
-        const receiptNumber = await apiService.getNextDocumentNumber(instId, 'receipt');
+        const receiptNumber = params.customReceiptNumber ? params.customReceiptNumber.trim() : await apiService.getNextDocumentNumber(instId, 'receipt');
 
         // Save the single grouped receipt
         // Link to targetInvoiceId if provided, or the first invoice paid, or null if it's purely prepayment
