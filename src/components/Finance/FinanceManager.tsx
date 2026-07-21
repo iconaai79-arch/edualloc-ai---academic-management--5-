@@ -1824,6 +1824,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
         setIsSavingManualPay(true);
         try {
+            const selectedInvoice = studentPendingInvoices.find(inv => inv.id === manualPayInvoiceId);
+            const openingBalRemaining = selectedInvoice?.isOpeningBalance ? selectedInvoice.totalAmount : undefined;
+
             const { receiptNumber } = await apiService.postStudentPayment({
                 studentId: manualPayStudentId,
                 amount: Number(manualPayAmount),
@@ -1833,7 +1836,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 institutionId: props.institution.id,
                 targetInvoiceId: manualPayInvoiceId || undefined,
                 bankAccountId: manualPayBankAccountId || undefined,
-                customReceiptNumber: useCustomReceiptNumber ? customReceiptNumber : undefined
+                customReceiptNumber: useCustomReceiptNumber ? customReceiptNumber : undefined,
+                openingBalanceRemaining: openingBalRemaining
             });
 
             if (props.onRefreshData) {

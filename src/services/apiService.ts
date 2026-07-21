@@ -2233,6 +2233,7 @@ export const apiService = {
         targetInvoiceId?: string;
         bankAccountId?: string;
         customReceiptNumber?: string;
+        openingBalanceRemaining?: number;
     }) {
         const amountPaidNum = Number(params.amount);
         const instId = params.institutionId;
@@ -2283,30 +2284,33 @@ export const apiService = {
         }> = [];
 
         if (isTargetingOpeningBalance) {
-            const student = await apiService.fetchModuleRecord<any>('users', params.studentId).catch(() => null);
-            const openingBal = Number(student?.metadata?.openingBalance || student?.metadata?.opening_balance || 0);
+            let openingBalanceRemaining = params.openingBalanceRemaining;
+            if (openingBalanceRemaining === undefined) {
+                const student = await apiService.fetchModuleRecord<any>('users', params.studentId).catch(() => null);
+                const openingBal = Number(student?.metadata?.openingBalance || student?.metadata?.opening_balance || 0);
 
-            const studentReceipts = allReceipts.filter((rec: any) => 
-                (rec.studentId === params.studentId || rec.student_id === params.studentId)
-            );
-            const receiptsPaidToOpening = studentReceipts.filter((r: any) => {
-                const invId = r.invoiceId || r.invoice_id;
-                return !invId || invId.startsWith('__opening_balance__');
-            }).reduce((sum: number, r: any) => {
-                let allocated = Number(r.amountPaid || 0);
-                if (r.allocations) {
-                    try {
-                        const allocs = typeof r.allocations === 'string' ? JSON.parse(r.allocations) : r.allocations;
-                        if (Array.isArray(allocs)) {
-                            const openingAlloc = allocs.find((a: any) => a.invoiceNumber === 'Opening Balance' || a.description === 'Arrears');
-                            if (openingAlloc) allocated = Number(openingAlloc.amount || 0);
-                        }
-                    } catch (e) {}
-                }
-                return sum + allocated;
-            }, 0);
+                const studentReceipts = allReceipts.filter((rec: any) => 
+                    (rec.studentId === params.studentId || rec.student_id === params.studentId)
+                );
+                const receiptsPaidToOpening = studentReceipts.filter((r: any) => {
+                    const invId = r.invoiceId || r.invoice_id;
+                    return !invId || invId.startsWith('__opening_balance__');
+                }).reduce((sum: number, r: any) => {
+                    let allocated = Number(r.amountPaid || 0);
+                    if (r.allocations) {
+                        try {
+                            const allocs = typeof r.allocations === 'string' ? JSON.parse(r.allocations) : r.allocations;
+                            if (Array.isArray(allocs)) {
+                                const openingAlloc = allocs.find((a: any) => a.invoiceNumber === 'Opening Balance' || a.description === 'Arrears');
+                                if (openingAlloc) allocated = Number(openingAlloc.amount || 0);
+                            }
+                        } catch (e) {}
+                    }
+                    return sum + allocated;
+                }, 0);
 
-            const openingBalanceRemaining = Math.max(0, openingBal - receiptsPaidToOpening);
+                openingBalanceRemaining = Math.max(0, openingBal - receiptsPaidToOpening);
+            }
             const allocatedToOpening = Math.min(remainingAmount, openingBalanceRemaining);
 
             if (allocatedToOpening > 0) {
