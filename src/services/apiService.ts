@@ -195,6 +195,25 @@ export const apiService = {
     },
     async getNextDocumentNumber(instId: string, docType: string): Promise<string> {
         try {
+            const supabaseClient = _supabase;
+            if (!supabaseClient) {
+                // Mock local storage mode
+                return `${docType.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+            }
+
+            // Try atomic RPC first to avoid concurrent/race-condition duplicate numbers
+            try {
+                const { data, error } = await supabaseClient.rpc('get_next_document_number', {
+                    p_institution_id: instId,
+                    p_document_type: docType
+                });
+                if (!error && data) {
+                    return data;
+                }
+            } catch (rpcErr) {
+                console.warn("[apiService] get_next_document_number RPC failed, falling back to legacy:", rpcErr);
+            }
+
             const numberingConfigs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
             let config = numberingConfigs.find((c: any) => c.documentType === docType || c.document_type === docType);
             
