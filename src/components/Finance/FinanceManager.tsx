@@ -438,16 +438,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             });
 
             if (studentsToUpdate.length > 0) {
-                // Update them in the database
-                for (const student of studentsToUpdate) {
-                    const updatedMetadata = {
-                        ...(student.metadata || {}),
-                        openingBalance: openingBalancesMap[student.id] || 0
-                    };
-                    
-                    await apiService.updateModuleRecord('users', student.id, {
-                        metadata: updatedMetadata
-                    });
+                // Update them in parallel batches (chunk size 20)
+                const chunkSize = 20;
+                for (let i = 0; i < studentsToUpdate.length; i += chunkSize) {
+                    const chunk = studentsToUpdate.slice(i, i + chunkSize);
+                    await Promise.all(chunk.map(student => {
+                        const updatedMetadata = {
+                            ...(student.metadata || {}),
+                            openingBalance: openingBalancesMap[student.id] || 0
+                        };
+                        return apiService.updateModuleRecord('users', student.id, {
+                            metadata: updatedMetadata
+                        });
+                    }));
                 }
                 
                 if (props.onRefreshData) {
