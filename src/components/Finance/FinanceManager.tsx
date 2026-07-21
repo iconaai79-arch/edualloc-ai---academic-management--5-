@@ -1529,7 +1529,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const invId = r.invoiceId || r.invoice_id;
                 const isOpeningBalReceipt = !invId || invId.startsWith('__opening_balance__');
                 return belongsToStudent && isOpeningBalReceipt;
-            }).reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0);
+            }).reduce((sum: number, r: any) => {
+                let allocated = Number(r.amountPaid || 0);
+                if (r.allocations) {
+                    try {
+                        const allocs = typeof r.allocations === 'string' ? JSON.parse(r.allocations) : r.allocations;
+                        if (Array.isArray(allocs)) {
+                            const openingAlloc = allocs.find((a: any) => a.invoiceNumber === 'Opening Balance' || a.description === 'Arrears');
+                            if (openingAlloc) allocated = Number(openingAlloc.amount || 0);
+                        }
+                    } catch (e) {}
+                }
+                return sum + allocated;
+            }, 0);
             const openingBalanceRemaining = Math.max(0, openingBal - receiptsPaidToOpening);
             if (openingBalanceRemaining > 0) {
                 const syntheticEntry: any = {
