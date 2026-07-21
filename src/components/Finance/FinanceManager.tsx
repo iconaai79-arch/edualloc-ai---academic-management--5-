@@ -787,26 +787,104 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         let skipCount = 0;
         const newBalancesMap = { ...openingBalancesMap };
 
+        // Helper to parse balance numbers with currency symbols, commas, or parentheses e.g. "(500)" or "Ksh 1,500.00"
+        const parseImportBalance = (val: any): number => {
+            if (val === null || val === undefined || val === '') return NaN;
+            if (typeof val === 'number') return val;
+            let s = String(val).trim();
+            if (!s) return NaN;
+            let isNeg = false;
+            if (s.startsWith('(') && s.endsWith(')')) {
+                isNeg = true;
+                s = s.slice(1, -1);
+            } else if (s.startsWith('-') || s.endsWith('-')) {
+                isNeg = true;
+            }
+            const clean = s.replace(/[^0-9.]/g, '');
+            if (!clean) return NaN;
+            const parsed = parseFloat(clean);
+            if (isNaN(parsed)) return NaN;
+            return isNeg ? -parsed : parsed;
+        };
+
+        // Helper to collect all potential admission/identifier strings for a student
+        const getStudentIdentifiers = (s: User): string[] => {
+            const set = new Set<string>();
+            const enrollment = enrollments.find(e => e.userId === s.id);
+            const candidates = [
+                s.admissionNumber,
+                s.admission_number,
+                s.metadata?.admissionNumber,
+                s.metadata?.admission_number,
+                (s as any).admNo,
+                (s as any).registrationNumber,
+                (s as any).reg_no,
+                s.staffId,
+                enrollment?.admissionNumber,
+                enrollment?.admission_number,
+                enrollment?.admNo,
+                enrollment?.metadata?.admissionNumber,
+                enrollment?.metadata?.admission_number
+            ];
+            candidates.forEach(c => {
+                if (c !== undefined && c !== null && String(c).trim() !== '') {
+                    set.add(String(c).trim());
+                }
+            });
+            return Array.from(set);
+        };
+
+        const normalize = (str: string) => str.trim().toLowerCase();
+        const sanitizeAlphaNum = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
         importerRawData.forEach(row => {
             const rawId = String(row[importerMappings.identifier] || '').trim();
-            const rawBal = Number(row[importerMappings.balance]);
+            const rawBal = parseImportBalance(row[importerMappings.balance]);
 
             if (!rawId || isNaN(rawBal)) {
                 skipCount++;
                 return;
             }
 
+            const normRawId = normalize(rawId);
+            const alphaRawId = sanitizeAlphaNum(rawId);
+            const rawInt = parseInt(rawId, 10);
+
             // Find matching student
             let matchedStudent: User | undefined;
+
             if (importerMatchField === 'admissionNumber') {
                 matchedStudent = props.students.find(s => {
-                    const adm = s.admissionNumber || s.admission_number || '';
-                    return adm.trim().toLowerCase() === rawId.toLowerCase();
+                    const ids = getStudentIdentifiers(s);
+                    if (ids.some(id => normalize(id) === normRawId)) return true;
+                    if (alphaRawId && ids.some(id => sanitizeAlphaNum(id) === alphaRawId)) return true;
+                    if (!isNaN(rawInt) && ids.some(id => parseInt(id, 10) === rawInt)) return true;
+                    return false;
                 });
+
+                // Fallback to student name match if admission number match failed
+                if (!matchedStudent) {
+                    matchedStudent = props.students.find(s => {
+                        if (!s.name) return false;
+                        return normalize(s.name) === normRawId || (alphaRawId && sanitizeAlphaNum(s.name) === alphaRawId);
+                    });
+                }
             } else {
+                // Primary match by student name
                 matchedStudent = props.students.find(s => {
-                    return s.name.trim().toLowerCase() === rawId.toLowerCase();
+                    if (!s.name) return false;
+                    return normalize(s.name) === normRawId || (alphaRawId && sanitizeAlphaNum(s.name) === alphaRawId);
                 });
+
+                // Fallback to admission number match
+                if (!matchedStudent) {
+                    matchedStudent = props.students.find(s => {
+                        const ids = getStudentIdentifiers(s);
+                        if (ids.some(id => normalize(id) === normRawId)) return true;
+                        if (alphaRawId && ids.some(id => sanitizeAlphaNum(id) === alphaRawId)) return true;
+                        return false;
+                    });
+                }
             }
 
             if (matchedStudent) {
