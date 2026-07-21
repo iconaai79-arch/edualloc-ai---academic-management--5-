@@ -984,10 +984,6 @@ export const apiService = {
         const processItem = (item: any) => {
             if (typeof item !== 'object' || item === null) return item;
             
-            if (module === 'users') {
-                delete item.metadata;
-            }
-
             // Safety net for Driving School modules to prevent schema mismatch errors
             if (module === 'ds_vehicles' || module === 'ds_instructors' || module === 'ds_students') {
                 delete item.start_time;
