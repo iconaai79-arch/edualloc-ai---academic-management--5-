@@ -3,7 +3,10 @@
 
 -- 1. Recreate sync_bank_transactions_from_logs function
 CREATE OR REPLACE FUNCTION public.sync_bank_transactions_from_logs()
-RETURNS integer AS $$
+RETURNS integer
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
 DECLARE
     log_rec RECORD;
     resolved_inst_id TEXT;
