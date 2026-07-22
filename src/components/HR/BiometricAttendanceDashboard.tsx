@@ -56,6 +56,9 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         protocol: 'adms' as 'adms' | 'pull' | 'biotime' | 'dahua' | 'dahua_cgi' | 'http_push',
     });
 
+    // Device guide modal
+    const [showGuideModal, setShowGuideModal] = useState(false);
+
     // Enrollment form
     const [showEnrollModal, setShowEnrollModal] = useState(false);
     const [enrollForm, setEnrollForm] = useState({
@@ -446,12 +449,20 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                 <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Registered Devices</h3>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{devices.length} device{devices.length !== 1 ? 's' : ''} configured</p>
                             </div>
-                            <button
-                                onClick={() => setShowDeviceModal(true)}
-                                className="px-6 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
-                            >
-                                + Add Device
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setShowGuideModal(true)}
+                                    className="px-5 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center gap-2"
+                                >
+                                    📖 Device Setup Guide
+                                </button>
+                                <button
+                                    onClick={() => setShowDeviceModal(true)}
+                                    className="px-6 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
+                                >
+                                    + Add Device
+                                </button>
+                            </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-8">
                             {devices.length === 0 ? (
@@ -717,13 +728,86 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                     ))}
                                 </select>
                             </div>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button onClick={() => setShowEnrollModal(false)} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">
+                                    Cancel
+                                </button>
+                                <button onClick={handleEnrollStaff} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
+                                    Save Enrollment
+                                </button>
+                            </div>
                         </div>
-                        <div className="p-8 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/50 dark:bg-slate-950/20">
-                            <button onClick={() => setShowEnrollModal(false)} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">
-                                Cancel
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════ DEVICE SETUP GUIDE MODAL ═══════════ */}
+            {showGuideModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
+                        <div className="px-8 py-6 bg-slate-900 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-indigo-600 rounded-2xl">
+                                    <ClockIcon className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight">Biometric Device Setup Guide</h3>
+                                    <p className="text-[10px] font-semibold text-slate-400">Step-by-step instructions for adding ZKTeco, Dahua & Generic devices</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowGuideModal(false)} className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl transition-all">
+                                <XIcon className="w-5 h-5" />
                             </button>
-                            <button onClick={handleEnrollStaff} className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md">
-                                Enroll Staff
+                        </div>
+
+                        <div className="p-8 overflow-y-auto space-y-6 text-xs text-slate-700 dark:text-slate-300">
+                            {/* Step 1 */}
+                            <div className="p-5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
+                                <span className="px-3 py-1 bg-indigo-600 text-white rounded-full text-[9px] font-black uppercase tracking-wider">Step 1: Access Devices Tab</span>
+                                <p className="font-bold text-slate-800 dark:text-white pt-1">Navigate to HR & Payroll ➔ Biometric Attendance ➔ Devices.</p>
+                                <p className="text-slate-500 dark:text-slate-400 text-[11px]">Click on <strong className="text-indigo-600 dark:text-indigo-400">+ Add Device</strong> to open the registration dialog.</p>
+                            </div>
+
+                            {/* Step 2 */}
+                            <div className="p-5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
+                                <span className="px-3 py-1 bg-indigo-600 text-white rounded-full text-[9px] font-black uppercase tracking-wider">Step 2: Enter Device Specs & Protocol</span>
+                                <ul className="list-disc list-inside space-y-1.5 text-[11px] pt-1">
+                                    <li><strong>Serial Number:</strong> Printed on device label or shown in device network settings.</li>
+                                    <li><strong>Device Name:</strong> e.g., <em>Main Gate Face Scanner</em> or <em>Admin Staff Room</em>.</li>
+                                    <li><strong>IP Address:</strong> Static local IP (e.g. <code>192.168.1.150</code>).</li>
+                                    <li>
+                                        <strong>Protocol Selection:</strong>
+                                        <div className="mt-1 pl-4 space-y-1 text-slate-500 dark:text-slate-400">
+                                            <div>• <strong>ZKTeco ADMS (Push):</strong> For ZKTeco push devices (F18, MB20, SpeedFace).</div>
+                                            <div>• <strong>ZKBioTime Cloud:</strong> For ZKTeco cloud BioTime server deployments.</div>
+                                            <div>• <strong>Dahua Auto-Push / SmartPSS:</strong> For Dahua ASI series face/fingerprint terminals.</div>
+                                            <div>• <strong>Dahua HTTP CGI / DSS Pro:</strong> For Dahua DSS Pro or CGI webhook events.</div>
+                                            <div>• <strong>Generic HTTP Webhook Push:</strong> For custom third-party IP scanners.</div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            {/* Step 3 */}
+                            <div className="p-5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
+                                <span className="px-3 py-1 bg-indigo-600 text-white rounded-full text-[9px] font-black uppercase tracking-wider">Step 3: Configure Cloud Server / ADMS on Physical Device</span>
+                                <p className="text-[11px] pt-1">Copy your institution's unique Push URL shown at the top of the Devices tab:</p>
+                                <div className="p-3 bg-slate-900 text-indigo-300 font-mono text-[10px] rounded-xl border border-indigo-500/30 break-all select-all">
+                                    {webhookUrl}
+                                </div>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">On the physical device menu: Open <em>Menu ➔ Comm. ➔ Cloud Server / ADMS Settings</em>, set Server IP/Domain and Port, and enable Enable Domain Name.</p>
+                            </div>
+
+                            {/* Step 4 */}
+                            <div className="p-5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
+                                <span className="px-3 py-1 bg-emerald-600 text-white rounded-full text-[9px] font-black uppercase tracking-wider">Step 4: Map Staff to Device PINs</span>
+                                <p className="text-[11px] pt-1">Go to the <strong>Staff PIN Enrollment</strong> tab, click <strong>+ Enroll</strong>, select the staff member, and type their assigned device User ID / PIN (e.g. <code>1001</code>).</p>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                            <button onClick={() => setShowGuideModal(false)} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
+                                Got It
                             </button>
                         </div>
                     </div>
