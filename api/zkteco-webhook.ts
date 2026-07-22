@@ -249,7 +249,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     .select('id, institution_id')
                     .eq('serial_number', serialNumber)
                     .eq('is_active', true)
-                    .single();
+                    .maybeSingle();
 
                 if (device) {
                     deviceId = device.id;
