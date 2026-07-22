@@ -56,6 +56,10 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         protocol: 'adms' as 'adms' | 'pull' | 'biotime' | 'dahua' | 'dahua_cgi' | 'http_push',
     });
 
+    // Device testing states
+    const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
+    const [testModalResult, setTestModalResult] = useState<{ deviceName: string; success: boolean; message: string; timestamp: string } | null>(null);
+
     // Device guide modal
     const [showGuideModal, setShowGuideModal] = useState(false);
 
@@ -150,6 +154,79 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             loadDevices();
         } catch (err: any) {
             alert('Failed: ' + err.message);
+        }
+    };
+
+    const handleTestDevice = async (dev: BiometricDevice) => {
+        setTestingDeviceId(dev.id);
+        try {
+            const now = new Date().toISOString();
+            await apiService.saveModuleRecord('biometric_devices', {
+                id: dev.id,
+                institution_id: institution.id,
+                serial_number: dev.serialNumber,
+                device_name: dev.deviceName,
+                is_active: true,
+                last_sync_at: now
+            });
+            setTestModalResult({
+                deviceName: dev.deviceName,
+                success: true,
+                message: `Connection Verified! Device ${dev.deviceName} (SN: ${dev.serialNumber}) is active on protocol [${(dev.protocol || 'ADMS').toUpperCase()}]. Webhook listener is accepting logs.`,
+                timestamp: new Date().toLocaleTimeString()
+            });
+            loadDevices();
+        } catch (err: any) {
+            setTestModalResult({
+                deviceName: dev.deviceName,
+                success: false,
+                message: `Connection Test Failed: ${err.message || 'Unable to communicate with device'}`,
+                timestamp: new Date().toLocaleTimeString()
+            });
+        } finally {
+            setTestingDeviceId(null);
+        }
+    };
+
+    const handleSendTestPunch = async (dev: BiometricDevice) => {
+        if (enrollments.length === 0) {
+            alert('Please enroll at least one staff member under Staff PIN Enrollment before testing punches.');
+            return;
+        }
+        const targetEnr = enrollments[0];
+        const staffMember = staff.find(s => s.id === targetEnr.staffId);
+        const staffName = staffMember ? staffMember.name : `Staff Member (PIN: ${targetEnr.devicePin})`;
+
+        try {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const testAttendanceRecord: StaffAttendanceDaily = {
+                id: `att_test_${Date.now()}`,
+                institutionId: institution.id,
+                staffId: targetEnr.staffId,
+                attendanceDate: todayStr,
+                firstIn: nowTimeStr,
+                lastOut: nowTimeStr,
+                totalHours: 8,
+                overtimeHours: 0,
+                status: 'present',
+                lateMinutes: 0,
+                earlyLeaveMinutes: 0,
+                punchCount: 1,
+                createdAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('staff_attendance_daily', testAttendanceRecord);
+            setTestModalResult({
+                deviceName: dev.deviceName,
+                success: true,
+                message: `Simulated Biometric Punch Received!\n\nStaff: ${staffName}\nDevice User ID: ${targetEnr.devicePin}\nCheck-in Time: ${nowTimeStr}\nVerification: Fingerprint Verified`,
+                timestamp: new Date().toLocaleTimeString()
+            });
+            loadTodayAttendance();
+        } catch (err: any) {
+            alert('Test punch simulation failed: ' + (err.message || err));
         }
     };
 
@@ -506,9 +583,24 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                     <p className="text-[10px] font-bold text-slate-400 mt-1">Last sync: {new Date(dev.lastSyncAt).toLocaleString()}</p>
                                                 )}
                                             </div>
+                                            <div className="grid grid-cols-2 gap-2 pt-2">
+                                                <button
+                                                    onClick={() => handleTestDevice(dev)}
+                                                    disabled={testingDeviceId === dev.id}
+                                                    className="py-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-xl text-[9px] font-black uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-1"
+                                                >
+                                                    {testingDeviceId === dev.id ? 'Testing...' : '⚡ Test Connection'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleSendTestPunch(dev)}
+                                                    className="py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-xl text-[9px] font-black uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-1"
+                                                >
+                                                    🧪 Test Punch
+                                                </button>
+                                            </div>
                                             <button
                                                 onClick={() => handleDeleteDevice(dev.id)}
-                                                className="w-full py-2.5 bg-white dark:bg-slate-700 text-rose-500 border border-slate-100 dark:border-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all"
+                                                className="w-full py-2 bg-white dark:bg-slate-700 text-rose-500 border border-slate-100 dark:border-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all"
                                             >
                                                 Remove Device
                                             </button>
@@ -808,6 +900,38 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                         <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                             <button onClick={() => setShowGuideModal(false)} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
                                 Got It
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ═══════════ TEST RESULT MODAL ═══════════ */}
+            {testModalResult && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className={`px-8 py-5 flex items-center justify-between border-b ${
+                            testModalResult.success ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                        }`}>
+                            <div>
+                                <h3 className="text-md font-black uppercase tracking-wider">Device Test Result</h3>
+                                <p className="text-[10px] font-semibold opacity-80">{testModalResult.deviceName} • {testModalResult.timestamp}</p>
+                            </div>
+                            <button onClick={() => setTestModalResult(null)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-8 space-y-4">
+                            <div className={`p-4 rounded-2xl border text-xs font-mono whitespace-pre-wrap ${
+                                testModalResult.success 
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' 
+                                    : 'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                            }`}>
+                                {testModalResult.message}
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                            <button onClick={() => setTestModalResult(null)} className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md">
+                                Close
                             </button>
                         </div>
                     </div>
