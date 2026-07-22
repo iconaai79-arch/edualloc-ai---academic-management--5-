@@ -12,6 +12,12 @@ declare global {
 }
 
 if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    if (event.reason && typeof event.reason.message === 'string' && event.reason.message.includes('message channel closed before a response was received')) {
+      event.preventDefault();
+    }
+  });
+
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     window.__deferredInstallPrompt = e;
