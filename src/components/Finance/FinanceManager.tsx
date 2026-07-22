@@ -45,6 +45,7 @@ import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowsRightLeftIcon } from '../icons/ArrowsRightLeftIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { DownloadIcon } from '../icons/DownloadIcon';
+import { BuildingLibraryIcon } from '../icons/BuildingLibraryIcon';
 import { ArrowPathIcon } from '../icons/ArrowPathIcon';
 import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
 import { DevicePhoneMobileIcon } from '../icons/DevicePhoneMobileIcon';
@@ -1183,7 +1184,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         try {
             const schoolName = props.institution.name || 'School';
             const outboxMessages = reminderTargetStudents.map(student => {
-                const phone = student.phone || (student as any).parentPhone || student.metadata?.parentPhone || student.metadata?.phone || '';
+                const phone = (student as any).phone || (student as any).parentPhone || student.metadata?.parentPhone || student.metadata?.phone || '';
                 const text = reminderTemplate
                     .replace(/\{student_name\}/g, student.name || 'Student')
                     .replace(/\{adm_no\}/g, student.admissionNumber || (student as any).admission_number || '—')
