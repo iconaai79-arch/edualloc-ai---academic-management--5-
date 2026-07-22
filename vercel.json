@@ -1,6 +1,11 @@
 {
   "version": 2,
   "rewrites": [
+    { "source": "/zk", "destination": "/api/zkteco-webhook" },
+    { "source": "/zk/:path*", "destination": "/api/zkteco-webhook" },
+    { "source": "/adms", "destination": "/api/zkteco-webhook" },
+    { "source": "/adms/:path*", "destination": "/api/zkteco-webhook" },
+    { "source": "/iclock", "destination": "/api/zkteco-webhook" },
     { "source": "/iclock/:path*", "destination": "/api/zkteco-webhook" },
     { "source": "/api/payments/:path*", "destination": "/api/payments?path=:path*" },
     { "source": "/api/coop-b2b/:path*", "destination": "/api/coop-b2b?path=:path*" },

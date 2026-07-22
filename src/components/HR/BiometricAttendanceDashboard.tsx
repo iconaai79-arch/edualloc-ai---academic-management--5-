@@ -1155,11 +1155,13 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             {/* Step 3 */}
                             <div className="p-5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
                                 <span className="px-3 py-1 bg-indigo-600 text-white rounded-full text-[9px] font-black uppercase tracking-wider">Step 3: Configure Cloud Server / ADMS on Physical Device</span>
-                                <p className="text-[11px] pt-1">Copy your institution's unique Push URL shown at the top of the Devices tab:</p>
-                                <div className="p-3 bg-slate-900 text-indigo-300 font-mono text-[10px] rounded-xl border border-indigo-500/30 break-all select-all">
-                                    {webhookUrl}
+                                <p className="text-[11px] pt-1">You can use any of these <strong>ultra-shortened ZKTeco Push Webhook URLs</strong> for easy typing on terminal keypads:</p>
+                                <div className="space-y-1 p-3 bg-slate-900 text-indigo-300 font-mono text-[10px] rounded-xl border border-indigo-500/30 break-all select-all">
+                                    <div>⚡ Option 1 (Shortest): <span className="text-emerald-400 font-bold">portal.eduai.co.ke/zk</span></div>
+                                    <div>⚡ Option 2: <span className="text-sky-400 font-bold">portal.eduai.co.ke/adms</span></div>
+                                    <div>⚡ Option 3 (Standard): <span className="text-amber-400 font-bold">portal.eduai.co.ke/iclock</span></div>
                                 </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400">On the physical device menu: Open <em>Menu ➔ Comm. ➔ Cloud Server / ADMS Settings</em>, set Server IP/Domain and Port, and enable Enable Domain Name.</p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">On physical ZKTeco screen: Go to <em>Menu ➔ Comm. ➔ Cloud Server / ADMS Settings</em>. Set Server IP/Domain to <code>portal.eduai.co.ke</code>, Server Path to <code>/zk</code> or <code>/iclock</code>, Port <code>80</code> (or <code>443</code> HTTPS), and turn <strong>Enable Domain Name</strong> ON.</p>
                             </div>
 
                             {/* Step 4 */}
