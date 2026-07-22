@@ -303,6 +303,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return r;
             };
 
+            const recordWithBranch = Array.isArray(recordWithTenancy) 
+                ? recordWithTenancy.map(appendBranch)
+                : appendBranch(recordWithTenancy);
+
             const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
             const sanitizeUUIDs = (r: any) => {

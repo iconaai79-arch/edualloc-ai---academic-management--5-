@@ -76,6 +76,10 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     onEditUser,
     onDeleteUser
 }) => {
+    const totalBilled = (invoices || []).reduce((sum, inv) => sum + (inv.totalAmount || (inv as any).total_amount || 0), 0);
+    const totalCollected = (receipts || []).reduce((sum, rec) => sum + (rec.amountPaid || (rec as any).amount_paid || 0), 0);
+    const efficiencyRate = totalBilled > 0 ? Math.min(100, Math.round((totalCollected / totalBilled) * 1000) / 10) : 100;
+
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
             <Header 
@@ -93,7 +97,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                             <span className="text-[10px] font-black uppercase tracking-widest">Live Fiscal Monitoring</span>
                         </div>
                         <h1 className="text-5xl font-black text-slate-900 tracking-tighter">Financial Intelligence Hub</h1>
-                        <p className="text-slate-500 font-medium">Welcome back, {currentUser.name}. Your institutional revenue streams are performing at <span className="text-emerald-600 font-black">94.2% efficiency</span>.</p>
+                        <p className="text-slate-500 font-medium">Welcome back, {currentUser.name}. Your institutional revenue streams are performing at <span className="text-emerald-600 font-black">{efficiencyRate}% efficiency</span>.</p>
                     </div>
                 </div>
 
