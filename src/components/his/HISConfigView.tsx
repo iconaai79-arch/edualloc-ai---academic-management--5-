@@ -150,7 +150,26 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                     setPractitionerForm(f => ({ ...f, devicePin: assignedPin }));
                 }
 
-                alert(`📡 Remote ZKTeco ADMS Command Queued!\n\nTarget Terminal: ${selectedDev.deviceName} (SN: ${selectedDev.serialNumber})\nTarget Finger: ${fingerObj.label} (ID: ${practitionerForm.fingerIndex})\nAssigned Device PIN: ${assignedPin}\nCommand: C:1001:DATA ENROLL_FP PIN=${assignedPin} FingerID=${practitionerForm.fingerIndex}\n\n👉 HARDWARE REACTION:\nWhen the ZKTeco terminal polls this server (every 10-30s), its screen will beep and display: 'Place ${fingerObj.label} 1/3'!`);
+                alert(`📡 REMOTE OPEN SENSOR DIAGNOSTIC REPORT\n` +
+                      `═════════════════════════════════════════\n` +
+                      `• Target Terminal: ${selectedDev.deviceName}\n` +
+                      `• Serial Number (SN): ${selectedDev.serialNumber}\n` +
+                      `• Target Finger: ${fingerObj.label} (ID: ${practitionerForm.fingerIndex})\n` +
+                      `• Device User PIN: ${assignedPin}\n` +
+                      `• ADMS Command Payload: C:1001:DATA ENROLL_FP PIN=${assignedPin} FingerID=${practitionerForm.fingerIndex}\n` +
+                      `• Webhook Endpoint: /iclock/getrequest?SN=${selectedDev.serialNumber}\n` +
+                      `• Command Status: ✅ QUEUED & WAITING FOR DEVICE HEARTBEAT\n\n` +
+                      `🔍 TROUBLESHOOTING GUIDE (IF SENSOR HARDWARE DOES NOT OPEN):\n` +
+                      `─────────────────────────────────────────\n` +
+                      `1. 🌐 Cloud Server Settings on Terminal:\n` +
+                      `   On physical device, tap Menu ➔ Comm. ➔ Cloud Server / ADMS.\n` +
+                      `   - Server IP: Set to server IP / domain\n` +
+                      `   - Server Port: 80 (or 443)\n` +
+                      `   - Enable Domain Name: ON\n\n` +
+                      `2. ⏱️ Automatic Device Polling:\n` +
+                      `   ZKTeco devices poll for server commands every 10–30 seconds.\n\n` +
+                      `3. ⚡ Instant Trigger:\n` +
+                      `   Press Menu ➔ Data Mgt ➔ Sync on device to open sensor immediately!`);
             } else {
                 // 💻 Local USB / WebAuthn Sensor
                 let cred = null;

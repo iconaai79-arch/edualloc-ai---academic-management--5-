@@ -247,7 +247,26 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             setTestModalResult({
                 deviceName: dev.deviceName,
                 success: true,
-                message: `📡 Remote ZKTeco Finger Scanner Command Dispatched!\n\nTarget Terminal: ${dev.deviceName} (SN: ${dev.serialNumber})\nTarget Finger: ${fingerName} (FingerID: ${selectedFingerIndex})\nQueued ADMS Command: C:1001:DATA ENROLL_FP PIN=${testPin} FingerID=${selectedFingerIndex}\n\n👉 Hardware Reaction:\nWhen the physical ZKTeco terminal polls this server (every 10-30 seconds), its screen will BEEP and display "Place ${fingerName} 1/3"!`,
+                message: `📡 REMOTE OPEN SENSOR DIAGNOSTIC REPORT\n` +
+                         `═════════════════════════════════════════\n` +
+                         `• Device Target: ${dev.deviceName}\n` +
+                         `• Serial Number (SN): ${dev.serialNumber}\n` +
+                         `• Target Finger: ${fingerName} (FingerID: ${selectedFingerIndex})\n` +
+                         `• Device User PIN: ${testPin}\n` +
+                         `• ADMS Command Payload: C:1001:DATA ENROLL_FP PIN=${testPin} FingerID=${selectedFingerIndex}\n` +
+                         `• Webhook Endpoint: /iclock/getrequest?SN=${dev.serialNumber}\n` +
+                         `• Command Status: ✅ QUEUED & WAITING FOR DEVICE HEARTBEAT\n\n` +
+                         `🔍 TROUBLESHOOTING GUIDE (IF SENSOR HARDWARE DOES NOT OPEN):\n` +
+                         `─────────────────────────────────────────\n` +
+                         `1. 🌐 Cloud Server Settings on Terminal:\n` +
+                         `   On physical device, tap Menu ➔ Comm. ➔ Cloud Server / ADMS.\n` +
+                         `   - Server IP: Set to server IP / domain\n` +
+                         `   - Server Port: 80 (or 443)\n` +
+                         `   - Enable Domain Name: ON\n\n` +
+                         `2. ⏱️ Automatic Device Polling:\n` +
+                         `   ZKTeco devices poll for server commands every 10–30 seconds.\n\n` +
+                         `3. ⚡ Instant Trigger:\n` +
+                         `   Press Menu ➔ Data Mgt ➔ Sync on device to open sensor immediately!`,
                 timestamp: new Date().toLocaleTimeString()
             });
         } catch (err: any) {
