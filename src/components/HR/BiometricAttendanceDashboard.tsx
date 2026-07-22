@@ -228,19 +228,26 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     };
 
     const handleTriggerFingerScanner = async (dev: BiometricDevice) => {
+        const fingerIndexStr = window.prompt("Select Finger to Scan on ZKTeco Device:\n\n0: Right Thumb\n1: Right Index (Recommended)\n2: Right Middle\n3: Right Ring\n4: Right Little\n5: Left Thumb\n6: Left Index\n7: Left Middle\n8: Left Ring\n9: Left Little", "1");
+        if (fingerIndexStr === null) return;
+
+        const selectedFingerIndex = parseInt(fingerIndexStr) || 0;
+        const fingerNames = ['Right Thumb','Right Index','Right Middle','Right Ring','Right Little','Left Thumb','Left Index','Left Middle','Left Ring','Left Little'];
+        const fingerName = fingerNames[selectedFingerIndex] || 'Right Thumb';
+
         setTestingDeviceId(dev.id);
         try {
             const testPin = enrollments.length > 0 ? enrollments[0].devicePin : '1001';
             const testName = enrollments.length > 0 ? (staff.find(s => s.id === enrollments[0].staffId)?.name || 'Test User') : 'Test User';
             
-            await fetch(`/api/zkteco-webhook?action=enroll&institutionId=${institution.id}&SN=${dev.serialNumber}&sn=${dev.serialNumber}&pin=${testPin}&name=${encodeURIComponent(testName)}`, {
+            await fetch(`/api/zkteco-webhook?action=enroll&institutionId=${institution.id}&SN=${dev.serialNumber}&sn=${dev.serialNumber}&pin=${testPin}&fingerIndex=${selectedFingerIndex}&name=${encodeURIComponent(testName)}`, {
                 method: 'POST'
             }).catch(() => null);
 
             setTestModalResult({
                 deviceName: dev.deviceName,
                 success: true,
-                message: `📡 Remote ZKTeco Finger Scanner Command Dispatched!\n\nTarget Terminal: ${dev.deviceName} (SN: ${dev.serialNumber})\nQueued ADMS Command: C:1001:DATA ENROLL_FP PIN=${testPin}\n\n👉 Hardware Reaction:\nWhen the physical ZKTeco terminal polls this server (every 10-30 seconds), its screen will BEEP and open the fingerprint sensor screen ("Place Finger 1/3") for PIN ${testPin}!`,
+                message: `📡 Remote ZKTeco Finger Scanner Command Dispatched!\n\nTarget Terminal: ${dev.deviceName} (SN: ${dev.serialNumber})\nTarget Finger: ${fingerName} (FingerID: ${selectedFingerIndex})\nQueued ADMS Command: C:1001:DATA ENROLL_FP PIN=${testPin} FingerID=${selectedFingerIndex}\n\n👉 Hardware Reaction:\nWhen the physical ZKTeco terminal polls this server (every 10-30 seconds), its screen will BEEP and display "Place ${fingerName} 1/3"!`,
                 timestamp: new Date().toLocaleTimeString()
             });
         } catch (err: any) {

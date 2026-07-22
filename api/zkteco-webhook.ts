@@ -64,14 +64,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const action = (req.query.action || '') as string;
     const pin = (req.query.pin || '') as string;
     const name = (req.query.name || '') as string;
+    const fingerIndex = (req.query.fingerIndex || req.query.finger_index || '0') as string;
 
     console.log(`[ZKTeco] ${req.method} action=${action} from SN=${serialNumber} inst=${institutionId}`);
 
     // ─── ACTION = ENROLL (From Web Portal) ───
     if (action === 'enroll') {
         const cmdId = ++cmdCounter;
-        // Standard ADMS Enrollment Command format
-        const admsCmd = `C:${cmdId}:DATA ENROLL_FP PIN=${pin || '1001'} FingerID=0`;
+        // Standard ADMS Enrollment Command format with custom FingerID (0-9)
+        const admsCmd = `C:${cmdId}:DATA ENROLL_FP PIN=${pin || '1001'} FingerID=${fingerIndex}`;
         const snKey = serialNumber || 'DEFAULT';
         
         const existing = PENDING_COMMANDS.get(snKey) || [];

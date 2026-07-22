@@ -41,8 +41,22 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
         medicalLicense: '',
         phoneNumber: '',
         email: '',
-        devicePin: ''
+        devicePin: '',
+        fingerIndex: 0
     });
+
+    const FINGER_OPTIONS = [
+        { index: 0, label: 'Right Thumb' },
+        { index: 1, label: 'Right Index' },
+        { index: 2, label: 'Right Middle' },
+        { index: 3, label: 'Right Ring' },
+        { index: 4, label: 'Right Little' },
+        { index: 5, label: 'Left Thumb' },
+        { index: 6, label: 'Left Index' },
+        { index: 7, label: 'Left Middle' },
+        { index: 8, label: 'Left Ring' },
+        { index: 9, label: 'Left Little' }
+    ];
 
     const loadPractitioners = useCallback(async () => {
         if (institutionId) {
@@ -108,23 +122,26 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
         try {
             const assignedPin = practitionerForm.devicePin || String(Math.floor(1000 + Math.random() * 9000));
             const selectedDev = availableDevices.find(d => d.id === selectedDeviceId);
+            const fingerObj = FINGER_OPTIONS.find(f => f.index === practitionerForm.fingerIndex) || FINGER_OPTIONS[0];
 
             if (selectedDev) {
                 // 📡 Physical ZKTeco / Dahua Device Enrollment Command
                 try {
-                    await fetch(`/api/zkteco-webhook?action=enroll&institutionId=${institutionId}&SN=${selectedDev.serialNumber}&sn=${selectedDev.serialNumber}&pin=${assignedPin}&name=${encodeURIComponent(practitionerForm.name)}`, {
+                    await fetch(`/api/zkteco-webhook?action=enroll&institutionId=${institutionId}&SN=${selectedDev.serialNumber}&sn=${selectedDev.serialNumber}&pin=${assignedPin}&fingerIndex=${practitionerForm.fingerIndex}&name=${encodeURIComponent(practitionerForm.name)}`, {
                         method: 'POST'
                     }).catch(() => null);
                 } catch (e) {
                     console.warn('[ZKTeco] Remote enroll dispatch note:', e);
                 }
 
-                const templateHash = `zkteco_remote_${selectedDev.serialNumber}_pin_${assignedPin}`;
+                const templateHash = `zkteco_remote_${selectedDev.serialNumber}_pin_${assignedPin}_f${practitionerForm.fingerIndex}`;
 
                 setScannedBiometricData({
                     credentials: null,
                     templateHash: templateHash,
                     devicePin: assignedPin,
+                    fingerIndex: practitionerForm.fingerIndex,
+                    fingerLabel: fingerObj.label,
                     deviceName: selectedDev.deviceName,
                     scannedAt: new Date().toLocaleTimeString()
                 });
@@ -133,7 +150,7 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                     setPractitionerForm(f => ({ ...f, devicePin: assignedPin }));
                 }
 
-                alert(`📡 Remote ZKTeco ADMS Command Queued!\n\nTarget Terminal: ${selectedDev.deviceName} (SN: ${selectedDev.serialNumber})\nAssigned Device PIN: ${assignedPin}\nCommand: C:1001:DATA ENROLL_FP PIN=${assignedPin}\n\n👉 HOW THE TERMINAL OPENS SENSOR:\n1. Ensure terminal ADMS Server URL is set to your server /api/zkteco-webhook\n2. The terminal receives the command on its next heartbeat (10-30s) or press 'Sync' on device\n3. Device screen will beep and open 'Place Finger 1/3'`);
+                alert(`📡 Remote ZKTeco ADMS Command Queued!\n\nTarget Terminal: ${selectedDev.deviceName} (SN: ${selectedDev.serialNumber})\nTarget Finger: ${fingerObj.label} (ID: ${practitionerForm.fingerIndex})\nAssigned Device PIN: ${assignedPin}\nCommand: C:1001:DATA ENROLL_FP PIN=${assignedPin} FingerID=${practitionerForm.fingerIndex}\n\n👉 HARDWARE REACTION:\nWhen the ZKTeco terminal polls this server (every 10-30s), its screen will beep and display: 'Place ${fingerObj.label} 1/3'!`);
             } else {
                 // 💻 Local USB / WebAuthn Sensor
                 let cred = null;
@@ -151,6 +168,8 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                     credentials: cred,
                     templateHash: templateHash,
                     devicePin: assignedPin,
+                    fingerIndex: practitionerForm.fingerIndex,
+                    fingerLabel: fingerObj.label,
                     deviceName: 'Local Web Biometric Scanner',
                     scannedAt: new Date().toLocaleTimeString()
                 });
@@ -159,7 +178,7 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                     setPractitionerForm(f => ({ ...f, devicePin: assignedPin }));
                 }
 
-                alert(`☝️ Local Biometric Fingerprint Captured!\n\nSensor: Active Fingerprint Reader\nTemplate Hash: ${templateHash.substring(0, 18)}...\nLinked Terminal PIN: ${assignedPin}`);
+                alert(`☝️ Local Biometric Fingerprint Captured!\n\nSensor: Active Fingerprint Reader\nSelected Finger: ${fingerObj.label}\nTemplate Hash: ${templateHash.substring(0, 18)}...\nLinked Terminal PIN: ${assignedPin}`);
             }
         } catch (err: any) {
             alert('Biometric scan error: ' + (err.message || err));
@@ -549,27 +568,41 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                                         ))}
                                     </select>
                                 </div>
-
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={handleScanBiometrics}
-                                        disabled={isScanningBiometric}
-                                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
-                                    >
-                                        {isScanningBiometric ? 'Triggering Scanner...' : selectedDeviceId === 'local' ? '☝️ Scan Fingerprint Now' : '📡 Trigger Remote Device Scan'}
-                                    </button>
-
-                                    <div className="w-1/3">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Target Finger</label>
+                                        <select
+                                            value={practitionerForm.fingerIndex}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, fingerIndex: parseInt(e.target.value) }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            {FINGER_OPTIONS.map(f => (
+                                                <option key={f.index} value={f.index}>
+                                                    ☝️ {f.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Device PIN</label>
                                         <input
                                             type="text"
-                                            placeholder="Device PIN"
+                                            placeholder="e.g. 1004"
                                             value={practitionerForm.devicePin}
                                             onChange={e => setPractitionerForm(f => ({ ...f, devicePin: e.target.value }))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                                         />
                                     </div>
                                 </div>
+
+                                <button
+                                    type="button"
+                                    onClick={handleScanBiometrics}
+                                    disabled={isScanningBiometric}
+                                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+                                >
+                                    {isScanningBiometric ? 'Triggering Scanner...' : selectedDeviceId === 'local' ? '☝️ Scan Fingerprint Now' : '📡 Trigger Remote Device Scan'}
+                                </button>
                             </div>
                         </div>
 
