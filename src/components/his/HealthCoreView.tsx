@@ -44,7 +44,11 @@ import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
 import { PdfViewer } from '../PdfViewer';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy';
+import { HRManager } from '../HR/HRManager';
+import { BiometricAttendanceDashboard } from '../HR/BiometricAttendanceDashboard';
+import { PayrollRecord, LeaveRequest, Institution } from '../../types';
+
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -74,16 +78,22 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     const [eduSidebarItem, setEduSidebarItem] = useState<string>('home');
     const [allClinicalEvents, setAllClinicalEvents] = useState<any[]>([]);
     const [allAppointments, setAllAppointments] = useState<any[]>([]);
+    const [hisPayrollRecords, setHisPayrollRecords] = useState<PayrollRecord[]>([]);
+    const [hisLeaveRequests, setHisLeaveRequests] = useState<LeaveRequest[]>([]);
 
     const fetchAllWellnessData = React.useCallback(async () => {
         if (!institutionId) return;
         try {
             const events = await apiService.fetchModuleRecords('his_clinical_events', institutionId);
             const apps = await apiService.fetchModuleRecords('his_appointments', institutionId);
+            const payroll = await apiService.fetchModuleRecords('payroll_records', institutionId).catch(() => []);
+            const leave = await apiService.fetchModuleRecords('leave_requests', institutionId).catch(() => []);
             setAllClinicalEvents(events || []);
             setAllAppointments(apps || []);
+            setHisPayrollRecords(payroll || []);
+            setHisLeaveRequests(leave || []);
         } catch (error) {
-            console.error("Failed to load aggregate wellness data:", error);
+            console.error("Failed to load aggregate wellness & HR data:", error);
         }
     }, [institutionId]);
 
@@ -170,6 +180,59 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
         loadInst();
         fetchAllWellnessData();
     }, [institutionId, fetchAllWellnessData]);
+
+    const staffList = React.useMemo(() => {
+        return (users || []).filter(u => {
+            if (!u || !u.role) return false;
+            const r = u.role.toLowerCase().trim();
+            return r !== 'student' && r !== 'parent' && r !== 'patient';
+        });
+    }, [users]);
+
+    const currentInst: Institution = React.useMemo(() => {
+        return institutionData || {
+            id: institutionId || 'his_inst_1',
+            name: institutionData?.name || 'Hospital & Health Information System',
+            institutionType: 'HIS',
+            code: 'HIS-01',
+            status: 'active',
+            createdAt: new Date().toISOString()
+        };
+    }, [institutionData, institutionId]);
+
+    const handleProcessPayroll = async (records: PayrollRecord[]) => {
+        if (!institutionId) return;
+        try {
+            for (const r of records) {
+                await apiService.saveModuleRecord('payroll_records', {
+                    ...r,
+                    institutionId,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+            alert('Payroll processed and saved successfully.');
+            fetchAllWellnessData();
+        } catch (err: any) {
+            console.error('Payroll save failed:', err);
+            alert('Failed to save payroll: ' + (err.message || err));
+        }
+    };
+
+    const handleUpdateLeaveStatus = async (id: string, status: 'approved' | 'rejected') => {
+        if (!institutionId) return;
+        try {
+            await apiService.saveModuleRecord('leave_requests', {
+                id,
+                status,
+                updatedAt: new Date().toISOString()
+            });
+            alert(`Leave request ${status} successfully.`);
+            fetchAllWellnessData();
+        } catch (err: any) {
+            console.error('Leave update failed:', err);
+            alert('Failed to update leave: ' + (err.message || err));
+        }
+    };
 
     const demoData = React.useMemo(() => {
         return institutionId ? generateInstitutionalDemoData(institutionId, 'admin') : null;
@@ -444,6 +507,8 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
 
                         {[
                             { id: 'pharmacy' as HISModule, label: 'Pharmacy', icon: BeakerIcon },
+                            { id: 'hr' as HISModule, label: 'HR & Payroll', icon: UsersIcon },
+                            { id: 'biometrics' as HISModule, label: 'Biometrics Fleet', icon: ClockIcon },
                             { id: 'broadcaster' as HISModule, label: 'Communications', icon: BellIcon },
                             { id: 'attendance' as HISModule, label: 'Attendance', icon: ClockIcon },
                             { id: 'reports' as HISModule, label: 'Reports', icon: ChartBarIcon },
@@ -585,6 +650,8 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                                     { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon, categories: ['Hospital', 'Clinic', 'Healthcare'] },
                                     { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                                     { id: 'pharmacy', label: 'Pharmacy/Store', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                    { id: 'hr', label: 'HR & Payroll', icon: UsersIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                                    { id: 'biometrics', label: 'Biometrics Fleet', icon: ClockIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                                     { id: 'dental', label: 'Dental Core', icon: ScissorsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Healthcare'] },
                                     { id: 'eye', label: 'Ocular Hub', icon: EyeIcon, categories: ['Hospital', 'Clinic', 'Eye', 'Healthcare'] },
                                     { id: 'ear', label: 'ENT Hub', icon: SignalIcon, categories: ['Hospital', 'Clinic', 'Ear', 'Healthcare'] },
@@ -662,6 +729,23 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                                 </div>
                             );
                             case 'billing': return <HISBillingView institutionId={institutionId} />;
+                            case 'hr': return (
+                                <HRManager 
+                                    currentUser={(users || []).find(u => u.name === userName)}
+                                    staff={staffList}
+                                    payrollRecords={hisPayrollRecords}
+                                    leaveRequests={hisLeaveRequests}
+                                    institution={currentInst}
+                                    onProcessPayroll={handleProcessPayroll}
+                                    onUpdateLeaveStatus={handleUpdateLeaveStatus}
+                                />
+                            );
+                            case 'biometrics': return (
+                                <BiometricAttendanceDashboard 
+                                    staff={staffList}
+                                    institution={currentInst}
+                                />
+                            );
                             case 'broadcaster': return <HISBroadcasterView />;
                             case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} isEdu={isEdu} users={users} />;
                             case 'config': return <HISConfigView demoStaff={demoData?.hisStaff} />;
