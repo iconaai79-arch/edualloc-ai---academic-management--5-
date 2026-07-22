@@ -4601,11 +4601,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 ))
                             ) : activeTab === 'receipts' ? (
                                 [
-                                    { id: 'student_fees', label: 'Student Fees', icon: CreditCardIcon },
-                                    { id: 'other_income', label: 'Other Income', icon: BanknotesIcon },
-                                    { id: 'bank_feed', label: 'Bank & M-Pesa Feed', icon: BuildingLibraryIcon },
-                                    { id: 'bursaries', label: 'Bursaries', icon: ScaleIcon },
-                                    { id: 'payment_in_kind', label: 'Payment in Kind', icon: DocumentTextIcon },
+                                    { id: 'student_fees', label: 'Student Fees', icon: CreditCardIcon, count: mappedReceipts.filter((r: any) => r.studentId).length },
+                                    { id: 'other_income', label: 'Other Income', icon: BanknotesIcon, count: mappedReceipts.filter((r: any) => !r.studentId).length },
+                                    { id: 'bank_feed', label: 'Bank & M-Pesa', icon: BuildingLibraryIcon, count: unreconciledFeeds.length },
+                                    { id: 'bursaries', label: 'Bursaries', icon: ScaleIcon, count: bulkBursaryDisbursements.length },
+                                    { id: 'payment_in_kind', label: 'Payment in Kind', icon: DocumentTextIcon, count: goodsProposals.length },
                                 ].map(sub => (
                                     <button
                                         key={sub.id}
@@ -4618,6 +4618,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     >
                                         <sub.icon className={`w-4 h-4 ${receiptsMainTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
                                         <span className="text-[11px] font-black uppercase tracking-widest">{sub.label}</span>
+                                        {(sub as any).count > 0 && (
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none ${
+                                                receiptsMainTab === sub.id ? 'bg-white/25 text-white' : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300'
+                                            }`}>
+                                                {(sub as any).count}
+                                            </span>
+                                        )}
                                     </button>
                                 ))
                             ) : activeTab === 'payroll' ? (
@@ -4990,38 +4997,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 {activeTab === 'balances' && renderFeeBalancesContent()}
 
-                {/* Receipts Sub-Tabs Navigation Bar */}
-                {activeTab === 'receipts' && (
-                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-4 overflow-x-auto mb-6">
-                        {[
-                            { id: 'student_fees', label: '🧾 Student Receipts', count: mappedReceipts.filter(r => r.studentId).length },
-                            { id: 'other_income', label: '💼 Other Income', count: mappedReceipts.filter(r => !r.studentId).length },
-                            { id: 'bank_feed', label: '🏦 Bank & M-Pesa Feed', count: unreconciledFeeds.length },
-                            { id: 'bursaries', label: '🎁 Bursary Cheques', count: bulkBursaryDisbursements.length },
-                            { id: 'payment_in_kind', label: '📦 Payment in Kind', count: goodsProposals.length }
-                        ].map(sub => (
-                            <button
-                                key={sub.id}
-                                type="button"
-                                onClick={() => setReceiptsMainTab(sub.id as any)}
-                                className={`px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
-                                    receiptsMainTab === sub.id
-                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
-                                        : 'bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
-                                }`}
-                            >
-                                <span>{sub.label}</span>
-                                {sub.count > 0 && (
-                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
-                                        receiptsMainTab === sub.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                                    }`}>
-                                        {sub.count}
-                                    </span>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                )}
+
 
                 {/* Full Page Receipts View for Student Fees & Other Income */}
                 {activeTab === 'receipts' && (receiptsMainTab === 'student_fees' || receiptsMainTab === 'other_income') && (
