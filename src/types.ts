@@ -195,7 +195,7 @@ export interface BiometricDevice {
     deviceModel?: string;
     ipAddress?: string;
     locationDescription?: string;
-    protocol: 'adms' | 'pull' | 'biotime';
+    protocol: 'adms' | 'pull' | 'biotime' | 'dahua' | 'dahua_cgi' | 'http_push';
     pushUrl?: string;
     lastSyncAt?: string;
     isActive: boolean;

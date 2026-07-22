@@ -53,7 +53,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         deviceModel: '',
         ipAddress: '',
         locationDescription: '',
-        protocol: 'adms' as 'adms' | 'pull' | 'biotime',
+        protocol: 'adms' as 'adms' | 'pull' | 'biotime' | 'dahua' | 'dahua_cgi' | 'http_push',
     });
 
     // Enrollment form
@@ -643,9 +643,12 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Protocol</label>
                                     <select value={deviceForm.protocol} onChange={e => setDeviceForm(f => ({ ...f, protocol: e.target.value as any }))}
                                         className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500">
-                                        <option value="adms">ADMS (Push)</option>
+                                        <option value="adms">ZKTeco ADMS (Push)</option>
                                         <option value="pull">Pull SDK</option>
                                         <option value="biotime">ZKBioTime Cloud</option>
+                                        <option value="dahua">Dahua Auto-Push / SmartPSS</option>
+                                        <option value="dahua_cgi">Dahua HTTP CGI / DSS Pro</option>
+                                        <option value="http_push">Generic HTTP Webhook Push</option>
                                     </select>
                                 </div>
                             </div>
