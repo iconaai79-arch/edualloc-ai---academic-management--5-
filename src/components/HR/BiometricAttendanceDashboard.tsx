@@ -71,6 +71,11 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         fingerprintIndex: 0,
     });
 
+    // ZKTeco Log Import states
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importLogText, setImportLogText] = useState('');
+    const [isImporting, setIsImporting] = useState(false);
+
     // Fetch data
     useEffect(() => {
         loadDevices();
@@ -304,6 +309,102 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         }
     };
 
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target?.result as string;
+            if (text) {
+                setImportLogText(text);
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const handleParseAndImportZkTecoLogs = async (rawContent: string) => {
+        if (!rawContent || !rawContent.trim()) {
+            alert('Please select a ZKTeco log file or paste log data.');
+            return;
+        }
+        setIsImporting(true);
+        try {
+            const lines = rawContent.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            let importedCount = 0;
+
+            const pinMap = new Map<string, string>();
+            enrollments.forEach(e => {
+                if (e.devicePin) pinMap.set(String(e.devicePin).trim(), e.staffId);
+            });
+
+            const groupedPunches = new Map<string, { staffId: string; date: string; punches: string[] }>();
+
+            for (const line of lines) {
+                if (line.includes('ATTLOG') || line.includes('table=') || line.startsWith('PIN\t')) continue;
+
+                const parts = line.split(/\t|,|\s{2,}/).map(p => p.trim());
+                if (parts.length < 2) continue;
+
+                const pin = parts[0];
+                let dateStr = parts[1];
+
+                if (parts.length >= 3 && !dateStr.includes(':') && parts[2].includes(':')) {
+                    dateStr = `${parts[1]} ${parts[2]}`;
+                }
+
+                const staffId = pinMap.get(pin) || pin;
+                const parsedDate = new Date(dateStr.replace(/-/g, '/'));
+                if (isNaN(parsedDate.getTime())) continue;
+
+                const dayDate = parsedDate.toISOString().split('T')[0];
+                const isoTime = parsedDate.toISOString();
+                const key = `${staffId}_${dayDate}`;
+
+                if (!groupedPunches.has(key)) {
+                    groupedPunches.set(key, { staffId, date: dayDate, punches: [] });
+                }
+                groupedPunches.get(key)!.punches.push(isoTime);
+            }
+
+            for (const [key, item] of groupedPunches.entries()) {
+                item.punches.sort();
+                const firstIn = item.punches[0];
+                const lastOut = item.punches[item.punches.length - 1];
+
+                const rec: any = {
+                    id: `att_imp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                    institution_id: institution.id,
+                    institutionId: institution.id,
+                    staff_id: item.staffId,
+                    staffId: item.staffId,
+                    attendance_date: item.date,
+                    attendanceDate: item.date,
+                    first_in: firstIn,
+                    firstIn: firstIn,
+                    last_out: lastOut,
+                    lastOut: lastOut,
+                    total_hours: 8,
+                    totalHours: 8,
+                    status: 'present',
+                    created_at: new Date().toISOString()
+                };
+
+                await apiService.saveModuleRecord('staff_attendance_daily', rec);
+                importedCount++;
+            }
+
+            alert(`✅ ZKTeco Logs Imported Successfully!\n\nParsed: ${lines.length} raw log entries\nProcessed: ${importedCount} staff attendance records`);
+            setShowImportModal(false);
+            setImportLogText('');
+            await loadTodayAttendance();
+            await loadMonthlyAttendance();
+        } catch (err: any) {
+            alert('Failed to import ZKTeco logs: ' + (err.message || err));
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
     const handleEnrollStaff = async () => {
         if (!enrollForm.staffId || !enrollForm.devicePin) {
             alert('Staff and Device PIN are required');
@@ -443,12 +544,20 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Today's Attendance</h3>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                         </div>
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={e => setSelectedDate(e.target.value)}
-                            className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setShowImportModal(true)}
+                                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5"
+                            >
+                                📥 Import ZKTeco Logs
+                            </button>
+                            <input
+                                type="date"
+                                value={selectedDate}
+                                onChange={e => setSelectedDate(e.target.value)}
+                                className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full">
@@ -986,7 +1095,66 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                     </div>
                 </div>
             )}
-            {/* ═══════════ TEST RESULT MODAL ═══════════ */}
+            {/* ═══════════ IMPORT ZKTECO LOGS MODAL ═══════════ */}
+            {showImportModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="px-8 py-5 bg-indigo-600 text-white flex items-center justify-between">
+                            <div>
+                                <h3 className="text-md font-black uppercase tracking-wider">Import ZKTeco Attendance Logs</h3>
+                                <p className="text-[10px] font-semibold opacity-80">Upload attlog.dat, CSV, TXT or paste ZKTeco raw punch logs</p>
+                            </div>
+                            <button onClick={() => setShowImportModal(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-8 space-y-5">
+                            {/* File Upload Box */}
+                            <div className="p-6 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-center space-y-3">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Option 1: Upload ZKTeco Log File (attlog.dat / .csv / .txt)</span>
+                                <input
+                                    type="file"
+                                    accept=".dat,.txt,.csv"
+                                    onChange={handleFileUpload}
+                                    className="block w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-indigo-50 file:text-indigo-600 dark:file:bg-indigo-950/40 dark:file:text-indigo-400 hover:file:bg-indigo-100 cursor-pointer"
+                                />
+                                <p className="text-[9px] text-slate-400 font-semibold">Supports 1_attlog.dat exported from USB drive or ZK BioTime exports</p>
+                            </div>
+
+                            {/* Raw Text Box */}
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Option 2: Paste Raw ZKTeco Punch Log Data</label>
+                                <textarea
+                                    rows={6}
+                                    value={importLogText}
+                                    onChange={e => setImportLogText(e.target.value)}
+                                    placeholder={`1004\t2026-07-22 08:30:15\t1\t0\n1004\t2026-07-22 17:05:00\t1\t1\n1005\t2026-07-22 08:42:10\t1\t0`}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-slate-400">
+                                {importLogText ? `${importLogText.split('\n').filter(Boolean).length} lines ready` : 'No file selected'}
+                            </span>
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowImportModal(false)} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => handleParseAndImportZkTecoLogs(importLogText)}
+                                    disabled={isImporting || !importLogText.trim()}
+                                    className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md disabled:opacity-50"
+                                >
+                                    {isImporting ? 'Processing Logs...' : '📥 Import & Process Logs'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
             {testModalResult && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
