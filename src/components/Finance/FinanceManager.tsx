@@ -13238,7 +13238,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 onClick={() => setIsClassReceiptReprintModalOpen(false)}
                                 className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full transition-colors"
                             >
-                                <XMarkIcon className="w-5 h-5" />
+                                <XIcon className="w-5 h-5" />
                             </button>
                         </div>
 
