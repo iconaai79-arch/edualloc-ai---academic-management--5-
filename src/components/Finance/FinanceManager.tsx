@@ -4602,9 +4602,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             ) : activeTab === 'receipts' ? (
                                 [
                                     { id: 'student_fees', label: 'Student Fees', icon: CreditCardIcon },
+                                    { id: 'other_income', label: 'Other Income', icon: BanknotesIcon },
+                                    { id: 'bank_feed', label: 'Bank & M-Pesa Feed', icon: BuildingLibraryIcon },
                                     { id: 'bursaries', label: 'Bursaries', icon: ScaleIcon },
                                     { id: 'payment_in_kind', label: 'Payment in Kind', icon: DocumentTextIcon },
-                                    { id: 'other_income', label: 'Other Income', icon: BanknotesIcon },
                                 ].map(sub => (
                                     <button
                                         key={sub.id}
