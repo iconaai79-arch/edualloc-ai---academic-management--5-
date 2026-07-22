@@ -3174,8 +3174,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <table className="w-full border-collapse">
                                         <thead>
                                             <tr className="border-b border-slate-50 dark:border-slate-800/60">
-                                                <th className="px-8 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
+                                                <th className="px-8 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
                                                 <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Last Updated</th>
                                                 <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoiced</th>
                                                 <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid</th>
@@ -3188,10 +3188,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             {classData.map(student => (
                                                 <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
                                                     <td className="px-8 py-4 text-left">
-                                                        <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
+                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono">{student.admissionNumber || student.admission_number || '—'}</span>
                                                     </td>
                                                     <td className="px-6 py-4 text-left">
-                                                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{student.admissionNumber || student.admission_number || '—'}</span>
+                                                        <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
                                                     </td>
                                                     <td className="px-6 py-4 text-left">
                                                         <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
