@@ -990,6 +990,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [promiseNotesInput, setPromiseNotesInput] = useState<string>('');
     const [ptpFilterStatus, setPtpFilterStatus] = useState<'all' | 'pending' | 'overdue' | 'fulfilled' | 'cancelled'>('all');
 
+    // Excel Payment Import & Auto-Reconcile State
+    const [isExcelImportModalOpen, setIsExcelImportModalOpen] = useState(false);
+    const [excelImportStep, setExcelImportStep] = useState<1 | 2 | 3>(1);
+    const [reconciledItems, setReconciledItems] = useState<Array<{
+        id: string;
+        ref: string;
+        date: string;
+        amount: number;
+        payer: string;
+        rawDetails: string;
+        matchedStudentId: string;
+        matchConfidence: 'exact_adm' | 'exact_phone' | 'exact_name' | 'manual' | 'none';
+        matchStatus: 'matched' | 'unmatched' | 'ignored';
+        paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque';
+    }>>([]);
+    const [excelFilterQuery, setExcelFilterQuery] = useState('');
+    const [excelFilterStatus, setExcelFilterStatus] = useState<'all' | 'matched' | 'unmatched'>('all');
+    const [isProcessingBulkReceipts, setIsProcessingBulkReceipts] = useState(false);
+    const [bulkImportSuccessSummary, setBulkImportSuccessSummary] = useState<string | null>(null);
+
     useEffect(() => {
         if (props.institution.id) {
             apiService.fetchFeePromises(props.institution.id).then(data => {
@@ -1476,6 +1496,179 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         } catch (err: any) {
             console.error("Failed to send PTP reminder SMS:", err);
             alert("Failed to send SMS reminder.");
+        }
+    };
+
+    // Excel File Upload & Auto-Reconcile Processor
+    const handleFileUploadAndReconcile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const buffer = await file.arrayBuffer();
+            const workbook = XLSX.read(buffer, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const rawRows: any[] = XLSX.utils.sheet_to_json(sheet);
+
+            if (rawRows.length === 0) {
+                alert("The selected Excel file appears to be empty.");
+                return;
+            }
+
+            // Build student lookup maps for fast reconciliation
+            const admMap: Record<string, any> = {};
+            const phoneMap: Record<string, any> = {};
+            const nameMap: Record<string, any> = {};
+
+            studentFinanceData.forEach(student => {
+                const adm = (student.admissionNumber || (student as any).admission_number || '').trim().toLowerCase();
+                if (adm) admMap[adm] = student;
+
+                const phone = getStudentParentPhone(student);
+                if (phone && phone.length >= 6) phoneMap[phone] = student;
+
+                const name = (student.name || '').trim().toLowerCase();
+                if (name) nameMap[name] = student;
+            });
+
+            // Process each payment row from Excel
+            const processed = rawRows.map((row, idx) => {
+                const keys = Object.keys(row);
+                
+                const refKey = keys.find(k => /ref|code|trans|receipt|doc|id/i.test(k));
+                const ref = refKey ? String(row[refKey]).trim() : `IMP-${Date.now()}-${idx + 1}`;
+
+                const amountKey = keys.find(k => /amount|paid|credit|total|ksh|val/i.test(k));
+                const rawAmt = amountKey ? row[amountKey] : 0;
+                const amount = parseMoneyAmount(rawAmt);
+
+                const dateKey = keys.find(k => /date|time|period/i.test(k));
+                const rawDate = dateKey ? String(row[dateKey]).trim() : '';
+                const date = rawDate || new Date().toISOString().split('T')[0];
+
+                const payerKey = keys.find(k => /payer|sender|name|details|desc|particulars/i.test(k));
+                const payer = payerKey ? String(row[payerKey]).trim() : 'Excel Import';
+
+                const fullSearchText = `${ref} ${payer} ${JSON.stringify(row)}`.toLowerCase();
+
+                // Reconciliation Matching Engine
+                let matchedStudent: any = null;
+                let matchConfidence: 'exact_adm' | 'exact_phone' | 'exact_name' | 'manual' | 'none' = 'none';
+
+                // Direct admission check
+                const admMatchKey = keys.find(k => /adm|admission|student|acc/i.test(k));
+                if (admMatchKey && row[admMatchKey]) {
+                    const directAdm = String(row[admMatchKey]).trim().toLowerCase();
+                    if (admMap[directAdm]) {
+                        matchedStudent = admMap[directAdm];
+                        matchConfidence = 'exact_adm';
+                    }
+                }
+
+                // Substring admission check
+                if (!matchedStudent) {
+                    for (const [adm, student] of Object.entries(admMap)) {
+                        if (adm.length >= 3 && fullSearchText.includes(adm)) {
+                            matchedStudent = student;
+                            matchConfidence = 'exact_adm';
+                            break;
+                        }
+                    }
+                }
+
+                // Phone check
+                if (!matchedStudent) {
+                    const digits = fullSearchText.replace(/[^0-9]/g, '');
+                    for (const [phone, student] of Object.entries(phoneMap)) {
+                        if (digits.includes(phone)) {
+                            matchedStudent = student;
+                            matchConfidence = 'exact_phone';
+                            break;
+                        }
+                    }
+                }
+
+                // Name check
+                if (!matchedStudent) {
+                    for (const [name, student] of Object.entries(nameMap)) {
+                        if (name.length >= 4 && fullSearchText.includes(name)) {
+                            matchedStudent = student;
+                            matchConfidence = 'exact_name';
+                            break;
+                        }
+                    }
+                }
+
+                // Method detection
+                let paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque' = 'M-Pesa';
+                if (/bank|cheque|chq|ft|eft|transfer/i.test(fullSearchText)) paymentMethod = 'Bank Transfer';
+                else if (/cash/i.test(fullSearchText)) paymentMethod = 'Cash';
+
+                return {
+                    id: `imp_row_${Date.now()}_${idx}`,
+                    ref,
+                    date,
+                    amount,
+                    payer,
+                    rawDetails: JSON.stringify(row),
+                    matchedStudentId: matchedStudent ? matchedStudent.id : '',
+                    matchConfidence,
+                    matchStatus: (matchedStudent ? 'matched' : 'unmatched') as 'matched' | 'unmatched' | 'ignored',
+                    paymentMethod
+                };
+            });
+
+            setReconciledItems(processed);
+            setExcelImportStep(2);
+        } catch (err: any) {
+            console.error("Failed to parse Excel payments:", err);
+            alert("Failed to parse Excel file. Please ensure it is a valid .xlsx or .csv document.");
+        }
+    };
+
+    const handleConfirmBulkReceiptsPost = async () => {
+        const matchedItems = reconciledItems.filter(item => item.matchStatus === 'matched' && item.matchedStudentId && item.amount > 0);
+        if (matchedItems.length === 0) {
+            alert("No matched student payments available to post receipts.");
+            return;
+        }
+
+        setIsProcessingBulkReceipts(true);
+
+        try {
+            const newReceipts = matchedItems.map(item => {
+                const student = props.students.find(s => s.id === item.matchedStudentId);
+                return {
+                    id: `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                    institutionId: props.institution.id,
+                    receiptNumber: `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`,
+                    studentId: item.matchedStudentId,
+                    studentName: student?.name || item.payer,
+                    amountPaid: item.amount,
+                    paymentMethod: item.paymentMethod,
+                    paymentDate: item.date,
+                    relatedTransactionId: item.ref,
+                    paidFor: 'Excel Auto-Reconciled Fee Payment',
+                    createdAt: new Date().toISOString()
+                };
+            });
+
+            await apiService.saveModuleRecords('receipts', newReceipts).catch(async () => {
+                await apiService.saveModuleRecord('receipts', newReceipts);
+            });
+
+            if (props.onLogAction) {
+                props.onLogAction(`Auto-reconciled and posted ${newReceipts.length} official receipts from Excel import totalling KSh ${newReceipts.reduce((sum, r) => sum + r.amountPaid, 0).toLocaleString()}`);
+            }
+
+            setBulkImportSuccessSummary(`Successfully auto-reconciled and posted ${newReceipts.length} receipts totalling KSh ${newReceipts.reduce((sum, r) => sum + r.amountPaid, 0).toLocaleString()}!`);
+            setExcelImportStep(3);
+        } catch (err: any) {
+            console.error("Failed to post bulk receipts:", err);
+            alert("Failed to post receipts. Please check connection.");
+        } finally {
+            setIsProcessingBulkReceipts(false);
         }
     };
 
@@ -4767,13 +4960,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </p>
                                     </div>
                                     {receiptsMainTab === 'student_fees' ? (
-                                        <button
-                                            onClick={() => setShowPostModal(true)}
-                                            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg"
-                                        >
-                                            <PlusIcon className="w-4 h-4" />
-                                            Post Receipt
-                                        </button>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <button
+                                                onClick={() => setShowPostModal(true)}
+                                                className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg cursor-pointer"
+                                            >
+                                                <PlusIcon className="w-4 h-4" />
+                                                Post Receipt
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setExcelImportStep(1);
+                                                    setReconciledItems([]);
+                                                    setBulkImportSuccessSummary(null);
+                                                    setIsExcelImportModalOpen(true);
+                                                }}
+                                                className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg cursor-pointer"
+                                            >
+                                                <ArrowUpTrayIcon className="w-4 h-4" />
+                                                Import & Auto-Reconcile Excel
+                                            </button>
+                                        </div>
                                     ) : (
                                         <button
                                             onClick={() => setShowOtherIncomeModal(true)}
@@ -12634,6 +12841,247 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     );
                 })()}
 
+            {/* Excel Payment Import & Auto-Reconcile Modal */}
+            {isExcelImportModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-5xl w-full p-6 md:p-8 space-y-6 text-left my-8">
+                        {/* Header */}
+                        <div className="flex justify-between items-start pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full border border-emerald-200 dark:border-emerald-800/40 mb-2">
+                                    <SparklesIcon className="w-3.5 h-3.5" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">AI Auto-Reconciliation Engine</span>
+                                </div>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Excel Payment Import & Auto-Reconcile</h3>
+                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Upload bank or M-Pesa Excel statements to automatically match payments to students and post receipts in bulk</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsExcelImportModalOpen(false)}
+                                className="p-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Step 1: Upload File */}
+                        {excelImportStep === 1 && (
+                            <div className="py-12 px-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50/50 dark:bg-slate-950/50 space-y-4">
+                                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                                    <ArrowUpTrayIcon className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Select or Drop Excel Payment Statement</h4>
+                                    <p className="text-xs font-medium text-slate-500 max-w-md mx-auto mt-1">Supports M-Pesa statements, Bank Excel exports, or CSV files (.xlsx, .xls, .csv). Columns e.g. Trans Code, Date, Amount, Payer, Admission No will be auto-matched.</p>
+                                </div>
+                                <label className="inline-flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer">
+                                    <ArrowUpTrayIcon className="w-4 h-4" />
+                                    <span>Browse Excel File</span>
+                                    <input
+                                        type="file"
+                                        accept=".xlsx, .xls, .csv"
+                                        onChange={handleFileUploadAndReconcile}
+                                        className="hidden"
+                                    />
+                                </label>
+                            </div>
+                        )}
+
+                        {/* Step 2: Review & Reconcile */}
+                        {excelImportStep === 2 && (
+                            <div className="space-y-6">
+                                {/* Summary stats */}
+                                {(() => {
+                                    const matchedCount = reconciledItems.filter(i => i.matchStatus === 'matched').length;
+                                    const unmatchedCount = reconciledItems.filter(i => i.matchStatus === 'unmatched').length;
+                                    const totalAmount = reconciledItems.filter(i => i.matchStatus === 'matched').reduce((sum, i) => sum + i.amount, 0);
+
+                                    return (
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div className="bg-emerald-50 dark:bg-emerald-950/30 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/40">
+                                                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Matched Payments</p>
+                                                <p className="text-xl font-black text-emerald-950 dark:text-emerald-200">{matchedCount} / {reconciledItems.length}</p>
+                                                <p className="text-[10px] font-bold text-emerald-600 mt-0.5">Ready for auto-receipting</p>
+                                            </div>
+
+                                            <div className="bg-amber-50 dark:bg-amber-950/30 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/40">
+                                                <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Unmatched Payments</p>
+                                                <p className="text-xl font-black text-amber-950 dark:text-amber-200">{unmatchedCount}</p>
+                                                <p className="text-[10px] font-bold text-amber-600 mt-0.5">Select student manually below</p>
+                                            </div>
+
+                                            <div className="bg-indigo-50 dark:bg-indigo-950/30 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40">
+                                                <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Reconciled Total</p>
+                                                <p className="text-xl font-black text-indigo-950 dark:text-indigo-200">KSh {totalAmount.toLocaleString()}</p>
+                                                <p className="text-[10px] font-bold text-indigo-600 mt-0.5">Total matched revenue</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Filters */}
+                                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <div className="relative flex-1 w-full">
+                                        <SearchIcon className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search imported reference, payer or student..."
+                                            value={excelFilterQuery}
+                                            onChange={(e) => setExcelFilterQuery(e.target.value)}
+                                            className="w-full pl-11 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {(['all', 'matched', 'unmatched'] as const).map(st => (
+                                            <button
+                                                key={st}
+                                                type="button"
+                                                onClick={() => setExcelFilterStatus(st)}
+                                                className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                    excelFilterStatus === st
+                                                        ? 'bg-emerald-600 text-white shadow-md'
+                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                                }`}
+                                            >
+                                                {st}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Reconciled Items Table */}
+                                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl max-h-[400px]">
+                                    <table className="w-full border-collapse text-xs">
+                                        <thead>
+                                            <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                <th className="px-4 py-3 text-left">Ref Code / Date</th>
+                                                <th className="px-4 py-3 text-left">Excel Payer Details</th>
+                                                <th className="px-4 py-3 text-right">Amount</th>
+                                                <th className="px-4 py-3 text-left">Matched Student (Auto-Reconciled)</th>
+                                                <th className="px-4 py-3 text-center">Match Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                                            {reconciledItems
+                                                .filter(item => {
+                                                    if (excelFilterStatus === 'matched' && item.matchStatus !== 'matched') return false;
+                                                    if (excelFilterStatus === 'unmatched' && item.matchStatus !== 'unmatched') return false;
+                                                    if (excelFilterQuery) {
+                                                        const q = excelFilterQuery.toLowerCase();
+                                                        return item.ref.toLowerCase().includes(q) || item.payer.toLowerCase().includes(q);
+                                                    }
+                                                    return true;
+                                                })
+                                                .map(item => {
+                                                    return (
+                                                        <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                                            <td className="px-4 py-3 text-left">
+                                                                <span className="block font-mono font-bold text-slate-900 dark:text-white">{item.ref}</span>
+                                                                <span className="text-[10px] text-slate-400">{item.date} · {item.paymentMethod}</span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-left">
+                                                                <span className="font-bold text-slate-800 dark:text-slate-200">{item.payer}</span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                                                KSh {item.amount.toLocaleString()}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-left">
+                                                                <select
+                                                                    value={item.matchedStudentId}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        setReconciledItems(prev => prev.map(i => {
+                                                                            if (i.id === item.id) {
+                                                                                return {
+                                                                                    ...i,
+                                                                                    matchedStudentId: val,
+                                                                                    matchStatus: val ? 'matched' : 'unmatched',
+                                                                                    matchConfidence: val ? 'manual' : 'none'
+                                                                                };
+                                                                            }
+                                                                            return i;
+                                                                        }));
+                                                                    }}
+                                                                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                                                                >
+                                                                    <option value="">-- Unmatched / Select Student --</option>
+                                                                    {studentFinanceData.map(st => (
+                                                                        <option key={st.id} value={st.id}>
+                                                                            {st.name} ({st.admissionNumber || (st as any).admission_number || 'No ADM'}) - {st.className}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                                                    item.matchStatus === 'matched'
+                                                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                                }`}>
+                                                                    {item.matchStatus === 'matched' ? `✓ ${item.matchConfidence}` : '⚠ Unmatched'}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => setExcelImportStep(1)}
+                                        className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                    >
+                                        Back to Upload
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleConfirmBulkReceiptsPost}
+                                        disabled={isProcessingBulkReceipts || reconciledItems.filter(i => i.matchStatus === 'matched').length === 0}
+                                        className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer"
+                                    >
+                                        {isProcessingBulkReceipts ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                <span>Posting Receipts...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckBadgeIcon className="w-4 h-4" />
+                                                <span>Confirm & Post {reconciledItems.filter(i => i.matchStatus === 'matched').length} Receipts</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 3: Complete Summary */}
+                        {excelImportStep === 3 && (
+                            <div className="py-8 text-center space-y-6">
+                                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                                    <CheckBadgeIcon className="w-10 h-10" />
+                                </div>
+                                <div>
+                                    <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Auto-Reconciliation Complete!</h4>
+                                    <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-2">{bulkImportSuccessSummary}</p>
+                                </div>
+                                <div className="flex justify-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsExcelImportModalOpen(false)}
+                                        className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/25 cursor-pointer"
+                                    >
+                                        Done & Return to Ledger
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
                 </div>
             </div>
         </div>
