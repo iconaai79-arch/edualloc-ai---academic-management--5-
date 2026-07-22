@@ -1877,7 +1877,54 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const [goodsProposals, setGoodsProposals] = useState<any[]>([]);
     const [isLoadingGoodsProposals, setIsLoadingGoodsProposals] = useState(false);
-    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bursaries' | 'payment_in_kind'>('student_fees');
+    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bank_feed' | 'bursaries' | 'payment_in_kind'>('student_fees');
+
+    // Class Receipts Reprint State & Handler
+    const [isClassReceiptReprintModalOpen, setIsClassReceiptReprintModalOpen] = useState(false);
+    const [reprintSelectedClass, setReprintSelectedClass] = useState<string>('All');
+    const [isReprintingClass, setIsReprintingClass] = useState(false);
+
+    const handleReprintClassReceipts = async () => {
+        setIsReprintingClass(true);
+        try {
+            const classFilteredReceipts = mappedReceipts.filter(rec => {
+                if (!rec.studentId) return false;
+                const student = props.students.find(s => s.id === rec.studentId);
+                if (!student) return false;
+                const studentClass = studentClassGroup(student);
+                if (reprintSelectedClass !== 'All' && studentClass !== reprintSelectedClass) return false;
+                return true;
+            });
+
+            if (classFilteredReceipts.length === 0) {
+                alert(`No receipts found for ${reprintSelectedClass === 'All' ? 'any class' : 'class ' + reprintSelectedClass}.`);
+                return;
+            }
+
+            for (const receipt of classFilteredReceipts) {
+                await pdfService.downloadReceiptPdf(
+                    receipt,
+                    receipt.relatedTransactionId ? {
+                        transactionId: receipt.relatedTransactionId,
+                        amount: receipt.amountPaid,
+                        provider: receipt.paymentMethod,
+                        description: receipt.paidFor || 'Fees Payment'
+                    } as any : null,
+                    props.institution,
+                    props.companyDetails || {} as any,
+                    props.institution.logoUrl || null
+                ).catch(() => {});
+            }
+
+            alert(`Generated receipt PDF bundle for ${classFilteredReceipts.length} receipts in ${reprintSelectedClass}!`);
+            setIsClassReceiptReprintModalOpen(false);
+        } catch (err: any) {
+            console.error("Failed to reprint class receipts:", err);
+            alert("Failed to reprint receipts.");
+        } finally {
+            setIsReprintingClass(false);
+        }
+    };
 
     const fetchGoodsProposals = async () => {
         setIsLoadingGoodsProposals(true);
@@ -4942,287 +4989,376 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 {activeTab === 'balances' && renderFeeBalancesContent()}
 
-                {activeTab === 'receipts' && receiptsMainTab !== 'bursaries' && receiptsMainTab !== 'payment_in_kind' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 text-left animate-in fade-in duration-300">
-                        {/* Left & Middle columns: Receipts list */}
-                        <div className="lg:col-span-3 space-y-6">
-                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
-                                    <div>
-                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                            {receiptsMainTab === 'student_fees' ? 'Student Receipts Ledger' : 'Other Income Ledger'}
-                                        </h3>
-                                        <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                                            {receiptsMainTab === 'student_fees' 
-                                                ? 'Manage fees received from Cash, Bank Feed, or Bursary allocations.' 
-                                                : 'Track and receive other school income such as bus hiring, donations, and other income sources.'
-                                            }
-                                        </p>
-                                    </div>
-                                    {receiptsMainTab === 'student_fees' ? (
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <button
-                                                onClick={() => setShowPostModal(true)}
-                                                className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg cursor-pointer"
-                                            >
-                                                <PlusIcon className="w-4 h-4" />
-                                                Post Receipt
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setExcelImportStep(1);
-                                                    setReconciledItems([]);
-                                                    setBulkImportSuccessSummary(null);
-                                                    setIsExcelImportModalOpen(true);
-                                                }}
-                                                className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg cursor-pointer"
-                                            >
-                                                <ArrowUpTrayIcon className="w-4 h-4" />
-                                                Import & Auto-Reconcile Excel
-                                            </button>
-                                        </div>
-                                    ) : (
+                {/* Receipts Sub-Tabs Navigation Bar */}
+                {activeTab === 'receipts' && (
+                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-4 overflow-x-auto mb-6">
+                        {[
+                            { id: 'student_fees', label: '🧾 Student Receipts', count: mappedReceipts.filter(r => r.studentId).length },
+                            { id: 'other_income', label: '💼 Other Income', count: mappedReceipts.filter(r => !r.studentId).length },
+                            { id: 'bank_feed', label: '🏦 Bank & M-Pesa Feed', count: unreconciledFeeds.length },
+                            { id: 'bursaries', label: '🎁 Bursary Cheques', count: bulkBursaryDisbursements.length },
+                            { id: 'payment_in_kind', label: '📦 Payment in Kind', count: goodsProposals.length }
+                        ].map(sub => (
+                            <button
+                                key={sub.id}
+                                type="button"
+                                onClick={() => setReceiptsMainTab(sub.id as any)}
+                                className={`px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+                                    receiptsMainTab === sub.id
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                                        : 'bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                                }`}
+                            >
+                                <span>{sub.label}</span>
+                                {sub.count > 0 && (
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                        receiptsMainTab === sub.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                    }`}>
+                                        {sub.count}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Full Page Receipts View for Student Fees & Other Income */}
+                {activeTab === 'receipts' && (receiptsMainTab === 'student_fees' || receiptsMainTab === 'other_income') && (
+                    <div className="w-full space-y-6 text-left animate-in fade-in duration-300">
+                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                        {receiptsMainTab === 'student_fees' ? 'Student Receipts Ledger' : 'Other Income Ledger'}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                                        {receiptsMainTab === 'student_fees' 
+                                            ? 'Manage fees received from Cash, Bank Feed, or Bursary allocations.' 
+                                            : 'Track and receive other school income such as bus hiring, donations, and other income sources.'
+                                        }
+                                    </p>
+                                </div>
+                                {receiptsMainTab === 'student_fees' ? (
+                                    <div className="flex flex-wrap items-center gap-3">
                                         <button
-                                            onClick={() => setShowOtherIncomeModal(true)}
-                                            className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg"
+                                            onClick={() => setShowPostModal(true)}
+                                            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg cursor-pointer"
                                         >
                                             <PlusIcon className="w-4 h-4" />
-                                            Receive Other Income
+                                            Post Receipt
                                         </button>
-                                    )}
-                                </div>
-
-                                <div className="flex flex-col md:flex-row gap-4">
-                                    <div className="relative flex-1">
-                                        <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
-                                        <input
-                                            type="text"
-                                            placeholder={receiptsMainTab === 'student_fees' 
-                                                ? "Search by student name or receipt number..."
-                                                : "Search other income categories, description or receipt number..."
-                                            }
-                                            value={searchReceiptQuery}
-                                            onChange={(e) => setSearchReceiptQuery(e.target.value)}
-                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-900 dark:text-white"
-                                        />
+                                        <button
+                                            onClick={() => {
+                                                setExcelImportStep(1);
+                                                setReconciledItems([]);
+                                                setBulkImportSuccessSummary(null);
+                                                setIsExcelImportModalOpen(true);
+                                            }}
+                                            className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg cursor-pointer"
+                                        >
+                                            <ArrowUpTrayIcon className="w-4 h-4" />
+                                            Import & Auto-Reconcile Excel
+                                        </button>
+                                        <button
+                                            onClick={() => setIsClassReceiptReprintModalOpen(true)}
+                                            className="px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg cursor-pointer"
+                                        >
+                                            <PrinterIcon className="w-4 h-4" />
+                                            Reprint Receipts per Class
+                                        </button>
                                     </div>
-                                    <select
-                                        value={receiptSourceFilter}
-                                        onChange={(e) => setReceiptSourceFilter(e.target.value)}
-                                        className="px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-300 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500"
+                                ) : (
+                                    <button
+                                        onClick={() => setShowOtherIncomeModal(true)}
+                                        className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg"
                                     >
-                                        <option value="All">All Methods</option>
-                                        <option value="Cash">Cash (Manual)</option>
-                                        <option value="M-Pesa">M-Pesa</option>
-                                        <option value="Bank Transfer">Bank Feed</option>
-                                        {receiptsMainTab === 'student_fees' && <option value="Bursary">Bursary</option>}
-                                    </select>
-                                </div>                                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
-                                    <table className="w-full border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/60">
-                                                {receiptsMainTab === 'student_fees' ? (
-                                                    <>
-                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
-                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
-                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Grade</th>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
-                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Description / Memo</th>
-                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Received From</th>
-                                                    </>
-                                                )}
-                                                <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Reference</th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Receipt #</th>
-                                                <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Method</th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                                                <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
-                                            {paginatedReceipts.map(rec => {
-                                                const student = rec.studentId ? props.students.find(s => s.id === rec.studentId) : null;
-                                                const enrollment = student ? enrollments.find(e => e.userId === student.id) : null;
-                                                const admNum = enrollment?.admissionNumber || enrollment?.admission_number || student?.admissionNumber || student?.admission_number || '—';
-                                                const studentName = student?.name || 'Unknown Student';
-                                                const gradeName = student ? studentClassGroup(student) : '—';
-
-                                                // Parse other income string formatting "Category - Description (From Payer)"
-                                                let category = 'Other Income';
-                                                let description = rec.paidFor || '';
-                                                let payer = '—';
-                                                if (!rec.studentId && rec.paidFor) {
-                                                    const fromIdx = rec.paidFor.lastIndexOf(' (From ');
-                                                    if (fromIdx >= 0) {
-                                                        payer = rec.paidFor.substring(fromIdx + 7, rec.paidFor.length - 1);
-                                                        const mainPart = rec.paidFor.substring(0, fromIdx);
-                                                        const hypIdx = mainPart.indexOf(' - ');
-                                                        if (hypIdx >= 0) {
-                                                            category = mainPart.substring(0, hypIdx);
-                                                            description = mainPart.substring(hypIdx + 3);
-                                                        } else {
-                                                            category = mainPart;
-                                                            description = '—';
-                                                        }
-                                                    }
-                                                }
-
-                                                return (
-                                                    <tr key={rec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
-                                                        {receiptsMainTab === 'student_fees' ? (
-                                                            <>
-                                                                <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
-                                                                    {admNum}
-                                                                </td>
-                                                                <td className="px-6 py-4">
-                                                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{studentName}</span>
-                                                                </td>
-                                                                <td className="px-6 py-4 text-xs font-semibold text-slate-500">
-                                                                    {gradeName}
-                                                                </td>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <td className="px-6 py-4 text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                                                                    {category}
-                                                                </td>
-                                                                <td className="px-6 py-4 text-xs font-semibold text-slate-650 dark:text-slate-400">
-                                                                    {description}
-                                                                </td>
-                                                                <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">
-                                                                    {payer}
-                                                                </td>
-                                                            </>
-                                                        )}
-                                                        <td className="px-6 py-4 text-right">
-                                                            <span className="text-xs font-black text-slate-900 dark:text-white">KES {rec.amountPaid?.toLocaleString()}</span>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
-                                                            {rec.relatedTransactionId || '—'}
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <span className="text-xs font-black text-indigo-650 dark:text-indigo-400">{rec.receiptNumber}</span>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-center">
-                                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border ${
-                                                                rec.paymentMethod === 'Cash' 
-                                                                ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-250 dark:border-amber-500/20' 
-                                                                : rec.paymentMethod === 'Bursary'
-                                                                ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-250 dark:border-purple-500/20'
-                                                                : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-250 dark:border-emerald-500/20'
-                                                            }`}>
-                                                                {rec.paymentMethod}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-500">
-                                                            {rec.paymentDate ? new Date(rec.paymentDate).toLocaleDateString() : 'N/A'}
-                                                        </td>
-                                                        <td className="px-6 py-4 text-center">
-                                                            <button
-                                                                onClick={() => handleDownloadReceipt(rec)}
-                                                                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-650 dark:hover:bg-indigo-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
-                                                            >
-                                                                PDF
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                            {filteredReceipts.length === 0 && (
-                                                <tr>
-                                                    <td colSpan={9} className="py-12 text-center text-xs text-slate-400 font-medium italic">No receipts matched your criteria.</td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Pagination Controls */}
-                                {totalReceiptPages > 1 && (
-                                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-slate-100 dark:border-slate-800/60">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                            Showing {Math.min(filteredReceipts.length, (receiptCurrentPage - 1) * 10 + 1)} to {Math.min(filteredReceipts.length, receiptCurrentPage * 10)} of {filteredReceipts.length} Receipts
-                                        </p>
-                                        <div className="flex gap-2">
-                                            <button
-                                                disabled={receiptCurrentPage === 1}
-                                                onClick={() => setReceiptCurrentPage(p => Math.max(1, p - 1))}
-                                                className="px-4 py-2 border border-slate-205 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-850"
-                                            >
-                                                Previous
-                                            </button>
-                                            {Array.from({ length: totalReceiptPages }, (_, i) => i + 1).map(p => (
-                                                <button
-                                                    key={p}
-                                                    onClick={() => setReceiptCurrentPage(p)}
-                                                    className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${
-                                                        receiptCurrentPage === p 
-                                                        ? 'bg-indigo-600 text-white shadow-md' 
-                                                        : 'border border-slate-205 text-slate-550 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850'
-                                                    }`}
-                                                >
-                                                    {p}
-                                                </button>
-                                            ))}
-                                            <button
-                                                disabled={receiptCurrentPage === totalReceiptPages}
-                                                onClick={() => setReceiptCurrentPage(p => Math.min(totalReceiptPages, p + 1))}
-                                                className="px-4 py-2 border border-slate-205 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-850"
-                                            >
-                                                Next
-                                            </button>
-                                        </div>
-                                    </div>
+                                        <PlusIcon className="w-4 h-4" />
+                                        Receive Other Income
+                                    </button>
                                 )}
                             </div>
-                        </div>
 
-                        {/* Right column: Bank Feeds / MPesa Transactions */}
-                        <div className="lg:col-span-1 space-y-6">
-                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
-                                <div>
-                                    <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Unreconciled Bank Feed</h3>
-                                    <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Approve and match incoming bank or MPesa feed transactions to students.</p>
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="relative flex-1">
+                                    <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder={receiptsMainTab === 'student_fees' 
+                                            ? "Search by student name or receipt number..."
+                                            : "Search other income categories, description or receipt number..."
+                                        }
+                                        value={searchReceiptQuery}
+                                        onChange={(e) => setSearchReceiptQuery(e.target.value)}
+                                        className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-900 dark:text-white"
+                                    />
                                 </div>
+                                <select
+                                    value={receiptSourceFilter}
+                                    onChange={(e) => setReceiptSourceFilter(e.target.value)}
+                                    className="px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-300 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="All">All Methods</option>
+                                    <option value="Cash">Cash (Manual)</option>
+                                    <option value="M-Pesa">M-Pesa</option>
+                                    <option value="Bank Transfer">Bank Feed</option>
+                                    {receiptsMainTab === 'student_fees' && <option value="Bursary">Bursary</option>}
+                                </select>
+                            </div>
 
-                                <div className="space-y-4 max-h-[480px] overflow-y-auto pr-1">
-                                    {unreconciledFeeds.map(tx => (
-                                        <div key={tx.id} className="p-5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col gap-3">
+                            <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
+                                <table className="w-full border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/60">
+                                            {receiptsMainTab === 'student_fees' ? (
+                                                <>
+                                                    <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
+                                                    <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                                    <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Grade</th>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
+                                                    <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Description / Memo</th>
+                                                    <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Received From</th>
+                                                </>
+                                            )}
+                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Reference</th>
+                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Receipt #</th>
+                                            <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Method</th>
+                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                            <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
+                                        {paginatedReceipts.map(rec => {
+                                            const student = rec.studentId ? props.students.find(s => s.id === rec.studentId) : null;
+                                            const enrollment = student ? enrollments.find(e => e.userId === student.id) : null;
+                                            const admNum = enrollment?.admissionNumber || enrollment?.admission_number || student?.admissionNumber || student?.admission_number || '—';
+                                            const studentName = student?.name || 'Unknown Student';
+                                            const gradeName = student ? studentClassGroup(student) : '—';
+
+                                            // Parse other income string formatting "Category - Description (From Payer)"
+                                            let category = 'Other Income';
+                                            let description = rec.paidFor || '';
+                                            let payer = '—';
+                                            if (!rec.studentId && rec.paidFor) {
+                                                const fromIdx = rec.paidFor.lastIndexOf(' (From ');
+                                                if (fromIdx >= 0) {
+                                                    payer = rec.paidFor.substring(fromIdx + 7, rec.paidFor.length - 1);
+                                                    const mainPart = rec.paidFor.substring(0, fromIdx);
+                                                    const hypIdx = mainPart.indexOf(' - ');
+                                                    if (hypIdx >= 0) {
+                                                        category = mainPart.substring(0, hypIdx);
+                                                        description = mainPart.substring(hypIdx + 3);
+                                                    } else {
+                                                        category = mainPart;
+                                                        description = '—';
+                                                    }
+                                                }
+                                            }
+
+                                            return (
+                                                <tr key={rec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                                                    {receiptsMainTab === 'student_fees' ? (
+                                                        <>
+                                                            <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
+                                                                {admNum}
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <span className="text-xs font-bold text-slate-900 dark:text-white">{studentName}</span>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-xs font-semibold text-slate-500">
+                                                                {gradeName}
+                                                            </td>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <td className="px-6 py-4 text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                                                {category}
+                                                            </td>
+                                                            <td className="px-6 py-4 text-xs font-semibold text-slate-650 dark:text-slate-400">
+                                                                {description}
+                                                            </td>
+                                                            <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">
+                                                                {payer}
+                                                            </td>
+                                                        </>
+                                                    )}
+                                                    <td className="px-6 py-4 text-right">
+                                                        <span className="text-xs font-black text-slate-900 dark:text-white">KES {rec.amountPaid?.toLocaleString()}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
+                                                        {rec.relatedTransactionId || '—'}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-xs font-black text-indigo-650 dark:text-indigo-400">{rec.receiptNumber}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={`inline-flex px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border ${
+                                                            rec.paymentMethod === 'Cash' 
+                                                            ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-250 dark:border-amber-500/20' 
+                                                            : rec.paymentMethod === 'Bursary'
+                                                            ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-250 dark:border-purple-500/20'
+                                                            : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-250 dark:border-emerald-500/20'
+                                                        }`}>
+                                                            {rec.paymentMethod}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-xs font-semibold text-slate-500">
+                                                        {rec.paymentDate ? new Date(rec.paymentDate).toLocaleDateString() : 'N/A'}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <button
+                                                            onClick={() => handleDownloadReceipt(rec)}
+                                                            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-650 dark:hover:bg-indigo-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                                        >
+                                                            PDF
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {filteredReceipts.length === 0 && (
+                                            <tr>
+                                                <td colSpan={9} className="py-12 text-center text-xs text-slate-400 font-medium italic">No receipts matched your criteria.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination Controls */}
+                            {totalReceiptPages > 1 && (
+                                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-slate-100 dark:border-slate-800/60">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        Showing {Math.min(filteredReceipts.length, (receiptCurrentPage - 1) * 10 + 1)} to {Math.min(filteredReceipts.length, receiptCurrentPage * 10)} of {filteredReceipts.length} Receipts
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            disabled={receiptCurrentPage === 1}
+                                            onClick={() => setReceiptCurrentPage(p => Math.max(1, p - 1))}
+                                            className="px-4 py-2 border border-slate-205 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-850"
+                                        >
+                                            Previous
+                                        </button>
+                                        {Array.from({ length: totalReceiptPages }, (_, i) => i + 1).map(p => (
+                                            <button
+                                                key={p}
+                                                onClick={() => setReceiptCurrentPage(p)}
+                                                className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${
+                                                    receiptCurrentPage === p 
+                                                    ? 'bg-indigo-600 text-white shadow-md' 
+                                                    : 'border border-slate-205 text-slate-550 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850'
+                                                }`}
+                                            >
+                                                {p}
+                                            </button>
+                                        ))}
+                                        <button
+                                            disabled={receiptCurrentPage === totalReceiptPages}
+                                            onClick={() => setReceiptCurrentPage(p => Math.min(totalReceiptPages, p + 1))}
+                                            className="px-4 py-2 border border-slate-205 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-850"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Dedicated Full-Page Bank & M-Pesa Feed Management Sub-Tab */}
+                {activeTab === 'receipts' && receiptsMainTab === 'bank_feed' && (
+                    <div className="w-full space-y-6 text-left animate-in fade-in duration-300">
+                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                            <div className="flex justify-between items-center pb-6 border-b border-slate-100 dark:border-slate-800">
+                                <div>
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-full border border-indigo-200 dark:border-indigo-800/40 mb-2">
+                                        <ScaleIcon className="w-3.5 h-3.5" />
+                                        <span className="text-[9px] font-black uppercase tracking-widest">Live Gateway Integration</span>
+                                    </div>
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Unreconciled Bank & M-Pesa Feed</h3>
+                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Match incoming automated M-Pesa Paybill / Equity / KCB bank feeds directly to student ledger accounts</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={fetchBankFeeds}
+                                    className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer"
+                                >
+                                    <SparklesIcon className="w-4 h-4 text-indigo-500" />
+                                    Refresh Feeds
+                                </button>
+                            </div>
+
+                            {/* Summary Cards */}
+                            {(() => {
+                                const totalValue = unreconciledFeeds.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+                                return (
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <div className="bg-indigo-50 dark:bg-indigo-950/30 p-5 rounded-2xl border border-indigo-100 dark:border-indigo-900/40">
+                                            <p className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Pending Transactions</p>
+                                            <p className="text-2xl font-black text-indigo-950 dark:text-indigo-200">{unreconciledFeeds.length}</p>
+                                            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mt-1">Awaiting reconciliation</p>
+                                        </div>
+                                        <div className="bg-amber-50 dark:bg-amber-950/30 p-5 rounded-2xl border border-amber-100 dark:border-amber-900/40">
+                                            <p className="text-[9px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Total Unmatched Value</p>
+                                            <p className="text-2xl font-black text-amber-950 dark:text-amber-200">KSh {totalValue.toLocaleString()}</p>
+                                            <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-1">Unallocated revenue</p>
+                                        </div>
+                                        <div className="bg-emerald-50 dark:bg-emerald-950/30 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-900/40">
+                                            <p className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Active Gateways</p>
+                                            <p className="text-2xl font-black text-emerald-950 dark:text-emerald-200">M-Pesa & Bank API</p>
+                                            <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">Real-time sync enabled</p>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Unreconciled Feed Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {unreconciledFeeds.map(tx => (
+                                    <div key={tx.id} className="p-6 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-3xl flex flex-col justify-between gap-4 hover:border-indigo-300 transition-all">
+                                        <div className="space-y-2">
                                             <div className="flex justify-between items-start">
                                                 <div>
-                                                    <span className="text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest">{tx.provider || 'BANK'} feed</span>
-                                                    <h4 className="font-bold text-slate-900 dark:text-white text-xs tracking-tight">{tx.transactionId}</h4>
+                                                    <span className="inline-block px-2.5 py-1 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 rounded-lg text-[8px] font-black uppercase tracking-widest mb-1">
+                                                        {tx.provider || 'BANK'} Gateway
+                                                    </span>
+                                                    <h4 className="font-mono font-black text-slate-900 dark:text-white text-sm tracking-tight">{tx.transactionId}</h4>
                                                 </div>
-                                                <span className="text-xs font-black text-slate-900 dark:text-white">KES {tx.amount}</span>
+                                                <span className="text-base font-black text-emerald-600 dark:text-emerald-400">KSh {tx.amount.toLocaleString()}</span>
                                             </div>
-                                            <div className="text-[10px] text-slate-550 dark:text-slate-405 font-semibold space-y-0.5">
-                                                <p><span className="font-black text-slate-400 uppercase text-[8px] tracking-wider block">Sender</span> {tx.senderName || tx.phoneNumber || 'N/A'}</p>
-                                                <p><span className="font-black text-slate-400 uppercase text-[8px] tracking-wider block">Date</span> {new Date(tx.timestamp).toLocaleString()}</p>
+                                            <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                                                <p className="flex justify-between"><span className="font-bold text-slate-400">Payer Name:</span> <span className="font-black text-slate-800 dark:text-slate-200">{tx.senderName || '—'}</span></p>
+                                                <p className="flex justify-between"><span className="font-bold text-slate-400">Phone:</span> <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{tx.phoneNumber || '—'}</span></p>
+                                                <p className="flex justify-between"><span className="font-bold text-slate-400">Timestamp:</span> <span className="font-medium text-slate-500">{new Date(tx.timestamp).toLocaleString()}</span></p>
                                             </div>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedFeedTx(tx);
-                                                    setShowReconcileModal(true);
-                                                }}
-                                                className="w-full py-2.5 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-650 text-indigo-650 dark:text-indigo-405 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all text-center"
-                                            >
-                                                Reconcile & Match
-                                            </button>
                                         </div>
-                                    ))}
-                                    {loadingFeeds && (
-                                        <div className="py-8 text-center text-xs text-slate-400">Loading bank feeds...</div>
-                                    )}
-                                    {!loadingFeeds && unreconciledFeeds.length === 0 && (
-                                        <div className="py-12 text-center text-xs text-slate-400 italic font-medium bg-slate-50 dark:bg-slate-950 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                                            No pending bank feed transactions.
-                                        </div>
-                                    )}
-                                </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedFeedTx(tx);
+                                                setShowReconcileModal(true);
+                                            }}
+                                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer text-center"
+                                        >
+                                            Reconcile & Match Student
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
+
+                            {loadingFeeds && (
+                                <div className="py-12 text-center text-xs text-slate-400 font-bold">Loading bank feeds...</div>
+                            )}
+
+                            {!loadingFeeds && unreconciledFeeds.length === 0 && (
+                                <div className="py-16 text-center text-xs text-slate-400 italic font-bold bg-slate-50 dark:bg-slate-950 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                                    No pending bank or M-Pesa feed transactions. All incoming payments are fully reconciled!
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -13079,6 +13215,91 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Class Receipts Batch Reprint Modal */}
+            {isClassReceiptReprintModalOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl max-w-lg w-full p-8 text-left space-y-6">
+                        <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 rounded-2xl">
+                                    <PrinterIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Reprint Receipts per Class</h3>
+                                    <p className="text-xs text-slate-500 font-semibold mt-0.5">Batch generate and print PDF receipts for all students in a class</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsClassReceiptReprintModalOpen(false)}
+                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full transition-colors"
+                            >
+                                <XMarkIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
+                                    Select Target Class / Grade:
+                                </label>
+                                <select
+                                    value={reprintSelectedClass}
+                                    onChange={(e) => setReprintSelectedClass(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                                >
+                                    <option value="All">All Classes / Entire School</option>
+                                    {Array.from(new Set(props.students.map(s => studentClassGroup(s)))).filter(Boolean).sort().map(c => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-2xl border border-purple-100 dark:border-purple-900/40 text-xs text-purple-900 dark:text-purple-200 space-y-1">
+                                <p className="font-bold">Summary of Selection:</p>
+                                <p>• Class: <span className="font-black">{reprintSelectedClass}</span></p>
+                                <p>• Total Matching Receipts: <span className="font-black">
+                                    {mappedReceipts.filter(rec => {
+                                        if (!rec.studentId) return false;
+                                        const s = props.students.find(st => st.id === rec.studentId);
+                                        if (!s) return false;
+                                        return reprintSelectedClass === 'All' || studentClassGroup(s) === reprintSelectedClass;
+                                    }).length}
+                                </span> receipts</p>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setIsClassReceiptReprintModalOpen(false)}
+                                className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleReprintClassReceipts}
+                                disabled={isReprintingClass}
+                                className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-purple-500/25 active:scale-95 cursor-pointer"
+                            >
+                                {isReprintingClass ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        <span>Generating PDFs...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <PrinterIcon className="w-4 h-4" />
+                                        <span>Download Class PDF Bundle</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
