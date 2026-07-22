@@ -968,7 +968,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [balancesCurrentPage, setBalancesCurrentPage] = useState(1);
     const [balancesPerPage, setBalancesPerPage] = useState<number | 'All'>(15);
 
-    // Fee Reminders SMS Modal State
+    // Fee Reminders SMS Modal State & Sibling Consolidation
     const [isFeeReminderModalOpen, setIsFeeReminderModalOpen] = useState(false);
     const [reminderMinBalance, setReminderMinBalance] = useState<number>(1);
     const [reminderMaxBalance, setReminderMaxBalance] = useState<string>('');
@@ -976,6 +976,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [reminderTemplate, setReminderTemplate] = useState<string>(
         'Dear Parent, please be reminded that {student_name} (Adm: {adm_no}) has an outstanding fee balance of KSh {balance}. Kindly clear the balance via M-Pesa / Bank. Thank you, {school_name}.'
     );
+    const [consolidateSiblingsSms, setConsolidateSiblingsSms] = useState(true);
     const [isSendingReminders, setIsSendingReminders] = useState(false);
     const [reminderSendSuccess, setReminderSendSuccess] = useState<string | null>(null);
 
@@ -1140,6 +1141,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return studentFinanceData.reduce((sum, s) => sum + s.totals.balance, 0);
     }, [studentFinanceData]);
 
+    const getStudentParentPhone = (student: any): string => {
+        const raw = (student as any).phone || 
+                    (student as any).parentPhone || 
+                    student.metadata?.parentPhone || 
+                    student.metadata?.phone || 
+                    student.metadata?.guardianPhone || 
+                    student.metadata?.fatherPhone || 
+                    student.metadata?.motherPhone || 
+                    '';
+        const cleaned = String(raw).replace(/[^0-9]/g, '');
+        return cleaned.length >= 6 ? cleaned : (raw ? String(raw).trim() : '');
+    };
+
+    const phoneSiblingMap = useMemo(() => {
+        const map: Record<string, typeof studentFinanceData> = {};
+        studentFinanceData.forEach(student => {
+            const phone = getStudentParentPhone(student);
+            if (phone) {
+                if (!map[phone]) map[phone] = [];
+                map[phone].push(student);
+            }
+        });
+        return map;
+    }, [studentFinanceData]);
+
     const reminderTargetStudents = useMemo(() => {
         return studentFinanceData.filter(student => {
             const bal = student.totals.balance;
@@ -1158,19 +1184,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             name: 'John Kamau',
             admissionNumber: 'ADM-2024-042',
             className: 'Grade 8 North',
-            totals: { balance: 18500 }
+            totals: { balance: 18500 },
+            isSiblingSample: false
         };
     }, [reminderTargetStudents]);
 
     const previewSmsText = useMemo(() => {
         const schoolName = props.institution.name || 'Our Institution';
+        
+        if (consolidateSiblingsSms) {
+            return `Dear Parent, please be reminded of your children's fee balances at ${schoolName}: John Kamau (ADM-042): KSh 18,500, Mary Kamau (ADM-043): KSh 12,000. Total Outstanding: KSh 30,500. Kindly clear via M-Pesa / Bank. Thank you.`;
+        }
+
         return reminderTemplate
             .replace(/\{student_name\}/g, sampleReminderStudent.name || 'Student Name')
             .replace(/\{adm_no\}/g, sampleReminderStudent.admissionNumber || (sampleReminderStudent as any).admission_number || 'ADM-001')
             .replace(/\{balance\}/g, (sampleReminderStudent.totals?.balance || 0).toLocaleString())
             .replace(/\{class_name\}/g, sampleReminderStudent.className || 'Class')
             .replace(/\{school_name\}/g, schoolName);
-    }, [reminderTemplate, sampleReminderStudent, props.institution.name]);
+    }, [reminderTemplate, sampleReminderStudent, props.institution.name, consolidateSiblingsSms]);
 
     const handleSendFeeReminders = async () => {
         if (reminderTargetStudents.length === 0) {
@@ -1183,27 +1215,103 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         try {
             const schoolName = props.institution.name || 'School';
-            const outboxMessages = reminderTargetStudents.map(student => {
-                const phone = (student as any).phone || (student as any).parentPhone || student.metadata?.parentPhone || student.metadata?.phone || '';
-                const text = reminderTemplate
-                    .replace(/\{student_name\}/g, student.name || 'Student')
-                    .replace(/\{adm_no\}/g, student.admissionNumber || (student as any).admission_number || '—')
-                    .replace(/\{balance\}/g, (student.totals.balance || 0).toLocaleString())
-                    .replace(/\{class_name\}/g, student.className || 'Class')
-                    .replace(/\{school_name\}/g, schoolName);
+            let outboxMessages: any[] = [];
 
-                return {
-                    id: `sms_rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-                    institutionId: props.institution.id,
-                    recipientPhone: phone,
-                    recipientName: student.name,
-                    studentId: student.id,
-                    message: text,
-                    status: 'pending',
-                    type: 'fee_reminder',
-                    createdAt: new Date().toISOString()
-                };
-            });
+            if (consolidateSiblingsSms) {
+                // Group target students by parent phone number
+                const groupedByPhone: Record<string, typeof reminderTargetStudents> = {};
+                const noPhoneStudents: typeof reminderTargetStudents = [];
+
+                reminderTargetStudents.forEach(student => {
+                    const phone = getStudentParentPhone(student);
+                    if (phone) {
+                        if (!groupedByPhone[phone]) groupedByPhone[phone] = [];
+                        groupedByPhone[phone].push(student);
+                    } else {
+                        noPhoneStudents.push(student);
+                    }
+                });
+
+                // Create consolidated messages for parents with phone numbers
+                Object.entries(groupedByPhone).forEach(([phone, students]) => {
+                    let messageText = '';
+                    if (students.length === 1) {
+                        const s = students[0];
+                        messageText = reminderTemplate
+                            .replace(/\{student_name\}/g, s.name || 'Student')
+                            .replace(/\{adm_no\}/g, s.admissionNumber || (s as any).admission_number || '—')
+                            .replace(/\{balance\}/g, (s.totals.balance || 0).toLocaleString())
+                            .replace(/\{class_name\}/g, s.className || 'Class')
+                            .replace(/\{school_name\}/g, schoolName);
+                    } else {
+                        // Multi-student sibling consolidation
+                        const siblingDetails = students
+                            .map(s => `${s.name} (${s.admissionNumber || (s as any).admission_number || 'No ADM'}): KSh ${(s.totals.balance || 0).toLocaleString()}`)
+                            .join(', ');
+                        const totalBal = students.reduce((sum, s) => sum + (s.totals.balance || 0), 0);
+                        
+                        messageText = `Dear Parent, please be reminded of your children's fee balances at ${schoolName}: ${siblingDetails}. Total Outstanding: KSh ${totalBal.toLocaleString()}. Kindly clear the balance via M-Pesa / Bank. Thank you.`;
+                    }
+
+                    outboxMessages.push({
+                        id: `sms_rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                        institutionId: props.institution.id,
+                        recipientPhone: phone,
+                        recipientName: students.map(s => s.name).join(' & '),
+                        studentIds: students.map(s => s.id),
+                        message: messageText,
+                        status: 'pending',
+                        type: 'fee_reminder_consolidated',
+                        createdAt: new Date().toISOString()
+                    });
+                });
+
+                // Handle any students without phone numbers
+                noPhoneStudents.forEach(s => {
+                    const text = reminderTemplate
+                        .replace(/\{student_name\}/g, s.name || 'Student')
+                        .replace(/\{adm_no\}/g, s.admissionNumber || (s as any).admission_number || '—')
+                        .replace(/\{balance\}/g, (s.totals.balance || 0).toLocaleString())
+                        .replace(/\{class_name\}/g, s.className || 'Class')
+                        .replace(/\{school_name\}/g, schoolName);
+
+                    outboxMessages.push({
+                        id: `sms_rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                        institutionId: props.institution.id,
+                        recipientPhone: '',
+                        recipientName: s.name,
+                        studentId: s.id,
+                        message: text,
+                        status: 'pending',
+                        type: 'fee_reminder',
+                        createdAt: new Date().toISOString()
+                    });
+                });
+
+            } else {
+                // Individual SMS per student
+                outboxMessages = reminderTargetStudents.map(student => {
+                    const phone = getStudentParentPhone(student);
+                    const text = reminderTemplate
+                        .replace(/\{student_name\}/g, student.name || 'Student')
+                        .replace(/\{adm_no\}/g, student.admissionNumber || (student as any).admission_number || '—')
+                        .replace(/\{balance\}/g, (student.totals.balance || 0).toLocaleString())
+                        .replace(/\{class_name\}/g, student.className || 'Class')
+                        .replace(/\{school_name\}/g, schoolName);
+
+                    return {
+                        id: `sms_rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                        institutionId: props.institution.id,
+                        recipientPhone: phone,
+                        recipientName: student.name,
+                        studentId: student.id,
+                        message: text,
+                        status: 'pending',
+                        type: 'fee_reminder',
+                        createdAt: new Date().toISOString()
+                    };
+                });
+            }
 
             await apiService.saveToSmsOutbox(outboxMessages).catch(async () => {
                 await apiService.saveModuleRecord('sms_outbox', outboxMessages);
@@ -3308,7 +3416,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono">{student.admissionNumber || student.admission_number || '—'}</span>
                                                     </td>
                                                     <td className="px-6 py-4 text-left">
-                                                        <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
+                                                            {(() => {
+                                                                const pPhone = getStudentParentPhone(student);
+                                                                const siblings = pPhone ? phoneSiblingMap[pPhone] : null;
+                                                                if (!siblings || siblings.length <= 1) return null;
+                                                                const siblingNames = siblings.filter(s => s.id !== student.id).map(s => s.name).join(', ');
+                                                                return (
+                                                                    <span
+                                                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50 rounded-lg text-[9px] font-black uppercase tracking-wider cursor-help shrink-0"
+                                                                        title={`Shares parent contact (${pPhone}) with ${siblingNames}`}
+                                                                    >
+                                                                        <UserGroupIcon className="w-3 h-3 text-purple-600" />
+                                                                        {siblings.length} Siblings
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-left">
                                                         <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
@@ -3533,6 +3658,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <span className="text-[10px] font-bold text-slate-400">
                                     Filtered Outstanding: KSh {reminderTargetStudents.reduce((sum, s) => sum + s.totals.balance, 0).toLocaleString()}
                                 </span>
+                            </div>
+
+                            {/* Consolidate Sibling SMS Switch */}
+                            <div className="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-950/40 rounded-2xl border border-purple-100 dark:border-purple-900/40">
+                                <div className="space-y-0.5">
+                                    <div className="flex items-center gap-2">
+                                        <UserGroupIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                        <span className="text-xs font-black text-purple-950 dark:text-purple-200 uppercase tracking-wider">Consolidate Sibling SMS (One SMS per Parent Phone)</span>
+                                    </div>
+                                    <p className="text-[10px] font-medium text-purple-700 dark:text-purple-300">Combines siblings into 1 message to prevent sending multiple duplicate SMS to parents with 2 or 3 children</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={consolidateSiblingsSms}
+                                        onChange={(e) => setConsolidateSiblingsSms(e.target.checked)}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-purple-600" />
+                                </label>
                             </div>
                         </div>
 
