@@ -122,13 +122,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const hour = punchTime.getHours();
                     const checkinType = hour < 12 ? 'Morning' : 'Afternoon';
                     
-                    await supabase.rpc('process_teacher_checkin', {
+                    const { error: rpcErr } = await supabase.rpc('process_teacher_checkin', {
                         p_teacher_id: matchedUserId,
                         p_institution_id: matchedInstitutionId,
                         p_checkin_type: checkinType,
                         p_location: 'Dahua Biometric Terminal',
                         p_notes: 'Biometric Login Verified'
-                    }).catch(err => console.error('[Dahua Webhook] RPC checkin error:', err));
+                    });
+                    if (rpcErr) {
+                        console.error('[Dahua Webhook] RPC checkin error:', rpcErr);
+                    }
                 }
             }
 
