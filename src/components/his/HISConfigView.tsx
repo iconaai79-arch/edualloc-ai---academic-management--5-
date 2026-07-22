@@ -258,7 +258,7 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
             alert(`Practitioner ${practitionerForm.name} registered successfully!\n\nLinked Terminal Device PIN: ${assignedPin}`);
             setIsAddPractitionerOpen(false);
             setScannedBiometricData(null);
-            setPractitionerForm({ name: '', role: 'doctor', specialty: '', medicalLicense: '', phoneNumber: '', email: '', devicePin: '' });
+            setPractitionerForm({ name: '', role: 'doctor', specialty: '', medicalLicense: '', phoneNumber: '', email: '', devicePin: '', fingerIndex: 0 });
             await loadPractitioners();
             if (onStaffUpdated) onStaffUpdated();
         } catch (err: any) {
