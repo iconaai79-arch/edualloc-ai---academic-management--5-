@@ -222,6 +222,34 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         }
     };
 
+    const handleTriggerFingerScanner = async (dev: BiometricDevice) => {
+        setTestingDeviceId(dev.id);
+        try {
+            const testPin = enrollments.length > 0 ? enrollments[0].devicePin : '1001';
+            const testName = enrollments.length > 0 ? (staff.find(s => s.id === enrollments[0].staffId)?.name || 'Test User') : 'Test User';
+            
+            await fetch(`/api/zkteco-webhook?action=enroll&institutionId=${institution.id}&SN=${dev.serialNumber}&sn=${dev.serialNumber}&pin=${testPin}&name=${encodeURIComponent(testName)}`, {
+                method: 'POST'
+            }).catch(() => null);
+
+            setTestModalResult({
+                deviceName: dev.deviceName,
+                success: true,
+                message: `📡 Remote ZKTeco Finger Scanner Command Dispatched!\n\nTarget Terminal: ${dev.deviceName} (SN: ${dev.serialNumber})\nQueued ADMS Command: C:1001:DATA ENROLL_FP PIN=${testPin}\n\n👉 Hardware Reaction:\nWhen the physical ZKTeco terminal polls this server (every 10-30 seconds), its screen will BEEP and open the fingerprint sensor screen ("Place Finger 1/3") for PIN ${testPin}!`,
+                timestamp: new Date().toLocaleTimeString()
+            });
+        } catch (err: any) {
+            setTestModalResult({
+                deviceName: dev.deviceName,
+                success: false,
+                message: `Failed to trigger finger scanner: ${err.message || err}`,
+                timestamp: new Date().toLocaleTimeString()
+            });
+        } finally {
+            setTestingDeviceId(null);
+        }
+    };
+
     const handleSendTestPunch = async (dev: BiometricDevice) => {
         if (enrollments.length === 0) {
             alert('Please enroll at least one staff member under Staff PIN Enrollment before testing punches.');
@@ -629,17 +657,24 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                     <p className="text-[10px] font-bold text-slate-400 mt-1">Last sync: {new Date(dev.lastSyncAt).toLocaleString()}</p>
                                                 )}
                                             </div>
-                                            <div className="grid grid-cols-2 gap-2 pt-2">
+                                            <div className="grid grid-cols-3 gap-2 pt-2">
                                                 <button
                                                     onClick={() => handleTestDevice(dev)}
                                                     disabled={testingDeviceId === dev.id}
-                                                    className="py-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-xl text-[9px] font-black uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-1"
+                                                    className="py-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-xl text-[8px] font-black uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-1"
                                                 >
-                                                    {testingDeviceId === dev.id ? 'Testing...' : '⚡ Test Connection'}
+                                                    {testingDeviceId === dev.id ? 'Testing...' : '⚡ Test Conn'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleTriggerFingerScanner(dev)}
+                                                    disabled={testingDeviceId === dev.id}
+                                                    className="py-2.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 rounded-xl text-[8px] font-black uppercase tracking-wider hover:bg-purple-600 hover:text-white transition-all flex items-center justify-center gap-1"
+                                                >
+                                                    ☝️ Open Sensor
                                                 </button>
                                                 <button
                                                     onClick={() => handleSendTestPunch(dev)}
-                                                    className="py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-xl text-[9px] font-black uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-1"
+                                                    className="py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-xl text-[8px] font-black uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-1"
                                                 >
                                                     🧪 Test Punch
                                                 </button>
