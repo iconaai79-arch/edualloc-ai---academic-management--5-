@@ -5003,7 +5003,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 {activeTab === 'receipts' && (receiptsMainTab === 'student_fees' || receiptsMainTab === 'other_income') && (
                     <div className="w-full space-y-6 text-left animate-in fade-in duration-300">
                         <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
+                            <div className="flex flex-row justify-between items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
                                 <div>
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
                                         {receiptsMainTab === 'student_fees' ? 'Student Receipts Ledger' : 'Other Income Ledger'}
@@ -5016,12 +5016,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </p>
                                 </div>
                                 {receiptsMainTab === 'student_fees' ? (
-                                    <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto shrink-0">
                                         <button
                                             onClick={() => setShowPostModal(true)}
-                                            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg cursor-pointer"
+                                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0"
                                         >
-                                            <PlusIcon className="w-4 h-4" />
+                                            <PlusIcon className="w-3.5 h-3.5" />
                                             Post Receipt
                                         </button>
                                         <button
@@ -5031,17 +5031,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 setBulkImportSuccessSummary(null);
                                                 setIsExcelImportModalOpen(true);
                                             }}
-                                            className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg cursor-pointer"
+                                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0"
                                         >
-                                            <ArrowUpTrayIcon className="w-4 h-4" />
-                                            Import & Auto-Reconcile Excel
+                                            <ArrowUpTrayIcon className="w-3.5 h-3.5" />
+                                            Import Excel
                                         </button>
                                         <button
                                             onClick={() => setIsClassReceiptReprintModalOpen(true)}
-                                            className="px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg cursor-pointer"
+                                            className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0"
                                         >
-                                            <PrinterIcon className="w-4 h-4" />
-                                            Reprint Receipts per Class
+                                            <PrinterIcon className="w-3.5 h-3.5" />
+                                            Reprint by Class
                                         </button>
                                     </div>
                                 ) : (
