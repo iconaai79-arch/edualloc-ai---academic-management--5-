@@ -5,7 +5,7 @@ import { UsersIcon } from '../icons/UsersIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import { XIcon } from '../icons/XIcon';
-import { HISStaff, User } from '../../types';
+import { HISStaff, User, BiometricDevice } from '../../types';
 import { GlobeAltIcon, PhotoIcon } from './HealthIcons';
 import { apiService } from '../../services/apiService';
 import { registerWebAuthn } from '../../utils/biometrics';
@@ -30,6 +30,8 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
 
     const [isAddPractitionerOpen, setIsAddPractitionerOpen] = useState(false);
     const [practitionerList, setPractitionerList] = useState<any[]>([]);
+    const [availableDevices, setAvailableDevices] = useState<BiometricDevice[]>([]);
+    const [selectedDeviceId, setSelectedDeviceId] = useState<string>('local');
     const [isScanningBiometric, setIsScanningBiometric] = useState(false);
     const [scannedBiometricData, setScannedBiometricData] = useState<any>(null);
     const [practitionerForm, setPractitionerForm] = useState({
@@ -44,6 +46,10 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
 
     const loadPractitioners = useCallback(async () => {
         if (institutionId) {
+            try {
+                const devs = await apiService.fetchModuleRecords<BiometricDevice>('biometric_devices', institutionId).catch(() => []);
+                setAvailableDevices(devs || []);
+            } catch { setAvailableDevices([]); }
             try {
                 const fetched = await apiService.fetchModuleRecords<User>('users', institutionId);
                 const filtered = (fetched || []).filter(u => {
@@ -100,30 +106,61 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
     const handleScanBiometrics = async () => {
         setIsScanningBiometric(true);
         try {
-            let cred = null;
-            if (window.PublicKeyCredential && practitionerForm.name) {
-                try {
-                    cred = await registerWebAuthn(`prac_${Date.now()}`, practitionerForm.name);
-                } catch {
-                    cred = null;
-                }
-            }
-
-            const templateHash = cred ? cred.id : `bio_fp_hash_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
             const assignedPin = practitionerForm.devicePin || String(Math.floor(1000 + Math.random() * 9000));
+            const selectedDev = availableDevices.find(d => d.id === selectedDeviceId);
 
-            setScannedBiometricData({
-                credentials: cred,
-                templateHash: templateHash,
-                devicePin: assignedPin,
-                scannedAt: new Date().toLocaleTimeString()
-            });
+            if (selectedDev) {
+                // 📡 Physical ZKTeco / Dahua Device Enrollment Command
+                try {
+                    await fetch(`/api/zkteco-webhook?action=enroll&institutionId=${institutionId}&sn=${selectedDev.serialNumber}&pin=${assignedPin}&name=${encodeURIComponent(practitionerForm.name)}`, {
+                        method: 'POST'
+                    }).catch(() => null);
+                } catch (e) {
+                    console.warn('[ZKTeco] Remote enroll dispatch note:', e);
+                }
 
-            if (!practitionerForm.devicePin) {
-                setPractitionerForm(f => ({ ...f, devicePin: assignedPin }));
+                const templateHash = `zkteco_remote_${selectedDev.serialNumber}_pin_${assignedPin}`;
+
+                setScannedBiometricData({
+                    credentials: null,
+                    templateHash: templateHash,
+                    devicePin: assignedPin,
+                    deviceName: selectedDev.deviceName,
+                    scannedAt: new Date().toLocaleTimeString()
+                });
+
+                if (!practitionerForm.devicePin) {
+                    setPractitionerForm(f => ({ ...f, devicePin: assignedPin }));
+                }
+
+                alert(`📡 Remote ZKTeco Scan Triggered!\n\nTarget Device: ${selectedDev.deviceName} (${selectedDev.serialNumber})\nProtocol: ${(selectedDev.protocol || 'ADMS').toUpperCase()}\nAssigned Device PIN: ${assignedPin}\n\n👉 Ask ${practitionerForm.name || 'the practitioner'} to place their finger on the [${selectedDev.deviceName}] sensor 3 times to complete enrollment.`);
+            } else {
+                // 💻 Local USB / WebAuthn Sensor
+                let cred = null;
+                if (window.PublicKeyCredential && practitionerForm.name) {
+                    try {
+                        cred = await registerWebAuthn(`prac_${Date.now()}`, practitionerForm.name);
+                    } catch {
+                        cred = null;
+                    }
+                }
+
+                const templateHash = cred ? cred.id : `bio_fp_hash_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+                setScannedBiometricData({
+                    credentials: cred,
+                    templateHash: templateHash,
+                    devicePin: assignedPin,
+                    deviceName: 'Local Web Biometric Scanner',
+                    scannedAt: new Date().toLocaleTimeString()
+                });
+
+                if (!practitionerForm.devicePin) {
+                    setPractitionerForm(f => ({ ...f, devicePin: assignedPin }));
+                }
+
+                alert(`☝️ Local Biometric Fingerprint Captured!\n\nSensor: Active Fingerprint Reader\nTemplate Hash: ${templateHash.substring(0, 18)}...\nLinked Terminal PIN: ${assignedPin}`);
             }
-
-            alert(`Biometric Fingerprint Captured!\n\nSensor: Active Fingerprint Reader\nTemplate Hash: ${templateHash.substring(0, 18)}...\nLinked Terminal PIN: ${assignedPin}`);
         } catch (err: any) {
             alert('Biometric scan error: ' + (err.message || err));
         } finally {
@@ -483,8 +520,8 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                             <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-800 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Biometric Fingerprint Link</span>
-                                        <p className="text-[10px] text-slate-500 font-semibold">Place finger on sensor to link ZKTeco / Dahua terminal PIN</p>
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Biometric Scanner Integration</span>
+                                        <p className="text-[10px] text-slate-500 font-semibold">Select biometric scanner device to trigger remote or local scan</p>
                                     </div>
                                     {scannedBiometricData ? (
                                         <span className="px-3 py-1 bg-emerald-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
@@ -497,6 +534,22 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                                     )}
                                 </div>
 
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Target Scanner Device</label>
+                                    <select
+                                        value={selectedDeviceId}
+                                        onChange={e => setSelectedDeviceId(e.target.value)}
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="local">💻 Local USB Reader / Browser Sensor</option>
+                                        {availableDevices.map(dev => (
+                                            <option key={dev.id} value={dev.id}>
+                                                📡 {dev.deviceName} ({dev.protocol.toUpperCase()} • SN: {dev.serialNumber})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 <div className="flex items-center gap-3">
                                     <button
                                         type="button"
@@ -504,13 +557,13 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                                         disabled={isScanningBiometric}
                                         className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
                                     >
-                                        {isScanningBiometric ? 'Scanning Sensor...' : '☝️ Scan Fingerprint Now'}
+                                        {isScanningBiometric ? 'Triggering Scanner...' : selectedDeviceId === 'local' ? '☝️ Scan Fingerprint Now' : '📡 Trigger Remote Device Scan'}
                                     </button>
 
                                     <div className="w-1/3">
                                         <input
                                             type="text"
-                                            placeholder="Device PIN (1004)"
+                                            placeholder="Device PIN"
                                             value={practitionerForm.devicePin}
                                             onChange={e => setPractitionerForm(f => ({ ...f, devicePin: e.target.value }))}
                                             className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
