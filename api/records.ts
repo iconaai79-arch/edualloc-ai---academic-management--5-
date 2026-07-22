@@ -303,11 +303,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return r;
             };
 
-            const recordWithBranch = Array.isArray(recordWithTenancy)
-                ? recordWithTenancy.map(appendBranch)
-                : appendBranch(recordWithTenancy);
+            const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-            const { data, error } = await supabase.from(moduleName).upsert(recordWithBranch).select();
+            const sanitizeUUIDs = (r: any) => {
+                if (!r || typeof r !== 'object') return r;
+                const cleaned = { ...r };
+                if (cleaned.id && typeof cleaned.id === 'string' && !isValidUUID(cleaned.id) && (cleaned.id.startsWith('att_') || cleaned.id.includes('_'))) {
+                    console.warn(`[api/records] Stripping non-UUID id '${cleaned.id}' for module '${moduleName}'`);
+                    delete cleaned.id;
+                }
+                return cleaned;
+            };
+
+            const sanitizedRecords = Array.isArray(recordWithBranch)
+                ? recordWithBranch.map(sanitizeUUIDs)
+                : sanitizeUUIDs(recordWithBranch);
+
+            const { data, error } = await supabase.from(moduleName).upsert(sanitizedRecords).select();
             if (moduleName === 'ds_settings') {
                 console.log(`[API POST DEBUG] ds_settings upsert:`, { success: !error, count: data?.length, error, payload: JSON.stringify(recordWithTenancy) });
             }

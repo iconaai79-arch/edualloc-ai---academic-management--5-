@@ -20,12 +20,15 @@ const VERIFY_LABELS: Record<number, string> = {
     15: 'Face',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-    present: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800',
-    absent: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800',
-    'half-day': 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800',
-    leave: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800',
-    holiday: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800',
+const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
 };
 
 export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboardProps> = ({
@@ -342,7 +345,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             const testAttendanceRecord: any = {
-                id: `att_test_${Date.now()}`,
+                id: generateUUID(),
                 institution_id: institution.id,
                 institutionId: institution.id,
                 staff_id: targetEnr.staffId,
@@ -444,7 +447,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                 const lastOut = item.punches[item.punches.length - 1];
 
                 const rec: any = {
-                    id: `att_imp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                    id: generateUUID(),
                     institution_id: institution.id,
                     institutionId: institution.id,
                     staff_id: item.staffId,
