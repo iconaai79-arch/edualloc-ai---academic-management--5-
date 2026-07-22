@@ -49,6 +49,16 @@ const PUNCH_TYPES: Record<number, string> = {
 const PENDING_COMMANDS = new Map<string, string[]>();
 let cmdCounter = 1000;
 
+// Device Heartbeat & Ping Tracking
+interface DeviceStatusInfo {
+    lastSeen: string;
+    ip: string;
+    sn: string;
+    requestsCount: number;
+}
+const LAST_SEEN_DEVICES = new Map<string, DeviceStatusInfo>();
+const RECENT_WEBHOOK_LOGS: Array<{ timestamp: string; sn: string; method: string; url: string; ip: string }> = [];
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -65,8 +75,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pin = (req.query.pin || '') as string;
     const name = (req.query.name || '') as string;
     const fingerIndex = (req.query.fingerIndex || req.query.finger_index || '0') as string;
+    const clientIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown') as string;
+
+    // Track real hardware pings
+    if (serialNumber && !action) {
+        const existing = LAST_SEEN_DEVICES.get(serialNumber) || { lastSeen: new Date().toISOString(), ip: clientIp, sn: serialNumber, requestsCount: 0 };
+        existing.lastSeen = new Date().toISOString();
+        existing.ip = clientIp;
+        existing.requestsCount++;
+        LAST_SEEN_DEVICES.set(serialNumber, existing);
+
+        RECENT_WEBHOOK_LOGS.unshift({
+            timestamp: new Date().toLocaleTimeString(),
+            sn: serialNumber,
+            method: req.method || 'GET',
+            url: req.url || '',
+            ip: String(clientIp).split(',')[0]
+        });
+        if (RECENT_WEBHOOK_LOGS.length > 30) RECENT_WEBHOOK_LOGS.pop();
+    }
 
     console.log(`[ZKTeco] ${req.method} action=${action} from SN=${serialNumber} inst=${institutionId}`);
+
+    // ─── ACTION = STATUS (Check real device hardware ping) ───
+    if (action === 'status') {
+        const snKey = serialNumber || 'DEFAULT';
+        const info = LAST_SEEN_DEVICES.get(snKey);
+        const pending = PENDING_COMMANDS.get(snKey) || PENDING_COMMANDS.get('DEFAULT') || [];
+        
+        const isOnline = info ? (Date.now() - new Date(info.lastSeen).getTime() < 3 * 60 * 1000) : false;
+
+        return res.status(200).json({
+            sn: snKey,
+            online: isOnline,
+            lastSeen: info?.lastSeen || null,
+            ip: info?.ip || null,
+            requestsCount: info?.requestsCount || 0,
+            pendingCommandsCount: pending.length,
+            message: isOnline 
+                ? `✅ ZKTeco Device (SN: ${snKey}) is ACTIVE & ONLINE! Last hardware ping: ${new Date(info!.lastSeen).toLocaleTimeString()}`
+                : `⚠️ PHYSICAL DEVICE HAS NEVER CONNECTED TO THIS SERVER URL! ZKTeco SN '${snKey}' has not sent any ADMS heartbeats yet. This is why the sensor screen is not opening.`
+        });
+    }
+
+    // ─── ACTION = LOGS (View recent ADMS webhook activity) ───
+    if (action === 'logs') {
+        return res.status(200).json({
+            recentLogs: RECENT_WEBHOOK_LOGS,
+            activeDevices: Array.from(LAST_SEEN_DEVICES.values())
+        });
+    }
 
     // ─── ACTION = ENROLL (From Web Portal) ───
     if (action === 'enroll') {

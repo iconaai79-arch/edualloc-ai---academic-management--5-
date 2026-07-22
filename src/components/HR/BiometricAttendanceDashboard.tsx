@@ -199,27 +199,51 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const handleTestDevice = async (dev: BiometricDevice) => {
         setTestingDeviceId(dev.id);
         try {
-            const now = new Date().toISOString();
-            await apiService.saveModuleRecord('biometric_devices', {
-                id: dev.id,
-                institution_id: institution.id,
-                serial_number: dev.serialNumber,
-                device_name: dev.deviceName,
-                is_active: true,
-                last_sync_at: now
-            });
-            setTestModalResult({
-                deviceName: dev.deviceName,
-                success: true,
-                message: `Connection Verified! Device ${dev.deviceName} (SN: ${dev.serialNumber}) is active on protocol [${(dev.protocol || 'ADMS').toUpperCase()}]. Webhook listener is accepting logs.`,
-                timestamp: new Date().toLocaleTimeString()
-            });
+            const statusRes = await fetch(`/api/zkteco-webhook?action=status&SN=${dev.serialNumber}&sn=${dev.serialNumber}`)
+                .then(r => r.json())
+                .catch(() => null);
+
+            const isOnline = statusRes?.online || false;
+            const lastSeen = statusRes?.lastSeen ? new Date(statusRes.lastSeen).toLocaleString() : null;
+
+            if (isOnline) {
+                setTestModalResult({
+                    deviceName: dev.deviceName,
+                    success: true,
+                    message: `✅ REAL HARDWARE CONNECTION VERIFIED!\n\n` +
+                             `• Target Device: ${dev.deviceName} (SN: ${dev.serialNumber})\n` +
+                             `• Device Status: ONLINE & ACTIVELY POLLING SERVER\n` +
+                             `• Last Hardware Heartbeat: ${lastSeen}\n` +
+                             `• Device IP Address: ${statusRes.ip || 'Known'}\n` +
+                             `• Active Requests Received: ${statusRes.requestsCount}\n\n` +
+                             `👉 Open Sensor commands will deliver instantly on the next heartbeat!`,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            } else {
+                setTestModalResult({
+                    deviceName: dev.deviceName,
+                    success: false,
+                    message: `⚠️ PHYSICAL DEVICE HAS NOT CONNECTED TO THIS SERVER YET!\n\n` +
+                             `• Target Device: ${dev.deviceName} (SN: ${dev.serialNumber})\n` +
+                             `• Status: DISCONNECTED / NEVER PINGED SERVER\n` +
+                             `• Last Hardware Heartbeat: ${lastSeen || 'Never (0 requests)'}\n\n` +
+                             `❌ WHY 'OPEN SENSOR' IS NOT RESPONDING:\n` +
+                             `The physical ZKTeco terminal hardware has NOT sent an ADMS heartbeat to this web server yet. The command is sitting in the server queue, but the device hasn't fetched it.\n\n` +
+                             `🛠️ HOW TO FIX THIS ON THE ZKTECO TERMINAL SCREEN:\n` +
+                             `1. Tap Menu ➔ Comm. ➔ Cloud Server / ADMS on the physical device screen.\n` +
+                             `2. Set Server IP to your web server domain or IP address.\n` +
+                             `3. Set Server Port to 80 (or 443 HTTPS).\n` +
+                             `4. Turn 'Enable Domain Name' ON if using domain.\n` +
+                             `5. Tap Menu ➔ Data Mgt ➔ Sync on device screen to force connection now!`,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            }
             loadDevices();
         } catch (err: any) {
             setTestModalResult({
                 deviceName: dev.deviceName,
                 success: false,
-                message: `Connection Test Failed: ${err.message || 'Unable to communicate with device'}`,
+                message: `Connection Test Failed: ${err.message || 'Unable to communicate with server'}`,
                 timestamp: new Date().toLocaleTimeString()
             });
         } finally {
