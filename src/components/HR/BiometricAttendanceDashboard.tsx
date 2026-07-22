@@ -1163,15 +1163,27 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             </div>
 
                             {/* Step 3 */}
-                            <div className="p-5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
+                            <div className="p-5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-3">
                                 <span className="px-3 py-1 bg-indigo-600 text-white rounded-full text-[9px] font-black uppercase tracking-wider">Step 3: Configure Cloud Server / ADMS on Physical Device</span>
-                                <p className="text-[11px] pt-1">You can use any of these <strong>ultra-shortened ZKTeco Push Webhook URLs</strong> for easy typing on terminal keypads:</p>
-                                <div className="space-y-1 p-3 bg-slate-900 text-indigo-300 font-mono text-[10px] rounded-xl border border-indigo-500/30 break-all select-all">
-                                    <div>⚡ Option 1 (Shortest): <span className="text-emerald-400 font-bold">portal.eduai.co.ke/zk</span></div>
-                                    <div>⚡ Option 2: <span className="text-sky-400 font-bold">portal.eduai.co.ke/adms</span></div>
-                                    <div>⚡ Option 3 (Standard): <span className="text-amber-400 font-bold">portal.eduai.co.ke/iclock</span></div>
+                                
+                                <div className="space-y-1.5 p-4 bg-slate-900 text-indigo-300 font-mono text-[10px] rounded-2xl border border-indigo-500/30 break-all">
+                                    <div className="text-white font-bold text-[11px] mb-1">📲 Keypad Entry Settings:</div>
+                                    <div>• Server Domain: <span className="text-emerald-400 font-bold select-all">portal.eduai.co.ke</span></div>
+                                    <div>• Server Path: <span className="text-sky-400 font-bold select-all">/zk</span></div>
+                                    <div>• Server Port: <span className="text-amber-400 font-bold">80</span> (or 443 for HTTPS)</div>
                                 </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400">On physical ZKTeco screen: Go to <em>Menu ➔ Comm. ➔ Cloud Server / ADMS Settings</em>. Set Server IP/Domain to <code>portal.eduai.co.ke</code>, Server Path to <code>/zk</code> or <code>/iclock</code>, Port <code>80</code> (or <code>443</code> HTTPS), and turn <strong>Enable Domain Name</strong> ON.</p>
+
+                                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800 space-y-2 text-[11px]">
+                                    <p className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                                        💡 IF YOUR SCREEN SHOWS DIGIT BOXES (000.000.000.000):
+                                    </p>
+                                    <ol className="list-decimal list-inside space-y-1 text-slate-600 dark:text-slate-300">
+                                        <li>On the ZKTeco screen menu: Go to <strong>Menu ➔ Comm. ➔ Cloud Server / ADMS</strong>.</li>
+                                        <li>Find <strong>Enable Domain Name</strong> switch and turn it <strong>ON</strong>.</li>
+                                        <li>The numeric IP boxes (<code>___.___.___.___</code>) will disappear and change into a text box where you can type <code>portal.eduai.co.ke</code>!</li>
+                                        <li>Set Server Path to <code>/zk</code> and tap <strong>Save</strong>.</li>
+                                    </ol>
+                                </div>
                             </div>
 
                             {/* Step 4 */}
