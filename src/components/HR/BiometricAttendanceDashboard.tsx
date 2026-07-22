@@ -544,8 +544,8 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const getStaffName = (staffId: string) => staff.find(s => s.id === staffId)?.name || 'Unknown';
 
     const webhookUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/api/zkteco-webhook?institutionId=${institution.id}`
-        : '';
+        ? `${window.location.origin}/zk`
+        : 'https://portal.eduai.co.ke/zk';
 
     const subTabs: { id: SubTab; label: string }[] = [
         { id: 'today', label: "Today's Roll Call" },
@@ -770,12 +770,22 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             {subTab === 'devices' && (
                 <div className="space-y-6">
                     {/* Webhook URL Info */}
-                    <div className="bg-indigo-50 dark:bg-indigo-950/20 p-6 rounded-3xl border border-indigo-100 dark:border-indigo-800">
-                        <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-2">Device Push URL (ADMS)</p>
-                        <p className="text-xs font-mono text-indigo-800 dark:text-indigo-300 bg-white dark:bg-slate-900 px-4 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 break-all select-all">
-                            {webhookUrl}
-                        </p>
-                        <p className="text-[10px] text-indigo-500 mt-2">Set this URL as the "Cloud Server" or "ADMS" address on your ZKTeco device settings.</p>
+                    <div className="bg-indigo-50 dark:bg-indigo-950/20 p-6 rounded-3xl border border-indigo-100 dark:border-indigo-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Ultra-Shortened ZKTeco ADMS Cloud Server URL</p>
+                            <span className="px-3 py-1 bg-emerald-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider">⚡ Easy Keypad Entry</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-800">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Shortest URL (Recommended for Keypad Entry)</p>
+                                <p className="text-sm font-mono text-emerald-600 dark:text-emerald-400 font-bold select-all">{webhookUrl}</p>
+                            </div>
+                            <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-800">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Alternative Short Path</p>
+                                <p className="text-sm font-mono text-sky-600 dark:text-sky-400 font-bold select-all">{typeof window !== 'undefined' ? `${window.location.origin}/adms` : 'https://portal.eduai.co.ke/adms'}</p>
+                            </div>
+                        </div>
+                        <p className="text-[10px] text-indigo-500 font-semibold">On your physical ZKTeco terminal screen: Menu ➔ Comm. ➔ Cloud Server / ADMS ➔ Set Server IP/Domain to <code>portal.eduai.co.ke</code>, Server Path to <code>/zk</code>, and Port to <code>80</code> (or <code>443</code>).</p>
                     </div>
 
                     <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
