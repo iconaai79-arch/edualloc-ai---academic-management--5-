@@ -112,7 +112,7 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
             if (selectedDev) {
                 // 📡 Physical ZKTeco / Dahua Device Enrollment Command
                 try {
-                    await fetch(`/api/zkteco-webhook?action=enroll&institutionId=${institutionId}&sn=${selectedDev.serialNumber}&pin=${assignedPin}&name=${encodeURIComponent(practitionerForm.name)}`, {
+                    await fetch(`/api/zkteco-webhook?action=enroll&institutionId=${institutionId}&SN=${selectedDev.serialNumber}&sn=${selectedDev.serialNumber}&pin=${assignedPin}&name=${encodeURIComponent(practitionerForm.name)}`, {
                         method: 'POST'
                     }).catch(() => null);
                 } catch (e) {
@@ -133,7 +133,7 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                     setPractitionerForm(f => ({ ...f, devicePin: assignedPin }));
                 }
 
-                alert(`📡 Remote ZKTeco Scan Triggered!\n\nTarget Device: ${selectedDev.deviceName} (${selectedDev.serialNumber})\nProtocol: ${(selectedDev.protocol || 'ADMS').toUpperCase()}\nAssigned Device PIN: ${assignedPin}\n\n👉 Ask ${practitionerForm.name || 'the practitioner'} to place their finger on the [${selectedDev.deviceName}] sensor 3 times to complete enrollment.`);
+                alert(`📡 Remote ZKTeco ADMS Command Queued!\n\nTarget Terminal: ${selectedDev.deviceName} (SN: ${selectedDev.serialNumber})\nAssigned Device PIN: ${assignedPin}\nCommand: C:1001:DATA ENROLL_FP PIN=${assignedPin}\n\n👉 HOW THE TERMINAL OPENS SENSOR:\n1. Ensure terminal ADMS Server URL is set to your server /api/zkteco-webhook\n2. The terminal receives the command on its next heartbeat (10-30s) or press 'Sync' on device\n3. Device screen will beep and open 'Place Finger 1/3'`);
             } else {
                 // 💻 Local USB / WebAuthn Sensor
                 let cred = null;

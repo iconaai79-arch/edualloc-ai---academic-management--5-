@@ -45,6 +45,10 @@ const PUNCH_TYPES: Record<number, string> = {
     5: 'overtime-end',
 };
 
+// In-memory queue for ZKTeco ADMS device commands
+const PENDING_COMMANDS = new Map<string, string[]>();
+let cmdCounter = 1000;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -57,14 +61,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const serialNumber = (req.query.SN || req.query.sn || '') as string;
     const institutionId = (req.query.institutionId || req.query.institution_id || '') as string;
+    const action = (req.query.action || '') as string;
+    const pin = (req.query.pin || '') as string;
+    const name = (req.query.name || '') as string;
 
-    console.log(`[ZKTeco] ${req.method} from SN=${serialNumber} inst=${institutionId}`);
+    console.log(`[ZKTeco] ${req.method} action=${action} from SN=${serialNumber} inst=${institutionId}`);
 
-    // ─── GET: Device polling for commands ───
+    // ─── ACTION = ENROLL (From Web Portal) ───
+    if (action === 'enroll') {
+        const cmdId = ++cmdCounter;
+        // Standard ADMS Enrollment Command format
+        const admsCmd = `C:${cmdId}:DATA ENROLL_FP PIN=${pin || '1001'} FingerID=0`;
+        const snKey = serialNumber || 'DEFAULT';
+        
+        const existing = PENDING_COMMANDS.get(snKey) || [];
+        existing.push(admsCmd);
+        PENDING_COMMANDS.set(snKey, existing);
+
+        console.log(`[ZKTeco] Queued enrollment command for SN=${snKey}: ${admsCmd}`);
+        return res.status(200).json({ 
+            success: true, 
+            command: admsCmd, 
+            sn: snKey,
+            pin: pin,
+            queuedAt: new Date().toISOString() 
+        });
+    }
+
+    // ─── GET: Device polling for commands (ADMS Protocol) ───
     if (req.method === 'GET') {
-        // The device polls /iclock/getrequest for pending server commands.
-        // We respond with OK (no commands) for now.
-        // Future: return commands like "DATA UPDATE USERINFO" to sync users to device.
+        const snKey = serialNumber || 'DEFAULT';
+        const pending = PENDING_COMMANDS.get(snKey);
+        
+        if (pending && pending.length > 0) {
+            const nextCmd = pending.shift();
+            console.log(`[ZKTeco] Delivering ADMS command to device SN=${snKey}: ${nextCmd}`);
+            return res.status(200).send(nextCmd);
+        }
+
         return res.status(200).send('OK');
     }
 
