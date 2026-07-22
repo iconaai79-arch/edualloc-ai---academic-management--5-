@@ -17,7 +17,7 @@ BEGIN
     END IF;
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 DROP TRIGGER IF EXISTS tr_update_alumni_post_comment_count ON public.alumni_comments;
 CREATE TRIGGER tr_update_alumni_post_comment_count

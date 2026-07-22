@@ -75,7 +75,7 @@ BEGIN
     WHERE id = NEW.invoice_id;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 DROP TRIGGER IF EXISTS trg_update_car_invoice_on_payment ON public.car_sales_payments;
 CREATE TRIGGER trg_update_car_invoice_on_payment
