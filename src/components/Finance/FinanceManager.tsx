@@ -3045,6 +3045,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 })));
             } else {
                 setDsFormItems([{ name: 'Tuition Fee', amount: 15000, priority: 1 }]);
+            }
+        }
+    };
+
     const renderFeeBalancesContent = () => (
         <div className="space-y-8 animate-in fade-in duration-300">
             {/* Filter Bar & Quick Stats */}
@@ -3391,6 +3395,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <p className="text-sm font-black text-slate-900 dark:text-white">
                                     {(activeTab as string) === 'settings' ? 'Settings Mode' : (activeTab as string) === 'payroll' ? 'HR & Payroll' : 'Education Mode'}
                                 </p>
+                            </div>
+                        </div>
                     </div>
                 )}
 
