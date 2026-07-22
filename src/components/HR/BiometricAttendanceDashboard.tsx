@@ -99,11 +99,33 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         } catch { setEnrollments([]); }
     };
 
+    const formatTimeString = (val?: string) => {
+        if (!val) return '—';
+        if (val.includes('AM') || val.includes('PM') || /^\d{1,2}:\d{2}$/.test(val)) return val;
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? val : d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    };
+
     const loadTodayAttendance = async () => {
         setLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<StaffAttendanceDaily>('staff_attendance_daily', institution.id);
-            const filtered = (data || []).filter(r => r.attendanceDate === selectedDate);
+            const data = await apiService.fetchModuleRecords<any>('staff_attendance_daily', institution.id);
+            const filtered = (data || []).filter(r => {
+                const dateVal = r.attendanceDate || r.attendance_date;
+                return dateVal === selectedDate;
+            }).map(r => ({
+                ...r,
+                staffId: r.staffId || r.staff_id,
+                attendanceDate: r.attendanceDate || r.attendance_date,
+                firstIn: r.firstIn || r.first_in,
+                lastOut: r.lastOut || r.last_out,
+                totalHours: r.totalHours ?? r.total_hours ?? 0,
+                overtimeHours: r.overtimeHours ?? r.overtime_hours ?? 0,
+                lateMinutes: r.lateMinutes ?? r.late_minutes ?? 0,
+                earlyLeaveMinutes: r.earlyLeaveMinutes ?? r.early_leave_minutes ?? 0,
+                punchCount: r.punchCount ?? r.punch_count ?? 1,
+                status: r.status || 'present'
+            }));
             setDailyRecords(filtered);
         } catch { setDailyRecords([]); }
         setLoading(false);
@@ -112,12 +134,24 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const loadMonthlyAttendance = async () => {
         setLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<StaffAttendanceDaily>('staff_attendance_daily', institution.id);
+            const data = await apiService.fetchModuleRecords<any>('staff_attendance_daily', institution.id);
             const [year, month] = selectedMonth.split('-');
             const filtered = (data || []).filter(r => {
-                const d = r.attendanceDate;
+                const d = r.attendanceDate || r.attendance_date || '';
                 return d.startsWith(`${year}-${month}`);
-            });
+            }).map(r => ({
+                ...r,
+                staffId: r.staffId || r.staff_id,
+                attendanceDate: r.attendanceDate || r.attendance_date,
+                firstIn: r.firstIn || r.first_in,
+                lastOut: r.lastOut || r.last_out,
+                totalHours: r.totalHours ?? r.total_hours ?? 0,
+                overtimeHours: r.overtimeHours ?? r.overtime_hours ?? 0,
+                lateMinutes: r.lateMinutes ?? r.late_minutes ?? 0,
+                earlyLeaveMinutes: r.earlyLeaveMinutes ?? r.early_leave_minutes ?? 0,
+                punchCount: r.punchCount ?? r.punch_count ?? 1,
+                status: r.status || 'present'
+            }));
             setMonthlyRecords(filtered);
         } catch { setMonthlyRecords([]); }
         setLoading(false);
@@ -198,33 +232,45 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         const staffName = staffMember ? staffMember.name : `Staff Member (PIN: ${targetEnr.devicePin})`;
 
         try {
-            const todayStr = new Date().toISOString().split('T')[0];
+            const nowISO = new Date().toISOString();
+            const todayStr = nowISO.split('T')[0];
             const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-            const testAttendanceRecord: StaffAttendanceDaily = {
+            const testAttendanceRecord: any = {
                 id: `att_test_${Date.now()}`,
+                institution_id: institution.id,
                 institutionId: institution.id,
+                staff_id: targetEnr.staffId,
                 staffId: targetEnr.staffId,
+                attendance_date: todayStr,
                 attendanceDate: todayStr,
-                firstIn: nowTimeStr,
-                lastOut: nowTimeStr,
+                first_in: nowISO,
+                firstIn: nowISO,
+                last_out: nowISO,
+                lastOut: nowISO,
+                total_hours: 8,
                 totalHours: 8,
+                overtime_hours: 0,
                 overtimeHours: 0,
                 status: 'present',
+                late_minutes: 0,
                 lateMinutes: 0,
+                early_leave_minutes: 0,
                 earlyLeaveMinutes: 0,
+                punch_count: 1,
                 punchCount: 1,
-                createdAt: new Date().toISOString()
+                created_at: nowISO,
+                createdAt: nowISO
             };
 
             await apiService.saveModuleRecord('staff_attendance_daily', testAttendanceRecord);
             setTestModalResult({
                 deviceName: dev.deviceName,
                 success: true,
-                message: `Simulated Biometric Punch Received!\n\nStaff: ${staffName}\nDevice User ID: ${targetEnr.devicePin}\nCheck-in Time: ${nowTimeStr}\nVerification: Fingerprint Verified`,
+                message: `Simulated Biometric Punch Received & Logged!\n\nStaff: ${staffName}\nDevice User ID: ${targetEnr.devicePin}\nCheck-in Time: ${nowTimeStr}\nStatus: Logged on Attendance Tracker`,
                 timestamp: new Date().toLocaleTimeString()
             });
-            loadTodayAttendance();
+            await loadTodayAttendance();
         } catch (err: any) {
             alert('Test punch simulation failed: ' + (err.message || err));
         }
@@ -419,10 +465,10 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                 </div>
                                             </td>
                                             <td className="px-4 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">
-                                                {rec.firstIn ? new Date(rec.firstIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                                                {formatTimeString(rec.firstIn)}
                                             </td>
                                             <td className="px-4 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">
-                                                {rec.lastOut ? new Date(rec.lastOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                                                {formatTimeString(rec.lastOut)}
                                             </td>
                                             <td className="px-4 py-4 text-center text-sm font-black text-slate-900 dark:text-white">{rec.totalHours || 0}h</td>
                                             <td className="px-4 py-4 text-center text-sm font-black text-emerald-600">{rec.overtimeHours > 0 ? `+${rec.overtimeHours}h` : '—'}</td>

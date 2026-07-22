@@ -748,7 +748,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             );
                             case 'broadcaster': return <HISBroadcasterView />;
                             case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} isEdu={isEdu} users={users} />;
-                            case 'config': return <HISConfigView demoStaff={demoData?.hisStaff} />;
+                            case 'config': return <HISConfigView institutionId={institutionId} users={users} demoStaff={demoData?.hisStaff} onStaffUpdated={fetchPatients} />;
                             case 'reports': return <HISReportsView activeRole={activeRole} institutionId={institutionId} patients={patients} users={users} />;
                             case 'attendance': return <StaffAttendanceView userName={userName} institutionId={institutionId} demoAttendance={demoData?.hisAttendance} />;
                             default: return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} onOpenTransferLetter={() => setIsTransferModalOpen(true)} />;
