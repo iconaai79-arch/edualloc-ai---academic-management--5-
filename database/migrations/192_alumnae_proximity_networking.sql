@@ -41,7 +41,7 @@ BEGIN
         RETURN dist;
     END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public, pg_temp;
 
 -- Add comment for documentation
 COMMENT ON COLUMN public.alumnae_members.is_location_enabled IS 'Privacy toggle for proximity-based networking features.';
