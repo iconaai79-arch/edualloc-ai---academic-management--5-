@@ -45,8 +45,9 @@ import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowsRightLeftIcon } from '../icons/ArrowsRightLeftIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { DownloadIcon } from '../icons/DownloadIcon';
-import { BuildingLibraryIcon } from '../icons/BuildingLibraryIcon';
 import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
+import { DevicePhoneMobileIcon } from '../icons/DevicePhoneMobileIcon';
 const HRManager = React.lazy(() => import('../HR/HRManager').then(m => ({ default: m.HRManager })));
 const StudentEnrollmentManager = React.lazy(() => import('../common/StudentEnrollmentManager').then(m => ({ default: m.StudentEnrollmentManager })));
 const CommunicationsManager = React.lazy(() => import('../CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
@@ -966,6 +967,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [balancesCurrentPage, setBalancesCurrentPage] = useState(1);
     const [balancesPerPage, setBalancesPerPage] = useState<number | 'All'>(15);
 
+    // Fee Reminders SMS Modal State
+    const [isFeeReminderModalOpen, setIsFeeReminderModalOpen] = useState(false);
+    const [reminderMinBalance, setReminderMinBalance] = useState<number>(1);
+    const [reminderMaxBalance, setReminderMaxBalance] = useState<string>('');
+    const [reminderClassFilter, setReminderClassFilter] = useState<string>('All');
+    const [reminderTemplate, setReminderTemplate] = useState<string>(
+        'Dear Parent, please be reminded that {student_name} (Adm: {adm_no}) has an outstanding fee balance of KSh {balance}. Kindly clear the balance via M-Pesa / Bank. Thank you, {school_name}.'
+    );
+    const [isSendingReminders, setIsSendingReminders] = useState(false);
+    const [reminderSendSuccess, setReminderSendSuccess] = useState<string | null>(null);
+
     // Reset pagination to page 1 whenever search, filters, or items per page change
     useEffect(() => {
         setBalancesCurrentPage(1);
@@ -1126,6 +1138,88 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const totalOutstandingAll = useMemo(() => {
         return studentFinanceData.reduce((sum, s) => sum + s.totals.balance, 0);
     }, [studentFinanceData]);
+
+    const reminderTargetStudents = useMemo(() => {
+        return studentFinanceData.filter(student => {
+            const bal = student.totals.balance;
+            if (bal < (reminderMinBalance || 0)) return false;
+            if (reminderMaxBalance !== '' && !isNaN(Number(reminderMaxBalance)) && bal > Number(reminderMaxBalance)) return false;
+            
+            const cls = student.className || studentClassGroup(student);
+            if (reminderClassFilter !== 'All' && cls !== reminderClassFilter) return false;
+
+            return true;
+        });
+    }, [studentFinanceData, reminderMinBalance, reminderMaxBalance, reminderClassFilter]);
+
+    const sampleReminderStudent = useMemo(() => {
+        return reminderTargetStudents[0] || {
+            name: 'John Kamau',
+            admissionNumber: 'ADM-2024-042',
+            className: 'Grade 8 North',
+            totals: { balance: 18500 }
+        };
+    }, [reminderTargetStudents]);
+
+    const previewSmsText = useMemo(() => {
+        const schoolName = props.institution.name || 'Our Institution';
+        return reminderTemplate
+            .replace(/\{student_name\}/g, sampleReminderStudent.name || 'Student Name')
+            .replace(/\{adm_no\}/g, sampleReminderStudent.admissionNumber || (sampleReminderStudent as any).admission_number || 'ADM-001')
+            .replace(/\{balance\}/g, (sampleReminderStudent.totals?.balance || 0).toLocaleString())
+            .replace(/\{class_name\}/g, sampleReminderStudent.className || 'Class')
+            .replace(/\{school_name\}/g, schoolName);
+    }, [reminderTemplate, sampleReminderStudent, props.institution.name]);
+
+    const handleSendFeeReminders = async () => {
+        if (reminderTargetStudents.length === 0) {
+            alert("No students match your selected fee balance filters.");
+            return;
+        }
+
+        setIsSendingReminders(true);
+        setReminderSendSuccess(null);
+
+        try {
+            const schoolName = props.institution.name || 'School';
+            const outboxMessages = reminderTargetStudents.map(student => {
+                const phone = student.phone || (student as any).parentPhone || student.metadata?.parentPhone || student.metadata?.phone || '';
+                const text = reminderTemplate
+                    .replace(/\{student_name\}/g, student.name || 'Student')
+                    .replace(/\{adm_no\}/g, student.admissionNumber || (student as any).admission_number || '—')
+                    .replace(/\{balance\}/g, (student.totals.balance || 0).toLocaleString())
+                    .replace(/\{class_name\}/g, student.className || 'Class')
+                    .replace(/\{school_name\}/g, schoolName);
+
+                return {
+                    id: `sms_rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                    institutionId: props.institution.id,
+                    recipientPhone: phone,
+                    recipientName: student.name,
+                    studentId: student.id,
+                    message: text,
+                    status: 'pending',
+                    type: 'fee_reminder',
+                    createdAt: new Date().toISOString()
+                };
+            });
+
+            await apiService.saveToSmsOutbox(outboxMessages).catch(async () => {
+                await apiService.saveModuleRecord('sms_outbox', outboxMessages);
+            });
+
+            if (props.onLogAction) {
+                props.onLogAction(`Dispatched ${outboxMessages.length} fee reminder SMS messages to parents.`);
+            }
+
+            setReminderSendSuccess(`Successfully queued ${outboxMessages.length} fee reminder SMS messages to Outbox!`);
+        } catch (e: any) {
+            console.error("Failed to send fee reminders:", e);
+            alert("Failed to queue SMS reminders. Please check connection.");
+        } finally {
+            setIsSendingReminders(false);
+        }
+    };
 
     const collectionRateAll = useMemo(() => {
         const totalInvoiced = studentFinanceData.reduce((sum, s) => sum + s.totals.invoiced, 0);
@@ -3069,8 +3163,36 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const renderFeeBalancesContent = () => (
         <div className="space-y-8 animate-in fade-in duration-300">
-            {/* Filter Bar & Quick Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm items-center">
+            {/* Header & Quick Action Banner */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                <div>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                        <BanknotesIcon className="w-6 h-6 text-indigo-600" />
+                        Fee Balances Registry
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Manage student balances, filter status, and dispatch SMS reminders to parents</p>
+                </div>
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <div className="bg-rose-50 dark:bg-rose-950/40 px-4 py-2.5 rounded-2xl text-left border border-rose-100 dark:border-rose-900/40">
+                        <p className="text-[8px] font-black text-rose-500 dark:text-rose-400 uppercase tracking-widest">Total Outstanding</p>
+                        <p className="text-sm font-black text-rose-600 dark:text-rose-400">KSh {totalOutstandingAll.toLocaleString()}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setReminderSendSuccess(null);
+                            setIsFeeReminderModalOpen(true);
+                        }}
+                        className="flex-1 md:flex-none py-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-95 cursor-pointer"
+                    >
+                        <PaperAirplaneIcon className="w-4 h-4" />
+                        <span>Send Fee Reminders</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Filter Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm items-center">
                 {/* Search Bar */}
                 <div className="lg:col-span-2 relative">
                     <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
@@ -3124,12 +3246,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <option value="lowest_balance">Sort: Lowest Balance</option>
                         <option value="name">Sort: Name (A-Z)</option>
                     </select>
-                </div>
-
-                {/* Summary Stat Pill */}
-                <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl text-left border border-slate-100 dark:border-slate-800/40">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Outstanding</p>
-                    <p className="text-sm font-black text-rose-600 dark:text-rose-450">KSh {totalOutstandingAll.toLocaleString()}</p>
                 </div>
             </div>
 
@@ -3338,6 +3454,179 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </button>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Fee Reminder SMS Modal */}
+            {isFeeReminderModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-3xl w-full p-6 md:p-8 space-y-6 text-left my-8">
+                        {/* Modal Header */}
+                        <div className="flex justify-between items-start pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-full border border-indigo-200 dark:border-indigo-800/40 mb-2">
+                                    <DevicePhoneMobileIcon className="w-3.5 h-3.5" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">SMS Broadcast Engine</span>
+                                </div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Send Fee Balance Reminders</h3>
+                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Configure target fee ranges and preview live parent SMS messages</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsFeeReminderModalOpen(false)}
+                                className="p-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {reminderSendSuccess && (
+                            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl flex items-center gap-3 text-emerald-800 dark:text-emerald-300 text-xs font-bold">
+                                <CheckBadgeIcon className="w-5 h-5 text-emerald-600 shrink-0" />
+                                <span>{reminderSendSuccess}</span>
+                            </div>
+                        )}
+
+                        {/* Filter Options: Fee Range & Class */}
+                        <div className="space-y-3">
+                            <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">1. Target Audience & Fee Range Filters</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/60">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Min Balance (KSh)</label>
+                                    <input
+                                        type="number"
+                                        value={reminderMinBalance}
+                                        onChange={(e) => setReminderMinBalance(Number(e.target.value))}
+                                        placeholder="Min balance"
+                                        className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Max Balance (Optional)</label>
+                                    <input
+                                        type="number"
+                                        value={reminderMaxBalance}
+                                        onChange={(e) => setReminderMaxBalance(e.target.value)}
+                                        placeholder="No max limit"
+                                        className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Class</label>
+                                    <select
+                                        value={reminderClassFilter}
+                                        onChange={(e) => setReminderClassFilter(e.target.value)}
+                                        className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                    >
+                                        <option value="All">All Classes</option>
+                                        {availableClassesForBalances.map(cls => (
+                                            <option key={cls} value={cls}>{cls}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between px-1">
+                                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                                    📢 Matching Target: {reminderTargetStudents.length} Students / Parents
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-400">
+                                    Filtered Outstanding: KSh {reminderTargetStudents.reduce((sum, s) => sum + s.totals.balance, 0).toLocaleString()}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* SMS Template Composition */}
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">2. SMS Message Template</h4>
+                                <span className="text-[10px] font-bold text-slate-400">Click chips to insert placeholder tags</span>
+                            </div>
+
+                            {/* Placeholders Badges */}
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { tag: '{student_name}', label: '+ Student Name' },
+                                    { tag: '{adm_no}', label: '+ Adm No' },
+                                    { tag: '{balance}', label: '+ Balance' },
+                                    { tag: '{class_name}', label: '+ Class' },
+                                    { tag: '{school_name}', label: '+ School Name' }
+                                ].map(chip => (
+                                    <button
+                                        key={chip.tag}
+                                        type="button"
+                                        onClick={() => setReminderTemplate(prev => prev + ' ' + chip.tag)}
+                                        className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-lg text-[10px] font-bold border border-indigo-200 dark:border-indigo-800/40 transition-all active:scale-95 cursor-pointer"
+                                    >
+                                        {chip.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <textarea
+                                rows={3}
+                                value={reminderTemplate}
+                                onChange={(e) => setReminderTemplate(e.target.value)}
+                                className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed"
+                            />
+                        </div>
+
+                        {/* Live Mobile SMS Preview */}
+                        <div className="space-y-3">
+                            <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">3. Live Parent SMS Preview</h4>
+                            <div className="bg-slate-950 rounded-3xl p-5 border border-slate-800 shadow-inner relative overflow-hidden">
+                                {/* Phone Header */}
+                                <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                                            {props.institution.name ? props.institution.name.substring(0, 12).toUpperCase() : 'SCHOOL'} (SMS)
+                                        </span>
+                                    </div>
+                                    <span className="text-[9px] font-bold text-slate-500">Sample: {sampleReminderStudent.name}</span>
+                                </div>
+
+                                {/* Message Bubble */}
+                                <div className="bg-indigo-600 text-white p-4 rounded-2xl rounded-tl-xs max-w-xl text-xs font-semibold leading-relaxed shadow-lg">
+                                    {previewSmsText}
+                                </div>
+
+                                {/* Footer metadata */}
+                                <div className="mt-3 flex justify-between items-center text-[10px] font-bold text-slate-500">
+                                    <span>Chars: {previewSmsText.length} | Est. {Math.ceil(previewSmsText.length / 160)} SMS Segment(s)</span>
+                                    <span>Preview with sample data</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer Action Buttons */}
+                        <div className="flex justify-end items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setIsFeeReminderModalOpen(false)}
+                                className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            >
+                                Close
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSendFeeReminders}
+                                disabled={isSendingReminders || reminderTargetStudents.length === 0}
+                                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20 active:scale-95 cursor-pointer"
+                            >
+                                {isSendingReminders ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        <span>Queuing SMS...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <PaperAirplaneIcon className="w-4 h-4" />
+                                        <span>Dispatch {reminderTargetStudents.length} SMS Reminders</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
