@@ -117,6 +117,7 @@ import { ExternalModuleView } from './ExternalModuleView';
 import { SchoolRegistryManager } from './superadmin/SchoolRegistryManager';
 import { PoliticalMetadataManager } from './superadmin/PoliticalMetadataManager';
 import { MedicalRegistryManager } from './superadmin/MedicalRegistryManager';
+import { GroupedInstitutionsManager } from './superadmin/GroupedInstitutionsManager';
 import { AddCarListingModal } from './modals/AddCarListingModal';
 import { CreateCarInvoiceModal } from './modals/CreateCarInvoiceModal';
 import { RecordCarPaymentModal } from './modals/RecordCarPaymentModal';
@@ -575,7 +576,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (view === 'showroom' || params.get('showroom')) return 'auto_marketplace';
         return 'dashboard';
     });
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile' | 'invoices' | 'constituencies'>('list');
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'grouped' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile' | 'invoices' | 'constituencies'>('list');
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry' | 'calendar' | 'timetable' | 'discipline' | 'insights' | 'reports'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
@@ -2248,6 +2249,12 @@ Please change it after login.`;
                                 Tenant Registry
                             </button>
                             <button
+                                onClick={() => setInstitutionsSubTab('grouped')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${institutionsSubTab === 'grouped' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Grouped Institutions
+                            </button>
+                            <button
                                 onClick={() => setInstitutionsSubTab('invoices')}
                                 className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${institutionsSubTab === 'invoices' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
                             >
@@ -2860,6 +2867,14 @@ Please change it after login.`;
                                     </table>
                                 </div>
                             </>
+                        )}
+
+                        {institutionsSubTab === 'grouped' && (
+                            <GroupedInstitutionsManager
+                                institutions={institutions}
+                                users={users}
+                                onRefreshData={onRefreshData}
+                            />
                         )}
 
                         {institutionsSubTab === 'counties' && (

@@ -127,11 +127,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [selectedDsInvoice, setSelectedDsInvoice] = useState<any | null>(null);
     const [isRecordingDsPayment, setIsRecordingDsPayment] = useState(false);
 
+    // Branch filtering states for multi-branch/multi-institution support
+    const [branches, setBranches] = useState<any[]>([]);
+    const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL');
+
+    useEffect(() => {
+        if (props.institution?.id) {
+            apiService.fetchModuleRecords('branches', props.institution.id)
+                .then((list: any[]) => {
+                    setBranches(list || []);
+                })
+                .catch(() => {});
+        }
+    }, [props.institution?.id]);
+
     // Translate DS structures to standard Dashboard Invoice models dynamically
     const mappedInvoices = useMemo(() => {
         const baseInvoices = (props.invoices || []).filter((inv: any) => {
             const invNo = inv.invoiceNumber || inv.invoice_number;
-            return !invNo?.startsWith('REMEDIAL-');
+            const branchMatches = selectedBranchId === 'ALL' || (inv.branchId || inv.branch_id) === selectedBranchId;
+            return !invNo?.startsWith('REMEDIAL-') && branchMatches;
         });
         if (!isDrivingSchool) return baseInvoices;
         return dsInvoices.map((dsInv: any) => ({
@@ -151,18 +166,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             status: dsInv.status === 'Fully Paid' ? 'paid' as const : 'pending' as const,
             studentId: dsInv.studentId
         }));
-    }, [props.invoices, dsInvoices, isDrivingSchool]);
+    }, [props.invoices, dsInvoices, isDrivingSchool, selectedBranchId]);
 
     // Translate DS payments to standard Dashboard Receipt models dynamically
     const mappedReceipts = useMemo(() => {
         const baseReceipts = (props.receipts || []).filter((r: any) => {
             const invId = r.invoiceId || r.invoice_id;
+            const branchMatches = selectedBranchId === 'ALL' || (r.branchId || r.branch_id) === selectedBranchId;
             if (invId) {
                 const targetInvoice = props.invoices.find((i: any) => i.id === invId);
                 const invNo = (targetInvoice as any)?.invoiceNumber || (targetInvoice as any)?.invoice_number;
                 if (invNo?.startsWith('REMEDIAL-')) return false;
             }
-            return true;
+            return branchMatches;
         });
         if (!isDrivingSchool) return baseReceipts;
         return dsPayments.map((dsPay: any) => ({
@@ -177,7 +193,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             invoiceId: dsPay.invoiceId,
             studentId: dsPay.studentId
         }));
-    }, [props.receipts, dsPayments, isDrivingSchool]);
+    }, [props.receipts, dsPayments, isDrivingSchool, props.invoices, selectedBranchId]);
 
     // Reports sub-tab states
     const [stmtStudentId, setStmtStudentId] = useState('');
@@ -946,7 +962,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [searchBalances, setSearchBalances] = useState('');
 
     const studentFinanceData = useMemo(() => {
-        return props.students.map(s => {
+        const filteredStudents = props.students.filter(s => 
+            selectedBranchId === 'ALL' || (s.branchId || s.branch_id) === selectedBranchId
+        );
+        return filteredStudents.map(s => {
             const enrollment = enrollments.find(e => e.userId === s.id);
             const adm = enrollment?.admissionNumber || s.admissionNumber || s.admission_number || '—';
             const cls = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || studentClassGroup(s);
@@ -992,7 +1011,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             };
         });
-    }, [props.students, mappedInvoices, mappedReceipts, enrollments, openingBalancesMap]);
+    }, [props.students, mappedInvoices, mappedReceipts, enrollments, openingBalancesMap, selectedBranchId]);
 
     const filteredOpeningBalanceStudents = useMemo(() => {
         return studentFinanceData.filter(student => {
@@ -1612,34 +1631,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         
         const amountPaidNum = Number(manualPayAmount);
         
-        const studentInvoices = props.invoices.filter((inv: any) => 
-            inv.studentId === manualPayStudentId && 
-            inv.status !== 'cancelled' && 
-            inv.status !== 'quote'
-        );
-        
-        const invoicePaidAmounts: Record<string, number> = {};
-        (props.receipts || []).forEach((rec: any) => {
-            const invId = rec.invoiceId || rec.invoice_id;
-            if (invId) {
-                invoicePaidAmounts[invId] = (invoicePaidAmounts[invId] || 0) + Number(rec.amountPaid || 0);
-            }
-        });
-        
-        const unpaidInvoices = studentInvoices.filter((inv: any) => {
-            const paid = invoicePaidAmounts[inv.id] || 0;
-            return paid < inv.totalAmount;
-        });
-        
-        const sortedInvoices = [...unpaidInvoices].sort((a: any, b: any) => {
-            if (manualPayInvoiceId) {
-                if (a.id === manualPayInvoiceId) return -1;
-                if (b.id === manualPayInvoiceId) return 1;
-            }
-            const dateA = new Date(a.issueDate || a.issue_date || 0).getTime();
-            const dateB = new Date(b.issueDate || b.issue_date || 0).getTime();
-            return dateA - dateB;
-        });
+        const selectedInvoice = studentPendingInvoices.find(inv => inv.id === manualPayInvoiceId);
+        const isTargetingOpeningBalance = selectedInvoice?.isOpeningBalance || manualPayInvoiceId?.startsWith('__opening_balance__');
         
         let remainingAmount = amountPaidNum;
         const allocations: Array<{
@@ -1647,43 +1640,86 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             description: string;
             amount: number;
         }> = [];
-        
-        for (const inv of sortedInvoices) {
-            if (remainingAmount <= 0) break;
-            
-            let items: any[] = [];
-            if (typeof inv.items === 'string') {
-                try { items = JSON.parse(inv.items); } catch(e) {}
-            } else if (Array.isArray(inv.items)) {
-                items = inv.items;
+
+        if (isTargetingOpeningBalance && selectedInvoice) {
+            const allocatedToOpening = Math.min(remainingAmount, selectedInvoice.totalAmount);
+            if (allocatedToOpening > 0) {
+                allocations.push({
+                    invoiceNumber: 'Opening Balance',
+                    description: 'Brought Forward Opening Balance (Arrears)',
+                    amount: allocatedToOpening
+                });
+                remainingAmount -= allocatedToOpening;
             }
+        }
+
+        if (remainingAmount > 0) {
+            const studentInvoices = props.invoices.filter((inv: any) => 
+                inv.studentId === manualPayStudentId && 
+                inv.status !== 'cancelled' && 
+                inv.status !== 'quote'
+            );
             
-            const sortedItems = [...items].sort((a: any, b: any) => {
-                const prioA = a.priority !== undefined ? Number(a.priority) : 99;
-                const prioB = b.priority !== undefined ? Number(b.priority) : 99;
-                return prioA - prioB;
+            const invoicePaidAmounts: Record<string, number> = {};
+            (props.receipts || []).forEach((rec: any) => {
+                const invId = rec.invoiceId || rec.invoice_id;
+                if (invId) {
+                    invoicePaidAmounts[invId] = (invoicePaidAmounts[invId] || 0) + Number(rec.amountPaid || 0);
+                }
             });
             
-            for (const item of sortedItems) {
+            const unpaidInvoices = studentInvoices.filter((inv: any) => {
+                const paid = invoicePaidAmounts[inv.id] || 0;
+                return paid < inv.totalAmount;
+            });
+            
+            const sortedInvoices = [...unpaidInvoices].sort((a: any, b: any) => {
+                if (manualPayInvoiceId && !isTargetingOpeningBalance) {
+                    if (a.id === manualPayInvoiceId) return -1;
+                    if (b.id === manualPayInvoiceId) return 1;
+                }
+                const dateA = new Date(a.issueDate || a.issue_date || 0).getTime();
+                const dateB = new Date(b.issueDate || b.issue_date || 0).getTime();
+                return dateA - dateB;
+            });
+            
+            for (const inv of sortedInvoices) {
                 if (remainingAmount <= 0) break;
                 
-                const itemTotal = Number(item.amount || item.unitPrice || 0);
-                const itemPaid = Number(item.paid || 0);
-                const itemRemaining = Math.max(0, itemTotal - itemPaid);
+                let items: any[] = [];
+                if (typeof inv.items === 'string') {
+                    try { items = JSON.parse(inv.items); } catch(e) {}
+                } else if (Array.isArray(inv.items)) {
+                    items = inv.items;
+                }
                 
-                if (itemRemaining > 0) {
-                    const allocated = Math.min(remainingAmount, itemRemaining);
-                    remainingAmount -= allocated;
+                const sortedItems = [...items].sort((a: any, b: any) => {
+                    const prioA = a.priority !== undefined ? Number(a.priority) : 99;
+                    const prioB = b.priority !== undefined ? Number(b.priority) : 99;
+                    return prioA - prioB;
+                });
+                
+                for (const item of sortedItems) {
+                    if (remainingAmount <= 0) break;
                     
-                    allocations.push({
-                        invoiceNumber: inv.invoiceNumber || (inv as any).invoice_number || 'INV',
-                        description: item.description,
-                        amount: allocated
-                    });
+                    const itemTotal = Number(item.amount || item.unitPrice || 0);
+                    const itemPaid = Number(item.paid || 0);
+                    const itemRemaining = Math.max(0, itemTotal - itemPaid);
+                    
+                    if (itemRemaining > 0) {
+                        const allocated = Math.min(remainingAmount, itemRemaining);
+                        remainingAmount -= allocated;
+                        
+                        allocations.push({
+                            invoiceNumber: inv.invoiceNumber || (inv as any).invoice_number || 'INV',
+                            description: item.description || 'Fee Item',
+                            amount: allocated
+                        });
+                    }
                 }
             }
         }
-        
+
         if (remainingAmount > 0) {
             allocations.push({
                 invoiceNumber: 'Prepayment',
@@ -1693,7 +1729,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
         
         return allocations;
-    }, [manualPayStudentId, manualPayInvoiceId, manualPayAmount, props.invoices, props.receipts]);
+    }, [manualPayStudentId, manualPayInvoiceId, manualPayAmount, props.invoices, props.receipts, studentPendingInvoices]);
 
     useEffect(() => {
         if (!showPostModal) {
@@ -3085,6 +3121,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             )}
                         </div>
+                        {/* Branch Selector Dropdown */}
+                        {(props.currentUser?.role === 'super_admin' || props.currentUser?.role === 'group_admin') && branches.length > 0 && (
+                            <div className="flex items-center gap-2 px-4 border-l border-slate-100 dark:border-slate-800">
+                                <select
+                                    value={selectedBranchId}
+                                    onChange={(e) => setSelectedBranchId(e.target.value)}
+                                    className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/50 text-slate-700 dark:text-slate-200 text-[11px] font-black uppercase tracking-widest px-3 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                                >
+                                    <option value="ALL">All Branches</option>
+                                    {branches.map((b: any) => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
                         <div className="hidden md:flex items-center gap-4 px-6 border-l border-slate-100 dark:border-slate-800">
                             <div className="text-right">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">

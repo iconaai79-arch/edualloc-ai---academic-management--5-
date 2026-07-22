@@ -64,6 +64,12 @@ export const initSupabaseClient = (url?: string, key?: string) => {
 
 initSupabaseClient();
 
+// Module-level session user cache so branch auto-attach works without a React context
+let _sessionUser: { branchId?: string; branch_id?: string; role?: string } | null = null;
+export const setSessionUser = (user: { branchId?: string; branch_id?: string; role?: string } | null) => {
+    _sessionUser = user;
+};
+
 const PROTECTED_KEYS = new Set([
     'coopConfig', 'coopSettings', 'coop_settings',
     'mpesaConfig', 'mpesa_config',
@@ -1306,6 +1312,14 @@ export const apiService = {
             }
         }
 
+        const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
+        if (tablesWithBranchId.includes(module) && module !== 'branches') {
+            const bId = _sessionUser?.branchId || _sessionUser?.branch_id;
+            if (bId && !(data as any).branch_id && !(data as any).branchId) {
+                (data as any).branchId = bId;
+            }
+        }
+
         let payload = apiService.sanitizePayload(module, toSnakeCase(data));
 
         if (!_supabase) {
@@ -1396,6 +1410,18 @@ export const apiService = {
         // For "Retry All", we'll delete each as it succeeds.
     },
     async saveModuleRecords<T = any>(module: string, data: T[]): Promise<T[] | null> {
+        const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
+        if (tablesWithBranchId.includes(module) && module !== 'branches') {
+            const bId = _sessionUser?.branchId || _sessionUser?.branch_id;
+            if (bId) {
+                data.forEach((item: any) => {
+                    if (item && !item.branch_id && !item.branchId) {
+                        (item as any).branchId = bId;
+                    }
+                });
+            }
+        }
+
         let payload = apiService.sanitizePayload(module, data.map(toSnakeCase));
 
         if (!_supabase) {

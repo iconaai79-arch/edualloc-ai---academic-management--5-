@@ -10,7 +10,9 @@ const STORE_NAMES = [
     'book_reservations', 'book_stock_receipts', 'student_enrollments',
     // Security module stores
     'visitors', 'watchlist_records', 'security_alerts', 'event_pins',
-    'institution_events', 'building_visitor_logs', 'building_visitor_assets'
+    'institution_events', 'building_visitor_logs', 'building_visitor_assets',
+    // Finance module stores
+    'invoices', 'vote_heads', 'fee_structures', 'financial_periods', 'bank_accounts', 'branches', 'branch_integration_configs', 'inter_bank_transfers', 'vote_head_transfers'
 ];
 
 class LocalDb {

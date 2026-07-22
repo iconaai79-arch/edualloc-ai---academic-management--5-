@@ -103,7 +103,7 @@ const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m =
 
 
 
-import { apiService, initSupabaseClient } from '../services/apiService';
+import { apiService, initSupabaseClient, setSessionUser } from '../services/apiService';
 import { BuildingSecurityManager } from './BuildingSecurityManager';
 import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
@@ -202,6 +202,14 @@ export const App: React.FC = () => {
         }
     });
 
+    // Sync currentUser to the apiService module-level cache for branch auto-attach
+    useEffect(() => {
+        if (currentUser) {
+            setSessionUser({ branchId: (currentUser as any).branchId, branch_id: (currentUser as any).branch_id, role: currentUser.role as string });
+        } else {
+            setSessionUser(null);
+        }
+    }, [currentUser]);
 
     const [impersonatedRole, setImpersonatedRole] = useState<Role | null>(null);
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);

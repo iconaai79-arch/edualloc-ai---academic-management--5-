@@ -205,7 +205,36 @@ class SyncEngine {
                 apiService.fetchModuleRecords('building_visitor_assets').catch(() => []),
             ]);
 
-            update(80);
+            update(75);
+
+            // ── BATCH 4: Finance module tables ───────────────────────────────
+            const [
+                invoices,
+                receipts,
+                voteHeads,
+                feeStructures,
+                financialPeriods,
+                bankAccounts,
+                branches,
+                branchIntegrationConfigs,
+                interBankTransfers,
+                voteHeadTransfers,
+                transactions,
+            ] = await Promise.all([
+                apiService.fetchModuleRecords('invoices', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('receipts', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('vote_heads', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('fee_structures', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('financial_periods', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('bank_accounts', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('branches', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('branch_integration_configs').catch(() => []),
+                apiService.fetchModuleRecords('inter_bank_transfers', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('vote_head_transfers', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('transactions', tenantId).catch(() => []),
+            ]);
+
+            update(90);
 
             // ── Write everything to IndexedDB + localStorage ──────────────────
             await Promise.all([
@@ -246,6 +275,18 @@ class SyncEngine {
                 cacheTable('institution_events', institutionEvents),
                 cacheTable('building_visitor_logs', buildingVisitorLogs),
                 cacheTable('building_visitor_assets', buildingVisitorAssets),
+                // Finance
+                cacheTable('invoices', invoices),
+                cacheTable('receipts', receipts),
+                cacheTable('vote_heads', voteHeads),
+                cacheTable('fee_structures', feeStructures),
+                cacheTable('financial_periods', financialPeriods),
+                cacheTable('bank_accounts', bankAccounts),
+                cacheTable('branches', branches),
+                cacheTable('branch_integration_configs', branchIntegrationConfigs),
+                cacheTable('inter_bank_transfers', interBankTransfers),
+                cacheTable('vote_head_transfers', voteHeadTransfers),
+                cacheTable('transactions', transactions),
             ]);
 
             update(100);

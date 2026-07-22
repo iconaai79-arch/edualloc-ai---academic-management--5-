@@ -28,11 +28,11 @@ async function getAuthUser(supabase: any, authHeader?: string) {
       if (data?.user) {
         // Support BOTH raw UUID and 'u_' prefixed UUID (matches DB RLS logic)
         const { data: profile } = await supabase.from('users')
-          .select('id, institution_id, role')
+          .select('id, institution_id, role, branch_id')
           .or(`id.eq.${data.user.id},id.eq.u_${data.user.id}`)
           .single();
         
-        if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role };
+        if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role, branchId: profile.branch_id };
         
         // Fallback for Super Admin bootstrap (matching DB RLS behavior)
         if (data.user.email === 'super@app.com') {
@@ -186,6 +186,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
+            const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
+            const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+            
+            if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
+                if (moduleName === 'branches') {
+                    q = q.eq('id', user.branchId);
+                } else {
+                    q = q.eq('branch_id', user.branchId);
+                }
+            }
+
             if (getStrParam(id)) q = q.eq('id', getStrParam(id));
             if (getStrParam(queryInstitutionId) && !isTableWithoutInstitutionId(moduleName)) q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', getStrParam(queryInstitutionId));
             if (getStrParam(queryCountyId)) q = q.eq('county_id', getStrParam(queryCountyId));
@@ -279,7 +290,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ? recordData.map(r => ({ ...r, ...(skipTenancy ? {} : { institution_id: r.institution_id || r.institutionId || user?.institutionId }) }))
                 : { ...recordData, ...(skipTenancy ? {} : { institution_id: recordData.institution_id || recordData.institutionId || user?.institutionId }) };
 
-            const { data, error } = await supabase.from(moduleName).upsert(recordWithTenancy).select();
+            const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
+            const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+            
+            const appendBranch = (r: any) => {
+                if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName) && moduleName !== 'branches') {
+                    return {
+                        ...r,
+                        branch_id: r.branch_id || r.branchId || user.branchId
+                    };
+                }
+                return r;
+            };
+
+            const recordWithBranch = Array.isArray(recordWithTenancy)
+                ? recordWithTenancy.map(appendBranch)
+                : appendBranch(recordWithTenancy);
+
+            const { data, error } = await supabase.from(moduleName).upsert(recordWithBranch).select();
             if (moduleName === 'ds_settings') {
                 console.log(`[API POST DEBUG] ds_settings upsert:`, { success: !error, count: data?.length, error, payload: JSON.stringify(recordWithTenancy) });
             }
@@ -354,13 +382,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         q = q.eq(instCol, instId);
                     } else {
                         console.warn(`[API PATCH DEBUG] Authorization warning: User has no institutionId. Skipping tenancy filter.`);
-                        // If we skip the filter, the service role bypass will allow the update on ANY ID.
-                        // This is a security risk if the user is malicious, but here we are debugging.
-                        // For safety, let's deny if not public and no instId.
                         if (user?.role !== 'super_admin') {
                              return res.status(401).json({ success: false, error: 'Unauthorized: Academic institution identity required.' });
                         }
                     }
+                }
+
+                const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
+                const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+                if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
+                    q = q.eq(moduleName === 'branches' ? 'id' : 'branch_id', user.branchId);
                 }
 
                 const { data, error } = await q.select();
@@ -420,6 +451,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Security: Only allow deleting records within own institution
             if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
                 q = q.eq('institution_id', user?.institutionId);
+            }
+
+            const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
+            const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+            if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
+                q = q.eq(moduleName === 'branches' ? 'id' : 'branch_id', user.branchId);
             }
 
             const { error } = await q;
