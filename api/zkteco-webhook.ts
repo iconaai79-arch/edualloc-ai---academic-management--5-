@@ -71,20 +71,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ─── ACTION = ENROLL (From Web Portal) ───
     if (action === 'enroll') {
         const cmdId = ++cmdCounter;
-        // Standard ADMS Enrollment Command format with custom FingerID (0-9)
-        const admsCmd = `C:${cmdId}:DATA ENROLL_FP PIN=${pin || '1001'} FingerID=${fingerIndex}`;
+        const targetPin = pin || '1001';
+        const targetFinger = fingerIndex || '0';
+        
+        // Multi-firmware ADMS commands for maximum ZKTeco model compatibility (F18, MB20, SpeedFace, K40, etc.)
+        const cmd1 = `C:${cmdId}:DATA ENROLL_FP PIN=${targetPin} FingerID=${targetFinger}`;
+        const cmd2 = `C:${cmdId + 1}:ENROLL_FP PIN=${targetPin} FingerID=${targetFinger}`;
+
         const snKey = serialNumber || 'DEFAULT';
         
         const existing = PENDING_COMMANDS.get(snKey) || [];
-        existing.push(admsCmd);
+        existing.push(cmd1, cmd2);
         PENDING_COMMANDS.set(snKey, existing);
 
-        console.log(`[ZKTeco] Queued enrollment command for SN=${snKey}: ${admsCmd}`);
+        // Fallback for ANY connected terminal polling without explicit SN match
+        if (snKey !== 'DEFAULT') {
+            const defExisting = PENDING_COMMANDS.get('DEFAULT') || [];
+            defExisting.push(cmd1, cmd2);
+            PENDING_COMMANDS.set('DEFAULT', defExisting);
+        }
+
+        console.log(`[ZKTeco] Queued enrollment commands for SN=${snKey}: ${cmd1}`);
         return res.status(200).json({ 
             success: true, 
-            command: admsCmd, 
+            commands: [cmd1, cmd2], 
             sn: snKey,
-            pin: pin,
+            pin: targetPin,
+            fingerIndex: targetFinger,
             queuedAt: new Date().toISOString() 
         });
     }
@@ -92,11 +105,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ─── GET: Device polling for commands (ADMS Protocol) ───
     if (req.method === 'GET') {
         const snKey = serialNumber || 'DEFAULT';
-        const pending = PENDING_COMMANDS.get(snKey);
+        let pending = PENDING_COMMANDS.get(snKey);
         
+        if ((!pending || pending.length === 0) && snKey !== 'DEFAULT') {
+            pending = PENDING_COMMANDS.get('DEFAULT');
+        }
+
         if (pending && pending.length > 0) {
             const nextCmd = pending.shift();
-            console.log(`[ZKTeco] Delivering ADMS command to device SN=${snKey}: ${nextCmd}`);
+            console.log(`[ZKTeco] Delivering ADMS command to device (SN=${snKey}): ${nextCmd}`);
             return res.status(200).send(nextCmd);
         }
 
