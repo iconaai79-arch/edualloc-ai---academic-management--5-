@@ -960,6 +960,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // State for students balances registry sub-tab
     const [studentSubTab, setStudentSubTab] = useState<'registry' | 'balances'>('registry');
     const [searchBalances, setSearchBalances] = useState('');
+    const [balanceClassFilter, setBalanceClassFilter] = useState('All');
+    const [balanceStatusFilter, setBalanceStatusFilter] = useState('All');
+    const [balanceSortOption, setBalanceSortOption] = useState<'latest' | 'highest_balance' | 'lowest_balance' | 'name'>('latest');
 
     const studentFinanceData = useMemo(() => {
         const filteredStudents = props.students.filter(s => 
@@ -995,12 +998,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const netBalance = totalInvoiced - paid;
             const balance = Math.max(0, netBalance);
             const prepayment = Math.max(0, -netBalance);
+
+            // Compute last updated timestamp
+            let lastUpdatedTime = 0;
+            if ((s as any).updated_at || (s as any).updatedAt) {
+                lastUpdatedTime = new Date((s as any).updated_at || (s as any).updatedAt).getTime() || 0;
+            }
+            if ((s as any).created_at || (s as any).createdAt) {
+                const cTime = new Date((s as any).created_at || (s as any).createdAt).getTime() || 0;
+                if (cTime > lastUpdatedTime) lastUpdatedTime = cTime;
+            }
+            studentInvoices.forEach(inv => {
+                const invTime = new Date((inv as any).issueDate || inv.createdAt || (inv as any).created_at || 0).getTime();
+                if (invTime > lastUpdatedTime) lastUpdatedTime = invTime;
+            });
+            studentReceipts.forEach(rec => {
+                const recTime = new Date((rec as any).paymentDate || (rec as any).payment_date || rec.createdAt || (rec as any).created_at || 0).getTime();
+                if (recTime > lastUpdatedTime) lastUpdatedTime = recTime;
+            });
             
             return {
                 ...s,
                 admissionNumber: adm,
                 className: cls,
                 openingBalance: openingBal,
+                lastUpdatedTime,
                 totals: {
                     openingBalance: openingBal,
                     invoicedWithoutOpening,
@@ -1012,6 +1034,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             };
         });
     }, [props.students, mappedInvoices, mappedReceipts, enrollments, openingBalancesMap, selectedBranchId]);
+
+    const availableClassesForBalances = useMemo(() => {
+        const classesSet = new Set<string>();
+        studentFinanceData.forEach(s => {
+            const cls = s.className || studentClassGroup(s);
+            if (cls) classesSet.add(cls);
+        });
+        return Array.from(classesSet).sort();
+    }, [studentFinanceData]);
 
     const filteredOpeningBalanceStudents = useMemo(() => {
         return studentFinanceData.filter(student => {
@@ -1026,16 +1057,43 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [studentFinanceData, openingBalanceSearch, openingBalanceClassFilter]);
 
     const filteredFinanceStudents = useMemo(() => {
-        return studentFinanceData.filter(s => {
-            if (!searchBalances) return true;
-            const searchLower = searchBalances.toLowerCase();
-            return (
-                s.name?.toLowerCase().includes(searchLower) ||
-                s.admissionNumber?.toLowerCase().includes(searchLower) ||
-                s.admission_number?.toLowerCase().includes(searchLower)
+        const list = studentFinanceData.filter(s => {
+            const matchesSearch = !searchBalances || (
+                s.name?.toLowerCase().includes(searchBalances.toLowerCase()) ||
+                s.admissionNumber?.toLowerCase().includes(searchBalances.toLowerCase()) ||
+                s.admission_number?.toLowerCase().includes(searchBalances.toLowerCase())
             );
+
+            const cls = s.className || studentClassGroup(s);
+            const matchesClass = balanceClassFilter === 'All' || cls === balanceClassFilter;
+
+            let matchesStatus = true;
+            if (balanceStatusFilter === 'has_balance') {
+                matchesStatus = s.totals.balance > 0;
+            } else if (balanceStatusFilter === 'fully_paid') {
+                matchesStatus = s.totals.balance <= 0 && s.totals.prepayment <= 0;
+            } else if (balanceStatusFilter === 'prepaid') {
+                matchesStatus = s.totals.prepayment > 0;
+            } else if (balanceStatusFilter === 'no_payment') {
+                matchesStatus = s.totals.paid <= 0 && s.totals.invoiced > 0;
+            }
+
+            return matchesSearch && matchesClass && matchesStatus;
         });
-    }, [studentFinanceData, searchBalances]);
+
+        return list.sort((a, b) => {
+            if (balanceSortOption === 'latest') {
+                return (b.lastUpdatedTime || 0) - (a.lastUpdatedTime || 0);
+            } else if (balanceSortOption === 'highest_balance') {
+                return b.totals.balance - a.totals.balance;
+            } else if (balanceSortOption === 'lowest_balance') {
+                return a.totals.balance - b.totals.balance;
+            } else if (balanceSortOption === 'name') {
+                return (a.name || '').localeCompare(b.name || '');
+            }
+            return (b.lastUpdatedTime || 0) - (a.lastUpdatedTime || 0);
+        });
+    }, [studentFinanceData, searchBalances, balanceClassFilter, balanceStatusFilter, balanceSortOption]);
 
     const groupedStudents = useMemo(() => {
         const groups: Record<string, typeof filteredFinanceStudents> = {};
@@ -3150,6 +3208,198 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
+                const renderFeeBalancesContent = () => (
+                    <div className="space-y-8 animate-in fade-in duration-300">
+                        {/* Filter Bar & Quick Stats */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm items-center">
+                            {/* Search Bar */}
+                            <div className="lg:col-span-2 relative">
+                                <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search student by name or admission number..."
+                                    value={searchBalances}
+                                    onChange={(e) => setSearchBalances(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-900 dark:text-white"
+                                />
+                            </div>
+
+                            {/* Class Filter */}
+                            <div>
+                                <select
+                                    value={balanceClassFilter}
+                                    onChange={(e) => setBalanceClassFilter(e.target.value)}
+                                    className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
+                                >
+                                    <option value="All">All Classes</option>
+                                    {availableClassesForBalances.map(cls => (
+                                        <option key={cls} value={cls}>{cls}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Status Filter */}
+                            <div>
+                                <select
+                                    value={balanceStatusFilter}
+                                    onChange={(e) => setBalanceStatusFilter(e.target.value)}
+                                    className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
+                                >
+                                    <option value="All">All Statuses</option>
+                                    <option value="has_balance">Has Balance (Owing)</option>
+                                    <option value="fully_paid">Fully Paid</option>
+                                    <option value="prepaid">Prepaid / Credit</option>
+                                    <option value="no_payment">No Payment Made</option>
+                                </select>
+                            </div>
+
+                            {/* Sort Option */}
+                            <div>
+                                <select
+                                    value={balanceSortOption}
+                                    onChange={(e) => setBalanceSortOption(e.target.value as any)}
+                                    className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
+                                >
+                                    <option value="latest">Sort: Latest Updated</option>
+                                    <option value="highest_balance">Sort: Highest Balance</option>
+                                    <option value="lowest_balance">Sort: Lowest Balance</option>
+                                    <option value="name">Sort: Name (A-Z)</option>
+                                </select>
+                            </div>
+
+                            {/* Summary Stat Pill */}
+                            <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl text-left border border-slate-100 dark:border-slate-800/40">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Outstanding</p>
+                                <p className="text-sm font-black text-rose-600 dark:text-rose-450">KSh {totalOutstandingAll.toLocaleString()}</p>
+                            </div>
+                        </div>
+
+                        {/* Vertically Grouped Students per Class */}
+                        <div className="space-y-8 text-left">
+                            {Object.keys(groupedStudents).length === 0 ? (
+                                <div className="p-8 text-center text-slate-400 font-medium bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-[2rem]">
+                                    No students found matching your criteria.
+                                </div>
+                            ) : (
+                                Object.entries(groupedStudents).map(([className, classData]) => {
+                                    const totalInvoiced = classData.reduce((acc, s) => acc + s.totals.invoiced, 0);
+                                    const totalPaid = classData.reduce((acc, s) => acc + s.totals.paid, 0);
+                                    const totalBal = classData.reduce((acc, s) => acc + s.totals.balance, 0);
+                                    
+                                    return (
+                                        <div key={className} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden animate-in fade-in duration-300">
+                                            {/* Class Header Banner */}
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 dark:border-slate-800">
+                                                <div>
+                                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{className}</h3>
+                                                    <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">{classData.length} Students enrolled</p>
+                                                </div>
+                                                <div className="flex gap-6">
+                                                    <div>
+                                                        <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Invoiced</span>
+                                                        <span className="text-xs font-black text-slate-700 dark:text-slate-300">KSh {totalInvoiced.toLocaleString()}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Paid</span>
+                                                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-450">KSh {totalPaid.toLocaleString()}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Outstanding</span>
+                                                        <span className="text-xs font-black text-rose-600 dark:text-rose-400">KSh {totalBal.toLocaleString()}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Students List inside class */}
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full border-collapse">
+                                                    <thead>
+                                                        <tr className="border-b border-slate-50 dark:border-slate-800/60">
+                                                            <th className="px-8 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
+                                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Last Updated</th>
+                                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoiced</th>
+                                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid</th>
+                                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Balance</th>
+                                                            <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                                            <th className="px-8 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/30">
+                                                        {classData.map(student => (
+                                                            <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                                                                <td className="px-8 py-4 text-left">
+                                                                    <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-left">
+                                                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{student.admissionNumber || student.admission_number || '—'}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-left">
+                                                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                                                        {student.lastUpdatedTime > 0 
+                                                                            ? new Date(student.lastUpdatedTime).toLocaleDateString('en-KE', { month: 'short', day: 'numeric', year: '2-digit' }) 
+                                                                            : '—'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">KSh {student.totals.invoiced.toLocaleString()}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-450">KSh {student.totals.paid.toLocaleString()}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <span className={`text-xs font-black ${student.totals.balance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-slate-300'}`}>
+                                                                        KSh {student.totals.balance.toLocaleString()}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                                                        student.totals.prepayment > 0
+                                                                        ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/20'
+                                                                        : student.totals.balance <= 0
+                                                                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
+                                                                        : student.totals.paid > 0
+                                                                        ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
+                                                                        : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'
+                                                                    }`}>
+                                                                        {student.totals.prepayment > 0 
+                                                                            ? `Prepaid (KSh ${student.totals.prepayment.toLocaleString()})`
+                                                                            : student.totals.balance <= 0 
+                                                                            ? 'Fully Paid' 
+                                                                            : student.totals.paid > 0 
+                                                                            ? 'Partial' 
+                                                                            : 'No Payment'
+                                                                        }
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-8 py-4 text-center">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setStmtStudentId(student.id);
+                                                                            setReportsSubTab('student_statement');
+                                                                            setActiveTab('reports');
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800/40 shadow-xs active:scale-95 hover:shadow-sm"
+                                                                        title="View Student Statement of Account"
+                                                                    >
+                                                                        <FileTextIcon className="w-3.5 h-3.5" />
+                                                                        View Statement
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                );
+
                 {/* Dynamic View Engine */}
                 <div className="min-h-[600px] w-full">
 
@@ -3462,131 +3712,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 })()}
 
 
-                {activeTab === 'balances' && (
-                    <div className="space-y-8 animate-in fade-in duration-300">
-                        {/* Search and Stats */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
-                            <div className="md:col-span-2 relative">
-                                <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search student by name or admission number..."
-                                    value={searchBalances}
-                                    onChange={(e) => setSearchBalances(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white"
-                                />
-                            </div>
-                            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl text-left">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Outstanding</p>
-                                <p className="text-lg font-black text-rose-600 dark:text-rose-450">KSh {totalOutstandingAll.toLocaleString()}</p>
-                            </div>
-                            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl text-left">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Collection Rate</p>
-                                <p className="text-lg font-black text-emerald-600 dark:text-emerald-450">{collectionRateAll.toFixed(1)}%</p>
-                            </div>
-                        </div>
-
-                        {/* Vertically Grouped Students per Class */}
-                        <div className="space-y-8 text-left">
-                            {Object.keys(groupedStudents).length === 0 ? (
-                                <div className="p-8 text-center text-slate-405 font-medium bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-[2rem]">
-                                    No students found matching your criteria.
-                                </div>
-                            ) : (
-                                Object.entries(groupedStudents).map(([className, classData]) => {
-                                    const totalInvoiced = classData.reduce((acc, s) => acc + s.totals.invoiced, 0);
-                                    const totalPaid = classData.reduce((acc, s) => acc + s.totals.paid, 0);
-                                    const totalBal = classData.reduce((acc, s) => acc + s.totals.balance, 0);
-                                    
-                                    return (
-                                        <div key={className} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden animate-in fade-in duration-300">
-                                            {/* Class Header Banner */}
-                                            <div className="bg-slate-50 dark:bg-slate-800/50 p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 dark:border-slate-800">
-                                                <div>
-                                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{className}</h3>
-                                                    <p className="text-slate-505 dark:text-slate-400 text-xs font-semibold">{classData.length} Students enrolled</p>
-                                                </div>
-                                                <div className="flex gap-6">
-                                                    <div>
-                                                        <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Invoiced</span>
-                                                        <span className="text-xs font-black text-slate-700 dark:text-slate-300">KSh {totalInvoiced.toLocaleString()}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Paid</span>
-                                                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-450">KSh {totalPaid.toLocaleString()}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Outstanding</span>
-                                                        <span className="text-xs font-black text-rose-600 dark:text-rose-400">KSh {totalBal.toLocaleString()}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Students List inside class */}
-                                            <div className="overflow-x-auto">
-                                                <table className="w-full border-collapse">
-                                                    <thead>
-                                                        <tr className="border-b border-slate-50 dark:border-slate-800/60">
-                                                            <th className="px-8 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
-                                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
-                                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoiced</th>
-                                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid</th>
-                                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Balance</th>
-                                                            <th className="px-8 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/30">
-                                                        {classData.map(student => (
-                                                            <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
-                                                                <td className="px-8 py-4 text-left">
-                                                                    <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
-                                                                </td>
-                                                                <td className="px-6 py-4 text-left">
-                                                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{student.admissionNumber || student.admission_number || '—'}</span>
-                                                                </td>
-                                                                <td className="px-6 py-4 text-right">
-                                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">KSh {student.totals.invoiced.toLocaleString()}</span>
-                                                                </td>
-                                                                <td className="px-6 py-4 text-right">
-                                                                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-450">KSh {student.totals.paid.toLocaleString()}</span>
-                                                                </td>
-                                                                <td className="px-6 py-4 text-right">
-                                                                    <span className={`text-xs font-black ${student.totals.balance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-slate-300'}`}>
-                                                                        KSh {student.totals.balance.toLocaleString()}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-8 py-4 text-center">
-                                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
-                                                                        student.totals.prepayment > 0
-                                                                        ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/20'
-                                                                        : student.totals.balance <= 0
-                                                                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
-                                                                        : student.totals.paid > 0
-                                                                        ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
-                                                                        : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'
-                                                                    }`}>
-                                                                        {student.totals.prepayment > 0 
-                                                                            ? `Prepaid (KSh ${student.totals.prepayment.toLocaleString()})`
-                                                                            : student.totals.balance <= 0 
-                                                                            ? 'Fully Paid' 
-                                                                            : student.totals.paid > 0 
-                                                                            ? 'Partial' 
-                                                                            : 'No Payment'
-                                                                        }
-                                                                    </span>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                )}
+                {activeTab === 'balances' && renderFeeBalancesContent()}
 
                 {activeTab === 'receipts' && receiptsMainTab !== 'bursaries' && receiptsMainTab !== 'payment_in_kind' && (
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 text-left animate-in fade-in duration-300">
@@ -5138,131 +5264,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </div>
                         )}
 
-                        {studentSubTab === 'balances' && (
-                            <div className="space-y-8 animate-in fade-in duration-300">
-                                {/* Search and Stats */}
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
-                                    <div className="md:col-span-2 relative">
-                                        <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
-                                        <input
-                                            type="text"
-                                            placeholder="Search student by name or admission number..."
-                                            value={searchBalances}
-                                            onChange={(e) => setSearchBalances(e.target.value)}
-                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white"
-                                        />
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl text-left">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Outstanding</p>
-                                        <p className="text-lg font-black text-rose-600 dark:text-rose-450">KSh {totalOutstandingAll.toLocaleString()}</p>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl text-left">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Collection Rate</p>
-                                        <p className="text-lg font-black text-emerald-600 dark:text-emerald-450">{collectionRateAll.toFixed(1)}%</p>
-                                    </div>
-                                </div>
-
-                                {/* Vertically Grouped Students per Class */}
-                                <div className="space-y-8 text-left">
-                                    {Object.keys(groupedStudents).length === 0 ? (
-                                        <div className="p-8 text-center text-slate-400 font-medium bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-[2rem]">
-                                            No students found matching your criteria.
-                                        </div>
-                                    ) : (
-                                        Object.entries(groupedStudents).map(([className, classData]) => {
-                                            const totalInvoiced = classData.reduce((acc, s) => acc + s.totals.invoiced, 0);
-                                            const totalPaid = classData.reduce((acc, s) => acc + s.totals.paid, 0);
-                                            const totalBal = classData.reduce((acc, s) => acc + s.totals.balance, 0);
-                                            
-                                            return (
-                                                <div key={className} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden animate-in fade-in duration-300">
-                                                    {/* Class Header Banner */}
-                                                    <div className="bg-slate-50 dark:bg-slate-800/50 p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 dark:border-slate-800">
-                                                        <div>
-                                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{className}</h3>
-                                                            <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">{classData.length} Students enrolled</p>
-                                                        </div>
-                                                        <div className="flex gap-6">
-                                                            <div>
-                                                                <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Invoiced</span>
-                                                                <span className="text-xs font-black text-slate-700 dark:text-slate-300">KSh {totalInvoiced.toLocaleString()}</span>
-                                                            </div>
-                                                            <div>
-                                                                <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Paid</span>
-                                                                <span className="text-xs font-black text-emerald-600 dark:text-emerald-450">KSh {totalPaid.toLocaleString()}</span>
-                                                            </div>
-                                                            <div>
-                                                                <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Outstanding</span>
-                                                                <span className="text-xs font-black text-rose-600 dark:text-rose-400">KSh {totalBal.toLocaleString()}</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Students List inside class */}
-                                                    <div className="overflow-x-auto">
-                                                        <table className="w-full border-collapse">
-                                                            <thead>
-                                                                <tr className="border-b border-slate-50 dark:border-slate-800/60">
-                                                                    <th className="px-8 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
-                                                                    <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
-                                                                    <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoiced</th>
-                                                                    <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid</th>
-                                                                    <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Balance</th>
-                                                                    <th className="px-8 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/30">
-                                                                {classData.map(student => (
-                                                                    <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
-                                                                        <td className="px-8 py-4 text-left">
-                                                                            <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
-                                                                        </td>
-                                                                        <td className="px-6 py-4 text-left">
-                                                                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{student.admissionNumber || student.admission_number || '—'}</span>
-                                                                        </td>
-                                                                        <td className="px-6 py-4 text-right">
-                                                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">KSh {student.totals.invoiced.toLocaleString()}</span>
-                                                                        </td>
-                                                                        <td className="px-6 py-4 text-right">
-                                                                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-450">KSh {student.totals.paid.toLocaleString()}</span>
-                                                                        </td>
-                                                                        <td className="px-6 py-4 text-right">
-                                                                            <span className={`text-xs font-black ${student.totals.balance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-850 dark:text-slate-300'}`}>
-                                                                                KSh {student.totals.balance.toLocaleString()}
-                                                                            </span>
-                                                                        </td>
-                                                                        <td className="px-8 py-4 text-center">
-                                                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
-                                                                                student.totals.prepayment > 0
-                                                                                ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/20'
-                                                                                : student.totals.balance <= 0
-                                                                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
-                                                                                : student.totals.paid > 0
-                                                                                ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
-                                                                                : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'
-                                                                            }`}>
-                                                                                {student.totals.prepayment > 0 
-                                                                                    ? `Prepaid (KSh ${student.totals.prepayment.toLocaleString()})`
-                                                                                    : student.totals.balance <= 0 
-                                                                                    ? 'Fully Paid' 
-                                                                                    : student.totals.paid > 0 
-                                                                                    ? 'Partial' 
-                                                                                    : 'No Payment'
-                                                                                }
-                                                                            </span>
-                                                                        </td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                        {studentSubTab === 'balances' && renderFeeBalancesContent()}
 
 
                     </div>
