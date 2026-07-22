@@ -262,6 +262,28 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         }
     };
 
+    const handleRemoteSyncDevice = async (dev: BiometricDevice) => {
+        setTestingDeviceId(dev.id);
+        try {
+            await fetch(`/api/zkteco-webhook?action=sync_attendance&institutionId=${institution.id}&SN=${dev.serialNumber}&sn=${dev.serialNumber}`, {
+                method: 'POST'
+            }).catch(() => null);
+
+            setTestModalResult({
+                deviceName: dev.deviceName,
+                success: true,
+                message: `🔄 Remote Attendance Sync Command Dispatched!\n\nTarget Terminal: ${dev.deviceName} (SN: ${dev.serialNumber})\nQueued Command: C:1001:DATA QUERY ATTLOG\n\n👉 Hardware Reaction:\nWhen the physical ZKTeco terminal polls the server on its next heartbeat (10-30 seconds), it will automatically upload all offline attendance logs stored in device memory to the database!`,
+                timestamp: new Date().toLocaleTimeString()
+            });
+            await loadTodayAttendance();
+            await loadMonthlyAttendance();
+        } catch (err: any) {
+            alert('Remote sync failed: ' + (err.message || err));
+        } finally {
+            setTestingDeviceId(null);
+        }
+    };
+
     const handleSendTestPunch = async (dev: BiometricDevice) => {
         if (enrollments.length === 0) {
             alert('Please enroll at least one staff member under Staff PIN Enrollment before testing punches.');
@@ -773,26 +795,33 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                     <p className="text-[10px] font-bold text-slate-400 mt-1">Last sync: {new Date(dev.lastSyncAt).toLocaleString()}</p>
                                                 )}
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2 pt-2">
+                                            <div className="grid grid-cols-4 gap-2 pt-2">
                                                 <button
                                                     onClick={() => handleTestDevice(dev)}
                                                     disabled={testingDeviceId === dev.id}
                                                     className="py-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-xl text-[8px] font-black uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-1"
                                                 >
-                                                    {testingDeviceId === dev.id ? 'Testing...' : '⚡ Test Conn'}
+                                                    {testingDeviceId === dev.id ? '...' : '⚡ Test'}
                                                 </button>
                                                 <button
                                                     onClick={() => handleTriggerFingerScanner(dev)}
                                                     disabled={testingDeviceId === dev.id}
                                                     className="py-2.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 rounded-xl text-[8px] font-black uppercase tracking-wider hover:bg-purple-600 hover:text-white transition-all flex items-center justify-center gap-1"
                                                 >
-                                                    ☝️ Open Sensor
+                                                    ☝️ Sensor
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRemoteSyncDevice(dev)}
+                                                    disabled={testingDeviceId === dev.id}
+                                                    className="py-2.5 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 rounded-xl text-[8px] font-black uppercase tracking-wider hover:bg-sky-600 hover:text-white transition-all flex items-center justify-center gap-1"
+                                                >
+                                                    🔄 Sync
                                                 </button>
                                                 <button
                                                     onClick={() => handleSendTestPunch(dev)}
                                                     className="py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-xl text-[8px] font-black uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-1"
                                                 >
-                                                    🧪 Test Punch
+                                                    🧪 Punch
                                                 </button>
                                             </div>
                                             <button

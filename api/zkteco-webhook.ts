@@ -102,6 +102,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
     }
 
+    // ─── ACTION = SYNC_ATTENDANCE / PULL_LOGS (From Web Portal) ───
+    if (action === 'sync_attendance' || action === 'pull_logs') {
+        const cmdId = ++cmdCounter;
+        const cmd1 = `C:${cmdId}:DATA QUERY ATTLOG`;
+        const cmd2 = `C:${cmdId + 1}:DATA LOG ATTLOG`;
+
+        const snKey = serialNumber || 'DEFAULT';
+        const existing = PENDING_COMMANDS.get(snKey) || [];
+        existing.push(cmd1, cmd2);
+        PENDING_COMMANDS.set(snKey, existing);
+
+        if (snKey !== 'DEFAULT') {
+            const defExisting = PENDING_COMMANDS.get('DEFAULT') || [];
+            defExisting.push(cmd1, cmd2);
+            PENDING_COMMANDS.set('DEFAULT', defExisting);
+        }
+
+        console.log(`[ZKTeco] Queued attendance sync commands for SN=${snKey}: ${cmd1}`);
+        return res.status(200).json({
+            success: true,
+            commands: [cmd1, cmd2],
+            sn: snKey,
+            queuedAt: new Date().toISOString()
+        });
+    }
+
     // ─── GET: Device polling for commands (ADMS Protocol) ───
     if (req.method === 'GET') {
         const snKey = serialNumber || 'DEFAULT';
