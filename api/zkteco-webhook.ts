@@ -10,11 +10,10 @@ import { createClient } from '@supabase/supabase-js';
  * Device sends:
  *   POST /api/zkteco-webhook?SN=<serial>&institutionId=<uuid>
  *   Body: tab-separated ATTLOG lines
- *   Format per line: PIN\tTimestamp\tVerificationType\tStatus\tWorkcode\tReserved1\tReserved2
  * 
  * Device also polls:
  *   GET /api/zkteco-webhook?SN=<serial>&institutionId=<uuid>
- *   (for pending server commands — we respond with OK for now)
+ *   (for pending server commands stored persistently in Supabase)
  */
 
 const getSupabase = () => {
@@ -26,38 +25,8 @@ const getSupabase = () => {
     });
 };
 
-// Verification method codes from ZKTeco
-const VERIFY_METHODS: Record<number, string> = {
-    0: 'fingerprint',
-    1: 'card',
-    2: 'password',
-    4: 'face',
-    15: 'face',
-};
-
-// Punch status codes
-const PUNCH_TYPES: Record<number, string> = {
-    0: 'check-in',
-    1: 'check-out',
-    2: 'break-start',
-    3: 'break-end',
-    4: 'overtime-start',
-    5: 'overtime-end',
-};
-
-// In-memory queue for ZKTeco ADMS device commands
-const PENDING_COMMANDS = new Map<string, string[]>();
-let cmdCounter = 1000;
-
-// Device Heartbeat & Ping Tracking
-interface DeviceStatusInfo {
-    lastSeen: string;
-    ip: string;
-    sn: string;
-    requestsCount: number;
-}
-const LAST_SEEN_DEVICES = new Map<string, DeviceStatusInfo>();
-const RECENT_WEBHOOK_LOGS: Array<{ timestamp: string; sn: string; method: string; url: string; ip: string }> = [];
+// Global command counter seed
+let cmdCounter = Date.now() % 100000;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS headers
@@ -69,84 +38,127 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).end();
     }
 
-    const serialNumber = (req.query.SN || req.query.sn || '') as string;
-    const institutionId = (req.query.institutionId || req.query.institution_id || '') as string;
-    const action = (req.query.action || '') as string;
-    const pin = (req.query.pin || '') as string;
-    const name = (req.query.name || '') as string;
-    const fingerIndex = (req.query.fingerIndex || req.query.finger_index || '0') as string;
-    const clientIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown') as string;
+    const serialNumber = (req.query.SN || req.query.sn || '').toString().trim();
+    const institutionId = (req.query.institutionId || req.query.institution_id || '').toString().trim();
+    const action = (req.query.action || '').toString().trim();
+    const pin = (req.query.pin || '').toString().trim();
+    const fingerIndex = (req.query.fingerIndex || req.query.finger_index || '0').toString().trim();
+    const clientIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').toString().split(',')[0].trim();
 
-    // Track real hardware pings
-    if (serialNumber && !action) {
-        const existing = LAST_SEEN_DEVICES.get(serialNumber) || { lastSeen: new Date().toISOString(), ip: clientIp, sn: serialNumber, requestsCount: 0 };
-        existing.lastSeen = new Date().toISOString();
-        existing.ip = clientIp;
-        existing.requestsCount++;
-        LAST_SEEN_DEVICES.set(serialNumber, existing);
+    const supabase = getSupabase();
 
-        RECENT_WEBHOOK_LOGS.unshift({
-            timestamp: new Date().toLocaleTimeString(),
-            sn: serialNumber,
-            method: req.method || 'GET',
-            url: req.url || '',
-            ip: String(clientIp).split(',')[0]
-        });
-        if (RECENT_WEBHOOK_LOGS.length > 30) RECENT_WEBHOOK_LOGS.pop();
+    // ─── Track real hardware pings in database ───
+    if (serialNumber && !action && supabase) {
+        try {
+            // Find existing device by serial number (case-insensitive)
+            const { data: existingDevice } = await supabase
+                .from('biometric_devices')
+                .select('id, requests_count')
+                .ilike('serial_number', serialNumber)
+                .maybeSingle();
+
+            if (existingDevice) {
+                await supabase
+                    .from('biometric_devices')
+                    .update({
+                        last_sync_at: new Date().toISOString(),
+                        last_ip: clientIp,
+                        requests_count: (existingDevice.requests_count || 0) + 1
+                    })
+                    .eq('id', existingDevice.id);
+            }
+        } catch (e) {
+            console.error('[ZKTeco] Ping update error:', e);
+        }
     }
 
     console.log(`[ZKTeco] ${req.method} action=${action} from SN=${serialNumber} inst=${institutionId}`);
 
-    // ─── ACTION = STATUS (Check real device hardware ping) ───
+    // ─── ACTION = STATUS (Check real device hardware status from database) ───
     if (action === 'status') {
         const snKey = serialNumber || 'DEFAULT';
-        const info = LAST_SEEN_DEVICES.get(snKey);
-        const pending = PENDING_COMMANDS.get(snKey) || PENDING_COMMANDS.get('DEFAULT') || [];
-        
-        const isOnline = info ? (Date.now() - new Date(info.lastSeen).getTime() < 3 * 60 * 1000) : false;
+        let isOnline = false;
+        let lastSeen: string | null = null;
+        let ip: string | null = null;
+        let requestsCount = 0;
+        let pendingCommandsCount = 0;
+
+        if (supabase && serialNumber) {
+            try {
+                const { data: device } = await supabase
+                    .from('biometric_devices')
+                    .select('*')
+                    .ilike('serial_number', serialNumber)
+                    .maybeSingle();
+
+                if (device) {
+                    lastSeen = device.last_sync_at || null;
+                    ip = device.last_ip || device.ip_address || null;
+                    requestsCount = device.requests_count || 0;
+                    isOnline = !!(lastSeen && (Date.now() - new Date(lastSeen).getTime() < 3 * 60 * 1000));
+                }
+
+                // Check pending commands
+                const { count } = await supabase
+                    .from('biometric_device_commands')
+                    .select('*', { count: 'exact', head: true })
+                    .or(`serial_number.ilike.${serialNumber},serial_number.eq.DEFAULT`)
+                    .eq('status', 'pending');
+
+                pendingCommandsCount = count || 0;
+            } catch (e) {
+                console.error('[ZKTeco] Status fetch error:', e);
+            }
+        }
 
         return res.status(200).json({
             sn: snKey,
             online: isOnline,
-            lastSeen: info?.lastSeen || null,
-            ip: info?.ip || null,
-            requestsCount: info?.requestsCount || 0,
-            pendingCommandsCount: pending.length,
+            lastSeen: lastSeen,
+            ip: ip,
+            requestsCount: requestsCount,
+            pendingCommandsCount: pendingCommandsCount,
             message: isOnline 
-                ? `✅ ZKTeco Device (SN: ${snKey}) is ACTIVE & ONLINE! Last hardware ping: ${new Date(info!.lastSeen).toLocaleTimeString()}`
-                : `⚠️ PHYSICAL DEVICE HAS NEVER CONNECTED TO THIS SERVER URL! ZKTeco SN '${snKey}' has not sent any ADMS heartbeats yet. This is why the sensor screen is not opening.`
-        });
-    }
-
-    // ─── ACTION = LOGS (View recent ADMS webhook activity) ───
-    if (action === 'logs') {
-        return res.status(200).json({
-            recentLogs: RECENT_WEBHOOK_LOGS,
-            activeDevices: Array.from(LAST_SEEN_DEVICES.values())
+                ? `✅ ZKTeco Device (SN: ${snKey}) is ACTIVE & ONLINE! Last hardware ping: ${new Date(lastSeen!).toLocaleTimeString()}`
+                : `⚠️ PHYSICAL DEVICE HAS NOT CONNECTED TO THIS SERVER YET! ZKTeco SN '${snKey}' has not sent any ADMS heartbeats recently. Check server IP, Port 80/443, and 'Enable Domain Name' on the device screen.`
         });
     }
 
     // ─── ACTION = ENROLL (From Web Portal) ───
     if (action === 'enroll') {
-        const cmdId = ++cmdCounter;
         const targetPin = pin || '1001';
         const targetFinger = fingerIndex || '0';
-        
-        // Multi-firmware ADMS commands for maximum ZKTeco model compatibility (F18, MB20, SpeedFace, K40, etc.)
-        const cmd1 = `C:${cmdId}:DATA ENROLL_FP PIN=${targetPin} FingerID=${targetFinger}`;
-        const cmd2 = `C:${cmdId + 1}:ENROLL_FP PIN=${targetPin} FingerID=${targetFinger}`;
-
         const snKey = serialNumber || 'DEFAULT';
         
-        const existing = PENDING_COMMANDS.get(snKey) || [];
-        existing.push(cmd1, cmd2);
-        PENDING_COMMANDS.set(snKey, existing);
+        const cmdId1 = ++cmdCounter;
+        const cmdId2 = ++cmdCounter;
+        
+        const cmd1 = `C:${cmdId1}:DATA ENROLL_FP PIN=${targetPin} FingerID=${targetFinger}`;
+        const cmd2 = `C:${cmdId2}:ENROLL_FP PIN=${targetPin} FingerID=${targetFinger}`;
 
-        // Fallback for ANY connected terminal polling without explicit SN match
-        if (snKey !== 'DEFAULT') {
-            const defExisting = PENDING_COMMANDS.get('DEFAULT') || [];
-            defExisting.push(cmd1, cmd2);
-            PENDING_COMMANDS.set('DEFAULT', defExisting);
+        if (supabase) {
+            try {
+                await supabase.from('biometric_device_commands').insert([
+                    {
+                        institution_id: institutionId || 'system',
+                        serial_number: snKey,
+                        command_id: cmdId1,
+                        command_text: cmd1,
+                        command_type: 'ENROLL',
+                        status: 'pending'
+                    },
+                    {
+                        institution_id: institutionId || 'system',
+                        serial_number: snKey,
+                        command_id: cmdId2,
+                        command_text: cmd2,
+                        command_type: 'ENROLL',
+                        status: 'pending'
+                    }
+                ]);
+            } catch (e) {
+                console.error('[ZKTeco] Command insert error:', e);
+            }
         }
 
         console.log(`[ZKTeco] Queued enrollment commands for SN=${snKey}: ${cmd1}`);
@@ -162,19 +174,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ─── ACTION = SYNC_ATTENDANCE / PULL_LOGS (From Web Portal) ───
     if (action === 'sync_attendance' || action === 'pull_logs') {
-        const cmdId = ++cmdCounter;
-        const cmd1 = `C:${cmdId}:DATA QUERY ATTLOG`;
-        const cmd2 = `C:${cmdId + 1}:DATA LOG ATTLOG`;
-
         const snKey = serialNumber || 'DEFAULT';
-        const existing = PENDING_COMMANDS.get(snKey) || [];
-        existing.push(cmd1, cmd2);
-        PENDING_COMMANDS.set(snKey, existing);
+        const cmdId1 = ++cmdCounter;
+        const cmdId2 = ++cmdCounter;
+        const cmd1 = `C:${cmdId1}:DATA QUERY ATTLOG`;
+        const cmd2 = `C:${cmdId2}:DATA LOG ATTLOG`;
 
-        if (snKey !== 'DEFAULT') {
-            const defExisting = PENDING_COMMANDS.get('DEFAULT') || [];
-            defExisting.push(cmd1, cmd2);
-            PENDING_COMMANDS.set('DEFAULT', defExisting);
+        if (supabase) {
+            try {
+                await supabase.from('biometric_device_commands').insert([
+                    {
+                        institution_id: institutionId || 'system',
+                        serial_number: snKey,
+                        command_id: cmdId1,
+                        command_text: cmd1,
+                        command_type: 'SYNC',
+                        status: 'pending'
+                    },
+                    {
+                        institution_id: institutionId || 'system',
+                        serial_number: snKey,
+                        command_id: cmdId2,
+                        command_text: cmd2,
+                        command_type: 'SYNC',
+                        status: 'pending'
+                    }
+                ]);
+            } catch (e) {
+                console.error('[ZKTeco] Command insert error:', e);
+            }
         }
 
         console.log(`[ZKTeco] Queued attendance sync commands for SN=${snKey}: ${cmd1}`);
@@ -188,17 +216,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ─── GET: Device polling for commands (ADMS Protocol) ───
     if (req.method === 'GET') {
-        const snKey = serialNumber || 'DEFAULT';
-        let pending = PENDING_COMMANDS.get(snKey);
+        res.setHeader('Content-Type', 'text/plain');
         
-        if ((!pending || pending.length === 0) && snKey !== 'DEFAULT') {
-            pending = PENDING_COMMANDS.get('DEFAULT');
-        }
+        if (supabase) {
+            try {
+                // Fetch oldest pending command for this SN or DEFAULT
+                let query = supabase
+                    .from('biometric_device_commands')
+                    .select('id, command_text')
+                    .eq('status', 'pending')
+                    .order('created_at', { ascending: true })
+                    .limit(1);
 
-        if (pending && pending.length > 0) {
-            const nextCmd = pending.shift();
-            console.log(`[ZKTeco] Delivering ADMS command to device (SN=${snKey}): ${nextCmd}`);
-            return res.status(200).send(nextCmd);
+                if (serialNumber) {
+                    query = query.or(`serial_number.ilike.${serialNumber},serial_number.eq.DEFAULT`);
+                } else {
+                    query = query.eq('serial_number', 'DEFAULT');
+                }
+
+                const { data: cmdRows } = await query;
+
+                if (cmdRows && cmdRows.length > 0) {
+                    const cmdToDeliver = cmdRows[0];
+                    
+                    // Mark command as sent
+                    await supabase
+                        .from('biometric_device_commands')
+                        .update({ status: 'sent', sent_at: new Date().toISOString() })
+                        .eq('id', cmdToDeliver.id);
+
+                    console.log(`[ZKTeco] Delivering ADMS command to device (SN=${serialNumber}): ${cmdToDeliver.command_text}`);
+                    return res.status(200).send(cmdToDeliver.command_text);
+                }
+            } catch (e) {
+                console.error('[ZKTeco] Command poll error:', e);
+            }
         }
 
         return res.status(200).send('OK');
@@ -206,59 +258,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ─── POST: Attendance log upload ───
     if (req.method === 'POST') {
-        const supabase = getSupabase();
+        res.setHeader('Content-Type', 'text/plain');
         if (!supabase) {
             console.error('[ZKTeco] Supabase client not configured');
             return res.status(500).send('ERR: Server configuration error');
         }
 
-        // Read body — ADMS sends plain text, not JSON
         let body = '';
         if (typeof req.body === 'string') {
             body = req.body;
         } else if (req.body && typeof req.body === 'object') {
-            // Vercel may parse it; try to reconstruct
             body = JSON.stringify(req.body);
         } else {
             body = '';
         }
 
         if (!body || body.trim().length === 0) {
-            // Device handshake or heartbeat
             return res.status(200).send('OK');
         }
 
-        // Check if this is a table descriptor (headers line starting with column names)
         if (body.includes('ATTLOG') || body.includes('table=') || body.includes('OPERLOG')) {
-            // Device sending metadata/headers — acknowledge
-            if (body.includes('OPERLOG')) {
-                return res.status(200).send('OK');
-            }
-            // For ATTLOG metadata, acknowledge and wait for actual data
             return res.status(200).send('OK');
         }
 
         try {
-            // Resolve device
             let deviceId: string | null = null;
             let resolvedInstitutionId = institutionId;
 
             if (serialNumber) {
                 const { data: device } = await supabase
                     .from('biometric_devices')
-                    .select('id, institution_id')
-                    .eq('serial_number', serialNumber)
-                    .eq('is_active', true)
+                    .select('id, institution_id, requests_count')
+                    .ilike('serial_number', serialNumber)
                     .maybeSingle();
 
                 if (device) {
                     deviceId = device.id;
                     resolvedInstitutionId = resolvedInstitutionId || device.institution_id;
 
-                    // Update last sync time
                     await supabase
                         .from('biometric_devices')
-                        .update({ last_sync_at: new Date().toISOString() })
+                        .update({ 
+                            last_sync_at: new Date().toISOString(),
+                            last_ip: clientIp,
+                            requests_count: (device.requests_count || 0) + 1
+                        })
                         .eq('id', device.id);
                 }
             }
@@ -268,37 +312,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).send('OK');
             }
 
-            // Parse ATTLOG lines
-            // Format: PIN\tTimestamp\tVerificationType\tStatus\tWorkcode\tReserved1\tReserved2
             const lines = body.split('\n').filter((line: string) => line.trim().length > 0);
             const records: any[] = [];
-            const skipped: string[] = [];
 
             for (const line of lines) {
                 const parts = line.trim().split('\t');
-                if (parts.length < 2) {
-                    skipped.push(line);
-                    continue;
-                }
+                if (parts.length < 2) continue;
 
                 const pin = parts[0]?.trim();
                 const timestamp = parts[1]?.trim();
                 const verifyType = parseInt(parts[2]?.trim() || '0', 10);
                 const status = parseInt(parts[3]?.trim() || '0', 10);
 
-                if (!pin || !timestamp) {
-                    skipped.push(line);
-                    continue;
-                }
+                if (!pin || !timestamp) continue;
 
-                // Validate timestamp
                 const punchTime = new Date(timestamp);
-                if (isNaN(punchTime.getTime())) {
-                    skipped.push(line);
-                    continue;
-                }
+                if (isNaN(punchTime.getTime())) continue;
 
-                // Resolve staff_id from enrollment
                 let staffId: string | null = null;
                 const { data: enrollment } = await supabase
                     .from('biometric_enrollments')
@@ -306,7 +336,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     .eq('institution_id', resolvedInstitutionId)
                     .eq('device_pin', pin)
                     .eq('is_active', true)
-                    .single();
+                    .maybeSingle();
 
                 if (enrollment) {
                     staffId = enrollment.staff_id;
@@ -325,7 +355,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
-            // Batch insert
             if (records.length > 0) {
                 const { error } = await supabase
                     .from('staff_attendance_logs')
@@ -336,18 +365,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(200).send(`ERR: ${error.message}`);
                 }
 
-                console.log(`[ZKTeco] Inserted ${records.length} records, skipped ${skipped.length}`);
+                console.log(`[ZKTeco] Inserted ${records.length} records`);
             }
 
             return res.status(200).send(`OK: ${records.length}`);
 
         } catch (error: any) {
             console.error('[ZKTeco] Processing error:', error);
-            // Always respond 200 to device to prevent retransmission loops
             return res.status(200).send('OK');
         }
     }
 
-    // Unsupported method
     return res.status(200).send('OK');
 }
