@@ -16,7 +16,7 @@ import type {
     CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState,
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay,
     CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, CarInvoice, CarPayment,
-    RemedialSession, RemedialRateSetting, RemedialPayout
+    RemedialSession, RemedialRateSetting, RemedialPayout, FeePromise
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -1408,6 +1408,17 @@ export const apiService = {
         // Since we don't have a bulk delete by filter in proxy, 
         // we'll fetch then delete individual for now, or just let users delete manually.
         // For "Retry All", we'll delete each as it succeeds.
+    },
+    async fetchFeePromises(institutionId: string): Promise<FeePromise[]> {
+        return apiService.fetchModuleRecords('fee_promises', institutionId, undefined, {
+            order: 'promised_date.asc'
+        });
+    },
+    async saveFeePromise(promise: any): Promise<void> {
+        await apiService.saveModuleRecord('fee_promises', promise);
+    },
+    async deleteFeePromise(id: string): Promise<void> {
+        await apiService.deleteModuleRecord('fee_promises', id);
     },
     async saveModuleRecords<T = any>(module: string, data: T[]): Promise<T[] | null> {
         const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];

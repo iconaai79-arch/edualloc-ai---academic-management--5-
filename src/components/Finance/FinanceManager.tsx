@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary } from '../../types';
+import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary, FeePromise } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
@@ -980,6 +980,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isSendingReminders, setIsSendingReminders] = useState(false);
     const [reminderSendSuccess, setReminderSendSuccess] = useState<string | null>(null);
 
+    // Promise to Pay (PTP) Tracker State
+    const [feePromises, setFeePromises] = useState<FeePromise[]>([]);
+    const [isPtpDashboardOpen, setIsPtpDashboardOpen] = useState(false);
+    const [isLogPromiseModalOpen, setIsLogPromiseModalOpen] = useState(false);
+    const [selectedStudentForPromise, setSelectedStudentForPromise] = useState<any | null>(null);
+    const [promiseAmountInput, setPromiseAmountInput] = useState<number>(0);
+    const [promiseDateInput, setPromiseDateInput] = useState<string>('');
+    const [promiseNotesInput, setPromiseNotesInput] = useState<string>('');
+    const [ptpFilterStatus, setPtpFilterStatus] = useState<'all' | 'pending' | 'overdue' | 'fulfilled' | 'cancelled'>('all');
+
+    useEffect(() => {
+        if (props.institution.id) {
+            apiService.fetchFeePromises(props.institution.id).then(data => {
+                if (data && Array.isArray(data)) {
+                    setFeePromises(data);
+                }
+            }).catch(async () => {
+                const fallback = await apiService.fetchModuleRecords('fee_promises', props.institution.id);
+                if (fallback && Array.isArray(fallback)) {
+                    setFeePromises(fallback);
+                }
+            });
+        }
+    }, [props.institution.id]);
+
     // Reset pagination to page 1 whenever search, filters, or items per page change
     useEffect(() => {
         setBalancesCurrentPage(1);
@@ -1327,6 +1352,130 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert("Failed to queue SMS reminders. Please check connection.");
         } finally {
             setIsSendingReminders(false);
+        }
+    };
+
+    // PTP (Promise to Pay) Handlers & Dynamic Overdue Calculation
+    const studentActivePromiseMap = useMemo(() => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const map: Record<string, FeePromise> = {};
+        
+        feePromises.forEach(promise => {
+            if (promise.status === 'pending' || promise.status === 'overdue') {
+                const isOverdue = promise.promisedDate < todayStr;
+                const effectiveStatus: FeePromise['status'] = isOverdue ? 'overdue' : promise.status;
+                const existing = map[promise.studentId];
+                if (!existing || new Date(promise.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
+                    map[promise.studentId] = { ...promise, status: effectiveStatus };
+                }
+            }
+        });
+        return map;
+    }, [feePromises]);
+
+    const handleOpenLogPromiseModal = (student: any) => {
+        setSelectedStudentForPromise(student);
+        setPromiseAmountInput(student.totals?.balance || 0);
+        
+        // Default promised date: 7 days from now
+        const nextWeek = new Date();
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        setPromiseDateInput(nextWeek.toISOString().split('T')[0]);
+        setPromiseNotesInput('');
+        setIsLogPromiseModalOpen(true);
+    };
+
+    const handleSaveFeePromise = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedStudentForPromise || !promiseDateInput || promiseAmountInput <= 0) {
+            alert("Please enter a valid promised amount and date.");
+            return;
+        }
+
+        try {
+            const pPhone = getStudentParentPhone(selectedStudentForPromise);
+            const newPromise: FeePromise = {
+                id: `ptp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId: props.institution.id,
+                studentId: selectedStudentForPromise.id,
+                studentName: selectedStudentForPromise.name,
+                admissionNumber: selectedStudentForPromise.admissionNumber || (selectedStudentForPromise as any).admission_number || '',
+                className: selectedStudentForPromise.className || studentClassGroup(selectedStudentForPromise),
+                parentName: (selectedStudentForPromise as any).parentName || (selectedStudentForPromise as any).guardianName || 'Parent',
+                parentPhone: pPhone,
+                promisedAmount: Number(promiseAmountInput),
+                promisedDate: promiseDateInput,
+                notes: promiseNotesInput,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            };
+
+            await apiService.saveFeePromise(newPromise).catch(async () => {
+                await apiService.saveModuleRecord('fee_promises', newPromise);
+            });
+
+            setFeePromises(prev => [newPromise, ...prev]);
+            setIsLogPromiseModalOpen(false);
+
+            if (props.onLogAction) {
+                props.onLogAction(`Logged payment promise of KSh ${newPromise.promisedAmount.toLocaleString()} due on ${newPromise.promisedDate} for ${newPromise.studentName}`);
+            }
+        } catch (err: any) {
+            console.error("Failed to save promise:", err);
+            alert("Failed to save promise. Please try again.");
+        }
+    };
+
+    const handleUpdatePromiseStatus = async (promiseId: string, newStatus: FeePromise['status']) => {
+        try {
+            const target = feePromises.find(p => p.id === promiseId);
+            if (!target) return;
+            const updated = { ...target, status: newStatus, updatedAt: new Date().toISOString() };
+
+            await apiService.saveFeePromise(updated).catch(async () => {
+                await apiService.saveModuleRecord('fee_promises', updated);
+            });
+
+            setFeePromises(prev => prev.map(p => p.id === promiseId ? updated : p));
+        } catch (err) {
+            console.error("Failed to update promise status:", err);
+        }
+    };
+
+    const handleSendPromiseReminderSms = async (promise: FeePromise) => {
+        if (!promise.parentPhone) {
+            alert("No parent phone number found for this student.");
+            return;
+        }
+
+        try {
+            const schoolName = props.institution.name || 'School';
+            const text = `Dear Parent, this is a friendly reminder regarding your commitment to pay KSh ${promise.promisedAmount.toLocaleString()} by ${promise.promisedDate} for ${promise.studentName}. Kindly clear via M-Pesa / Bank. Thank you, ${schoolName}.`;
+
+            const smsMsg = {
+                id: `sms_ptp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId: props.institution.id,
+                recipientPhone: promise.parentPhone,
+                recipientName: promise.studentName || 'Parent',
+                studentId: promise.studentId,
+                message: text,
+                status: 'pending',
+                type: 'fee_promise_reminder',
+                createdAt: new Date().toISOString()
+            };
+
+            await apiService.saveToSmsOutbox([smsMsg]).catch(async () => {
+                await apiService.saveModuleRecord('sms_outbox', [smsMsg]);
+            });
+
+            if (props.onLogAction) {
+                props.onLogAction(`Sent PTP reminder SMS to ${promise.parentPhone} for ${promise.studentName}`);
+            }
+
+            alert(`PTP Reminder SMS queued to Outbox for ${promise.studentName}!`);
+        } catch (err: any) {
+            console.error("Failed to send PTP reminder SMS:", err);
+            alert("Failed to send SMS reminder.");
         }
     };
 
@@ -3288,6 +3437,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                     <button
                         type="button"
+                        onClick={() => setIsPtpDashboardOpen(true)}
+                        className="flex-1 md:flex-none py-3 px-5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/25 active:scale-95 cursor-pointer relative"
+                    >
+                        <ClockIcon className="w-4 h-4" />
+                        <span>PTP Promises Tracker</span>
+                        {Object.keys(studentActivePromiseMap).length > 0 && (
+                            <span className="ml-1 px-2 py-0.5 bg-white text-amber-700 rounded-full text-[10px] font-black shadow-xs">
+                                {Object.keys(studentActivePromiseMap).length}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => {
                             setReminderSendSuccess(null);
                             setIsFeeReminderModalOpen(true);
@@ -3416,21 +3578,44 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono">{student.admissionNumber || student.admission_number || '—'}</span>
                                                     </td>
                                                     <td className="px-6 py-4 text-left">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
-                                                            {(() => {
-                                                                const pPhone = getStudentParentPhone(student);
-                                                                const siblings = pPhone ? phoneSiblingMap[pPhone] : null;
-                                                                if (!siblings || siblings.length <= 1) return null;
-                                                                const siblingNames = siblings.filter(s => s.id !== student.id).map(s => s.name).join(', ');
+                                                        <div className="flex flex-col gap-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
+                                                                {(() => {
+                                                                    const pPhone = getStudentParentPhone(student);
+                                                                    const siblings = pPhone ? phoneSiblingMap[pPhone] : null;
+                                                                    if (!siblings || siblings.length <= 1) return null;
+                                                                    const siblingNames = siblings.filter(s => s.id !== student.id).map(s => s.name).join(', ');
+                                                                    return (
+                                                                        <span
+                                                                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50 rounded-lg text-[9px] font-black uppercase tracking-wider cursor-help shrink-0"
+                                                                            title={`Shares parent contact (${pPhone}) with ${siblingNames}`}
+                                                                        >
+                                                                            <UserGroupIcon className="w-3 h-3 text-purple-600" />
+                                                                            {siblings.length} Siblings
+                                                                        </span>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                            {/* PTP Promise Badge */}
+                                                            {studentActivePromiseMap[student.id] && (() => {
+                                                                const p = studentActivePromiseMap[student.id];
+                                                                const isOverdue = p.status === 'overdue';
                                                                 return (
-                                                                    <span
-                                                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50 rounded-lg text-[9px] font-black uppercase tracking-wider cursor-help shrink-0"
-                                                                        title={`Shares parent contact (${pPhone}) with ${siblingNames}`}
-                                                                    >
-                                                                        <UserGroupIcon className="w-3 h-3 text-purple-600" />
-                                                                        {siblings.length} Siblings
-                                                                    </span>
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span
+                                                                            onClick={() => setIsPtpDashboardOpen(true)}
+                                                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider cursor-pointer border shrink-0 transition-all active:scale-95 ${
+                                                                                isOverdue
+                                                                                ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-800/60 shadow-xs'
+                                                                                : 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/60'
+                                                                            }`}
+                                                                            title={p.notes || `Promised KSh ${p.promisedAmount.toLocaleString()} on ${p.promisedDate}`}
+                                                                        >
+                                                                            <ClockIcon className={`w-3 h-3 ${isOverdue ? 'text-rose-600 animate-pulse' : 'text-amber-600'}`} />
+                                                                            {isOverdue ? `🚨 Overdue: KSh ${p.promisedAmount.toLocaleString()} (${p.promisedDate})` : `⏳ PTP: KSh ${p.promisedAmount.toLocaleString()} (${p.promisedDate})`}
+                                                                        </span>
+                                                                    </div>
                                                                 );
                                                             })()}
                                                         </div>
@@ -3474,19 +3659,30 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </span>
                                                     </td>
                                                     <td className="px-8 py-4 text-center">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setStmtStudentId(student.id);
-                                                                setReportsSubTab('student_statement');
-                                                                setActiveTab('reports');
-                                                            }}
-                                                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800/40 shadow-xs active:scale-95 hover:shadow-sm"
-                                                            title="View Student Statement of Account"
-                                                        >
-                                                            <FileTextIcon className="w-3.5 h-3.5" />
-                                                            View Statement
-                                                        </button>
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setStmtStudentId(student.id);
+                                                                    setReportsSubTab('student_statement');
+                                                                    setActiveTab('reports');
+                                                                }}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800/40 shadow-xs active:scale-95 hover:shadow-sm"
+                                                                title="View Student Statement of Account"
+                                                            >
+                                                                <FileTextIcon className="w-3.5 h-3.5" />
+                                                                View Statement
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenLogPromiseModal(student)}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-amber-200 dark:border-amber-800/40 shadow-xs active:scale-95 hover:shadow-sm"
+                                                                title="Log Parent Promise to Pay (PTP)"
+                                                            >
+                                                                <CalendarDaysIcon className="w-3.5 h-3.5" />
+                                                                Log PTP
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -3770,6 +3966,308 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <span>Dispatch {reminderTargetStudents.length} SMS Reminders</span>
                                     </>
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Log Parent Payment Promise (PTP) Modal */}
+            {isLogPromiseModalOpen && selectedStudentForPromise && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-lg w-full p-6 md:p-8 space-y-6 text-left my-8">
+                        <div className="flex justify-between items-start pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-full border border-amber-200 dark:border-amber-800/40 mb-2">
+                                    <ClockIcon className="w-3.5 h-3.5" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">Promise To Pay (PTP)</span>
+                                </div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Log Payment Promise</h3>
+                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Record a parent's commitment to clear fees on a specific date</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsLogPromiseModalOpen(false)}
+                                className="p-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveFeePromise} className="space-y-4">
+                            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/60 space-y-2">
+                                <div className="flex justify-between text-xs">
+                                    <span className="font-bold text-slate-500">Student:</span>
+                                    <span className="font-black text-slate-900 dark:text-white">{selectedStudentForPromise.name}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="font-bold text-slate-500">Admission No:</span>
+                                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{selectedStudentForPromise.admissionNumber || (selectedStudentForPromise as any).admission_number || '—'}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="font-bold text-slate-500">Current Net Balance:</span>
+                                    <span className="font-black text-rose-600 dark:text-rose-400">KSh {(selectedStudentForPromise.totals?.balance || 0).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="font-bold text-slate-500">Parent Contact:</span>
+                                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{getStudentParentPhone(selectedStudentForPromise) || 'No Phone Saved'}</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Promised Amount (KSh) *</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min={1}
+                                    value={promiseAmountInput}
+                                    onChange={(e) => setPromiseAmountInput(Number(e.target.value))}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Promised Payment Date *</label>
+                                <input
+                                    type="date"
+                                    required
+                                    value={promiseDateInput}
+                                    onChange={(e) => setPromiseDateInput(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Notes / Commitment Details</label>
+                                <textarea
+                                    rows={3}
+                                    placeholder="e.g., Parent promised salary payment on 28th via M-Pesa..."
+                                    value={promiseNotesInput}
+                                    onChange={(e) => setPromiseNotesInput(e.target.value)}
+                                    className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsLogPromiseModalOpen(false)}
+                                    className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-amber-500/25 active:scale-95 cursor-pointer"
+                                >
+                                    Save Payment Promise
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* PTP Promises Tracker Dashboard Modal */}
+            {isPtpDashboardOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-5xl w-full p-6 md:p-8 space-y-6 text-left my-8">
+                        {/* Header */}
+                        <div className="flex justify-between items-start pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-full border border-amber-200 dark:border-amber-800/40 mb-2">
+                                    <ClockIcon className="w-3.5 h-3.5" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">Financial Risk Governance</span>
+                                </div>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Promise to Pay (PTP) Tracker</h3>
+                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Track parent fee payment commitments, monitor overdue promises, and send automated SMS reminders</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsPtpDashboardOpen(false)}
+                                className="p-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Top KPI Cards */}
+                        {(() => {
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            const pendingPromises = feePromises.filter(p => p.status === 'pending' && p.promisedDate >= todayStr);
+                            const overduePromises = feePromises.filter(p => p.status === 'overdue' || (p.status === 'pending' && p.promisedDate < todayStr));
+                            const fulfilledPromises = feePromises.filter(p => p.status === 'fulfilled');
+
+                            const totalPendingAmt = pendingPromises.reduce((sum, p) => sum + p.promisedAmount, 0);
+                            const totalOverdueAmt = overduePromises.reduce((sum, p) => sum + p.promisedAmount, 0);
+                            const totalFulfilledAmt = fulfilledPromises.reduce((sum, p) => sum + p.promisedAmount, 0);
+
+                            return (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div className="bg-amber-50 dark:bg-amber-950/30 p-5 rounded-2xl border border-amber-100 dark:border-amber-900/40">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-[9px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Active Promises</span>
+                                            <ClockIcon className="w-4 h-4 text-amber-500" />
+                                        </div>
+                                        <p className="text-xl font-black text-amber-950 dark:text-amber-200">KSh {totalPendingAmt.toLocaleString()}</p>
+                                        <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 mt-1">{pendingPromises.length} Commitments pending date</p>
+                                    </div>
+
+                                    <div className="bg-rose-50 dark:bg-rose-950/30 p-5 rounded-2xl border border-rose-100 dark:border-rose-900/40">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-[9px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest">Overdue Promises</span>
+                                            <ClockIcon className="w-4 h-4 text-rose-500 animate-pulse" />
+                                        </div>
+                                        <p className="text-xl font-black text-rose-950 dark:text-rose-200">KSh {totalOverdueAmt.toLocaleString()}</p>
+                                        <p className="text-[10px] font-semibold text-rose-700 dark:text-rose-400 mt-1">{overduePromises.length} Promises passed promised date</p>
+                                    </div>
+
+                                    <div className="bg-emerald-50 dark:bg-emerald-950/30 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-900/40">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Fulfilled Promises</span>
+                                            <CheckBadgeIcon className="w-4 h-4 text-emerald-500" />
+                                        </div>
+                                        <p className="text-xl font-black text-emerald-950 dark:text-emerald-200">KSh {totalFulfilledAmt.toLocaleString()}</p>
+                                        <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-1">{fulfilledPromises.length} Promises successfully paid</p>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Status Filter Tabs */}
+                        <div className="flex gap-2 border-b border-slate-100 dark:border-slate-800 pb-3 overflow-x-auto">
+                            {[
+                                { id: 'all', label: 'All Promises' },
+                                { id: 'pending', label: '⏳ Pending' },
+                                { id: 'overdue', label: '🚨 Overdue' },
+                                { id: 'fulfilled', label: '✅ Fulfilled' },
+                                { id: 'cancelled', label: '❌ Cancelled' }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setPtpFilterStatus(tab.id as any)}
+                                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+                                        ptpFilterStatus === tab.id
+                                            ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
+                                            : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Promises Table */}
+                        <div className="overflow-x-auto">
+                            {(() => {
+                                const todayStr = new Date().toISOString().split('T')[0];
+                                const filteredList = feePromises.filter(p => {
+                                    const isOverdue = (p.status === 'pending' || p.status === 'overdue') && p.promisedDate < todayStr;
+                                    const effectiveStatus = isOverdue ? 'overdue' : p.status;
+                                    if (ptpFilterStatus === 'all') return true;
+                                    return effectiveStatus === ptpFilterStatus;
+                                });
+
+                                if (filteredList.length === 0) {
+                                    return (
+                                        <div className="p-8 text-center text-slate-400 font-medium bg-slate-50 dark:bg-slate-950 rounded-2xl">
+                                            No payment promises logged for this filter.
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <table className="w-full border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-slate-100 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                <th className="px-4 py-3 text-left">Student & Class</th>
+                                                <th className="px-4 py-3 text-left">Parent Contact</th>
+                                                <th className="px-4 py-3 text-right">Promised Amount</th>
+                                                <th className="px-4 py-3 text-center">Promised Date</th>
+                                                <th className="px-4 py-3 text-center">Status</th>
+                                                <th className="px-4 py-3 text-center">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40 text-xs">
+                                            {filteredList.map(p => {
+                                                const isOverdue = (p.status === 'pending' || p.status === 'overdue') && p.promisedDate < todayStr;
+                                                const effectiveStatus = isOverdue ? 'overdue' : p.status;
+
+                                                return (
+                                                    <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                                        <td className="px-4 py-3 text-left">
+                                                            <span className="block font-black text-slate-900 dark:text-white">{p.studentName}</span>
+                                                            <span className="text-[10px] font-bold text-slate-400">{p.className} ({p.admissionNumber})</span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300">
+                                                            {p.parentPhone || '—'}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right font-black text-amber-600 dark:text-amber-400">
+                                                            KSh {p.promisedAmount.toLocaleString()}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center font-bold text-slate-700 dark:text-slate-300">
+                                                            {p.promisedDate}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                                                effectiveStatus === 'overdue'
+                                                                    ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                                                    : effectiveStatus === 'fulfilled'
+                                                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                                    : effectiveStatus === 'cancelled'
+                                                                    ? 'bg-slate-100 text-slate-600 border-slate-300'
+                                                                    : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                            }`}>
+                                                                {effectiveStatus}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                {(effectiveStatus === 'pending' || effectiveStatus === 'overdue') && (
+                                                                    <>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleSendPromiseReminderSms(p)}
+                                                                            className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-lg text-[9px] font-black uppercase tracking-wider border border-indigo-200 dark:border-indigo-800/40 hover:bg-indigo-100 transition-all cursor-pointer"
+                                                                            title="Send PTP Reminder SMS to Parent"
+                                                                        >
+                                                                            📲 SMS Reminder
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleUpdatePromiseStatus(p.id, 'fulfilled')}
+                                                                            className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-lg text-[9px] font-black uppercase tracking-wider border border-emerald-200 dark:border-emerald-800/40 hover:bg-emerald-100 transition-all cursor-pointer"
+                                                                        >
+                                                                            Mark Paid
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleUpdatePromiseStatus(p.id, 'cancelled')}
+                                                                            className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-[9px] font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                );
+                            })()}
+                        </div>
+
+                        <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setIsPtpDashboardOpen(false)}
+                                className="px-6 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            >
+                                Close Dashboard
                             </button>
                         </div>
                     </div>

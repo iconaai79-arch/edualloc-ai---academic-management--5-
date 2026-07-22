@@ -1358,6 +1358,23 @@ export interface Conflict {
     message?: string;
 }
 
+export interface FeePromise {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    studentName?: string;
+    admissionNumber?: string;
+    className?: string;
+    parentName?: string;
+    parentPhone?: string;
+    promisedAmount: number;
+    promisedDate: string;
+    notes?: string;
+    status: 'pending' | 'fulfilled' | 'partially_fulfilled' | 'overdue' | 'cancelled';
+    createdAt: string;
+    updatedAt?: string;
+}
+
 export interface ExtensionRequest {
     id: string;
     institutionId: string;
