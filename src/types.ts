@@ -311,6 +311,7 @@ export interface User {
     email: string;
     phoneNumber: string;
     staffId?: string;
+    pinCode?: string;
     role: Role;
     roles?: Role[];
     institutionId: string;
