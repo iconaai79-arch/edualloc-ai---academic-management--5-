@@ -227,7 +227,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 </div>
             </div>
 
-            {institution.status === 'trial' && institution.trialEndsAt && (
+            {institution.institutionType !== 'Reseller' && institution.status === 'trial' && institution.trialEndsAt && (
                 <StatusCountdownBanner
                     endDate={institution.trialEndsAt}
                     title="You are on a trial period!"
@@ -237,7 +237,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 />
             )}
 
-            {institution.status === 'active' && institution.subscriptionEndsAt && (
+            {institution.institutionType !== 'Reseller' && institution.status === 'active' && institution.subscriptionEndsAt && (
                 <StatusCountdownBanner
                     endDate={institution.subscriptionEndsAt}
                     title="Active Subscription"

@@ -70,13 +70,18 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const isReseller = formData.institutionType === 'Reseller';
     const saveData: Partial<Omit<Institution, 'id'>> = {
       name: formData.name,
       email: formData.email,
       phoneNumber: formData.phoneNumber,
       institutionType: formData.institutionType as Institution['institutionType'],
       countyId: formData.countyId || undefined,
-      customSubscriptionPrice: {
+      status: isReseller ? 'active' : institution.status,
+      trialEndsAt: isReseller ? undefined : institution.trialEndsAt,
+      subscriptionEndsAt: isReseller ? undefined : institution.subscriptionEndsAt,
+      isSuspendedForBilling: isReseller ? false : institution.isSuspendedForBilling,
+      customSubscriptionPrice: isReseller ? undefined : {
         monthly: formData.customSubscriptionPrice.monthly ? parseFloat(formData.customSubscriptionPrice.monthly) : undefined,
         quarterly: formData.customSubscriptionPrice.quarterly ? parseFloat(formData.customSubscriptionPrice.quarterly) : undefined,
         yearly: formData.customSubscriptionPrice.yearly ? parseFloat(formData.customSubscriptionPrice.yearly) : undefined,
@@ -85,8 +90,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : null,
       category: formData.category || undefined,
       businessSubType: formData.category || formData.businessSubType || undefined,
-      billingModel: formData.billingModel as any,
-      ratePerStudent: parseFloat(formData.ratePerStudent) || 0,
+      billingModel: isReseller ? 'fixed' : (formData.billingModel as any),
+      ratePerStudent: isReseller ? 0 : (parseFloat(formData.ratePerStudent) || 0),
     };
     onSave(institution.id, saveData);
   };
