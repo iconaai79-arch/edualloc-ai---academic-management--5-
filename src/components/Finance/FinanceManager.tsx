@@ -944,8 +944,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // Financial calculations for students grouped by class
     function studentClassGroup(student: User) {
+        if (!student) return 'Unassigned Class';
         const enrollment = enrollments.find(e => e.userId === student.id);
-        const metaGrade = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || student.metadata?.gradeLevel || student.metadata?.stream;
+        const metaGrade = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || 
+                          student.metadata?.gradeLevel || student.metadata?.stream ||
+                          (student as any).className || (student as any).gradeLevel || (student as any).class || (student as any).grade || (student as any).stream;
         if (metaGrade) return metaGrade;
         
         const invClass = mappedInvoices.find(i => (i as any).studentId === student.id && (i as any).className) as any;
@@ -957,7 +960,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return 'Unassigned Class';
     }
 
-
+    const exportCSV = (filename: string, headers: string[], rows: (string | number | undefined | null)[][]) => {
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))
+        ].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
 
     // State for students balances registry sub-tab
     const [studentSubTab, setStudentSubTab] = useState<'registry' | 'balances'>('registry');
@@ -1087,6 +1102,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 ...s,
                 admissionNumber: adm,
                 className: cls,
+                gradeLevel: cls,
                 openingBalance: openingBal,
                 lastUpdatedTime,
                 totals: {
@@ -3737,6 +3753,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     >
                         <PaperAirplaneIcon className="w-4 h-4" />
                         <span>Send Fee Reminders</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const exportData = studentFinanceData.map(s => [
+                                s.admissionNumber || '—',
+                                s.name,
+                                s.className || studentClassGroup(s),
+                                s.totals.invoiced,
+                                s.totals.paid,
+                                s.totals.balance,
+                                s.totals.prepayment > 0 ? 'Prepaid' : s.totals.balance <= 0 ? 'Fully Paid' : s.totals.paid > 0 ? 'Partial' : 'No Payment'
+                            ]);
+                            exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
+                        }}
+                        className="flex-1 md:flex-none py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer"
+                    >
+                        📥 Export CSV
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="flex-1 md:flex-none py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer"
+                    >
+                        🖨️ Print
                     </button>
                 </div>
             </div>
@@ -11166,12 +11207,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {/* Fee Collection Report */}
                             {reportsSubTab === 'collection' && (
                                 <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                    <div className="flex items-center justify-between mb-6">
+                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                                         <div>
                                             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Collection Report</h3>
-                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">All payments received across all invoices</p>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">All payments received across all invoices with student class tracking</p>
                                         </div>
-                                        <span className="text-2xl font-black text-emerald-600">{collectionRate.toFixed(1)}%</span>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const rows = mappedInvoices.map((inv: any) => {
+                                                        const student = props.students.find((s: any) => s.id === inv.studentId);
+                                                        const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                                        const bal = (inv.totalAmount || 0) - paid;
+                                                        const cls = student ? (student.className || studentClassGroup(student)) : '—';
+                                                        return [student?.name || '—', cls, inv.invoiceNumber || inv.id?.slice(-8), inv.totalAmount || 0, paid, bal, bal <= 0 ? 'Cleared' : inv.status === 'overdue' ? 'Overdue' : 'Pending'];
+                                                    });
+                                                    exportCSV('fee_collection_report', ['Student', 'Class', 'Invoice #', 'Amount', 'Paid', 'Balance', 'Status'], rows);
+                                                }}
+                                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                            >
+                                                📥 Export CSV
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => window.print()}
+                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                            >
+                                                🖨️ Print Report
+                                            </button>
+                                            <span className="text-2xl font-black text-emerald-600 ml-2">{collectionRate.toFixed(1)}%</span>
+                                        </div>
                                     </div>
                                     <div className="grid grid-cols-3 gap-4 mb-6">
                                         {[{label:'Total Billed', val: totalBilled, cls:'bg-indigo-50 text-indigo-600'},{label:'Collected', val: totalCollected, cls:'bg-emerald-50 text-emerald-600'},{label:'Outstanding', val: outstanding, cls:'bg-rose-50 text-rose-600'}].map((s,i)=>(
@@ -11184,16 +11250,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left text-xs">
                                             <thead><tr className="border-b border-slate-100 dark:border-slate-800">
-                                                {['Student','Invoice #','Amount','Paid','Balance','Status'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
+                                                {['Student','Class','Invoice #','Amount','Paid','Balance','Status'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
                                             </tr></thead>
                                             <tbody>
-                                                {mappedInvoices.slice(0,50).map((inv: any, i: number) => {
+                                                {mappedInvoices.slice(0,100).map((inv: any, i: number) => {
                                                     const student = props.students.find((s: any) => s.id === inv.studentId);
+                                                    const cls = student ? (student.className || studentClassGroup(student)) : '—';
                                                     const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
                                                     const bal = (inv.totalAmount || 0) - paid;
                                                     return (
                                                         <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                                             <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{student?.name || inv.studentId || '—'}</td>
+                                                            <td className="py-3 px-4 font-bold text-slate-600 dark:text-slate-400">{cls}</td>
                                                             <td className="py-3 px-4 text-slate-500">{inv.invoiceNumber || inv.id?.slice(-8)}</td>
                                                             <td className="py-3 px-4 font-black text-slate-700">KSh {(inv.totalAmount||0).toLocaleString()}</td>
                                                             <td className="py-3 px-4 font-black text-emerald-600">KSh {paid.toLocaleString()}</td>
@@ -11250,7 +11318,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 });
 
                                 // Classes list
-                                const classes = Array.from(new Set(props.students.map((s: any) => s.gradeLevel || 'Unclassified'))).sort();
+                                const classes = Array.from(new Set(studentFinanceData.map((s: any) => s.className || studentClassGroup(s)))).filter(Boolean).sort();
 
                                 // Terms
                                 const terms = Array.from(new Set(
@@ -11280,9 +11348,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <input type="text" placeholder="Search student..." value={slipSearch} onChange={e => setSlipSearch(e.target.value)} className="flex-1 pl-4 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold text-slate-900 dark:text-white" />
                                                         <select value={slipStudentId} onChange={e => setSlipStudentId(e.target.value)} className="flex-1 py-2.5 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold text-slate-900 dark:text-white">
                                                             <option value="">— Select Student —</option>
-                                                            {slipStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{s.gradeLevel ? ` · ${s.gradeLevel}` : ''}</option>))}
+                                                            {slipStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>))}
                                                         </select>
-                                                        {slipStudentId && <button onClick={() => window.print()} className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">🖨️ Print Slip</button>}
+                                                        {slipStudentId && <button onClick={() => window.print()} className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">🖨️ Print Slip</button>}
                                                     </div>
                                                 </div>
 
@@ -11300,7 +11368,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <div className="grid grid-cols-2 gap-3 text-xs">
                                                                 <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Student Name</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{slipStudent.name}</p></div>
                                                                 <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Adm Number</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).admissionNumber || '—'}</p></div>
-                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Class</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).gradeLevel || '—'}</p></div>
+                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Class</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{slipStudent.className || studentClassGroup(slipStudent)}</p></div>
                                                                 <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Stream</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).stream || '—'}</p></div>
                                                             </div>
                                                         </div>
@@ -11319,96 +11387,147 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         )}
 
                                         {/* 2. All Balances */}
-                                        {outstandingSubTab === 'all_balances' && (
-                                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
-                                                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-                                                    <div>
-                                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">All Outstanding Balances</h3>
-                                                        <p className="text-[10px] text-slate-400 font-medium mt-0.5">{studentFinanceData.filter((s: any) => s.totals.balance > 0).length} students with balances</p>
+                                        {outstandingSubTab === 'all_balances' && (() => {
+                                            const filteredList = studentFinanceData
+                                                .filter((s: any) => s.totals.balance > 0)
+                                                .filter((s: any) => !balFilter || s.name?.toLowerCase().includes(balFilter.toLowerCase()) || (s.admissionNumber || '').toLowerCase().includes(balFilter.toLowerCase()))
+                                                .filter((s: any) => !balClass || (s.className || studentClassGroup(s)) === balClass)
+                                                .sort((a: any, b: any) => b.totals.balance - a.totals.balance);
+
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
+                                                        <div>
+                                                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">All Outstanding Balances</h3>
+                                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">{filteredList.length} students with balances</p>
+                                                        </div>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <input type="text" placeholder="Filter name/adm..." value={balFilter} onChange={e => setBalFilter(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
+                                                            <select value={balClass} onChange={e => setBalClass(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
+                                                                <option value="">All Classes</option>
+                                                                {classes.map((c: any) => <option key={c} value={c}>{c}</option>)}
+                                                            </select>
+                                                            <button
+                                                                onClick={() => exportCSV('all_outstanding_balances', ['#', 'Student Name', 'Admission No', 'Class', 'Total Invoiced', 'Total Paid', 'Balance Owed'], filteredList.map((s, i) => [i + 1, s.name, s.admissionNumber, s.className || studentClassGroup(s), s.totals.invoiced, s.totals.paid, s.totals.balance]))}
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                            >
+                                                                📥 CSV
+                                                            </button>
+                                                            <button
+                                                                onClick={() => window.print()}
+                                                                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                            >
+                                                                🖨️ Print
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex gap-2">
-                                                        <input type="text" placeholder="Filter name/adm..." value={balFilter} onChange={e => setBalFilter(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
-                                                        <select value={balClass} onChange={e => setBalClass(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
-                                                            <option value="">All Classes</option>
-                                                            {classes.map((c: any) => <option key={c} value={c}>{c}</option>)}
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-left">
-                                                        <thead><tr>{['#', 'Student', 'Adm No.', 'Class', 'Invoiced', 'Paid', 'Balance'].map(h => TH(h))}</tr></thead>
-                                                        <tbody>
-                                                            {studentFinanceData
-                                                                .filter((s: any) => s.totals.balance > 0)
-                                                                .filter((s: any) => !balFilter || s.name?.toLowerCase().includes(balFilter.toLowerCase()) || (s.admissionNumber || '').toLowerCase().includes(balFilter.toLowerCase()))
-                                                                .filter((s: any) => !balClass || s.gradeLevel === balClass)
-                                                                .sort((a: any, b: any) => b.totals.balance - a.totals.balance)
-                                                                .map((s: any, i: number) => (
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left">
+                                                            <thead><tr>{['#', 'Student', 'Adm No.', 'Class', 'Invoiced', 'Paid', 'Balance'].map(h => TH(h))}</tr></thead>
+                                                            <tbody>
+                                                                {filteredList.map((s: any, i: number) => (
                                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
                                                                         <TD cls="text-slate-400 font-bold">{i + 1}</TD>
                                                                         <TD cls="font-bold text-slate-800 dark:text-white">{s.name}</TD>
                                                                         <TD cls="text-slate-500">{s.admissionNumber}</TD>
-                                                                        <TD cls="text-slate-500">{s.gradeLevel || '—'}</TD>
+                                                                        <TD cls="text-slate-600 font-bold">{s.className || studentClassGroup(s)}</TD>
                                                                         <TD cls="font-black text-slate-700">KSh {s.totals.invoiced.toLocaleString()}</TD>
                                                                         <TD cls="font-black text-emerald-600">KSh {s.totals.paid.toLocaleString()}</TD>
                                                                         <TD cls="font-black text-rose-600">KSh {s.totals.balance.toLocaleString()}</TD>
                                                                     </tr>
                                                                 ))}
-                                                        </tbody>
-                                                    </table>
+                                                                {filteredList.length === 0 && (
+                                                                    <tr><td colSpan={7} className="py-8 text-center text-slate-400 font-medium text-xs">No outstanding balances found matching filter criteria.</td></tr>
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
 
                                         {/* 3. Student Summary — invoiced/paid/balance per votehead */}
-                                        {outstandingSubTab === 'student_summary' && (
-                                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
-                                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">Student Summary by Votehead</h3>
-                                                <p className="text-[10px] text-slate-400 font-medium mb-4">Amount invoiced and received per votehead per student</p>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-left">
-                                                        <thead><tr>
-                                                            {TH('Student')}
-                                                            {TH('Adm No.')}
-                                                            {TH('Class')}
-                                                            {allVoteHeads.map(v => TH(v))}
-                                                            {TH('Total Inv.')}
-                                                            {TH('Total Paid')}
-                                                            {TH('Balance')}
-                                                        </tr></thead>
-                                                        <tbody>
-                                                            {studentVoteData.filter((s: any) => s.totals.balance > 0).map((s: any, i: number) => (
-                                                                <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                    <TD cls="font-bold text-slate-800 dark:text-white whitespace-nowrap">{s.name}</TD>
-                                                                    <TD cls="text-slate-500">{s.admissionNumber}</TD>
-                                                                    <TD cls="text-slate-500">{s.gradeLevel || '—'}</TD>
-                                                                    {allVoteHeads.map(v => (
-                                                                        <TD key={v} cls="text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                                                                            {s.voteMap[v] ? (
-                                                                                <div>
-                                                                                    <div className="font-black text-slate-700">{s.voteMap[v].invoiced.toLocaleString()}</div>
-                                                                                    <div className="text-emerald-600">{Math.round(s.voteMap[v].paid).toLocaleString()}</div>
-                                                                                    <div className="text-rose-500 text-[10px]">{Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid).toLocaleString()}</div>
-                                                                                </div>
-                                                                            ) : <span className="text-slate-300">—</span>}
-                                                                        </TD>
-                                                                    ))}
-                                                                    <TD cls="font-black text-slate-700">KSh {s.totals.invoiced.toLocaleString()}</TD>
-                                                                    <TD cls="font-black text-emerald-600">KSh {s.totals.paid.toLocaleString()}</TD>
-                                                                    <TD cls="font-black text-rose-600">KSh {s.totals.balance.toLocaleString()}</TD>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
+                                        {outstandingSubTab === 'student_summary' && (() => {
+                                            const filteredVoteData = studentVoteData.filter((s: any) => s.totals.balance > 0);
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
+                                                        <div>
+                                                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Summary by Votehead</h3>
+                                                            <p className="text-[10px] text-slate-400 font-medium">Amount invoiced and received per votehead per student across classes</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const headers = ['Student Name', 'Admission No', 'Class', ...allVoteHeads, 'Total Invoiced', 'Total Paid', 'Balance'];
+                                                                    const rows = filteredVoteData.map((s: any) => [
+                                                                        s.name,
+                                                                        s.admissionNumber,
+                                                                        s.className || studentClassGroup(s),
+                                                                        ...allVoteHeads.map(v => s.voteMap[v] ? `${s.voteMap[v].invoiced}/${Math.round(s.voteMap[v].paid)}/${Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid)}` : '0/0/0'),
+                                                                        s.totals.invoiced,
+                                                                        s.totals.paid,
+                                                                        s.totals.balance
+                                                                    ]);
+                                                                    exportCSV('student_summary_by_votehead', headers, rows);
+                                                                }}
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                            >
+                                                                📥 CSV
+                                                            </button>
+                                                            <button
+                                                                onClick={() => window.print()}
+                                                                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                            >
+                                                                🖨️ Print
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left">
+                                                            <thead><tr>
+                                                                {TH('Student')}
+                                                                {TH('Adm No.')}
+                                                                {TH('Class')}
+                                                                {allVoteHeads.map(v => TH(v))}
+                                                                {TH('Total Inv.')}
+                                                                {TH('Total Paid')}
+                                                                {TH('Balance')}
+                                                            </tr></thead>
+                                                            <tbody>
+                                                                {filteredVoteData.map((s: any, i: number) => (
+                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                        <TD cls="font-bold text-slate-800 dark:text-white whitespace-nowrap">{s.name}</TD>
+                                                                        <TD cls="text-slate-500">{s.admissionNumber}</TD>
+                                                                        <TD cls="text-slate-600 font-bold">{s.className || studentClassGroup(s)}</TD>
+                                                                        {allVoteHeads.map(v => (
+                                                                            <TD key={v} cls="text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                                                                {s.voteMap[v] ? (
+                                                                                    <div>
+                                                                                        <div className="font-black text-slate-700">{s.voteMap[v].invoiced.toLocaleString()}</div>
+                                                                                        <div className="text-emerald-600">{Math.round(s.voteMap[v].paid).toLocaleString()}</div>
+                                                                                        <div className="text-rose-500 text-[10px]">{Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid).toLocaleString()}</div>
+                                                                                    </div>
+                                                                                ) : <span className="text-slate-300">—</span>}
+                                                                            </TD>
+                                                                        ))}
+                                                                        <TD cls="font-black text-slate-700">KSh {s.totals.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-600">KSh {s.totals.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-600">KSh {s.totals.balance.toLocaleString()}</TD>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                    <p className="text-[9px] text-slate-400 mt-2 font-medium">Each votehead cell shows: Invoiced / Paid / Balance. Paid amounts are distributed proportionally.</p>
                                                 </div>
-                                                <p className="text-[9px] text-slate-400 mt-2 font-medium">Each votehead cell shows: Invoiced / Paid / Balance. Paid amounts are distributed proportionally.</p>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
 
                                         {/* 4. Class Summary */}
                                         {outstandingSubTab === 'class_summary' && (() => {
                                             const classSummary = classes.map((cls: string) => {
-                                                const students = studentFinanceData.filter((s: any) => (s.gradeLevel || 'Unclassified') === cls);
+                                                const students = studentFinanceData.filter((s: any) => (s.className || studentClassGroup(s)) === cls);
                                                 return {
                                                     cls,
                                                     count: students.length,
@@ -11420,7 +11539,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             const totals = classSummary.reduce((a: any, r) => ({ invoiced: a.invoiced + r.invoiced, paid: a.paid + r.paid, balance: a.balance + r.balance }), { invoiced: 0, paid: 0, balance: 0 });
                                             return (
                                                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
-                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Class Summary</h3>
+                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
+                                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Class Summary</h3>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => exportCSV('class_summary_report', ['Class', 'Students Count', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection Rate %'], classSummary.map(r => [r.cls, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))}
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                            >
+                                                                📥 CSV
+                                                            </button>
+                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">
+                                                                🖨️ Print
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                     <div className="overflow-x-auto">
                                                         <table className="w-full text-left">
                                                             <thead><tr>{['Class', 'Students', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
@@ -11466,7 +11598,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             }).filter(r => r.invoiced > 0);
                                             return (
                                                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
-                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Term Summary Balances</h3>
+                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
+                                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Term Summary Balances</h3>
+                                                        <div className="flex items-center gap-2">
+                                                            <button onClick={() => exportCSV('term_summary_balances', ['Term', 'Invoices Count', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'], termSummary.map(r => [r.term, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">📥 CSV</button>
+                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">🖨️ Print</button>
+                                                        </div>
+                                                    </div>
                                                     <div className="overflow-x-auto">
                                                         <table className="w-full text-left">
                                                             <thead><tr>{['Term', 'Invoices', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
@@ -11509,7 +11647,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             const totals = vhSummary.reduce((a, r) => ({ invoiced: a.invoiced + r.invoiced, paid: a.paid + r.paid, balance: a.balance + r.balance }), { invoiced: 0, paid: 0, balance: 0 });
                                             return (
                                                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
-                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Voteheads Summary</h3>
+                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
+                                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Voteheads Summary</h3>
+                                                        <div className="flex items-center gap-2">
+                                                            <button onClick={() => exportCSV('voteheads_summary', ['Votehead', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection %'], vhSummary.map(r => [r.vh, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">📥 CSV</button>
+                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">🖨️ Print</button>
+                                                        </div>
+                                                    </div>
                                                     <div className="overflow-x-auto">
                                                         <table className="w-full text-left">
                                                             <thead><tr>{['Votehead', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
@@ -11543,28 +11687,55 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         })()}
 
                                         {/* 7. Votehead Distribution — pivot table */}
-                                        {outstandingSubTab === 'votehead_distribution' && (
-                                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
-                                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">Votehead Distribution</h3>
-                                                <p className="text-[10px] text-slate-400 font-medium mb-4">Outstanding balance per student per votehead (Dr = still owed)</p>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-left">
-                                                        <thead><tr>
-                                                            {TH('#')}
-                                                            {TH('Student')}
-                                                            {TH('Class')}
-                                                            {allVoteHeads.map(v => TH(v))}
-                                                            {TH('Total Balance')}
-                                                        </tr></thead>
-                                                        <tbody>
-                                                            {studentVoteData
-                                                                .filter((s: any) => s.totals.balance > 0)
-                                                                .sort((a: any, b: any) => b.totals.balance - a.totals.balance)
-                                                                .map((s: any, i: number) => (
+                                        {outstandingSubTab === 'votehead_distribution' && (() => {
+                                            const distStudents = studentVoteData
+                                                .filter((s: any) => s.totals.balance > 0)
+                                                .sort((a: any, b: any) => b.totals.balance - a.totals.balance);
+
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
+                                                        <div>
+                                                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Votehead Distribution</h3>
+                                                            <p className="text-[10px] text-slate-400 font-medium">Outstanding balance per student per votehead with class breakdown (Dr = still owed)</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const headers = ['#', 'Student Name', 'Class', ...allVoteHeads, 'Total Balance Owed'];
+                                                                    const rows = distStudents.map((s: any, i: number) => [
+                                                                        i + 1,
+                                                                        s.name,
+                                                                        s.className || studentClassGroup(s),
+                                                                        ...allVoteHeads.map(v => s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0),
+                                                                        s.totals.balance
+                                                                    ]);
+                                                                    exportCSV('votehead_distribution', headers, rows);
+                                                                }}
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                            >
+                                                                📥 CSV
+                                                            </button>
+                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">
+                                                                🖨️ Print
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left">
+                                                            <thead><tr>
+                                                                {TH('#')}
+                                                                {TH('Student')}
+                                                                {TH('Class')}
+                                                                {allVoteHeads.map(v => TH(v))}
+                                                                {TH('Total Balance')}
+                                                            </tr></thead>
+                                                            <tbody>
+                                                                {distStudents.map((s: any, i: number) => (
                                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
                                                                         <TD cls="text-slate-400 font-bold">{i + 1}</TD>
                                                                         <TD cls="font-bold text-slate-800 dark:text-white whitespace-nowrap">{s.name}</TD>
-                                                                        <TD cls="text-slate-500 whitespace-nowrap">{s.gradeLevel || '—'}</TD>
+                                                                        <TD cls="text-slate-600 font-bold whitespace-nowrap">{s.className || studentClassGroup(s)}</TD>
                                                                         {allVoteHeads.map(v => {
                                                                             const vb = s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0;
                                                                             return <TD key={v} cls={`whitespace-nowrap font-bold ${vb > 0 ? 'text-rose-600' : vb < 0 ? 'text-emerald-600' : 'text-slate-300'}`}>{vb !== 0 ? `KSh ${Math.abs(vb).toLocaleString()}` : '—'}</TD>;
@@ -11572,20 +11743,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         <TD cls="font-black text-rose-700">KSh {s.totals.balance.toLocaleString()}</TD>
                                                                     </tr>
                                                                 ))}
-                                                            {/* Column totals */}
-                                                            <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-rose-50 dark:bg-rose-900/10 font-black">
-                                                                <TD cls="" /><TD cls="text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</TD><TD cls="" />
-                                                                {allVoteHeads.map(v => {
-                                                                    const total = studentVoteData.filter((s: any) => s.totals.balance > 0).reduce((a: number, s: any) => a + (s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0), 0);
-                                                                    return <TD key={v} cls="text-rose-700 whitespace-nowrap">{total > 0 ? `KSh ${total.toLocaleString()}` : '—'}</TD>;
-                                                                })}
-                                                                <TD cls="text-rose-700">KSh {studentVoteData.filter((s: any) => s.totals.balance > 0).reduce((a: number, s: any) => a + s.totals.balance, 0).toLocaleString()}</TD>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
+                                                                {/* Column totals */}
+                                                                <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-rose-50 dark:bg-rose-900/10 font-black">
+                                                                    <TD cls="" /><TD cls="text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</TD><TD cls="" />
+                                                                    {allVoteHeads.map(v => {
+                                                                        const total = distStudents.reduce((a: number, s: any) => a + (s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0), 0);
+                                                                        return <TD key={v} cls="text-rose-700 whitespace-nowrap">{total > 0 ? `KSh ${total.toLocaleString()}` : '—'}</TD>;
+                                                                    })}
+                                                                    <TD cls="text-rose-700">KSh {distStudents.reduce((a: number, s: any) => a + s.totals.balance, 0).toLocaleString()}</TD>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
                                 );
                             })()}
@@ -12939,7 +13111,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </div>
                                                 <select value={stmtStudentId} onChange={e => setStmtStudentId(e.target.value)} className="flex-1 py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white">
                                                     <option value="">— Select Student —</option>
-                                                    {filteredStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{s.gradeLevel ? ` · ${s.gradeLevel}` : ''}</option>))}
+                                                    {filteredStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>))}
                                                 </select>
                                             </div>
                                         </div>
@@ -12953,12 +13125,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <h3 className="text-2xl font-black">{props.institution.name}</h3>
                                                             <p className="text-indigo-200 text-xs mt-1">Generated: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                                                         </div>
-                                                        <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest transition-all">🖨️ Print</button>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const headers = ['Date', 'Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance'];
+                                                                    const rows = ledger.map(e => [e.date, e.description, e.debit, e.credit, e.balance]);
+                                                                    exportCSV(`statement_${selectedStudent.name.replace(/\s+/g, '_')}`, headers, rows);
+                                                                }}
+                                                                className="flex items-center gap-1.5 px-4 py-2.5 bg-white/20 hover:bg-white/30 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95"
+                                                            >
+                                                                📥 CSV
+                                                            </button>
+                                                            <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">🖨️ Print</button>
+                                                        </div>
                                                     </div>
                                                     <div className="mt-6 pt-6 border-t border-white/20 grid grid-cols-2 md:grid-cols-4 gap-4">
                                                         <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Student</p><p className="font-black text-sm mt-0.5">{selectedStudent.name}</p></div>
                                                         <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Adm No.</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).admissionNumber || '—'}</p></div>
-                                                        <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).gradeLevel || '—'}</p></div>
+                                                        <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}</p></div>
                                                         <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}</p></div>
                                                     </div>
                                                 </div>
