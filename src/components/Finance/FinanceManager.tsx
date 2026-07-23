@@ -1662,6 +1662,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 props.onLogAction(`Auto-reconciled and posted ${newReceipts.length} official receipts from Excel import totalling KSh ${newReceipts.reduce((sum, r) => sum + r.amountPaid, 0).toLocaleString()}`);
             }
 
+            // --- Bulk Receipt Notifications (fire-and-forget) ---
+            try {
+                const bulkSchool = props.institution.name || 'School';
+                for (const rec of newReceipts) {
+                    const bStudent = props.students.find((s: any) => s.id === rec.studentId);
+                    if (!bStudent) continue;
+                    const bLink = `${window.location.origin}/?receipt=${rec.receiptNumber}`;
+                    const bSms = `[${bulkSchool}] KSh ${rec.amountPaid.toLocaleString()} received. Receipt: ${rec.receiptNumber}. Download: ${bLink}`;
+                    if (sendSmsNotification) {
+                        if (bStudent.phoneNumber) apiService.sendSms(bStudent.phoneNumber, bSms, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
+                        if (bStudent.metadata?.parentPhone) apiService.sendSms(bStudent.metadata.parentPhone, bSms, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
+                    }
+                    if (sendEmailNotification && bStudent.email) {
+                        const bHtml = `<p>Dear ${bStudent.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${rec.amountPaid.toLocaleString()}</strong> received. Receipt No: <strong>${rec.receiptNumber}</strong>.</p><p>Download: <a href="${bLink}">${bLink}</a></p><p>${bulkSchool} Accounts Office</p>`;
+                        apiService.sendEmail(bStudent.email, `Receipt ${rec.receiptNumber} – ${bulkSchool}`, bHtml).catch(() => {});
+                    }
+                }
+            } catch (_bne) { /* bulk notifications non-critical */ }
+
             setBulkImportSuccessSummary(`Successfully auto-reconciled and posted ${newReceipts.length} receipts totalling KSh ${newReceipts.reduce((sum, r) => sum + r.amountPaid, 0).toLocaleString()}!`);
             setExcelImportStep(3);
         } catch (err: any) {
@@ -2036,6 +2055,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [nextReceiptNumber, setNextReceiptNumber] = useState('');
     const [useCustomReceiptNumber, setUseCustomReceiptNumber] = useState(false);
     const [customReceiptNumber, setCustomReceiptNumber] = useState('');
+
+    // Notification toggles for post receipt and bulk reconcile
+    const [sendSmsNotification, setSendSmsNotification] = useState(true);
+    const [sendEmailNotification, setSendEmailNotification] = useState(true);
 
     // Reconcile form states
     const [reconcileStudentId, setReconcileStudentId] = useState('');
@@ -2560,6 +2583,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             if (props.onRefreshData) {
                 await props.onRefreshData();
             }
+
+            // --- Receipt Notification (SMS + Email) ---
+            try {
+                const notifyStudent = props.students.find((s: any) => s.id === manualPayStudentId);
+                const notifySchool = props.institution.name || 'School';
+                const receiptLink = `${window.location.origin}/?receipt=${receiptNumber}`;
+                const smsText = `[${notifySchool}] KSh ${Number(manualPayAmount).toLocaleString()} received. Receipt: ${receiptNumber}. Download: ${receiptLink}`;
+                const emailHtml = `<p>Dear ${notifyStudent?.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${Number(manualPayAmount).toLocaleString()}</strong> has been received.</p><p><b>Receipt No:</b> ${receiptNumber}<br/><b>Method:</b> ${manualPayMethod}<br/><b>Ref:</b> ${manualPayReference || 'N/A'}<br/><b>Date:</b> ${manualPayDate}</p><p>Download receipt: <a href="${receiptLink}">${receiptLink}</a></p><p>Thank you,<br/>${notifySchool} Accounts Office</p>`;
+                if (sendSmsNotification) {
+                    if (notifyStudent?.phoneNumber) apiService.sendSms(notifyStudent.phoneNumber, smsText, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
+                    if (notifyStudent?.metadata?.parentPhone) apiService.sendSms(notifyStudent.metadata.parentPhone, smsText, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
+                }
+                if (sendEmailNotification && notifyStudent?.email) {
+                    apiService.sendEmail(notifyStudent.email, `Payment Receipt ${receiptNumber} – ${notifySchool}`, emailHtml).catch(() => {});
+                }
+            } catch (_ne) { /* notifications are non-critical */ }
 
             alert(`Receipt ${receiptNumber} generated and payment allocated successfully!`);
 
@@ -10331,6 +10370,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Notification Preferences */}
+                                <div className="border border-slate-100 dark:border-slate-800 rounded-2xl p-4 bg-slate-50 dark:bg-slate-950 space-y-3">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Send Receipt Notifications</p>
+                                    <div className="flex items-center gap-4">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={sendSmsNotification}
+                                                onChange={e => setSendSmsNotification(e.target.checked)}
+                                                className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                                            />
+                                            <span className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1">📱 SMS</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={sendEmailNotification}
+                                                onChange={e => setSendEmailNotification(e.target.checked)}
+                                                className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                                            />
+                                            <span className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1">✉️ Email (with PDF link)</span>
+                                        </label>
+                                    </div>
+                                    <p className="text-[9px] text-slate-400 font-medium">Student &amp; parent will receive receipt confirmation with a download link.</p>
+                                </div>
 
                                 <button
                                     onClick={handlePostManualPayment}
