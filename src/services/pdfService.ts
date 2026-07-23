@@ -286,7 +286,7 @@ export const generateInvoicePdfDataUri = async (
         doc.setFontSize(8);
         doc.setTextColor(30, 41, 59);
         doc.text(`Student Name :  ${student.name || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 7);
-        doc.text(`Adm Number   :  ${student.admissionNumber || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 13);
+        doc.text(`Adm Number   :  ${resolveStudentAdmissionNo(student)}`, pageWidth / 2 + 6, tableStartY + 13);
         doc.text(`Class / Grade:  ${student.className || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 19);
     } else {
         doc.text('BILL TO (CLIENT)', pageWidth / 2 + 6, tableStartY + 1);
@@ -9499,6 +9499,31 @@ export const generatePatientHistoryPdf = async (
     return doc.output('datauristring');
 };
 
+export const resolveStudentAdmissionNo = (student: any): string => {
+    if (!student) return 'N/A';
+
+    const directAdm = 
+        student.admissionNumber ||
+        student.admission_number ||
+        student.admNo ||
+        student.adm_no ||
+        student.staffId ||
+        student.staff_id ||
+        student.metadata?.admissionNumber ||
+        student.metadata?.admission_number ||
+        student.metadata?.admNo ||
+        student.metadata?.staffId ||
+        student.metadata?.registrationNumber ||
+        student.metadata?.regNo;
+
+    if (directAdm && String(directAdm).trim() !== '' && String(directAdm).trim() !== '—' && String(directAdm).trim().toUpperCase() !== 'N/A') {
+        return String(directAdm).trim();
+    }
+
+    const cleanId = (student.staffId || student.id || '').replace(/^user_/, '').replace(/^stu_/, '').slice(-6).toUpperCase();
+    return cleanId ? `ADM-${cleanId}` : 'N/A';
+};
+
 export const generateStudentStatementPdfDataUri = async (
     student: any,
     ledgerEntries: Array<{ date: string; description: string; debit: number; credit: number; balance: number }>,
@@ -9533,7 +9558,7 @@ export const generateStudentStatementPdfDataUri = async (
     doc.setDrawColor(226, 232, 240);
     doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 32, 3, 3, 'FD');
 
-    const admNo = student?.admissionNumber || student?.admission_number || student?.admNo || student?.adm_no || student?.staffId || student?.staff_id || student?.metadata?.admissionNumber || student?.metadata?.admission_number || student?.metadata?.admNo || student?.metadata?.staffId || 'N/A';
+    const admNo = resolveStudentAdmissionNo(student);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(30, 41, 59);
@@ -9543,7 +9568,7 @@ export const generateStudentStatementPdfDataUri = async (
 
     const dateStr = new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
     doc.text(`Statement Date : ${dateStr}`, pageWidth / 2 + 10, yPos + 8);
-    doc.text(`Ref Number     : STMT-${admNo !== 'N/A' ? admNo : student?.id?.slice(0,6)}`, pageWidth / 2 + 10, yPos + 16);
+    doc.text(`Ref Number     : STMT-${dateStr.slice(-4)}/${admNo}`, pageWidth / 2 + 10, yPos + 16);
     const balStatus = summary.balance > 0 ? `KSh ${summary.balance.toLocaleString()} OWING` : summary.balance < 0 ? `KSh ${Math.abs(summary.balance).toLocaleString()} CREDIT` : 'FULLY PAID';
     doc.setTextColor(summary.balance > 0 ? 225 : 16, summary.balance > 0 ? 29 : 185, summary.balance > 0 ? 72 : 129);
     doc.text(`Account Status : ${balStatus}`, pageWidth / 2 + 10, yPos + 24);
