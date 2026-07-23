@@ -9563,21 +9563,21 @@ export const generateStudentStatementPdfDataUri = async (
     const dateStr = new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
     const studentClass = student?.className || student?.gradeLevel || '—';
 
-    const rightMargin = pageWidth - margin - 6;
+    const rightMargin = pageWidth - margin - 10;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text('STUDENT FULL NAME', margin + 6, yPos + 7);
-    doc.text('ADMISSION NUMBER', margin + 62, yPos + 7);
-    doc.text('CLASS / STREAM', margin + 112, yPos + 7);
+    doc.text('STUDENT FULL NAME', margin + 8, yPos + 7);
+    doc.text('ADMISSION NUMBER', margin + 60, yPos + 7);
+    doc.text('CLASS / STREAM', margin + 105, yPos + 7);
     doc.text('ACCOUNT STATUS', rightMargin, yPos + 7, { align: 'right' });
 
     doc.setFontSize(9);
     doc.setTextColor(30, 41, 59);
-    doc.text(String(student?.name || 'N/A'), margin + 6, yPos + 14);
-    doc.text(String(admNo), margin + 62, yPos + 14);
-    doc.text(String(studentClass), margin + 112, yPos + 14);
+    doc.text(String(student?.name || 'N/A'), margin + 8, yPos + 14);
+    doc.text(String(admNo), margin + 60, yPos + 14);
+    doc.text(String(studentClass), margin + 105, yPos + 14);
 
     const balText = summary.balance > 0 ? `KSh ${summary.balance.toLocaleString()} OWING` : summary.balance < 0 ? `KSh ${Math.abs(summary.balance).toLocaleString()} CREDIT` : 'FULLY PAID';
     doc.setTextColor(summary.balance > 0 ? 225 : 16, summary.balance > 0 ? 29 : 185, summary.balance > 0 ? 72 : 129);
@@ -9586,7 +9586,7 @@ export const generateStudentStatementPdfDataUri = async (
 
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text(`Reference: STMT-${new Date().getFullYear()}/${admNo}`, margin + 6, yPos + 24);
+    doc.text(`Reference: STMT-${new Date().getFullYear()}/${admNo}`, margin + 8, yPos + 24);
     doc.text(`Issue Date: ${dateStr}`, rightMargin, yPos + 24, { align: 'right' });
 
     yPos += 36;
