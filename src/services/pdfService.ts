@@ -9530,7 +9530,8 @@ export const generateStudentStatementPdfDataUri = async (
     summary: { totalInvoiced: number; totalPaid: number; balance: number },
     institution: Institution,
     companyDetails?: CompanyDetails,
-    logoUrl?: string | null
+    logoUrl?: string | null,
+    issuedByOfficerName?: string
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -9553,38 +9554,66 @@ export const generateStudentStatementPdfDataUri = async (
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Student Information Block
+    // 1. Student Information Metadata Box
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 32, 3, 3, 'FD');
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 30, 3, 3, 'FD');
 
     const admNo = resolveStudentAdmissionNo(student);
+    const dateStr = new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
+    const studentClass = student?.className || student?.gradeLevel || '—';
+
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text('STUDENT FULL NAME', margin + 6, yPos + 7);
+    doc.text('ADMISSION NUMBER', margin + 70, yPos + 7);
+    doc.text('CLASS / STREAM', margin + 125, yPos + 7);
+    doc.text('ACCOUNT STATUS', margin + 165, yPos + 7);
+
+    doc.setFontSize(9.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text(String(student?.name || 'N/A'), margin + 6, yPos + 14);
+    doc.text(String(admNo), margin + 70, yPos + 14);
+    doc.text(String(studentClass), margin + 125, yPos + 14);
+
+    const balText = summary.balance > 0 ? `KSh ${summary.balance.toLocaleString()} OWING` : summary.balance < 0 ? `KSh ${Math.abs(summary.balance).toLocaleString()} CREDIT` : 'FULLY PAID';
+    doc.setTextColor(summary.balance > 0 ? 225 : 16, summary.balance > 0 ? 29 : 185, summary.balance > 0 ? 72 : 129);
+    doc.setFontSize(9);
+    doc.text(balText, margin + 165, yPos + 14);
+
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Reference: STMT-${new Date().getFullYear()}/${admNo}`, margin + 6, yPos + 24);
+    doc.text(`Issue Date: ${dateStr}`, margin + 125, yPos + 24);
+
+    yPos += 36;
+
+    // 2. Financial Summary Cards Box
+    doc.setFillColor(240, 243, 255);
+    doc.setDrawColor(199, 210, 254);
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 16, 3, 3, 'FD');
+
+    const colW = (pageWidth - (margin * 2)) / 3;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('TOTAL INVOICED (DR)', margin + colW * 0.5, yPos + 5, { align: 'center' });
+    doc.text('TOTAL PAYMENTS (CR)', margin + colW * 1.5, yPos + 5, { align: 'center' });
+    doc.text('NET BALANCE', margin + colW * 2.5, yPos + 5, { align: 'center' });
+
     doc.setFontSize(10);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Student Name : ${student?.name || 'N/A'}`, margin + 6, yPos + 8);
-    doc.text(`Admission No : ${admNo}`, margin + 6, yPos + 16);
-    doc.text(`Class / Grade : ${student?.className || student?.gradeLevel || 'N/A'}`, margin + 6, yPos + 24);
-
-    const dateStr = new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
-    doc.text(`Statement Date : ${dateStr}`, pageWidth / 2 + 10, yPos + 8);
-    doc.text(`Ref Number     : STMT-${dateStr.slice(-4)}/${admNo}`, pageWidth / 2 + 10, yPos + 16);
-    const balStatus = summary.balance > 0 ? `KSh ${summary.balance.toLocaleString()} OWING` : summary.balance < 0 ? `KSh ${Math.abs(summary.balance).toLocaleString()} CREDIT` : 'FULLY PAID';
+    doc.text(`KSh ${summary.totalInvoiced.toLocaleString()}`, margin + colW * 0.5, yPos + 12, { align: 'center' });
+    doc.setTextColor(16, 185, 129);
+    doc.text(`KSh ${summary.totalPaid.toLocaleString()}`, margin + colW * 1.5, yPos + 12, { align: 'center' });
     doc.setTextColor(summary.balance > 0 ? 225 : 16, summary.balance > 0 ? 29 : 185, summary.balance > 0 ? 72 : 129);
-    doc.text(`Account Status : ${balStatus}`, pageWidth / 2 + 10, yPos + 24);
+    doc.text(`KSh ${Math.abs(summary.balance).toLocaleString()} ${summary.balance > 0 ? 'Dr' : 'Cr'}`, margin + colW * 2.5, yPos + 12, { align: 'center' });
 
-    yPos += 38;
+    yPos += 22;
 
-    // Financial Summary Cards Box
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(71, 85, 105);
-    doc.text(`Total Billed: KSh ${summary.totalInvoiced.toLocaleString()}   |   Total Paid: KSh ${summary.totalPaid.toLocaleString()}   |   Net Balance: KSh ${summary.balance.toLocaleString()}`, margin, yPos);
-
-    yPos += 8;
-
-    // AutoTable Ledger
-    const tableHead = [['Date', 'Description', 'Charges (Dr)', 'Payments (Cr)', 'Balance (KSh)']];
+    // 3. Itemized AutoTable Ledger
+    const tableHead = [['Date', 'Particulars / Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance']];
     const tableBody = ledgerEntries.map(e => [
         e.date,
         e.description,
@@ -9593,29 +9622,79 @@ export const generateStudentStatementPdfDataUri = async (
         `KSh ${Math.abs(e.balance).toLocaleString()} ${e.balance > 0 ? 'Dr' : 'Cr'}`
     ]);
 
+    // Totals row at bottom
+    tableBody.push([
+        '',
+        'ACCOUNT TOTALS',
+        `KSh ${summary.totalInvoiced.toLocaleString()}`,
+        `KSh ${summary.totalPaid.toLocaleString()}`,
+        `KSh ${Math.abs(summary.balance).toLocaleString()} ${summary.balance > 0 ? 'Dr' : 'Cr'}`
+    ]);
+
     doc.autoTable({
         head: tableHead,
         body: tableBody,
         startY: yPos,
-        theme: 'striped',
-        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-        styles: { fontSize: 8.5, cellPadding: 4 },
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
+        styles: { fontSize: 8, cellPadding: 3 },
         columnStyles: {
             0: { cellWidth: 26 },
-            1: { cellWidth: 70 },
+            1: { cellWidth: 72 },
             2: { halign: 'right' },
             3: { halign: 'right' },
             4: { halign: 'right', fontStyle: 'bold' }
+        },
+        didParseCell: (data: any) => {
+            if (data.row.index === tableBody.length - 1) {
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.fillColor = [241, 245, 249];
+            }
         }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 12;
+    let finalY = (doc as any).lastAutoTable.finalY + 12;
+    if (finalY > doc.internal.pageSize.getHeight() - 45) {
+        doc.addPage();
+        finalY = 20;
+    }
 
-    // Sign-off Disclaimer
-    doc.setFont('helvetica', 'italic');
+    // 4. Sign-off & Official Stamp Section
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
-    doc.text("This is an official computer-generated student account statement issued by the Finance Office.", margin, finalY);
+    doc.text('ISSUED BY ACCOUNTS OFFICER', margin, finalY);
+
+    const officerName = issuedByOfficerName ? issuedByOfficerName.toUpperCase() : 'ACCOUNTS OFFICER';
+    doc.setFontSize(9.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text(officerName, margin, finalY + 6);
+
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineDashPattern([2, 2], 0);
+    doc.line(margin, finalY + 16, margin + 60, finalY + 16);
+    doc.setLineDashPattern([], 0);
+
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Signature & Date', margin, finalY + 21);
+    doc.text(`Official computer-generated record from ${institution.name} Finance ERP.`, margin, finalY + 28);
+
+    // Stamp box on right side
+    const stampX = pageWidth - margin - 50;
+    doc.setFillColor(240, 243, 255);
+    doc.setDrawColor(199, 210, 254);
+    doc.roundedRect(stampX, finalY, 50, 28, 3, 3, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(79, 70, 229);
+    doc.text('OFFICIAL STAMP', stampX + 25, finalY + 10, { align: 'center' });
+    doc.setFontSize(7);
+    doc.text('Finance Department', stampX + 25, finalY + 16, { align: 'center' });
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('VERIFIED DOCUMENT', stampX + 25, finalY + 22, { align: 'center' });
 
     setupPdfFooter(doc, footerImg, `${institution.name} · Student Account Statement`);
 

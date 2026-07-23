@@ -13175,7 +13175,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             { totalInvoiced, totalPaid, balance },
                                             props.institution,
                                             props.companyDetails,
-                                            props.institution.logoUrl || (props.institution as any).logo_url
+                                            props.institution.logoUrl || (props.institution as any).logo_url,
+                                            props.currentUser?.name
                                         );
                                         const link = document.createElement('a');
                                         link.href = uri;
@@ -13201,7 +13202,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             { totalInvoiced, totalPaid, balance },
                                             props.institution,
                                             props.companyDetails,
-                                            props.institution.logoUrl || (props.institution as any).logo_url
+                                            props.institution.logoUrl || (props.institution as any).logo_url,
+                                            props.currentUser?.name
                                         );
                                         setStmtPdfDataUri(uri);
                                         setShowStmtPdfModal(true);
@@ -13468,7 +13470,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <div className="pt-8 border-t border-slate-200 flex justify-between items-end text-xs">
                                                                 <div className="space-y-6">
                                                                     <div>
-                                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-8">Issued By Accounts Officer</p>
+                                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Issued By Accounts Officer</p>
+                                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wide mb-6">{props.currentUser?.name || 'Accounts Officer'}</p>
                                                                         <div className="w-48 border-b-2 border-slate-400 border-dashed" />
                                                                         <p className="text-[10px] font-bold text-slate-500 mt-1">Signature & Date</p>
                                                                     </div>
