@@ -190,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({
                             </div>
                         )}
 
-                        {(currentInstitution?.institutionType === 'HIS' || isEduInstitution(currentInstitution)) && (() => {
+                        {(currentInstitution?.institutionType === 'HIS') && (() => {
                             const isPropertyManagement = activeRole === 'property_admin' || 
                                                          activeRole === 'landlord' || 
                                                          activeRole === 'tenant' || 
