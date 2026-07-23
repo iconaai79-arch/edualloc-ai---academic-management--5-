@@ -804,6 +804,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     if (type === 'Construction') cat = 'Construction';
                                                     if (type === 'Constituency') cat = 'Constituency';
                                                     if (type === 'Driving School') cat = 'Driving School';
+                                                    if (type === 'Restaurant') cat = 'Restaurant & Cafe POS';
                                                     setRegData({ ...regData, institutionType: type as any, category: cat, businessSubType: cat });
                                                 }}
                                             >
@@ -825,6 +826,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Fuel Station">Energy / Fuel Station</option>
                                                 <option value="Construction">Engineering / Construction Hub</option>
                                                 <option value="Driving School">Driving School</option>
+                                                <option value="Restaurant">Restaurant & Cafe POS</option>
                                                 <option value="Constituency">Constituency (NG-CDF)</option>
                                             </select>
 
@@ -955,6 +957,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         <option value="Retail Agency">Retail Agency (Commission Based)</option>
                                                         <option value="Car Wash">Car Wash / Service Center</option>
                                                         <option value="Automotive Marketplace">Car Sales / Showroom</option>
+                                                        <option value="Restaurant & Cafe POS">Restaurant & Cafe POS</option>
                                                         <option value="Hardware">Hardware Store</option>
                                                         <option value="Pharmacy">Pharmacy / Chemist</option>
                                                         <option value="General">General Retail / Business</option>

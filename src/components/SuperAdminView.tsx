@@ -2528,14 +2528,11 @@ Please change it after login.`;
                                                     onChange={e => {
                                                          const type = e.target.value as any;
                                                          let category = '';
-                                                         if (type === 'Education') category = 'Primary';
-                                                         if (type === 'Business') category = 'Agrovet';
-                                                         if (type === 'HIS') category = 'Hospital/Clinic';
-                                                         if (type === 'Law Firm') category = 'Law Firm';
                                                          if (type === 'Broadcaster') category = 'TV/Radio Station';
                                                          if (type === 'Political Campaign') category = 'Political Campaign Management';
                                                          if (type === 'Driving School') category = 'Driving School';
                                                          if (type === 'Beauty College') category = 'Beauty College';
+                                                         if (type === 'Restaurant') category = 'Restaurant & Cafe POS';
                                                          if (type === 'Logistics') category = 'Logistics';
                                                          if (type === 'Constituency') category = 'Constituency';
                                                          setNewInstData({ ...newInstData, institutionType: type, category: category, businessSubType: category });
@@ -2558,6 +2555,7 @@ Please change it after login.`;
                                                     <option value="Reseller">Reseller Agency</option>
                                                     <option value="Driving School">Driving School</option>
                                                     <option value="Beauty College">Beauty College</option>
+                                                    <option value="Restaurant">Restaurant & Cafe POS</option>
                                                     <option value="Constituency">Constituency (NG-CDF)</option>
                                                 </select>
                                             </div>
@@ -2699,6 +2697,22 @@ Please change it after login.`;
                                                         <option value="Hotel & Resort">Hotel & Luxury Resort</option>
                                                         <option value="Travel Agency">Travel & Booking Agency</option>
                                                         <option value="Airbnb/Rental">Vacation Rental / Airbnb</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {newInstData.institutionType === 'Restaurant' && (
+                                                <div className="animate-fade-in-up">
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Restaurant Dining Category</label>
+                                                    <select
+                                                        value={newInstData.category || 'Restaurant & Cafe POS'}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value, businessSubType: e.target.value })}
+                                                        className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
+                                                        required
+                                                    >
+                                                        <option value="Restaurant & Cafe POS">Restaurant & Cafe POS</option>
+                                                        <option value="Fast Food / Eatery">Fast Food / Takeaway Eatery</option>
+                                                        <option value="Bar & Lounge POS">Bar & Lounge POS</option>
+                                                        <option value="Coffee Shop / Bakery">Coffee Shop & Bakery</option>
                                                     </select>
                                                 </div>
                                             )}

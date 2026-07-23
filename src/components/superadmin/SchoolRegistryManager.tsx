@@ -76,7 +76,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
     const [alumnaeCounts, setAlumnaeCounts] = useState<Record<string, number>>({});
     const [sortBy, setSortBy] = useState<'name' | 'alumnae'>('alumnae');
 
-    const institutionTypes = ['Primary', 'Secondary', 'TVET', 'University', 'College', 'Institute', 'Polytechnic', 'Driving School'];
+    const institutionTypes = ['Primary', 'Secondary', 'TVET', 'University', 'College', 'Institute', 'Polytechnic', 'Driving School', 'Restaurant'];
 
     const loadAlumnaeCounts = async () => {
         try {
