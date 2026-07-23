@@ -13408,7 +13408,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Class / Stream</p>
                                                                     <p className="font-black text-slate-900 text-sm">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}</p>
                                                                 </div>
-                                                                <div>
+                                                                <div className="text-right">
                                                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Account Status</p>
                                                                     <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${balance > 0 ? 'bg-rose-100 text-rose-700' : balance < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
                                                                         {balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}
