@@ -29,6 +29,9 @@ export const getAdminRoleForInstitution = (institution: Partial<Institution>): R
     if (type === 'Church') return 'church_admin';
     if (type === 'Community' || (type as any) === 'Political Campaign' || subType.includes('campaign') || subType.includes('politics')) return 'campaign_admin';
 
+    // Driving School — admin role is Director
+    if (type === 'Driving School' || subType.includes('driving school') || (institution.category || '').toLowerCase() === 'driving school') return 'director';
+
     // Default for Schools
     return 'head_teacher';
 };
@@ -273,6 +276,21 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'worker': return 'Ministry Worker / Staff';
             case 'member': case 'church_member': return 'Church Member';
             case 'visitor': return 'First-time Visitor';
+        }
+    }
+
+    // Driving School context
+    if (isDSInstitution(institution)) {
+        switch (role) {
+            case 'director': return 'School Director';
+            case 'admin': return 'School Administrator';
+            case 'driving_instructor': return 'Driving Instructor';
+            case 'staff': return 'Staff Member';
+            case 'student': return 'Student / Learner';
+            case 'security': return 'Security Officer';
+            case 'driver': return 'Driver';
+            case 'finance': return 'Finance Officer';
+            default: break;
         }
     }
 

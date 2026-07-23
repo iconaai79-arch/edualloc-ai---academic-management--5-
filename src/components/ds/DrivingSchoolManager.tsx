@@ -3366,7 +3366,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         ...(Array.isArray(currentUser?.roles) ? currentUser.roles : []).map(r => (r || '').toLowerCase())
     ], [currentUser]);
     const isAdmin = useMemo(() => rolesList.some(role => 
-        ['admin', 'super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin', 'owner', 'director', 'driving_instructor', 'head_teacher', 'finance', 'reseller', 'manager'].includes(role) || 
+        ['admin', 'super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin', 'owner', 'director', 'driving_instructor', 'finance', 'reseller', 'manager'].includes(role) || 
         role.includes('admin') || 
         role.includes('director') || 
         role.includes('owner') || 
@@ -3374,7 +3374,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         role.includes('reseller')
     ), [rolesList]);
     const isDirector = useMemo(() => rolesList.some(role => 
-        ['director', 'super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin', 'owner', 'head_teacher', 'reseller'].includes(role) || 
+        ['director', 'super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin', 'owner', 'reseller'].includes(role) || 
         role.includes('director') || 
         role.includes('owner') || 
         role.includes('super_admin') || 
