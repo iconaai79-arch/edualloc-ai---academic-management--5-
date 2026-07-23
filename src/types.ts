@@ -3807,9 +3807,10 @@ export interface RetailCustomer {
 export interface RetailSale {
     id: string;
     institutionId: string;
-    storeId: string;
+    storeId?: string;
     customerId?: string;      // Linked customer
     agentId?: string;        // Present if sold by a van agent
+    cashierId?: string;
     totalAmount: number;
     paymentMethod: string;
     items: RetailSaleItem[];
