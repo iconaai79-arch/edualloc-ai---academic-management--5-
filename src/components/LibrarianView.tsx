@@ -40,7 +40,12 @@ export const LibrarianView: React.FC<LibrarianViewProps> = (props) => {
     const filteredBooks = useMemo(() => {
         if (!searchTerm) return books;
         const lower = searchTerm.toLowerCase();
-        return books.filter(b => b.title.toLowerCase().includes(lower) || b.author.toLowerCase().includes(lower) || b.isbn.includes(lower));
+        return books.filter(b => 
+            (b.title || '').toLowerCase().includes(lower) || 
+            (b.author || '').toLowerCase().includes(lower) || 
+            (b.isbn || '').toLowerCase().includes(lower) ||
+            (b.accessionNumber || '').toLowerCase().includes(lower)
+        );
     }, [books, searchTerm]);
 
     const stats = useMemo(() => {
