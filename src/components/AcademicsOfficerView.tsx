@@ -5,7 +5,7 @@ import React, { useState, useMemo } from 'react';
 import type { User, Subject, Course, Room, Department, AcademicYear, Semester, ExamTimetableEntry, TimetableSettings, Building, AcademicLevel, LetterheadConfig, EmailConfig, Institution, SmsConfig, ExamTimetableSettings, AllocationRequest, TimeOffRequest, TimetableEntry, Assessment, AssessmentMark, ActivityLog, DisciplineIncident } from '../types';
 import { generateExamTimetable } from '../services/geminiService';
 import { generateExamTimetablePdf } from '../services/pdfService';
-import { StudentPromotionWizard } from './academics/StudentPromotionWizard';
+import { StudentPromotionWizard } from './Academics/StudentPromotionWizard';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
 import { SettingsManager } from './SettingsManager';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
