@@ -234,7 +234,24 @@ class SyncEngine {
                 apiService.fetchModuleRecords('transactions', tenantId).catch(() => []),
             ]);
 
-            update(90);
+            update(85);
+
+            // ── BATCH 5: Restaurant & Cafe POS module tables ─────────────────
+            const [
+                cafeMenuItems,
+                cafeOrders,
+                retailSales,
+                retailInventory,
+                retailStores,
+            ] = await Promise.all([
+                apiService.fetchModuleRecords('cafe_menu_items', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('cafe_orders', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('retail_sales', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('retail_inventory', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('retail_stores', tenantId).catch(() => []),
+            ]);
+
+            update(95);
 
             // ── Write everything to IndexedDB + localStorage ──────────────────
             await Promise.all([
@@ -287,6 +304,12 @@ class SyncEngine {
                 cacheTable('inter_bank_transfers', interBankTransfers),
                 cacheTable('vote_head_transfers', voteHeadTransfers),
                 cacheTable('transactions', transactions),
+                // Restaurant & Cafe POS
+                cacheTable('cafe_menu_items', cafeMenuItems),
+                cacheTable('cafe_orders', cafeOrders),
+                cacheTable('retail_sales', retailSales),
+                cacheTable('retail_inventory', retailInventory),
+                cacheTable('retail_stores', retailStores),
             ]);
 
             update(100);

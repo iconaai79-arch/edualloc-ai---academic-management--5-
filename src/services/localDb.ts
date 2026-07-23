@@ -12,12 +12,14 @@ const STORE_NAMES = [
     'visitors', 'watchlist_records', 'security_alerts', 'event_pins',
     'institution_events', 'building_visitor_logs', 'building_visitor_assets',
     // Finance module stores
-    'invoices', 'vote_heads', 'fee_structures', 'financial_periods', 'bank_accounts', 'branches', 'branch_integration_configs', 'inter_bank_transfers', 'vote_head_transfers'
+    'invoices', 'vote_heads', 'fee_structures', 'financial_periods', 'bank_accounts', 'branches', 'branch_integration_configs', 'inter_bank_transfers', 'vote_head_transfers',
+    // Restaurant & Cafe POS module stores
+    'cafe_menu_items', 'cafe_orders', 'retail_sales', 'retail_inventory', 'retail_stores'
 ];
 
 class LocalDb {
     private dbName = 'eduai_offline_db';
-    private dbVersion = 1;
+    private dbVersion = 2;
     private db: IDBDatabase | null = null;
 
     private getDB(): Promise<IDBDatabase> {

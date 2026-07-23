@@ -134,6 +134,27 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
             };
 
             await apiService.saveModuleRecord('cafe_orders', order);
+
+            const retailSaleRecord: RetailSale = {
+                id: orderId,
+                institutionId: currentInstitution.id,
+                items: cart.map(item => ({
+                    id: item.itemId,
+                    productId: item.itemId,
+                    productName: item.name,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    subtotal: item.quantity * item.unitPrice,
+                    kitchenStatus: orderType === 'kitchen' ? 'pending' : undefined
+                })),
+                totalAmount: calculatedTotal,
+                paymentMethod: 'tab',
+                cashierId: selectedWaiterId,
+                customerName: `Tab: ${activeJob?.vehiclePlate || 'Walk-in Guest'}`,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('retail_sales', retailSaleRecord).catch(() => null);
+
             await onLogAction(`Added ${cart.length} items to tab for vehicle ${activeJob?.vehiclePlate}`);
             setCart([]);
             onDataChange();
@@ -149,19 +170,26 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
         }
     };
 
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
     return (
         <div className="flex flex-col h-[calc(100vh-8rem)] bg-slate-50 dark:bg-slate-900 rounded-3xl overflow-hidden shadow-xl border border-slate-200 dark:border-slate-800 relative">
             
             {/* Top Shared Waiter Terminal Bar */}
             <div className="bg-slate-900 text-white px-6 py-3 flex justify-between items-center border-b border-slate-800">
                 <div className="flex items-center gap-3">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className={`w-2.5 h-2.5 rounded-full ${isOffline ? 'bg-amber-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`} />
                     <div className="flex items-center gap-2">
                         <UserIcon className="w-4 h-4 text-amber-400" />
                         <span className="text-xs font-black uppercase tracking-wider">
                             Active Waiter: <span className="text-amber-300">{activeWaiter ? activeWaiter.name : 'None (Terminal Locked)'}</span>
                         </span>
                     </div>
+                    {isOffline && (
+                        <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                            📡 Offline Mode Active
+                        </span>
+                    )}
                 </div>
 
                 {/* 30s Countdown Banner / Switch Waiter Button */}

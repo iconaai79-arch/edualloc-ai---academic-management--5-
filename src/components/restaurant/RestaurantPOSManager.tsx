@@ -113,7 +113,14 @@ export const RestaurantPOSManager: React.FC<RestaurantPOSManagerProps> = ({
                         <div className="flex items-center gap-3 mb-2">
                             <span className="p-2.5 bg-white/20 backdrop-blur-md rounded-2xl text-2xl">🍽️</span>
                             <div>
-                                <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">{currentInstitution.name} POS</h1>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">{currentInstitution.name} POS</h1>
+                                    {typeof navigator !== 'undefined' && !navigator.onLine && (
+                                        <span className="px-2.5 py-1 bg-amber-400 text-slate-950 font-black rounded-xl text-[10px] uppercase tracking-wider animate-pulse shadow-md">
+                                            📡 Offline Active
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-amber-100 text-xs font-semibold">Restaurant & Cafe Touch Ordering, Kitchen Display (KDS) & Digital Menu</p>
                             </div>
                         </div>
