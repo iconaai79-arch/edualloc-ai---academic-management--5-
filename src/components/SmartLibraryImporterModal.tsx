@@ -1,12 +1,11 @@
-
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Book, Institution } from '../types';
 import { XIcon } from './icons/XIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
 import { analyzeBookSpreadsheet } from '../services/geminiService';
-
 import * as XLSX from 'xlsx';
 
 type BookMappingField = 'title' | 'author' | 'isbn' | 'accessionNumber' | 'category' | 'location' | 'quantity';
@@ -18,6 +17,26 @@ interface SmartLibraryImporterModalProps {
     onImport: (items: any[]) => Promise<void>;
     institutionId: string;
 }
+
+const guessHeaderMapping = (headers: string[]): Record<BookMappingField, string | null> => {
+    const findMatch = (candidates: string[]): string | null => {
+        for (const candidate of candidates) {
+            const found = headers.find(h => h.toLowerCase().trim().includes(candidate.toLowerCase()));
+            if (found) return found;
+        }
+        return null;
+    };
+
+    return {
+        title: findMatch(['title', 'book name', 'book title', 'name', 'heading']),
+        author: findMatch(['author', 'writer', 'by', 'author name']),
+        isbn: findMatch(['isbn', 'isbn13', 'isbn10', 'barcode', 'code']),
+        accessionNumber: findMatch(['accession', 'acc no', 'acc_no', 'acc', 'reg no', 'book id']),
+        category: findMatch(['category', 'genre', 'subject', 'class', 'type']),
+        location: findMatch(['location', 'shelf', 'rack', 'cabinet', 'room']),
+        quantity: findMatch(['quantity', 'qty', 'copies', 'count', 'stock', 'amount', 'total'])
+    };
+};
 
 export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps> = ({
     onClose, onImport, institutionId
@@ -50,16 +69,25 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
                 const jsonData = XLSX.utils.sheet_to_json(worksheet);
                 setRawData(jsonData);
 
-                const mapping = await analyzeBookSpreadsheet(headers);
+                // Run Heuristic Guessing First
+                const guessedMapping = guessHeaderMapping(headers);
 
-                const initialMapping: any = {};
-                Object.keys(mapping).forEach(key => {
-                    if (ALL_BOOK_MAPPING_FIELDS.includes(key as any)) {
-                        initialMapping[key] = mapping[key];
+                // Try AI Mapping safely with fallback to Heuristic
+                let aiMapping: Record<string, string | null> = {};
+                try {
+                    aiMapping = await analyzeBookSpreadsheet(headers);
+                } catch (aiErr) {
+                    console.warn("AI Mapping unavailable, falling back to heuristic matching:", aiErr);
+                }
+
+                const initialMapping: any = { ...guessedMapping };
+                Object.keys(aiMapping).forEach(key => {
+                    if (ALL_BOOK_MAPPING_FIELDS.includes(key as any) && aiMapping[key]) {
+                        initialMapping[key] = aiMapping[key];
                     }
                 });
 
-                setUserMapping(prev => ({ ...prev, ...initialMapping }));
+                setUserMapping(initialMapping);
                 setStep('mapping');
             } catch (error: any) {
                 setErrorMessage(error.message || 'Failed to process spreadsheet.');
@@ -78,7 +106,7 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
 
         const missingFields = REQUIRED_BOOK_MAPPING_FIELDS.filter(f => !userMapping[f]);
         if (missingFields.length > 0) {
-            alert(`Please map: ${missingFields.map(f => f.replace(/([A-Z])/g, ' $1')).join(', ')}.`);
+            alert(`Please map required fields: ${missingFields.map(f => f.replace(/([A-Z])/g, ' $1')).join(', ')}.`);
             return;
         }
 
@@ -136,21 +164,24 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
         }
     };
 
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Smart Library Importer</h3>
+    const modalContent = (
+        <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 md:p-6 overflow-y-auto">
+            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                    <div className="flex items-center gap-2">
+                        <span className="p-2 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-xl">📚</span>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Smart Library Batch Importer</h3>
+                    </div>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-6 h-6 text-slate-500" /></button>
                 </div>
 
                 <div className="p-8 flex-grow overflow-y-auto">
                     {step === 'upload' && (
-                        <div className="text-center p-12 border-4 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] bg-slate-50 dark:bg-slate-900/50">
-                            <ArrowUpTrayIcon className="w-16 h-16 mx-auto text-slate-300 dark:text-slate-600 mb-4" />
-                            <h4 className="text-lg font-bold mb-2 text-slate-900 dark:text-white">Upload Catalog Spreadsheet</h4>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">Select an Excel (.xlsx) file containing your book list (Title, Author, ISBN, etc.).</p>
-                            <label className="bg-indigo-600 text-white rounded-xl font-bold px-10 py-3 inline-block cursor-pointer shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 transition-all">
+                        <div className="text-center p-12 border-4 border-dashed border-slate-200 dark:border-slate-800 rounded-[2.5rem] bg-slate-50 dark:bg-slate-950/50">
+                            <ArrowUpTrayIcon className="w-16 h-16 mx-auto text-indigo-500 mb-4" />
+                            <h4 className="text-lg font-bold mb-2 text-slate-900 dark:text-white">Upload Book Catalog Spreadsheet</h4>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">Select an Excel (.xlsx, .xls) or CSV file containing your book list.</p>
+                            <label className="bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-wider px-10 py-4 inline-block cursor-pointer shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all active:scale-95">
                                 Select File
                                 <input type="file" onChange={e => e.target.files?.[0] && handleFileSelect(e.target.files[0])} accept=".xlsx, .xls, .csv" className="hidden" />
                             </label>
@@ -161,23 +192,23 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
                         <div className="space-y-6">
                             <div className="flex items-center gap-2 mb-4">
                                 <SparklesIcon className="w-6 h-6 text-indigo-500" />
-                                <h4 className="font-bold text-lg text-slate-900 dark:text-white">Confirm Data Mapping</h4>
+                                <h4 className="font-bold text-lg text-slate-900 dark:text-white">Confirm Spreadsheet Header Mapping</h4>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {ALL_BOOK_MAPPING_FIELDS.map(field => (
-                                    <div key={field} className="flex flex-col gap-2 p-4 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                    <div key={field} className="flex flex-col gap-2 p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
                                         <label className="text-xs font-black uppercase tracking-widest text-slate-400">
                                             {field.replace(/([A-Z])/g, ' $1')} {REQUIRED_BOOK_MAPPING_FIELDS.includes(field) && <span className="text-red-500">*</span>}
                                         </label>
-                                        <select value={userMapping[field] || ''} onChange={e => handleMappingChange(field, e.target.value || null)} className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl text-sm font-bold text-slate-900 dark:text-white">
-                                            <option value="">-- Choose Header --</option>
+                                        <select value={userMapping[field] || ''} onChange={e => handleMappingChange(field, e.target.value || null)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold text-slate-900 dark:text-white">
+                                            <option value="">-- Choose Spreadsheet Header --</option>
                                             {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
                                         </select>
                                     </div>
                                 ))}
                             </div>
                             <div className="flex justify-end pt-4">
-                                <button onClick={handleConfirmMapping} className="bg-indigo-600 text-white px-10 py-3 rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700">Review Books</button>
+                                <button onClick={handleConfirmMapping} className="bg-indigo-600 text-white px-10 py-3.5 rounded-2xl font-black uppercase tracking-wider text-xs shadow-lg shadow-indigo-500/20 hover:bg-indigo-700">Review & Preview Books</button>
                             </div>
                         </div>
                     )}
@@ -185,9 +216,9 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
                     {step === 'preview' && (
                         <div className="space-y-6 animate-fade-in-up">
                             <h4 className="font-black text-xl tracking-tight text-slate-900 dark:text-white">Import Preview ({parsedData?.valid.length} books)</h4>
-                            <div className="overflow-hidden border border-slate-100 dark:border-slate-700 rounded-2xl">
-                                <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-700">
-                                    <thead className="bg-slate-50 dark:bg-slate-900">
+                            <div className="overflow-hidden border border-slate-100 dark:border-slate-800 rounded-2xl">
+                                <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
+                                    <thead className="bg-slate-50 dark:bg-slate-950">
                                         <tr>
                                             <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-slate-500">Book Title</th>
                                             <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-slate-500">Author</th>
@@ -195,9 +226,9 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
                                             <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-slate-500">Qty</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                        {parsedData?.valid.slice(0, 5).map((v, i) => (
-                                            <tr key={i} className="bg-white dark:bg-slate-800">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {parsedData?.valid.slice(0, 10).map((v, i) => (
+                                            <tr key={i} className="bg-white dark:bg-slate-900">
                                                 <td className="px-6 py-3 text-sm font-bold text-slate-900 dark:text-white">{v.title}</td>
                                                 <td className="px-6 py-3 text-sm text-slate-500 dark:text-slate-400">{v.author}</td>
                                                 <td className="px-6 py-3 text-sm text-slate-500 dark:text-slate-400">{v.isbn || 'N/A'}</td>
@@ -208,8 +239,8 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
                                 </table>
                             </div>
                             <div className="flex justify-end pt-4 gap-3">
-                                <button onClick={() => setStep('upload')} className="px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold">Restart</button>
-                                <button onClick={handleFinalImport} className="bg-indigo-600 text-white px-10 py-3 rounded-xl font-bold shadow-lg shadow-indigo-100">Confirm & Import</button>
+                                <button onClick={() => setStep('upload')} className="px-6 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-xs">Restart</button>
+                                <button onClick={handleFinalImport} className="bg-indigo-600 text-white px-10 py-3.5 rounded-2xl font-black uppercase text-xs shadow-lg shadow-indigo-500/20">Confirm & Import</button>
                             </div>
                         </div>
                     )}
@@ -217,34 +248,35 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
                     {(step === 'importing' || step === 'finalizing') && (
                         <div className="flex flex-col items-center justify-center py-20 text-center">
                             <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
-                            <h4 className="text-xl font-bold text-slate-900 dark:text-white">Processing...</h4>
+                            <h4 className="text-xl font-bold text-slate-900 dark:text-white">Processing Spreadsheet...</h4>
                         </div>
                     )}
 
                     {step === 'success' && (
                         <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-                            <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-[2rem] flex items-center justify-center mb-6">
+                            <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-[2rem] flex items-center justify-center mb-6">
                                 <CheckCircleIcon className="w-10 h-10" />
                             </div>
                             <h4 className="text-2xl font-black uppercase mb-2 text-slate-900 dark:text-white">Import Successful</h4>
                             <p className="text-slate-500 dark:text-slate-400 mb-8">{parsedData?.valid.length} books added to your library catalog.</p>
-                            <button onClick={onClose} className="px-10 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">Done</button>
+                            <button onClick={onClose} className="px-10 py-3.5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg">Done</button>
                         </div>
                     )}
 
                     {step === 'error' && (
                         <div className="flex flex-col items-center justify-center py-20 text-center">
-                            <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-[2rem] flex items-center justify-center mb-6">
+                            <div className="w-20 h-20 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded-[2rem] flex items-center justify-center mb-6">
                                 <XIcon className="w-10 h-10" />
                             </div>
-                            <h4 className="text-2xl font-black uppercase text-red-600">Import Error</h4>
+                            <h4 className="text-2xl font-black uppercase text-rose-600">Import Error</h4>
                             <p className="text-slate-500 dark:text-slate-400 mb-8">{errorMessage}</p>
-                            <button onClick={onClose} className="px-10 py-3 bg-slate-900 text-white rounded-xl font-bold">Close</button>
+                            <button onClick={onClose} className="px-10 py-3.5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs">Close</button>
                         </div>
                     )}
                 </div>
             </div>
         </div>
     );
-};
 
+    return createPortal(modalContent, document.body);
+};
