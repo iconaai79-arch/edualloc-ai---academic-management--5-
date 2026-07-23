@@ -11220,7 +11220,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         const student = props.students.find((s: any) => s.id === inv.studentId);
                                                         const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
                                                         const bal = (inv.totalAmount || 0) - paid;
-                                                        const cls = student ? (student.className || studentClassGroup(student)) : '—';
+                                                        const cls = student ? ((student as any).className || studentClassGroup(student)) : '—';
                                                         return [student?.name || '—', cls, inv.invoiceNumber || inv.id?.slice(-8), inv.totalAmount || 0, paid, bal, bal <= 0 ? 'Cleared' : inv.status === 'overdue' ? 'Overdue' : 'Pending'];
                                                     });
                                                     exportCSV('fee_collection_report', ['Student', 'Class', 'Invoice #', 'Amount', 'Paid', 'Balance', 'Status'], rows);
@@ -11255,7 +11255,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <tbody>
                                                 {mappedInvoices.slice(0,100).map((inv: any, i: number) => {
                                                     const student = props.students.find((s: any) => s.id === inv.studentId);
-                                                    const cls = student ? (student.className || studentClassGroup(student)) : '—';
+                                                    const cls = student ? ((student as any).className || studentClassGroup(student)) : '—';
                                                     const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
                                                     const bal = (inv.totalAmount || 0) - paid;
                                                     return (
@@ -11368,7 +11368,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <div className="grid grid-cols-2 gap-3 text-xs">
                                                                 <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Student Name</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{slipStudent.name}</p></div>
                                                                 <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Adm Number</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).admissionNumber || '—'}</p></div>
-                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Class</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{slipStudent.className || studentClassGroup(slipStudent)}</p></div>
+                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Class</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).className || studentClassGroup(slipStudent)}</p></div>
                                                                 <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Stream</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).stream || '—'}</p></div>
                                                             </div>
                                                         </div>
