@@ -200,6 +200,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Reports sub-tab states
     const [stmtStudentId, setStmtStudentId] = useState('');
     const [stmtSearch, setStmtSearch] = useState('');
+    const [stmtViewMode, setStmtViewMode] = useState<'table' | 'preview'>('table');
+    const [stmtPdfDataUri, setStmtPdfDataUri] = useState<string | null>(null);
+    const [isGeneratingStmtPdf, setIsGeneratingStmtPdf] = useState(false);
+    const [showStmtPdfModal, setShowStmtPdfModal] = useState(false);
     const [slipSearch, setSlipSearch] = useState('');
     const [slipStudentId, setSlipStudentId] = useState('');
     const [balFilter, setBalFilter] = useState('');
@@ -13099,17 +13103,66 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     }
                                 });
 
+                                const handleDownloadPdf = async () => {
+                                    if (!selectedStudent) return;
+                                    setIsGeneratingStmtPdf(true);
+                                    try {
+                                        const uri = await pdfService.generateStudentStatementPdfDataUri(
+                                            selectedStudent,
+                                            ledger,
+                                            { totalInvoiced, totalPaid, balance },
+                                            props.institution,
+                                            props.companyDetails,
+                                            props.institution.logoUrl || (props.institution as any).logo_url
+                                        );
+                                        const link = document.createElement('a');
+                                        link.href = uri;
+                                        link.download = `Statement_${selectedStudent.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                    } catch (err) {
+                                        console.error("PDF generation error:", err);
+                                        alert("Failed to download PDF statement.");
+                                    } finally {
+                                        setIsGeneratingStmtPdf(false);
+                                    }
+                                };
+
+                                const handleOpenPdfModal = async () => {
+                                    if (!selectedStudent) return;
+                                    setIsGeneratingStmtPdf(true);
+                                    try {
+                                        const uri = await pdfService.generateStudentStatementPdfDataUri(
+                                            selectedStudent,
+                                            ledger,
+                                            { totalInvoiced, totalPaid, balance },
+                                            props.institution,
+                                            props.companyDetails,
+                                            props.institution.logoUrl || (props.institution as any).logo_url
+                                        );
+                                        setStmtPdfDataUri(uri);
+                                        setShowStmtPdfModal(true);
+                                    } catch (err) {
+                                        console.error("PDF viewer error:", err);
+                                        alert("Failed to generate PDF preview modal.");
+                                    } finally {
+                                        setIsGeneratingStmtPdf(false);
+                                    }
+                                };
+
                                 return (
                                     <div className="space-y-6">
+                                        {/* Filter Card */}
                                         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
                                             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Student Account Statement</h3>
-                                            <p className="text-[10px] text-slate-400 font-medium mb-6">Search and select a student to generate their full financial statement</p>
+                                            <p className="text-[10px] text-slate-400 font-medium mb-6">Search and select a student to generate their full financial statement and preview official PDF</p>
                                             <div className="flex flex-col md:flex-row gap-4">
                                                 <div className="relative flex-1">
                                                     <span className="absolute left-4 top-3 text-slate-400">🔍</span>
                                                     <input type="text" placeholder="Filter by name or admission number..." value={stmtSearch} onChange={e => setStmtSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white" />
                                                 </div>
-                                                <select value={stmtStudentId} onChange={e => setStmtStudentId(e.target.value)} className="flex-1 py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white">
+                                                <select value={stmtStudentId} onChange={e => { setStmtStudentId(e.target.value); setStmtPdfDataUri(null); }} className="flex-1 py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white">
                                                     <option value="">— Select Student —</option>
                                                     {filteredStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>))}
                                                 </select>
@@ -13117,81 +13170,298 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
 
                                         {selectedStudent && (
-                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden">
-                                                <div className="bg-gradient-to-r from-indigo-700 to-purple-700 p-8 text-white">
-                                                    <div className="flex justify-between items-start">
-                                                        <div>
-                                                            <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Official Account Statement</p>
-                                                            <h3 className="text-2xl font-black">{props.institution.name}</h3>
-                                                            <p className="text-indigo-200 text-xs mt-1">Generated: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
+                                            <div className="space-y-6">
+                                                {/* View Mode Toolbar */}
+                                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 text-white p-4 px-6 rounded-2xl shadow-md">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">View Mode:</span>
+                                                        <div className="flex bg-slate-800 p-1 rounded-xl">
                                                             <button
                                                                 type="button"
-                                                                onClick={() => {
-                                                                    const headers = ['Date', 'Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance'];
-                                                                    const rows = ledger.map(e => [e.date, e.description, e.debit, e.credit, e.balance]);
-                                                                    exportCSV(`statement_${selectedStudent.name.replace(/\s+/g, '_')}`, headers, rows);
-                                                                }}
-                                                                className="flex items-center gap-1.5 px-4 py-2.5 bg-white/20 hover:bg-white/30 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95"
+                                                                onClick={() => setStmtViewMode('table')}
+                                                                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${stmtViewMode === 'table' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                                                             >
-                                                                📥 CSV
+                                                                📊 Table View
                                                             </button>
-                                                            <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">🖨️ Print</button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setStmtViewMode('preview')}
+                                                                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${stmtViewMode === 'preview' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                                            >
+                                                                📄 PDF Document Preview
+                                                            </button>
                                                         </div>
                                                     </div>
-                                                    <div className="mt-6 pt-6 border-t border-white/20 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                        <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Student</p><p className="font-black text-sm mt-0.5">{selectedStudent.name}</p></div>
-                                                        <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Adm No.</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).admissionNumber || '—'}</p></div>
-                                                        <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}</p></div>
-                                                        <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}</p></div>
+
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <button
+                                                            type="button"
+                                                            disabled={isGeneratingStmtPdf}
+                                                            onClick={handleOpenPdfModal}
+                                                            className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                                                        >
+                                                            👁️ PDF Viewer Modal
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isGeneratingStmtPdf}
+                                                            onClick={handleDownloadPdf}
+                                                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md disabled:opacity-50"
+                                                        >
+                                                            {isGeneratingStmtPdf ? '⏳ Generating...' : '📄 Download PDF'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const headers = ['Date', 'Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance'];
+                                                                const rows = ledger.map(e => [e.date, e.description, e.debit, e.credit, e.balance]);
+                                                                exportCSV(`statement_${selectedStudent.name.replace(/\s+/g, '_')}`, headers, rows);
+                                                            }}
+                                                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                                        >
+                                                            📥 CSV
+                                                        </button>
+                                                        <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95">🖨️ Print</button>
                                                     </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-3 border-b border-slate-100 dark:border-slate-800">
-                                                    {[{label:'Total Charged', val: totalInvoiced, color:'text-slate-700 dark:text-slate-200'},{label:'Total Paid', val: totalPaid, color:'text-emerald-600'},{label:'Balance Due', val: balance, color: balance > 0 ? 'text-rose-600' : 'text-emerald-600'}].map((s,i)=>(
-                                                        <div key={i} className={`p-6 ${i<2?'border-r border-slate-100 dark:border-slate-800':''}`}>
-                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
-                                                            <p className={`text-xl font-black ${s.color}`}>KSh {Math.abs(s.val).toLocaleString()}</p>
+                                                {/* MODE 1: Standard Table View */}
+                                                {stmtViewMode === 'table' && (
+                                                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden animate-in fade-in duration-200">
+                                                        <div className="bg-gradient-to-r from-indigo-700 to-purple-700 p-8 text-white">
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Official Account Statement</p>
+                                                                    <h3 className="text-2xl font-black">{props.institution.name}</h3>
+                                                                    <p className="text-indigo-200 text-xs mt-1">Generated: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="mt-6 pt-6 border-t border-white/20 grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                                <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Student</p><p className="font-black text-sm mt-0.5">{selectedStudent.name}</p></div>
+                                                                <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Adm No.</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).admissionNumber || '—'}</p></div>
+                                                                <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}</p></div>
+                                                                <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}</p></div>
+                                                            </div>
                                                         </div>
-                                                    ))}
-                                                </div>
 
-                                                <div className="p-8">
-                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Transaction Ledger</h4>
-                                                    {ledger.length === 0 ? (
-                                                        <p className="text-xs text-slate-400 text-center py-8 font-medium">No transactions found for this student.</p>
-                                                    ) : (
-                                                        <div className="overflow-x-auto">
-                                                            <table className="w-full text-left text-xs">
-                                                                <thead>
-                                                                    <tr className="border-b-2 border-slate-200 dark:border-slate-700">
-                                                                        {['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance'].map(h=>(<th key={h} className="py-3 px-3 font-black text-slate-500 uppercase tracking-widest text-[10px]">{h}</th>))}
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {ledger.map((entry, i) => (
-                                                                        <tr key={i} className={`border-b border-slate-50 dark:border-slate-800/50 ${entry.eType === 'payment' ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
-                                                                            <td className="py-3 px-3 text-slate-500 whitespace-nowrap">{entry.date}</td>
-                                                                            <td className="py-3 px-3 font-medium text-slate-800 dark:text-slate-200">{entry.description}</td>
-                                                                            <td className="py-3 px-3 font-black text-slate-700 dark:text-slate-300">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
-                                                                            <td className="py-3 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
-                                                                            <td className={`py-3 px-3 font-black whitespace-nowrap ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(entry.balance).toLocaleString()} <span className="text-[10px] opacity-70">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
+                                                        <div className="grid grid-cols-3 border-b border-slate-100 dark:border-slate-800">
+                                                            {[{label:'Total Charged', val: totalInvoiced, color:'text-slate-700 dark:text-slate-200'},{label:'Total Paid', val: totalPaid, color:'text-emerald-600'},{label:'Balance Due', val: balance, color: balance > 0 ? 'text-rose-600' : 'text-emerald-600'}].map((s,i)=>(
+                                                                <div key={i} className={`p-6 ${i<2?'border-r border-slate-100 dark:border-slate-800':''}`}>
+                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
+                                                                    <p className={`text-xl font-black ${s.color}`}>KSh {Math.abs(s.val).toLocaleString()}</p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        <div className="p-8">
+                                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Transaction Ledger</h4>
+                                                            {ledger.length === 0 ? (
+                                                                <p className="text-xs text-slate-400 text-center py-8 font-medium">No transactions found for this student.</p>
+                                                            ) : (
+                                                                <div className="overflow-x-auto">
+                                                                    <table className="w-full text-left text-xs">
+                                                                        <thead>
+                                                                            <tr className="border-b-2 border-slate-200 dark:border-slate-700">
+                                                                                {['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance'].map(h=>(<th key={h} className="py-3 px-3 font-black text-slate-500 uppercase tracking-widest text-[10px]">{h}</th>))}
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {ledger.map((entry, i) => (
+                                                                                <tr key={i} className={`border-b border-slate-50 dark:border-slate-800/50 ${entry.eType === 'payment' ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
+                                                                                    <td className="py-3 px-3 text-slate-500 whitespace-nowrap">{entry.date}</td>
+                                                                                    <td className="py-3 px-3 font-medium text-slate-800 dark:text-slate-200">{entry.description}</td>
+                                                                                    <td className="py-3 px-3 font-black text-slate-700 dark:text-slate-300">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
+                                                                                    <td className="py-3 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
+                                                                                    <td className={`py-3 px-3 font-black whitespace-nowrap ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(entry.balance).toLocaleString()} <span className="text-[10px] opacity-70">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
+                                                                                </tr>
+                                                                            ))}
+                                                                            <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
+                                                                                <td className="py-3 px-3" /><td className="py-3 px-3 text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</td>
+                                                                                <td className="py-3 px-3 text-slate-900 dark:text-white">KSh {totalInvoiced.toLocaleString()}</td>
+                                                                                <td className="py-3 px-3 text-emerald-600">KSh {totalPaid.toLocaleString()}</td>
+                                                                                <td className={`py-3 px-3 ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(balance).toLocaleString()} <span className="text-[10px] opacity-70">{balance > 0 ? 'Dr' : 'Cr'}</span></td>
+                                                                            </tr>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            )}
+                                                            <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
+                                                                <p className="text-[10px] text-slate-400 font-medium">This is a computer-generated statement and does not require a signature.</p>
+                                                                <p className="text-[10px] text-slate-400 font-medium mt-0.5">{props.institution.name} · {new Date().toISOString().split('T')[0]}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* MODE 2: On-Screen PDF Document Preview Canvas */}
+                                                {stmtViewMode === 'preview' && (
+                                                    <div className="bg-slate-100 dark:bg-slate-950 p-6 md:p-10 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-inner space-y-6 animate-in fade-in duration-200">
+                                                        {/* Document Controls Banner */}
+                                                        <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                                                            <span className="flex items-center gap-2">
+                                                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                                LIVE PDF DOCUMENT PREVIEW (A4 ASPECT)
+                                                            </span>
+                                                            <span>Reference: STMT/2026/{(selectedStudent as any).admissionNumber || selectedStudent.id.slice(-6).toUpperCase()}</span>
+                                                        </div>
+
+                                                        {/* A4 Document Preview Card */}
+                                                        <div className="bg-white text-slate-900 shadow-2xl rounded-2xl border border-slate-200 p-8 md:p-12 max-w-4xl mx-auto space-y-8 font-sans print:shadow-none print:border-none print:p-0">
+                                                            {/* School Header */}
+                                                            <div className="flex justify-between items-start border-b-2 border-indigo-600 pb-6">
+                                                                <div>
+                                                                    <div className="flex items-center gap-3 mb-2">
+                                                                        {(props.institution.logoUrl || (props.institution as any).logo_url) && (
+                                                                            <img src={props.institution.logoUrl || (props.institution as any).logo_url} alt="Logo" className="w-12 h-12 object-contain rounded-xl" />
+                                                                        )}
+                                                                        <div>
+                                                                            <h2 className="text-2xl font-black tracking-tight text-indigo-950">{props.institution.name}</h2>
+                                                                            <p className="text-xs text-slate-500 font-medium">{props.institution.email || 'finance@school.edu'} · {props.institution.phoneNumber || '+254 700 000000'}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 font-black text-[10px] uppercase tracking-widest rounded-lg border border-indigo-200 mb-1">Official Document</span>
+                                                                    <h4 className="text-lg font-black uppercase tracking-tight text-slate-800">Statement of Account</h4>
+                                                                    <p className="text-xs text-slate-400 font-bold">Issue Date: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Student Metadata Box */}
+                                                            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                                                                <div>
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Student Full Name</p>
+                                                                    <p className="font-black text-slate-900 text-sm">{selectedStudent.name}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Admission Number</p>
+                                                                    <p className="font-black text-slate-900 text-sm">{(selectedStudent as any).admissionNumber || '—'}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Class / Stream</p>
+                                                                    <p className="font-black text-slate-900 text-sm">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Account Status</p>
+                                                                    <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${balance > 0 ? 'bg-rose-100 text-rose-700' : balance < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                                        {balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Summary Bar */}
+                                                            <div className="grid grid-cols-3 gap-4 border border-slate-200 rounded-2xl p-4 bg-indigo-50/40 text-center">
+                                                                <div>
+                                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Invoiced (Dr)</p>
+                                                                    <p className="text-base font-black text-slate-900 mt-0.5">KSh {totalInvoiced.toLocaleString()}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Payments (Cr)</p>
+                                                                    <p className="text-base font-black text-emerald-600 mt-0.5">KSh {totalPaid.toLocaleString()}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Net Balance</p>
+                                                                    <p className={`text-base font-black mt-0.5 ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(balance).toLocaleString()} {balance > 0 ? 'Dr' : 'Cr'}</p>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Itemized Table */}
+                                                            <div className="space-y-3">
+                                                                <h5 className="text-xs font-black uppercase tracking-wider text-slate-700">Detailed Statement Ledger</h5>
+                                                                <table className="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
+                                                                    <thead>
+                                                                        <tr className="bg-indigo-600 text-white">
+                                                                            <th className="py-2.5 px-3 font-black text-[10px] uppercase tracking-wider">Date</th>
+                                                                            <th className="py-2.5 px-3 font-black text-[10px] uppercase tracking-wider">Particulars / Description</th>
+                                                                            <th className="py-2.5 px-3 font-black text-[10px] uppercase tracking-wider text-right">Debit (KSh)</th>
+                                                                            <th className="py-2.5 px-3 font-black text-[10px] uppercase tracking-wider text-right">Credit (KSh)</th>
+                                                                            <th className="py-2.5 px-3 font-black text-[10px] uppercase tracking-wider text-right">Balance</th>
                                                                         </tr>
-                                                                    ))}
-                                                                    <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
-                                                                        <td className="py-3 px-3" /><td className="py-3 px-3 text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</td>
-                                                                        <td className="py-3 px-3 text-slate-900 dark:text-white">KSh {totalInvoiced.toLocaleString()}</td>
-                                                                        <td className="py-3 px-3 text-emerald-600">KSh {totalPaid.toLocaleString()}</td>
-                                                                        <td className={`py-3 px-3 ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(balance).toLocaleString()} <span className="text-[10px] opacity-70">{balance > 0 ? 'Dr' : 'Cr'}</span></td>
-                                                                    </tr>
-                                                                </tbody>
-                                                            </table>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-slate-100">
+                                                                        {ledger.map((entry, idx) => (
+                                                                            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
+                                                                                <td className="py-2.5 px-3 text-slate-500 font-semibold">{entry.date}</td>
+                                                                                <td className="py-2.5 px-3 font-semibold text-slate-800">{entry.description}</td>
+                                                                                <td className="py-2.5 px-3 text-right font-bold text-slate-900">{entry.debit > 0 ? entry.debit.toLocaleString() : '—'}</td>
+                                                                                <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{entry.credit > 0 ? entry.credit.toLocaleString() : '—'}</td>
+                                                                                <td className={`py-2.5 px-3 text-right font-black ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{Math.abs(entry.balance).toLocaleString()} <span className="text-[9px] font-bold text-slate-400">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
+                                                                            </tr>
+                                                                        ))}
+                                                                        <tr className="bg-slate-100 font-black border-t-2 border-slate-300">
+                                                                            <td className="py-3 px-3" />
+                                                                            <td className="py-3 px-3 text-[10px] uppercase tracking-widest text-slate-700">ACCOUNT TOTALS</td>
+                                                                            <td className="py-3 px-3 text-right text-slate-900">KSh {totalInvoiced.toLocaleString()}</td>
+                                                                            <td className="py-3 px-3 text-right text-emerald-600">KSh {totalPaid.toLocaleString()}</td>
+                                                                            <td className={`py-3 px-3 text-right ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(balance).toLocaleString()}</td>
+                                                                        </tr>
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+
+                                                            {/* Sign-off & Rubber Stamp Certification */}
+                                                            <div className="pt-8 border-t border-slate-200 flex justify-between items-end text-xs">
+                                                                <div className="space-y-6">
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-8">Issued By Accounts Officer</p>
+                                                                        <div className="w-48 border-b-2 border-slate-400 border-dashed" />
+                                                                        <p className="text-[10px] font-bold text-slate-500 mt-1">Signature & Date</p>
+                                                                    </div>
+                                                                    <p className="text-[9px] text-slate-400 font-medium italic">Official computer-generated record from {props.institution.name} Finance ERP.</p>
+                                                                </div>
+
+                                                                <div className="text-center p-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 w-44">
+                                                                    <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black mx-auto mb-1 text-xs">✓</div>
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-900">OFFICIAL STAMP</p>
+                                                                    <p className="text-[8px] font-bold text-indigo-600 uppercase tracking-wider mt-0.5">Finance Department</p>
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    )}
-                                                    <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
-                                                        <p className="text-[10px] text-slate-400 font-medium">This is a computer-generated statement and does not require a signature.</p>
-                                                        <p className="text-[10px] text-slate-400 font-medium mt-0.5">{props.institution.name} · {new Date().toISOString().split('T')[0]}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Interactive PDF Viewer Modal */}
+                                        {showStmtPdfModal && (
+                                            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-200">
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
+                                                    <div className="p-6 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-xl">📄</span>
+                                                            <div>
+                                                                <h4 className="text-base font-black">Official PDF Document Viewer</h4>
+                                                                <p className="text-[10px] text-slate-400 font-semibold">{selectedStudent?.name} · Statement of Account</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            {stmtPdfDataUri && (
+                                                                <a
+                                                                    href={stmtPdfDataUri}
+                                                                    download={`Statement_${selectedStudent?.name.replace(/\s+/g, '_')}.pdf`}
+                                                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
+                                                                >
+                                                                    📥 Download PDF
+                                                                </a>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setShowStmtPdfModal(false)}
+                                                                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black transition-all"
+                                                            >
+                                                                ✕ Close
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-6 flex-1 bg-slate-100 dark:bg-slate-950 overflow-hidden flex items-center justify-center">
+                                                        {stmtPdfDataUri ? (
+                                                            <iframe src={stmtPdfDataUri} className="w-full h-full min-h-[550px] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md" title="Student Statement PDF" />
+                                                        ) : (
+                                                            <div className="text-center space-y-3 py-12">
+                                                                <span className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin inline-block" />
+                                                                <p className="text-xs font-black text-slate-500">Generating live PDF document URI...</p>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
