@@ -574,7 +574,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     isOpen={isPromotionWizardOpen}
                     onClose={() => setIsPromotionWizardOpen(false)}
                     activeAcademicYear={activeAcademicYear || null}
-                    semesters={semesters || []}
+                    semesters={props.semesters || []}
                     students={users || []}
                     courses={courses || []}
                     institution={currentInstitution || ({ id: 'inst_demo', name: 'School' } as Institution)}

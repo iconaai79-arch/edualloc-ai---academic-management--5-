@@ -9533,16 +9533,17 @@ export const generateStudentStatementPdfDataUri = async (
     doc.setDrawColor(226, 232, 240);
     doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 32, 3, 3, 'FD');
 
+    const admNo = student?.admissionNumber || student?.admission_number || student?.admNo || student?.adm_no || student?.staffId || student?.staff_id || student?.metadata?.admissionNumber || student?.metadata?.admission_number || student?.metadata?.admNo || 'N/A';
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(30, 41, 59);
     doc.text(`Student Name : ${student?.name || 'N/A'}`, margin + 6, yPos + 8);
-    doc.text(`Admission No : ${student?.admissionNumber || student?.admNo || 'N/A'}`, margin + 6, yPos + 16);
+    doc.text(`Admission No : ${admNo}`, margin + 6, yPos + 16);
     doc.text(`Class / Grade : ${student?.className || student?.gradeLevel || 'N/A'}`, margin + 6, yPos + 24);
 
     const dateStr = new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
     doc.text(`Statement Date : ${dateStr}`, pageWidth / 2 + 10, yPos + 8);
-    doc.text(`Ref Number     : STMT-${student?.admissionNumber || student?.id?.slice(0,6)}`, pageWidth / 2 + 10, yPos + 16);
+    doc.text(`Ref Number     : STMT-${admNo !== 'N/A' ? admNo : student?.id?.slice(0,6)}`, pageWidth / 2 + 10, yPos + 16);
     const balStatus = summary.balance > 0 ? `KSh ${summary.balance.toLocaleString()} OWING` : summary.balance < 0 ? `KSh ${Math.abs(summary.balance).toLocaleString()} CREDIT` : 'FULLY PAID';
     doc.setTextColor(summary.balance > 0 ? 225 : 16, summary.balance > 0 ? 29 : 185, summary.balance > 0 ? 72 : 129);
     doc.text(`Account Status : ${balStatus}`, pageWidth / 2 + 10, yPos + 24);

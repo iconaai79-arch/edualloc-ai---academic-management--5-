@@ -44,7 +44,7 @@ export const checkPromotionUnlockEligibility = (
     const yearSemesters = semesters.filter(s => s.academicYearId === academicYear.id);
     const finalSemester = yearSemesters[yearSemesters.length - 1];
 
-    if (finalSemester && (finalSemester.status === 'completed' || finalSemester.status === 'archived')) {
+    if (finalSemester && (finalSemester.status === 'archived' || (finalSemester.status as any) === 'completed')) {
         return { canUnlock: true, reason: `Final Term/Semester (${finalSemester.name}) is officially completed.` };
     }
 

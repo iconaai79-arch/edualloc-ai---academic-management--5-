@@ -1055,7 +1055,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         );
         return filteredStudents.map(s => {
             const enrollment = enrollments.find(e => e.userId === s.id);
-            const adm = enrollment?.admissionNumber || s.admissionNumber || s.admission_number || '—';
+            const adm = enrollment?.admissionNumber || enrollment?.metadata?.admissionNumber || s.admissionNumber || (s as any).admission_number || (s as any).admNo || (s as any).adm_no || (s as any).staffId || s.metadata?.admissionNumber || s.metadata?.admission_number || s.metadata?.admNo || '—';
             const cls = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || studentClassGroup(s);
 
             const openingBal = parseMoneyAmount(openingBalancesMap[s.id] ?? s.metadata?.openingBalance ?? 0);
@@ -13164,7 +13164,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </div>
                                                 <select value={stmtStudentId} onChange={e => { setStmtStudentId(e.target.value); setStmtPdfDataUri(null); }} className="flex-1 py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white">
                                                     <option value="">— Select Student —</option>
-                                                    {filteredStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>))}
+                                                    {filteredStudents.map((s: any) => {
+                                                         const adm = s.admissionNumber || s.admission_number || s.admNo || s.staffId || s.metadata?.admissionNumber || s.metadata?.admission_number || s.metadata?.admNo || '';
+                                                         return <option key={s.id} value={s.id}>{s.name}{adm ? ` (${adm})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>;
+                                                     })}
                                                 </select>
                                             </div>
                                         </div>
@@ -13238,7 +13241,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </div>
                                                             <div className="mt-6 pt-6 border-t border-white/20 grid grid-cols-2 md:grid-cols-4 gap-4">
                                                                 <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Student</p><p className="font-black text-sm mt-0.5">{selectedStudent.name}</p></div>
-                                                                <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Adm No.</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).admissionNumber || '—'}</p></div>
+                                                                <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Adm No.</p><p className="font-black text-sm mt-0.5">{selectedStudent.admissionNumber || (selectedStudent as any).admission_number || (selectedStudent as any).admNo || (selectedStudent as any).staffId || selectedStudent.metadata?.admissionNumber || selectedStudent.metadata?.admission_number || selectedStudent.metadata?.admNo || '—'}</p></div>
                                                                 <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}</p></div>
                                                                 <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}</p></div>
                                                             </div>
@@ -13302,7 +13305,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                                                                 LIVE PDF DOCUMENT PREVIEW (A4 ASPECT)
                                                             </span>
-                                                            <span>Reference: STMT/2026/{(selectedStudent as any).admissionNumber || selectedStudent.id.slice(-6).toUpperCase()}</span>
+                                                            <span>Reference: STMT/2026/{selectedStudent.admissionNumber || (selectedStudent as any).admission_number || (selectedStudent as any).admNo || (selectedStudent as any).staffId || selectedStudent.metadata?.admissionNumber || selectedStudent.metadata?.admission_number || selectedStudent.metadata?.admNo || selectedStudent.id.slice(-6).toUpperCase()}</span>
                                                         </div>
 
                                                         {/* A4 Document Preview Card */}
@@ -13335,7 +13338,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Admission Number</p>
-                                                                    <p className="font-black text-slate-900 text-sm">{(selectedStudent as any).admissionNumber || '—'}</p>
+                                                                    <p className="font-black text-slate-900 text-sm">{selectedStudent.admissionNumber || (selectedStudent as any).admission_number || (selectedStudent as any).admNo || (selectedStudent as any).staffId || selectedStudent.metadata?.admissionNumber || selectedStudent.metadata?.admission_number || selectedStudent.metadata?.admNo || '—'}</p>
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Class / Stream</p>
