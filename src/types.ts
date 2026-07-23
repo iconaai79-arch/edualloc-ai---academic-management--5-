@@ -828,6 +828,27 @@ export interface AcademicYear {
     endDate: string;
     institutionId: string;
     status: 'active' | 'inactive';
+    isConcluded?: boolean;
+}
+
+export type PromotionAction = 'promoted' | 'repeated' | 'graduated' | 'withdrawn';
+
+export interface StudentPromotionRecord {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    fromAcademicYearId: string;
+    toAcademicYearId: string;
+    fromClass: string;
+    toClass: string;
+    fromStream?: string;
+    toStream?: string;
+    action: PromotionAction;
+    closingBalance: number;
+    carriedOpeningBalance: number;
+    promotedBy: string;
+    promotedAt: string;
+    metadata?: Record<string, any>;
 }
 
 export interface ExamPeriod {

@@ -5,6 +5,7 @@ import React, { useState, useMemo } from 'react';
 import type { User, Subject, Course, Room, Department, AcademicYear, Semester, ExamTimetableEntry, TimetableSettings, Building, AcademicLevel, LetterheadConfig, EmailConfig, Institution, SmsConfig, ExamTimetableSettings, AllocationRequest, TimeOffRequest, TimetableEntry, Assessment, AssessmentMark, ActivityLog, DisciplineIncident } from '../types';
 import { generateExamTimetable } from '../services/geminiService';
 import { generateExamTimetablePdf } from '../services/pdfService';
+import { StudentPromotionWizard } from './academics/StudentPromotionWizard';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
 import { SettingsManager } from './SettingsManager';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
@@ -165,6 +166,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const [examUnitSearch, setExamUnitSearch] = useState('');
     const [generationMode, setGenerationMode] = useState<'ai' | 'standard'>('ai');
     const [isWizardOpen, setIsWizardOpen] = useState(false);
+    const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
 
     const canGenerate = useMemo(() => {
         return activeAcademicYear && activeSemester && (activeSemester.sessions || []).some(s => (s.examPeriods || []).length > 0);
@@ -283,6 +285,16 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                 </div>
                                 <span className="font-black text-sm uppercase tracking-tight">Timetable Wizard</span>
                                 <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
+                            </button>
+                            <button
+                                onClick={() => setIsPromotionWizardOpen(true)}
+                                className="flex flex-col items-start p-6 bg-emerald-600 text-white rounded-3xl shadow-xl shadow-emerald-200 hover:shadow-emerald-300 transition-all group text-left hover:-translate-y-1"
+                            >
+                                <div className="p-3 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                                    🎓
+                                </div>
+                                <span className="font-black text-sm uppercase tracking-tight">Student Promotion</span>
+                                <p className="text-[10px] opacity-80 uppercase mt-1">End-of-Year Rollover</p>
                             </button>
                             <button
                                 onClick={() => {
@@ -554,6 +566,23 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     timeOffRequests={props.timeOffRequests || []}
                     onTimetableGenerated={props.onTimetableGenerated || (async () => { })}
                     onLogAction={onLogAction}
+                />
+            )}
+
+            {isPromotionWizardOpen && (
+                <StudentPromotionWizard
+                    isOpen={isPromotionWizardOpen}
+                    onClose={() => setIsPromotionWizardOpen(false)}
+                    activeAcademicYear={activeAcademicYear || null}
+                    semesters={semesters || []}
+                    students={users || []}
+                    courses={courses || []}
+                    institution={currentInstitution || ({ id: 'inst_demo', name: 'School' } as Institution)}
+                    currentUser={(users || [])[0] || ({ id: 'admin', name: 'Admin', role: 'super_admin' } as User)}
+                    onPromotionSuccess={() => {
+                        setIsPromotionWizardOpen(false);
+                        onLogAction?.('Executed batch student promotion & academic year rollover');
+                    }}
                 />
             )}
 
