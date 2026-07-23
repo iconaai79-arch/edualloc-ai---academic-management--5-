@@ -1009,6 +1009,21 @@ export const apiService = {
         const processItem = (item: any) => {
             if (typeof item !== 'object' || item === null) return item;
             
+            // Auto-generate primary key ID if missing or null to prevent PostgreSQL not-null constraint failures
+            if (!item.id) {
+                const prefixMap: Record<string, string> = {
+                    books: 'bk_',
+                    activity_log: 'log_',
+                    cafe_orders: 'co_',
+                    cafe_menu_items: 'cmi_',
+                    retail_sales: 'rs_',
+                    retail_inventory: 'ri_',
+                    users: 'u_'
+                };
+                const prefix = prefixMap[module] || `${module.slice(0, 3)}_`;
+                item.id = `${prefix}${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            }
+
             // Safety net for Driving School modules to prevent schema mismatch errors
             if (module === 'ds_vehicles' || module === 'ds_instructors' || module === 'ds_students') {
                 delete item.start_time;

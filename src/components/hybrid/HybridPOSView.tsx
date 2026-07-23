@@ -139,12 +139,10 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                 id: orderId,
                 institutionId: currentInstitution.id,
                 items: cart.map(item => ({
-                    id: item.itemId,
-                    productId: item.itemId,
-                    productName: item.name,
+                    itemId: item.itemId,
+                    name: item.name,
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
-                    subtotal: item.quantity * item.unitPrice,
                     kitchenStatus: orderType === 'kitchen' ? 'pending' : undefined
                 })),
                 totalAmount: calculatedTotal,
