@@ -220,19 +220,28 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
                                 <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
                                     <thead className="bg-slate-50 dark:bg-slate-950">
                                         <tr>
-                                            <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-slate-500">Book Title</th>
-                                            <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-slate-500">Author</th>
-                                            <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-slate-500">ISBN</th>
-                                            <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-slate-500">Qty</th>
+                                            <th className="px-4 py-3 text-left text-[10px] font-black uppercase text-slate-500">Accession No</th>
+                                            <th className="px-4 py-3 text-left text-[10px] font-black uppercase text-slate-500">Book Title</th>
+                                            <th className="px-4 py-3 text-left text-[10px] font-black uppercase text-slate-500">Author</th>
+                                            <th className="px-4 py-3 text-left text-[10px] font-black uppercase text-slate-500">ISBN</th>
+                                            <th className="px-4 py-3 text-left text-[10px] font-black uppercase text-slate-500">Category / Shelf</th>
+                                            <th className="px-4 py-3 text-center text-[10px] font-black uppercase text-slate-500">Qty</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {parsedData?.valid.slice(0, 10).map((v, i) => (
+                                        {parsedData?.valid.slice(0, 15).map((v, i) => (
                                             <tr key={i} className="bg-white dark:bg-slate-900">
-                                                <td className="px-6 py-3 text-sm font-bold text-slate-900 dark:text-white">{v.title}</td>
-                                                <td className="px-6 py-3 text-sm text-slate-500 dark:text-slate-400">{v.author}</td>
-                                                <td className="px-6 py-3 text-sm text-slate-500 dark:text-slate-400">{v.isbn || 'N/A'}</td>
-                                                <td className="px-6 py-3 text-sm font-black text-indigo-600">{v.quantity}</td>
+                                                <td className="px-4 py-3 text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                                                    {v.accessionNumber || 'Auto-generated'}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm font-bold text-slate-900 dark:text-white">{v.title}</td>
+                                                <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{v.author}</td>
+                                                <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{v.isbn || 'N/A'}</td>
+                                                <td className="px-4 py-3 text-xs font-medium text-slate-600 dark:text-slate-300">
+                                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-bold">{v.category || 'General'}</span>
+                                                    {v.location ? <span className="ml-1 text-slate-400">({v.location})</span> : ''}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm font-black text-center text-emerald-600">{v.quantity}</td>
                                             </tr>
                                         ))}
                                     </tbody>
