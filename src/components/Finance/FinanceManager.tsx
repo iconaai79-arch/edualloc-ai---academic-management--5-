@@ -106,6 +106,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
     const [enrollments, setEnrollments] = useState<any[]>([]);
 
     useEffect(() => {
@@ -4956,17 +4957,29 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     );
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[750px] w-full text-left">
+        <div className={`flex flex-col lg:flex-row gap-8 items-start min-h-[750px] w-full text-left transition-all duration-500 ${themeMode === 'futuristic' ? 'bg-slate-950/40 p-2 md:p-6 rounded-[3rem] border border-emerald-500/20 shadow-2xl' : ''}`}>
             {/* Sidebar (Vertical Menu) */}
-            <div className={`${isSidebarOpen ? 'w-full lg:w-72' : 'w-full lg:w-24'} bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-[2.5rem] shadow-sm transition-all duration-500 flex flex-col p-6 shrink-0`}>
+            <div className={`${isSidebarOpen ? 'w-full lg:w-72' : 'w-full lg:w-24'} ${
+                themeMode === 'futuristic'
+                ? 'bg-slate-950 text-white border-emerald-500/30 shadow-xl shadow-emerald-500/10'
+                : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+            } border rounded-[2.5rem] shadow-sm transition-all duration-500 flex flex-col p-6 shrink-0`}>
                 <div className="flex items-center gap-4 mb-8 px-2">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-500/20 shrink-0">
-                        <BanknotesIcon className="w-7 h-7 animate-pulse" />
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shrink-0 ${
+                        themeMode === 'futuristic'
+                        ? 'bg-gradient-to-br from-emerald-500 via-cyan-500 to-indigo-600 shadow-xl shadow-emerald-500/30 animate-pulse'
+                        : 'bg-indigo-600 shadow-xl shadow-indigo-500/20'
+                    }`}>
+                        <BanknotesIcon className="w-7 h-7" />
                     </div>
                     {isSidebarOpen && (
                         <div className="animate-fade-in whitespace-nowrap">
-                            <h2 className="text-[13px] font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none mb-1">Fiscal Hub</h2>
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Finance & Fee Control</p>
+                            <h2 className="text-[13px] font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none mb-1">
+                                {themeMode === 'futuristic' ? '⚡ Cyber Fiscal HUD' : 'Fiscal Hub'}
+                            </h2>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                                {themeMode === 'futuristic' ? 'AI Ledger & Gateway' : 'Finance & Fee Control'}
+                            </p>
                         </div>
                     )}
                 </div>
@@ -4985,12 +4998,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             onClick={() => setActiveTab(item.id as any)}
                             className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 relative group ${
                                 activeTab === item.id 
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105' 
-                                : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-750'
+                                ? (themeMode === 'futuristic' 
+                                    ? 'bg-gradient-to-r from-emerald-500 via-teal-600 to-indigo-600 text-white shadow-lg shadow-emerald-500/30 scale-105' 
+                                    : 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105')
+                                : (themeMode === 'futuristic'
+                                    ? 'text-slate-400 hover:bg-slate-900/80 hover:text-slate-200'
+                                    : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-750')
                             }`}
                         >
                             <div className={`${activeTab === item.id ? 'scale-110' : 'group-hover:scale-110'} transition-transform duration-300`}>
-                                <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-white' : 'text-slate-400'}`} />
+                                <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-white' : (themeMode === 'futuristic' ? 'text-emerald-400' : 'text-slate-400')}`} />
                             </div>
                             {isSidebarOpen && <span className="text-[11px] font-black uppercase tracking-widest text-left">{item.label}</span>}
                             {activeTab === item.id && isSidebarOpen && (
@@ -5008,7 +5025,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         {isSidebarOpen ? <XIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
                     </button>
                     {isSidebarOpen && (
-                        <div className="w-full p-5 bg-slate-950 rounded-[2rem] text-left relative overflow-hidden group">
+                        <div className={`w-full p-5 ${themeMode === 'futuristic' ? 'bg-slate-900/90 border border-emerald-500/30' : 'bg-slate-950'} rounded-[2rem] text-left relative overflow-hidden group`}>
                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 blur-3xl rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Fiscal Governance</p>
                            <h4 className="text-xs font-black text-white mb-1">Encrypted Ledger</h4>
@@ -5021,7 +5038,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             {/* Main Content Area */}
             <div className="flex-1 w-full space-y-8 min-w-0">
                 {!isDrivingSchool && (
-                    <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm shrink-0 gap-4">
+                    <div className={`flex justify-between items-center ${
+                        themeMode === 'futuristic' 
+                        ? 'bg-slate-950 text-white border-emerald-500/30 shadow-xl' 
+                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+                    } p-4 rounded-[2.5rem] border shadow-sm shrink-0 gap-4`}>
                         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto custom-scrollbar-horizontal max-w-[70vw] md:max-w-full pb-1">
                             {activeTab === 'settings' ? (
                                 settingsSubTabs.map(sub => (
@@ -5108,6 +5129,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </select>
                             </div>
                         )}
+
+                        {/* Theme Switcher Toggle Button */}
+                        <div className="flex items-center gap-2 px-4 border-l border-slate-100 dark:border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setThemeMode(themeMode === 'futuristic' ? 'classic' : 'futuristic')}
+                                className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md ${
+                                    themeMode === 'futuristic'
+                                        ? 'bg-gradient-to-r from-emerald-500 via-cyan-500 to-indigo-600 text-white shadow-emerald-500/20 animate-pulse'
+                                        : 'bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700'
+                                }`}
+                                title="Switch between Futuristic Cyber HUD and Classic ERP Theme"
+                            >
+                                <span>{themeMode === 'futuristic' ? '✨ Futuristic HUD' : '🏛️ Classic ERP'}</span>
+                                <span className="px-2 py-0.5 bg-black/40 rounded-full text-[9px] font-mono">
+                                    {themeMode === 'futuristic' ? 'Switch to Classic' : 'Switch to Futuristic'}
+                                </span>
+                            </button>
+                        </div>
 
                         <div className="hidden md:flex items-center gap-4 px-6 border-l border-slate-100 dark:border-slate-800">
                             <div className="text-right">
