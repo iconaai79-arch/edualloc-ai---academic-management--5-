@@ -308,13 +308,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : appendBranch(recordWithTenancy);
 
             const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+            const UUID_STRICT_MODULES = ['student_attendance', 'staff_attendance_daily', 'biometric_logs', 'biometric_enrollments'];
 
             const sanitizeUUIDs = (r: any) => {
                 if (!r || typeof r !== 'object') return r;
                 const cleaned = { ...r };
-                if (cleaned.id && typeof cleaned.id === 'string' && !isValidUUID(cleaned.id) && (cleaned.id.startsWith('att_') || cleaned.id.includes('_'))) {
-                    console.warn(`[api/records] Stripping non-UUID id '${cleaned.id}' for module '${moduleName}'`);
-                    delete cleaned.id;
+                // Only strip non-UUID IDs if the target module specifically requires PostgreSQL UUID data type
+                if (UUID_STRICT_MODULES.includes(moduleName) || (typeof cleaned.id === 'string' && cleaned.id.startsWith('att_') && moduleName.includes('attendance'))) {
+                    if (cleaned.id && typeof cleaned.id === 'string' && !isValidUUID(cleaned.id)) {
+                        console.warn(`[api/records] Stripping non-UUID id '${cleaned.id}' for module '${moduleName}'`);
+                        delete cleaned.id;
+                    }
                 }
                 return cleaned;
             };
