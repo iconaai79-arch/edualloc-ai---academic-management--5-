@@ -11740,45 +11740,63 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                         {/* 1. Fee Balance Slip */}
                                         {outstandingSubTab === 'balance_slip' && (
-                                            <div className="space-y-4">
-                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
-                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Generate Fee Balance Slip</h3>
+                                            <div className="space-y-6">
+                                                <div className={`p-6 rounded-[2.5rem] border shadow-md ${
+                                                    themeMode === 'futuristic'
+                                                    ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
+                                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+                                                }`}>
+                                                    <div className="flex items-center gap-3 mb-4">
+                                                        <div className="p-2.5 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/30">
+                                                            <DocumentTextIcon className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Generate Fee Balance Slip</h3>
+                                                            <p className="text-[10px] font-bold text-slate-400">Search and print executive fee balance statements for students</p>
+                                                        </div>
+                                                    </div>
+
                                                     <div className="flex flex-col md:flex-row gap-4">
-                                                        <input type="text" placeholder="Search student..." value={slipSearch} onChange={e => setSlipSearch(e.target.value)} className="flex-1 pl-4 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold text-slate-900 dark:text-white" />
-                                                        <select value={slipStudentId} onChange={e => setSlipStudentId(e.target.value)} className="flex-1 py-2.5 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold text-slate-900 dark:text-white">
+                                                        <input type="text" placeholder="Search student name or admission number..." value={slipSearch} onChange={e => setSlipSearch(e.target.value)} className="flex-1 pl-4 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-500" />
+                                                        <select value={slipStudentId} onChange={e => setSlipStudentId(e.target.value)} className="flex-1 py-3 px-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-xs font-bold text-slate-900 dark:text-white">
                                                             <option value="">— Select Student —</option>
                                                             {slipStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>))}
                                                         </select>
-                                                        {slipStudentId && <button onClick={() => window.print()} className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">🖨️ Print Slip</button>}
+                                                        {slipStudentId && <button onClick={() => window.print()} className="px-6 py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-rose-600/30 active:scale-95 flex items-center justify-center gap-2">🖨️ Print Executive Slip</button>}
                                                     </div>
                                                 </div>
 
-                                                {/* A5 Balance Slip */}
+                                                {/* A5 Executive Balance Slip */}
                                                 {slipStudent && slipData && (
-                                                    <div className="mx-auto bg-white dark:bg-slate-900 rounded-[2rem] border-2 border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden" style={{ maxWidth: '560px' }}>
+                                                    <div className="mx-auto bg-slate-950 rounded-[2.5rem] border-2 border-rose-500/40 shadow-2xl overflow-hidden relative" style={{ maxWidth: '580px' }}>
+                                                        <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
                                                         {/* Slip Header */}
-                                                        <div className="bg-gradient-to-r from-rose-700 to-rose-500 p-6 text-white text-center">
-                                                            <p className="text-rose-200 text-[9px] font-black uppercase tracking-[0.4em] mb-0.5">Fee Balance Slip</p>
-                                                            <h3 className="text-xl font-black">{props.institution.name}</h3>
-                                                            <p className="text-rose-200 text-[10px] mt-0.5">{new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                                        <div className="bg-gradient-to-r from-rose-900 via-rose-800 to-red-950 p-8 text-white text-center relative z-10 border-b border-rose-500/30">
+                                                            <p className="text-rose-300 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Official Fee Balance Statement</p>
+                                                            <h3 className="text-2xl font-black text-white">{props.institution.name}</h3>
+                                                            <p className="text-rose-200 text-[11px] mt-1 font-bold">{new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                                                         </div>
-                                                        {/* Student Details */}
-                                                        <div className="p-6 border-b border-dashed border-slate-200 dark:border-slate-700">
-                                                            <div className="grid grid-cols-2 gap-3 text-xs">
-                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Student Name</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{slipStudent.name}</p></div>
-                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Adm Number</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).admissionNumber || '—'}</p></div>
-                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Class</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).className || studentClassGroup(slipStudent)}</p></div>
-                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Stream</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).stream || '—'}</p></div>
+
+                                                        {/* Student Details Grid */}
+                                                        <div className="p-6 border-b border-dashed border-slate-800 relative z-10 bg-slate-900/60">
+                                                            <div className="grid grid-cols-2 gap-4 text-xs">
+                                                                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Student Name</p><p className="font-black text-white text-sm mt-0.5">{slipStudent.name}</p></div>
+                                                                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Adm Number</p><p className="font-mono font-bold text-cyan-400 text-sm mt-0.5">{(slipStudent as any).admissionNumber || '—'}</p></div>
+                                                                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Class & Stream</p><p className="font-black text-white text-sm mt-0.5">{(slipStudent as any).className || studentClassGroup(slipStudent)} {((slipStudent as any).stream) ? `(${ (slipStudent as any).stream })` : ''}</p></div>
+                                                                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Status</p><p className="font-black text-amber-400 text-sm mt-0.5">{(slipData as any).totals.balance > 0 ? '⚠️ Outstanding Due' : '✅ Cleared'}</p></div>
                                                             </div>
                                                         </div>
-                                                        {/* Balance Summary */}
-                                                        <div className="p-6 space-y-2">
-                                                            <div className="flex justify-between text-xs"><span className="font-black text-slate-500 uppercase tracking-widest text-[10px]">Total Invoiced</span><span className="font-black text-slate-800 dark:text-white">KSh {(slipData as any).totals.invoiced.toLocaleString()}</span></div>
-                                                            <div className="flex justify-between text-xs"><span className="font-black text-slate-500 uppercase tracking-widest text-[10px]">Amount Paid</span><span className="font-black text-emerald-600">KSh {(slipData as any).totals.paid.toLocaleString()}</span></div>
-                                                            <div className="flex justify-between text-xs border-t pt-2 mt-2"><span className="font-black text-slate-500 uppercase tracking-widest text-[10px]">Balance Due</span><span className={`font-black text-lg ${(slipData as any).totals.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs((slipData as any).totals.balance).toLocaleString()}</span></div>
+
+                                                        {/* Balance Breakdown */}
+                                                        <div className="p-6 space-y-3 relative z-10">
+                                                            <div className="flex justify-between items-center text-xs p-3 bg-slate-900/40 rounded-xl border border-slate-800"><span className="font-black text-slate-400 uppercase tracking-widest text-[10px]">Total Fee Invoiced</span><span className="font-black text-white text-sm">KSh {(slipData as any).totals.invoiced.toLocaleString()}</span></div>
+                                                            <div className="flex justify-between items-center text-xs p-3 bg-emerald-950/30 rounded-xl border border-emerald-500/30"><span className="font-black text-emerald-400 uppercase tracking-widest text-[10px]">Total Amount Paid</span><span className="font-black text-emerald-400 text-sm">KSh {(slipData as any).totals.paid.toLocaleString()}</span></div>
+                                                            <div className="flex justify-between items-center text-xs p-4 bg-rose-950/40 rounded-xl border border-rose-500/40 mt-3 shadow-inner"><span className="font-black text-rose-300 uppercase tracking-widest text-[11px]">Outstanding Balance Due</span><span className={`font-black text-xl ${(slipData as any).totals.balance > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>KSh {Math.abs((slipData as any).totals.balance).toLocaleString()}</span></div>
                                                         </div>
-                                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 text-center">
-                                                            <p className="text-[9px] text-slate-400 font-medium">This slip is computer generated. Please visit the Finance Office for queries.</p>
+
+                                                        <div className="p-4 bg-slate-950 text-center border-t border-slate-800 relative z-10">
+                                                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Official Computer Generated Fiscal Statement · EduAI Finance Platform</p>
                                                         </div>
                                                     </div>
                                                 )}
@@ -11794,45 +11812,55 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 .sort((a: any, b: any) => b.totals.balance - a.totals.balance);
 
                                             return (
-                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
-                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
+                                                <div className={`p-6 rounded-[2.5rem] border shadow-xl ${
+                                                    themeMode === 'futuristic'
+                                                    ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
+                                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+                                                }`}>
+                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                                                         <div>
-                                                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">All Outstanding Balances</h3>
-                                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">{filteredList.length} students with balances</p>
+                                                            <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white">All Outstanding Fee Balances</h3>
+                                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">{filteredList.length} students with active fee arrears</p>
                                                         </div>
+
                                                         <div className="flex flex-wrap items-center gap-2">
-                                                            <input type="text" placeholder="Filter name/adm..." value={balFilter} onChange={e => setBalFilter(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
-                                                            <select value={balClass} onChange={e => setBalClass(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
+                                                            <input type="text" placeholder="Filter student/adm..." value={balFilter} onChange={e => setBalFilter(e.target.value)} className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
+                                                            <select value={balClass} onChange={e => setBalClass(e.target.value)} className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
                                                                 <option value="">All Classes</option>
                                                                 {classes.map((c: any) => <option key={c} value={c}>{c}</option>)}
                                                             </select>
                                                             <button
                                                                 onClick={() => exportCSV('all_outstanding_balances', ['#', 'Student Name', 'Admission No', 'Class', 'Total Invoiced', 'Total Paid', 'Balance Owed'], filteredList.map((s, i) => [i + 1, s.name, s.admissionNumber, s.className || studentClassGroup(s), s.totals.invoiced, s.totals.paid, s.totals.balance]))}
-                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-emerald-600/20 active:scale-95 flex items-center gap-1.5"
                                                             >
-                                                                📥 CSV
+                                                                📥 CSV Export
                                                             </button>
                                                             <button
                                                                 onClick={() => window.print()}
-                                                                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-600/20 active:scale-95 flex items-center gap-1.5"
                                                             >
-                                                                🖨️ Print
+                                                                🖨️ Print Report
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="overflow-x-auto">
+
+                                                    <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
                                                         <table className="w-full text-left">
-                                                            <thead><tr>{['#', 'Student', 'Adm No.', 'Class', 'Invoiced', 'Paid', 'Balance'].map(h => TH(h))}</tr></thead>
+                                                            <thead><tr>{['#', 'Student', 'Adm No.', 'Class', 'Invoiced', 'Paid', 'Balance Owed'].map(h => TH(h))}</tr></thead>
                                                             <tbody>
                                                                 {filteredList.map((s: any, i: number) => (
-                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                    <tr key={i} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/60 transition-colors">
                                                                         <TD cls="text-slate-400 font-bold">{i + 1}</TD>
-                                                                        <TD cls="font-bold text-slate-800 dark:text-white">{s.name}</TD>
-                                                                        <TD cls="text-slate-500">{s.admissionNumber}</TD>
-                                                                        <TD cls="text-slate-600 font-bold">{s.className || studentClassGroup(s)}</TD>
-                                                                        <TD cls="font-black text-slate-700">KSh {s.totals.invoiced.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-emerald-600">KSh {s.totals.paid.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-rose-600">KSh {s.totals.balance.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-slate-800 dark:text-white">{s.name}</TD>
+                                                                        <TD cls="text-slate-500 font-mono">{s.admissionNumber}</TD>
+                                                                        <TD cls="text-slate-600 dark:text-slate-300 font-bold">{s.className || studentClassGroup(s)}</TD>
+                                                                        <TD cls="font-black text-slate-700 dark:text-slate-200">KSh {s.totals.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-600 dark:text-emerald-400">KSh {s.totals.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-600 dark:text-rose-400">
+                                                                            <span className="px-2.5 py-1 bg-rose-500/10 border border-rose-500/30 rounded-lg inline-block">
+                                                                                KSh {s.totals.balance.toLocaleString()}
+                                                                            </span>
+                                                                        </TD>
                                                                     </tr>
                                                                 ))}
                                                                 {filteredList.length === 0 && (
