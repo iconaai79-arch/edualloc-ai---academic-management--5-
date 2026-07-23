@@ -100,6 +100,7 @@ const PublicVisitorAuthorization = safeLazy(() => import('./PublicVisitorAuthori
 const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
 const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m => ({ default: m.PublicInvoiceView })));
 const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m => ({ default: m.DSInterestPage })));
+const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then(m => ({ default: m.RestaurantPOSManager })));
 
 
 
@@ -6384,6 +6385,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                     />
                                 ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
                                     <AgrovetView
+                                        currentUser={currentUser}
+                                        currentInstitution={activeInstitution!}
+                                        users={users.filter(u => u.institutionId === currentUser.institutionId)}
+                                        onDataChange={loadData}
+                                    />
+                                ) : (activeRole === 'restaurant_admin' || (isAdminCatchAll && (activeInstitution?.institutionType === 'Restaurant' || activeInstitution?.category?.toLowerCase().includes('restaurant')))) ? (
+                                    <RestaurantPOSManager
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         users={users.filter(u => u.institutionId === currentUser.institutionId)}

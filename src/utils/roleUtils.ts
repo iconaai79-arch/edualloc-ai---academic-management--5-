@@ -32,6 +32,9 @@ export const getAdminRoleForInstitution = (institution: Partial<Institution>): R
     // Driving School — admin role is Director
     if (type === 'Driving School' || subType.includes('driving school') || (institution.category || '').toLowerCase() === 'driving school') return 'director';
 
+    // Restaurant — admin role is restaurant_admin
+    if (type === 'Restaurant' || subType.includes('restaurant') || subType.includes('eatery') || subType.includes('cafe') || (institution.category || '').toLowerCase() === 'restaurant') return 'restaurant_admin';
+
     // Default for Schools
     return 'head_teacher';
 };
@@ -106,6 +109,11 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
         return ['director', 'admin', 'driving_instructor', 'staff', 'student', 'security', 'driver'];
     }
 
+    // Restaurant / Cafe / POS
+    if (isRestaurantInstitution(institution)) {
+        return ['restaurant_admin', 'chef', 'waiter', 'cashier', 'finance', 'staff', 'security', 'driver', 'store'];
+    }
+
     return ['admin', 'managing_director', 'hr_officer', 'finance_officer', 'staff', 'security', 'driver', 'store', 'customer'] as any[];
 };
 
@@ -175,6 +183,18 @@ export function isDSInstitution(institution: Partial<Institution> | null | undef
     const subType = institution.businessSubType?.toLowerCase() || '';
     const hasModule = institution.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
     return type === 'driving school' || subType.includes('driving school') || category === 'driving school' || !!hasModule;
+}
+
+/**
+ * Centralized logic to determine if an institution is a Restaurant / Cafe.
+ */
+export function isRestaurantInstitution(institution: Partial<Institution> | null | undefined): boolean {
+    if (!institution) return false;
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
+    const subType = institution.businessSubType?.toLowerCase() || '';
+    const hasModule = institution.moduleStates?.some(m => (m.moduleId === 'restaurant_pos' || m.moduleId === 'restaurant') && (m.status === 'active' || m.status === 'trial'));
+    return type === 'restaurant' || subType.includes('restaurant') || subType.includes('eatery') || subType.includes('cafe') || category === 'restaurant' || !!hasModule;
 }
 
 /**
@@ -290,6 +310,19 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'security': return 'Security Officer';
             case 'driver': return 'Driver';
             case 'finance': return 'Finance Officer';
+            default: break;
+        }
+    }
+
+    // Restaurant / Cafe context
+    if (isRestaurantInstitution(institution)) {
+        switch (role) {
+            case 'restaurant_admin': return 'Restaurant Manager / Owner';
+            case 'chef': return 'Head Chef / Kitchen Staff';
+            case 'waiter': return 'Waitstaff / Server';
+            case 'cashier': return 'POS Cashier';
+            case 'finance': return 'Finance Manager';
+            case 'store': return 'Inventory / Storekeeper';
             default: break;
         }
     }

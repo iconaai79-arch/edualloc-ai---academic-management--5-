@@ -119,6 +119,16 @@ const EDU_MODULES: EduModule[] = [
         gradient: 'from-indigo-500 to-blue-600',
         features: ['Dynamic registries', 'Spreadsheet import', 'Biometric passkeys', 'Cohorts mapping'],
     },
+    {
+        id: 'restaurant_pos',
+        name: 'Restaurant POS & Kitchen KDS',
+        tagline: 'Point of Sale, Kitchen Display & Menu',
+        description: 'Complete restaurant touch ordering, Kitchen Display System (KDS), digital menu builder, and customer order readiness display board.',
+        icon: '🍽️',
+        color: 'amber',
+        gradient: 'from-amber-500 to-orange-600',
+        features: ['Touchscreen POS', 'Kitchen KDS Display', 'Customer Order Board', 'Menu & Recipe Builder'],
+    },
 ];
 
 // ─── Props ────────────────────────────────────────────────────────────────────
