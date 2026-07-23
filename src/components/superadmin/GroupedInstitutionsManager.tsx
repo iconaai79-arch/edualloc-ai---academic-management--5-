@@ -14,6 +14,8 @@ export interface Branch {
     institutionId?: string;
     name: string;
     location?: string;
+    linked_institution_id?: string;
+    linkedInstitutionId?: string;
     created_at?: string;
     updated_at?: string;
 }
@@ -49,7 +51,9 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
 
     // Modals
     const [isAddBranchModalOpen, setIsAddBranchModalOpen] = useState(false);
+    const [branchCreationMode, setBranchCreationMode] = useState<'new' | 'pick_existing'>('new');
     const [selectedInstForNewBranch, setSelectedInstForNewBranch] = useState<Institution | null>(null);
+    const [selectedExistingInstForBranch, setSelectedExistingInstForBranch] = useState<Institution | null>(null);
     const [newBranchData, setNewBranchData] = useState({ name: '', location: '', customId: '' });
     const [isSubmittingBranch, setIsSubmittingBranch] = useState(false);
 
@@ -74,6 +78,15 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
     const [assigningAdminForInst, setAssigningAdminForInst] = useState<Institution | null>(null);
     const [groupAdminForm, setGroupAdminForm] = useState({ name: '', email: '', phoneNumber: '' });
     const [isSavingGroupAdmin, setIsSavingGroupAdmin] = useState(false);
+
+    // Helper to open Add Branch modal with reset state
+    const handleOpenAddBranchModal = (inst?: Institution | null) => {
+        setSelectedInstForNewBranch(inst || institutions[0] || null);
+        setBranchCreationMode('new');
+        setSelectedExistingInstForBranch(null);
+        setNewBranchData({ name: '', location: '', customId: '' });
+        setIsAddBranchModalOpen(true);
+    };
 
     // Load branches & integration configs
     const loadBranchData = useCallback(async () => {
@@ -159,35 +172,58 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
         });
     };
 
-    // Create New Branch
+    // Create New or Link Existing Branch
     const handleCreateBranch = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedInstForNewBranch) return;
-        if (!newBranchData.name.trim()) {
-            toastError('Branch name is required');
-            return;
+
+        let branchName = newBranchData.name.trim();
+        let branchLoc = newBranchData.location.trim() || 'Main Location';
+        let linkedInstId: string | undefined = undefined;
+
+        if (branchCreationMode === 'pick_existing') {
+            if (!selectedExistingInstForBranch) {
+                toastError('Please select an existing institution to attach as a branch');
+                return;
+            }
+            branchName = selectedExistingInstForBranch.name;
+            branchLoc = selectedExistingInstForBranch.location || selectedExistingInstForBranch.countyId || 'Main Location';
+            linkedInstId = selectedExistingInstForBranch.id;
+        } else {
+            if (!branchName) {
+                toastError('Branch name is required');
+                return;
+            }
         }
 
         setIsSubmittingBranch(true);
         try {
-            const branchId = newBranchData.customId.trim() || `br_${selectedInstForNewBranch.id}_${Date.now()}`;
+            const branchId = newBranchData.customId.trim() || (linkedInstId ? `br_${linkedInstId}` : `br_${selectedInstForNewBranch.id}_${Date.now()}`);
             const record: Partial<Branch> = {
                 id: branchId,
                 institution_id: selectedInstForNewBranch.id,
-                name: newBranchData.name.trim(),
-                location: newBranchData.location.trim() || 'Main Location'
+                name: branchName,
+                location: branchLoc,
+                linked_institution_id: linkedInstId
             };
 
             await apiService.saveModuleRecord('branches', record);
-            success(`Branch "${newBranchData.name}" created successfully`);
+            
+            success(branchCreationMode === 'pick_existing'
+                ? `Linked existing institution "${branchName}" as a branch location!`
+                : `Branch "${branchName}" created successfully`
+            );
+
             setIsAddBranchModalOpen(false);
             setNewBranchData({ name: '', location: '', customId: '' });
             setSelectedInstForNewBranch(null);
+            setSelectedExistingInstForBranch(null);
+            setBranchCreationMode('new');
             await loadBranchData();
             if (onRefreshData) await onRefreshData();
         } catch (err: any) {
             console.error(err);
-            toastError(err.message || 'Failed to create branch');
+            toastError(err.message || 'Failed to create/link branch');
         } finally {
             setIsSubmittingBranch(false);
         }
@@ -329,10 +365,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                         </button>
                         <button
-                            onClick={() => {
-                                setSelectedInstForNewBranch(institutions[0] || null);
-                                setIsAddBranchModalOpen(true);
-                            }}
+                            onClick={() => handleOpenAddBranchModal()}
                             className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-indigo-600/30 transition-all hover:scale-105 active:scale-95"
                         >
                             <Plus className="w-4 h-4" />
@@ -472,10 +505,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
 
                                     <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                                         <button
-                                            onClick={() => {
-                                                setSelectedInstForNewBranch(inst);
-                                                setIsAddBranchModalOpen(true);
-                                            }}
+                                            onClick={() => handleOpenAddBranchModal(inst)}
                                             className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
                                         >
                                             <Plus className="w-3.5 h-3.5" />
@@ -511,10 +541,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                             <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl text-center border border-dashed border-slate-200 dark:border-slate-700">
                                                 <p className="text-xs font-bold text-slate-500">No branches registered yet for this institution.</p>
                                                 <button
-                                                    onClick={() => {
-                                                        setSelectedInstForNewBranch(inst);
-                                                        setIsAddBranchModalOpen(true);
-                                                    }}
+                                                    onClick={() => handleOpenAddBranchModal(inst)}
                                                     className="mt-3 text-xs font-black text-indigo-600 hover:underline uppercase tracking-wider inline-flex items-center gap-1"
                                                 >
                                                     <Plus className="w-3 h-3" /> Create Default Branch
@@ -525,6 +552,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                                 {instBranches.map((branch) => {
                                                     const bConfigs = configMap.get(branch.id) || [];
                                                     const branchUsersCount = users.filter(u => (u as any).branch_id === branch.id || (u as any).branchId === branch.id).length;
+                                                    const isLinkedInst = !!(branch.linked_institution_id || branch.linkedInstitutionId);
 
                                                     return (
                                                         <div
@@ -548,6 +576,12 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                                                 </div>
 
                                                                 <div className="flex flex-wrap items-center gap-2 pt-2">
+                                                                    {isLinkedInst && (
+                                                                        <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-black uppercase tracking-wider rounded-md border border-indigo-200 dark:border-indigo-800">
+                                                                            🔗 Linked Institution
+                                                                        </span>
+                                                                    )}
+
                                                                     <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-md">
                                                                         {branchUsersCount} Active Users
                                                                     </span>
@@ -606,7 +640,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                 )}
             </div>
 
-            {/* Modal: Add New Branch */}
+            {/* Modal: Add New / Link Existing Branch Location */}
             {isAddBranchModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 max-w-md w-full border border-slate-100 dark:border-slate-700 shadow-2xl space-y-6 animate-scale-up">
@@ -615,14 +649,43 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                 <div className="p-3 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-2xl">
                                     <GitBranch className="w-6 h-6" />
                                 </div>
-                                <h3 className="font-black text-slate-800 dark:text-white text-lg uppercase tracking-tight">Add Branch Location</h3>
+                                <div>
+                                    <h3 className="font-black text-slate-800 dark:text-white text-lg uppercase tracking-tight">Add Branch Location</h3>
+                                    <p className="text-[10px] text-slate-400 font-medium">Create a new branch or convert an existing institution</p>
+                                </div>
                             </div>
                             <button onClick={() => setIsAddBranchModalOpen(false)} className="text-slate-400 hover:text-slate-600">✕</button>
                         </div>
 
+                        {/* Mode Selector Tabs */}
+                        <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl gap-1">
+                            <button
+                                type="button"
+                                onClick={() => setBranchCreationMode('new')}
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                    branchCreationMode === 'new'
+                                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md'
+                                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                ✨ New Location
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setBranchCreationMode('pick_existing')}
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                    branchCreationMode === 'pick_existing'
+                                        ? 'bg-indigo-600 text-white shadow-md'
+                                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                🔗 Link Existing
+                            </button>
+                        </div>
+
                         <form onSubmit={handleCreateBranch} className="space-y-4">
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">Select Institution</label>
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">Target Parent Institution</label>
                                 <select
                                     value={selectedInstForNewBranch?.id || ''}
                                     onChange={(e) => setSelectedInstForNewBranch(institutions.find(i => i.id === e.target.value) || null)}
@@ -634,28 +697,75 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                 </select>
                             </div>
 
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">Branch Name</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g., Mombasa West Campus"
-                                    value={newBranchData.name}
-                                    onChange={(e) => setNewBranchData(prev => ({ ...prev, name: e.target.value }))}
-                                    required
-                                    className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-xs font-bold text-slate-800 dark:text-white placeholder:text-slate-400"
-                                />
-                            </div>
+                            {branchCreationMode === 'pick_existing' ? (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-indigo-500 tracking-wider block mb-1.5">
+                                            Select Existing Registered Institution to Attach as Branch
+                                        </label>
+                                        <select
+                                            value={selectedExistingInstForBranch?.id || ''}
+                                            onChange={(e) => {
+                                                const inst = institutions.find(i => i.id === e.target.value) || null;
+                                                setSelectedExistingInstForBranch(inst);
+                                                if (inst) {
+                                                    setNewBranchData({
+                                                        name: inst.name,
+                                                        location: inst.location || inst.countyId || 'Main Campus',
+                                                        customId: `br_${inst.id}`
+                                                    });
+                                                }
+                                            }}
+                                            required
+                                            className="w-full p-3.5 bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="">-- Select Existing Institution --</option>
+                                            {institutions
+                                                .filter(inst => inst.id !== selectedInstForNewBranch?.id)
+                                                .map(inst => (
+                                                    <option key={inst.id} value={inst.id}>
+                                                        {inst.name} — ({inst.institutionCode || inst.id}) [{inst.institutionType || 'Academic'}]
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
 
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">Location / Address</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g., Nyali Plaza, Mombasa"
-                                    value={newBranchData.location}
-                                    onChange={(e) => setNewBranchData(prev => ({ ...prev, location: e.target.value }))}
-                                    className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-xs font-bold text-slate-800 dark:text-white placeholder:text-slate-400"
-                                />
-                            </div>
+                                    {selectedExistingInstForBranch && (
+                                        <div className="p-4 bg-indigo-50/80 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 rounded-2xl text-xs space-y-1">
+                                            <p className="font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider text-[10px]">🔗 Institution Link Summary</p>
+                                            <p className="text-slate-800 dark:text-white font-bold">{selectedExistingInstForBranch.name}</p>
+                                            <p className="text-slate-500 text-[11px]">
+                                                Will be linked as a satellite branch under parent: <strong className="text-indigo-600 dark:text-indigo-400">{selectedInstForNewBranch?.name}</strong>
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">Branch Name</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Mombasa West Campus"
+                                            value={newBranchData.name}
+                                            onChange={(e) => setNewBranchData(prev => ({ ...prev, name: e.target.value }))}
+                                            required
+                                            className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-xs font-bold text-slate-800 dark:text-white placeholder:text-slate-400"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">Location / Address</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Nyali Plaza, Mombasa"
+                                            value={newBranchData.location}
+                                            onChange={(e) => setNewBranchData(prev => ({ ...prev, location: e.target.value }))}
+                                            className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-xs font-bold text-slate-800 dark:text-white placeholder:text-slate-400"
+                                        />
+                                    </div>
+                                </>
+                            )}
 
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">Branch Code / Custom ID (Optional)</label>
@@ -681,7 +791,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                     disabled={isSubmittingBranch}
                                     className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-600/30"
                                 >
-                                    {isSubmittingBranch ? 'Saving...' : 'Create Branch'}
+                                    {isSubmittingBranch ? 'Saving...' : (branchCreationMode === 'pick_existing' ? 'Link Institution as Branch' : 'Create Branch')}
                                 </button>
                             </div>
                         </form>
