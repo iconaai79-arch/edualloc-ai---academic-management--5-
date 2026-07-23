@@ -6390,7 +6390,23 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                         users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                         onDataChange={loadData}
                                     />
-                                ) : (activeRole === 'restaurant_admin' || (isAdminCatchAll && (activeInstitution?.institutionType === 'Restaurant' || activeInstitution?.category?.toLowerCase().includes('restaurant')))) ? (
+                                ) : (
+                                    activeRole === 'restaurant_admin' || 
+                                    activeRole === 'waiter' || 
+                                    activeRole === 'carwash_waiter' ||
+                                    (typeof window !== 'undefined' && (
+                                        new URLSearchParams(window.location.search).get('view') === 'pos' ||
+                                        new URLSearchParams(window.location.search).get('view') === 'restaurant' ||
+                                        new URLSearchParams(window.location.search).get('view') === 'cafe'
+                                    )) ||
+                                    (isAdminCatchAll && (
+                                        activeInstitution?.institutionType === 'Restaurant' || 
+                                        activeInstitution?.category?.toLowerCase().includes('restaurant') ||
+                                        activeInstitution?.category?.toLowerCase().includes('cafe') ||
+                                        activeInstitution?.category?.toLowerCase().includes('dining') ||
+                                        activeInstitution?.businessSubType?.toLowerCase().includes('restaurant')
+                                    ))
+                                ) ? (
                                     <RestaurantPOSManager
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
