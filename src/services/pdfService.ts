@@ -9533,7 +9533,7 @@ export const generateStudentStatementPdfDataUri = async (
     doc.setDrawColor(226, 232, 240);
     doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 32, 3, 3, 'FD');
 
-    const admNo = student?.admissionNumber || student?.admission_number || student?.admNo || student?.adm_no || student?.staffId || student?.staff_id || student?.metadata?.admissionNumber || student?.metadata?.admission_number || student?.metadata?.admNo || 'N/A';
+    const admNo = student?.admissionNumber || student?.admission_number || student?.admNo || student?.adm_no || student?.staffId || student?.staff_id || student?.metadata?.admissionNumber || student?.metadata?.admission_number || student?.metadata?.admNo || student?.metadata?.staffId || 'N/A';
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(30, 41, 59);

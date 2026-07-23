@@ -13068,7 +13068,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     (s.admissionNumber || '').toLowerCase().includes(stmtSearch.toLowerCase())
                                 ).slice(0, 30);
 
-                                const selectedStudent = props.students.find((s: any) => s.id === stmtStudentId);
+                                const selectedStudentRaw = props.students.find((s: any) => s.id === stmtStudentId);
+                                const studentFinanceRecord = studentFinanceData.find(s => s.id === stmtStudentId);
+                                const selectedEnrollment = enrollments.find(e => e.userId === stmtStudentId || (e as any).user_id === stmtStudentId);
+
+                                const resolvedAdmNo = 
+                                    (studentFinanceRecord as any)?.admissionNumber ||
+                                    selectedEnrollment?.admissionNumber ||
+                                    selectedEnrollment?.metadata?.admissionNumber ||
+                                    selectedEnrollment?.metadata?.admission_number ||
+                                    (selectedStudentRaw as any)?.admissionNumber ||
+                                    (selectedStudentRaw as any)?.admission_number ||
+                                    (selectedStudentRaw as any)?.admNo ||
+                                    (selectedStudentRaw as any)?.adm_no ||
+                                    (selectedStudentRaw as any)?.staffId ||
+                                    (selectedStudentRaw as any)?.staff_id ||
+                                    selectedStudentRaw?.metadata?.admissionNumber ||
+                                    selectedStudentRaw?.metadata?.admission_number ||
+                                    selectedStudentRaw?.metadata?.admNo ||
+                                    selectedStudentRaw?.metadata?.staffId ||
+                                    '—';
+
+                                const selectedStudent = selectedStudentRaw ? {
+                                    ...selectedStudentRaw,
+                                    admissionNumber: resolvedAdmNo,
+                                    className: (studentFinanceRecord as any)?.className || (selectedStudentRaw as any).className || studentClassGroup(selectedStudentRaw)
+                                } : null;
                                 const studentInvoices = mappedInvoices.filter((i: any) => i.studentId === stmtStudentId);
                                 const studentReceipts = mappedReceipts.filter((r: any) =>
                                     r.studentId === stmtStudentId ||
