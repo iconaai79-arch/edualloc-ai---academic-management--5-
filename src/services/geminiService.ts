@@ -688,7 +688,7 @@ export const analyzeBookSpreadsheet = async (headers: string[]): Promise<Record<
         const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
-        console.error("AI book map error:", error);
+        console.warn("AI book map unavailable, using local heuristic header matcher.");
         return {};
     }
 };
