@@ -276,11 +276,12 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                              `⏱️ The device will execute this command on its next\n` +
                              `   ADMS poll (every 10–30 seconds).\n\n` +
                              `⚡ To trigger INSTANTLY on the physical terminal:\n` +
-                             `   Menu ➔ Data Mgt ➔ Sync\n\n` +
+                             `   Restart the terminal (unplug & replug power) OR re-save Cloud Server Settings!\n\n` +
                              `❗ If the door/sensor does NOT open after 60s:\n` +
-                             `   1. Verify Menu ➔ Comm. ➔ Cloud Server / ADMS is configured\n` +
-                             `   2. Server IP = portal.eduai.co.ke, Port = 80/443\n` +
-                             `   3. Enable Domain Name = ON`,
+                             `   1. Go to Menu ➔ Comm. ➔ Cloud Server / ADMS Settings\n` +
+                             `   2. Server Address: 216.150.16.65 (or portal.eduai.co.ke if Domain Name is ON)\n` +
+                             `   3. Server Port: 80\n` +
+                             `   4. Gateway: Ensure your router IP (e.g. 192.168.0.1) is set under Comm. ➔ Ethernet`,
                     timestamp: new Date().toLocaleTimeString()
                 });
             } else {
@@ -1182,9 +1183,10 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                 
                                 <div className="space-y-1.5 p-4 bg-slate-900 text-indigo-300 font-mono text-[10px] rounded-2xl border border-indigo-500/30 break-all">
                                     <div className="text-white font-bold text-[11px] mb-1">📲 Keypad Entry Settings:</div>
-                                    <div>• Server Domain: <span className="text-emerald-400 font-bold select-all">portal.eduai.co.ke</span></div>
+                                    <div>• Direct Numeric Server IP: <span className="text-emerald-400 font-bold select-all">216.150.16.65</span></div>
+                                    <div>• Domain Name (if ON): <span className="text-emerald-400 font-bold select-all">portal.eduai.co.ke</span></div>
                                     <div>• Server Path: <span className="text-sky-400 font-bold select-all">/zk</span></div>
-                                    <div>• Server Port: <span className="text-amber-400 font-bold">80</span> (or 443 for HTTPS)</div>
+                                    <div>• Server Port: <span className="text-amber-400 font-bold">80</span></div>
                                 </div>
 
                                 <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800 space-y-2 text-[11px]">
@@ -1192,10 +1194,9 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                         💡 IF YOUR SCREEN SHOWS DIGIT BOXES (000.000.000.000):
                                     </p>
                                     <ol className="list-decimal list-inside space-y-1 text-slate-600 dark:text-slate-300">
-                                        <li>On the ZKTeco screen menu: Go to <strong>Menu ➔ Comm. ➔ Cloud Server / ADMS</strong>.</li>
-                                        <li>Find <strong>Enable Domain Name</strong> switch and turn it <strong>ON</strong>.</li>
-                                        <li>The numeric IP boxes (<code>___.___.___.___</code>) will disappear and change into a text box where you can type <code>portal.eduai.co.ke</code>!</li>
-                                        <li>Set Server Path to <code>/zk</code> and tap <strong>Save</strong>.</li>
+                                        <li>Option A: Enter <strong>216.150.16.65</strong> directly into the <code>___.___.___.___</code> boxes.</li>
+                                        <li>Option B: Look for <strong>Enable Domain Name</strong> under Menu ➔ Comm. ➔ Cloud Server and turn it <strong>ON</strong> to type <code>portal.eduai.co.ke</code>.</li>
+                                        <li>After saving, restart the terminal or power cycle it to force an instant connection!</li>
                                     </ol>
                                 </div>
                             </div>
