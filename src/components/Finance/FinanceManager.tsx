@@ -27,6 +27,7 @@ import { ClockIcon } from '../icons/ClockIcon';
 import { PhotoIcon } from '../icons/PhotoIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { RetailRequisitions } from '../retail/RetailRequisitions';
+import { ProcurementHub } from './ProcurementHub';
 import { apiService } from '../../services/apiService';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { AnnualReportWizard } from './AnnualReportWizard';
@@ -1788,7 +1789,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'bursaries', label: 'NG-CDF Bursaries', icon: ScaleIcon },
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
         { id: 'transfers', label: 'Inter-Account Transfers', icon: ArrowsRightLeftIcon },
-        { id: 'requisitions', label: 'Requisitions & LPOs', icon: ClipboardListIcon },
+        { id: 'requisitions', label: 'Procurement', icon: ClipboardListIcon },
         { id: 'payroll', label: 'HR & Payroll', icon: BriefcaseIcon },
         { id: 'audit', label: 'Fiscal Audit', icon: CheckBadgeIcon },
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
@@ -7951,17 +7952,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'requisitions' && (
-                    <div className="bg-white p-8 rounded-[3.5rem] border border-slate-100 shadow-sm">
-                        <RetailRequisitions
-                            institutionId={props.institution.id}
+                    <div className="bg-white dark:bg-slate-900 p-8 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <ProcurementHub
+                            institution={props.institution}
                             currentUser={props.currentUser}
-                            retailStores={retailStores}
-                            requisitions={props.requisitions || []}
-                            inventory={inventory}
-                            onAddRequisition={async () => {}}
-                            onUpdateRequisition={props.onUpdateRequisition}
-                            isEducation={isEduInstitution(props.institution)}
-                            allUsers={allUsers}
                         />
                     </div>
                 )}
