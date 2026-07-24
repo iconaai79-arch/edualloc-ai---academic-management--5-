@@ -38,12 +38,13 @@ import {
     RotateCcw,
     X,
     Star,
-    ExternalLink
+    ExternalLink,
+    Printer
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course, CompanyDetails } from '../../types';
 import { apiService } from '../../services/apiService';
-import { generateEventReportPdf, generateStudentIdCardPdf, generateLeaveOutSheetPdf } from '../../services/pdfService';
+import { generateEventReportPdf, generateStudentIdCardPdf, generateLeaveOutSheetPdf, generateClassListPdf } from '../../services/pdfService';
 import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
 import { formatRoleDisplayName, getRolesForInstitution } from '../../utils/roleUtils';
@@ -3882,6 +3883,57 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
+    const [isGeneratingClassListPdf, setIsGeneratingClassListPdf] = useState(false);
+
+    const handleGenerateClassListPdf = async () => {
+        if (filteredEnrollments.length === 0) {
+            alert("No student enrollments found matching the current filters.");
+            return;
+        }
+
+        setIsGeneratingClassListPdf(true);
+        try {
+            const studentsPayload = filteredEnrollments.map(enr => {
+                const user = users.find(u => u.id === enr.userId);
+                return {
+                    ...enr,
+                    user: user || { name: 'Unknown Student', id: enr.userId }
+                };
+            });
+
+            let classTitle = "OFFICIAL STUDENT CLASS LIST";
+            if (gradeFilter && streamFilter) {
+                classTitle = `${gradeFilter} - ${streamFilter} Class List`;
+            } else if (gradeFilter) {
+                classTitle = `${gradeFilter} Class List`;
+            } else if (streamFilter) {
+                classTitle = `${streamFilter} Stream List`;
+            }
+
+            const dataUri = await generateClassListPdf(
+                studentsPayload,
+                currentInstitution,
+                companyDetails || {} as any,
+                {
+                    gradeFilter,
+                    streamFilter,
+                    statusFilter,
+                    searchTerm,
+                    title: classTitle
+                }
+            );
+
+            setPdfPreviewUrl(dataUri);
+            setPdfPreviewTitle(classTitle);
+            setPdfFileName(`${classTitle.replace(/[^a-zA-Z0-9_-]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (error: any) {
+            console.error("Failed to generate Class List PDF:", error);
+            alert("Failed to generate Class List PDF: " + (error?.message || error));
+        } finally {
+            setIsGeneratingClassListPdf(false);
+        }
+    };
+
     const handleBulkFixUnknownNames = async () => {
         const targets = enrollments.filter(enr => {
             const user = users.find(u => u.id === enr.userId);
@@ -4072,6 +4124,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 Fix Unknown Names
                             </button>
                         )}
+                        <button
+                            onClick={handleGenerateClassListPdf}
+                            disabled={isGeneratingClassListPdf}
+                            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-purple-500/10 disabled:opacity-50"
+                            title="Generate and preview PDF Class List for the current student registry selection"
+                        >
+                            <Printer className="w-4 h-4" />
+                            {isGeneratingClassListPdf ? 'Generating PDF...' : 'Class List PDF'}
+                        </button>
                         <button 
                             onClick={() => { setImportMode('new_enroll'); setIsUploading(true); }}
                             className="px-6 py-3 bg-slate-900 dark:bg-slate-850 border border-slate-800 dark:border-slate-755 hover:bg-slate-850 dark:hover:bg-slate-800 hover:border-slate-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg"
@@ -4279,6 +4340,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     ))}
                                 </select>
                             )}
+
+                            {/* Quick Class List PDF preview button */}
+                            <button
+                                onClick={handleGenerateClassListPdf}
+                                disabled={isGeneratingClassListPdf}
+                                className="py-2.5 px-4 bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 rounded-xl font-bold text-xs flex items-center gap-2 transition-colors shrink-0 disabled:opacity-50"
+                                title="Preview Class List PDF for filtered students"
+                            >
+                                <Printer className="w-4 h-4" />
+                                {isGeneratingClassListPdf ? 'Generating...' : 'Class List PDF'}
+                            </button>
 
                             {/* Clear filters button — only visible when a filter is active */}
                             {(gradeFilter || streamFilter || statusFilter !== 'All' || searchTerm) && (

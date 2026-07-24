@@ -1003,14 +1003,14 @@ export const apiService = {
             p_timestamp: payload.timestamp
         });
     },
-    sanitizePayload(module: string, payload: any): any {
+    sanitizePayload(module: string, payload: any, isUpdate = false): any {
         if (!payload) return payload;
 
         const processItem = (item: any) => {
             if (typeof item !== 'object' || item === null) return item;
             
-            // Auto-generate primary key ID if missing or null to prevent PostgreSQL not-null constraint failures
-            if (!item.id) {
+            // Auto-generate primary key ID if missing or null to prevent PostgreSQL not-null constraint failures (ONLY for new record creation, NOT updates)
+            if (!isUpdate && !item.id) {
                 const prefixMap: Record<string, string> = {
                     books: 'bk_',
                     activity_log: 'log_',
@@ -1072,7 +1072,12 @@ export const apiService = {
         return processItem(payload);
     },
     async updateModuleRecord<T = any>(module: string, id: string, data: Partial<T>): Promise<T | null> {
-        let payload = apiService.sanitizePayload(module, toSnakeCase(data));
+        let payload = apiService.sanitizePayload(module, toSnakeCase(data), true);
+        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+            if (payload.id === id) {
+                delete payload.id;
+            }
+        }
 
         if (!_supabase) {
             const records = ls.get(module);

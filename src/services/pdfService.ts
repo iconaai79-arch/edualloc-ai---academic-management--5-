@@ -9702,3 +9702,153 @@ export const generateStudentStatementPdfDataUri = async (
 
     return doc.output('datauristring');
 };
+
+/**
+ * Generates an official Class List / Student Registry PDF.
+ */
+export const generateClassListPdf = async (
+    students: any[],
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    options: {
+        gradeFilter?: string;
+        streamFilter?: string;
+        statusFilter?: string;
+        searchTerm?: string;
+        title?: string;
+    } = {}
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(institution?.letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl),
+        loadImage(institution?.footerImageUrl || companyDetails?.footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Document Title
+    const titleText = options.title || "OFFICIAL CLASS LIST / STUDENT REGISTRY";
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text(titleText, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 8;
+
+    // Subtitle / Filters summary
+    const filterParts: string[] = [];
+    if (options.gradeFilter) filterParts.push(`Grade: ${options.gradeFilter}`);
+    if (options.streamFilter) filterParts.push(`Stream: ${options.streamFilter}`);
+    if (options.statusFilter && options.statusFilter !== 'All') filterParts.push(`Status: ${options.statusFilter}`);
+    if (options.searchTerm) filterParts.push(`Search: "${options.searchTerm}"`);
+
+    const filterStr = filterParts.length > 0 ? filterParts.join('  |  ') : 'All Students Registry';
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(79, 70, 229);
+    doc.text(filterStr.toUpperCase(), pageWidth / 2, yPos, { align: 'center' });
+    yPos += 8;
+
+    // Meta bar
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 10, 2, 2, 'F');
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`TOTAL STUDENTS: ${students.length}`, margin + 5, yPos + 6.5);
+    doc.text(`GENERATED ON: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth - margin - 5, yPos + 6.5, { align: 'right' });
+    yPos += 14;
+
+    // Table Data preparation
+    const tableBody = students.map((s, idx) => {
+        const studentName = s.user?.name || s.name || s.studentName || '—';
+        const admNo = s.admissionNumber || s.user?.admissionNumber || s.user?.metadata?.admissionNumber || '—';
+        const grade = s.metadata?.gradeLevel || s.gradeLevel || s.user?.metadata?.gradeLevel || '—';
+        const stream = s.metadata?.stream || s.stream || s.user?.metadata?.stream || '—';
+        const gender = s.gender || s.user?.gender || '—';
+        
+        // Parent info
+        const parentName = s.metadata?.parentName || s.metadata?.parents?.[0]?.name || s.parentName || '—';
+        const parentPhone = s.metadata?.parentPhone || s.metadata?.parents?.[0]?.phone || s.parentPhone || '—';
+        const parentContact = parentPhone && parentPhone !== '—' ? `${parentName} (${parentPhone})` : parentName;
+
+        const status = s.status || 'Enrolled';
+
+        return [
+            (idx + 1).toString(),
+            admNo,
+            studentName,
+            gender,
+            grade,
+            stream,
+            parentContact,
+            status,
+            '' // Empty cell for Roll Call / Signature / Remarks
+        ];
+    });
+
+    (doc as any).autoTable({
+        startY: yPos,
+        head: [['#', 'Adm No', 'Student Name', 'Gender', 'Grade/Class', 'Stream', 'Parent Contact', 'Status', 'Signature / Remarks']],
+        body: tableBody,
+        margin: { left: margin, right: margin, bottom: 25 },
+        styles: {
+            fontSize: 7.5,
+            cellPadding: 3,
+            font: 'helvetica'
+        },
+        headStyles: {
+            fillColor: [30, 41, 59],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 8
+        },
+        alternateRowStyles: {
+            fillColor: [248, 250, 252]
+        },
+        columnStyles: {
+            0: { cellWidth: 8, halign: 'center' },
+            1: { cellWidth: 20, fontStyle: 'bold' },
+            2: { cellWidth: 36, fontStyle: 'bold' },
+            3: { cellWidth: 12, halign: 'center' },
+            4: { cellWidth: 20 },
+            5: { cellWidth: 18 },
+            6: { cellWidth: 36 },
+            7: { cellWidth: 14, halign: 'center' },
+            8: { cellWidth: 18 }
+        }
+    });
+
+    let finalY = (doc as any).lastAutoTable.finalY + 12;
+    if (finalY > doc.internal.pageSize.getHeight() - 40) {
+        doc.addPage();
+        finalY = 20;
+    }
+
+    // Sign-off Block
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text('CLASS SUPERVISOR / REGISTRAR SIGN-OFF', margin, finalY);
+
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineDashPattern([2, 2], 0);
+    doc.line(margin, finalY + 14, margin + 60, finalY + 14);
+    doc.line(pageWidth - margin - 60, finalY + 14, pageWidth - margin, finalY + 14);
+    doc.setLineDashPattern([], 0);
+
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Class Teacher Signature & Date', margin, finalY + 19);
+    doc.text('Principal / Registrar Stamp & Date', pageWidth - margin, finalY + 19, { align: 'right' });
+
+    setupPdfFooter(doc, footerImg, `${institution?.name || 'School'} · Official Student Class List`);
+
+    return doc.output('datauristring');
+};
