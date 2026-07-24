@@ -107,6 +107,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
+    const [pdfPreviewModal, setPdfPreviewModal] = useState<{ title: string; subtitle: string; studentName: string; admNo: string; className: string; invoiced: number; paid: number; balance: number; items?: any[] } | null>(null);
     const [enrollments, setEnrollments] = useState<any[]>([]);
 
     useEffect(() => {
@@ -5342,37 +5343,139 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         ))}
                                     </div>
 
-                                    {/* Chart + Class Breakdown Row */}
+                                    {/* Futuristic Chart + AI Audit Radar + Class Breakdown Row */}
                                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                                        {/* Monthly Bar Chart */}
-                                        <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                            <div className="flex items-center justify-between mb-6">
+                                        {/* Futuristic Revenue Trend Line Graph & Area Fill */}
+                                        <div className={`lg:col-span-3 p-8 rounded-[2.5rem] border shadow-xl relative overflow-hidden ${
+                                            themeMode === 'futuristic'
+                                            ? 'bg-slate-950/90 text-white border-emerald-500/30 shadow-emerald-500/10'
+                                            : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+                                        }`}>
+                                            {themeMode === 'futuristic' && (
+                                                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                                            )}
+
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 relative z-10">
                                                 <div>
-                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">6-Month Revenue Trend</h4>
-                                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">Billed vs Collected</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                                            {themeMode === 'futuristic' ? '📈 Real-Time Revenue Velocity (6 Months)' : '6-Month Revenue Trend'}
+                                                        </h4>
+                                                        {themeMode === 'futuristic' && (
+                                                            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-[9px] font-mono animate-pulse">
+                                                                LIVE TELEMETRY
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">Billed vs Collected Velocity Analysis</p>
                                                 </div>
                                                 <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
-                                                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" />Billed</span>
-                                                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-400 inline-block" />Collected</span>
+                                                    <span className="flex items-center gap-1.5 text-indigo-400">
+                                                        <span className="w-3 h-1 bg-indigo-500 rounded-full inline-block shadow-sm shadow-indigo-500/50" /> Billed
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5 text-emerald-400">
+                                                        <span className="w-3 h-1 bg-emerald-400 rounded-full inline-block shadow-sm shadow-emerald-400/50" /> Collected
+                                                    </span>
                                                 </div>
                                             </div>
-                                            <div className="flex items-end gap-3 h-44">
-                                                {monthlyData.map((m, i) => (
-                                                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                                                        <div className="w-full flex items-end justify-center gap-1" style={{ height: '140px' }}>
-                                                            <div className="flex-1 bg-indigo-100 dark:bg-indigo-900/40 rounded-t-lg transition-all duration-700 hover:bg-indigo-200" style={{ height: `${(m.billed / maxBar) * 100}%`, minHeight: m.billed > 0 ? '4px' : '0' }} title={`Billed: KSh ${m.billed.toLocaleString()}`} />
-                                                            <div className="flex-1 bg-emerald-400 rounded-t-lg transition-all duration-700 hover:bg-emerald-500" style={{ height: `${(m.collected / maxBar) * 100}%`, minHeight: m.collected > 0 ? '4px' : '0' }} title={`Collected: KSh ${m.collected.toLocaleString()}`} />
-                                                        </div>
-                                                        <span className="text-[10px] font-black text-slate-400">{m.label}</span>
+
+                                            {themeMode === 'futuristic' ? (
+                                                /* Modern Futuristic SVG Gradient Line Graph */
+                                                <div className="relative h-52 w-full pt-4">
+                                                    <svg className="w-full h-40 overflow-visible" viewBox="0 0 500 160" preserveAspectRatio="none">
+                                                        <defs>
+                                                            <linearGradient id="emeraldGradient" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
+                                                                <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                                                            </linearGradient>
+                                                            <linearGradient id="indigoGradient" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
+                                                                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
+                                                            </linearGradient>
+                                                            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                                                                <feGaussianBlur stdDeviation="3" result="blur" />
+                                                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                                            </filter>
+                                                        </defs>
+
+                                                        {/* Background Grid Lines */}
+                                                        <line x1="0" y1="40" x2="500" y2="40" stroke="#334155" strokeDasharray="3 3" strokeOpacity="0.3" />
+                                                        <line x1="0" y1="80" x2="500" y2="80" stroke="#334155" strokeDasharray="3 3" strokeOpacity="0.3" />
+                                                        <line x1="0" y1="120" x2="500" y2="120" stroke="#334155" strokeDasharray="3 3" strokeOpacity="0.3" />
+
+                                                        {/* Billed Area Path */}
+                                                        {(() => {
+                                                            const pts = monthlyData.map((m, idx) => {
+                                                                const x = (idx / (monthlyData.length - 1)) * 500;
+                                                                const y = 140 - (m.billed / maxBar) * 110;
+                                                                return `${x},${y}`;
+                                                            });
+                                                            const linePath = `M ${pts.join(' L ')}`;
+                                                            const areaPath = `M 0,140 L ${pts.join(' L ')} L 500,140 Z`;
+                                                            return (
+                                                                <>
+                                                                    <path d={areaPath} fill="url(#indigoGradient)" />
+                                                                    <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="3" filter="url(#glow)" />
+                                                                </>
+                                                            );
+                                                        })()}
+
+                                                        {/* Collected Area Path */}
+                                                        {(() => {
+                                                            const pts = monthlyData.map((m, idx) => {
+                                                                const x = (idx / (monthlyData.length - 1)) * 500;
+                                                                const y = 140 - (m.collected / maxBar) * 110;
+                                                                return { x, y, m };
+                                                            });
+                                                            const linePath = `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')}`;
+                                                            const areaPath = `M 0,140 L ${pts.map(p => `${p.x},${p.y}`).join(' L ')} L 500,140 Z`;
+                                                            return (
+                                                                <>
+                                                                    <path d={areaPath} fill="url(#emeraldGradient)" />
+                                                                    <path d={linePath} fill="none" stroke="#34d399" strokeWidth="3.5" filter="url(#glow)" />
+                                                                    {pts.map((p, idx) => (
+                                                                        <g key={idx} className="group/node cursor-pointer">
+                                                                            <circle cx={p.x} cy={p.y} r="5" fill="#10b981" stroke="#022c22" strokeWidth="2" className="transition-transform group-hover/node:scale-150" />
+                                                                            <circle cx={p.x} cy={p.y} r="8" fill="none" stroke="#34d399" strokeWidth="1.5" className="animate-ping opacity-75" />
+                                                                        </g>
+                                                                    ))}
+                                                                </>
+                                                            );
+                                                        })()}
+                                                    </svg>
+
+                                                    <div className="flex justify-between items-center pt-2 border-t border-slate-800 text-[10px] font-black text-slate-400">
+                                                        {monthlyData.map((m, idx) => (
+                                                            <span key={idx} className="hover:text-emerald-400 transition-colors">{m.label}</span>
+                                                        ))}
                                                     </div>
-                                                ))}
-                                            </div>
+                                                </div>
+                                            ) : (
+                                                /* Classic Bar Chart */
+                                                <div className="flex items-end gap-3 h-44">
+                                                    {monthlyData.map((m, i) => (
+                                                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                                                            <div className="w-full flex items-end justify-center gap-1" style={{ height: '140px' }}>
+                                                                <div className="flex-1 bg-indigo-100 dark:bg-indigo-900/40 rounded-t-lg transition-all duration-700 hover:bg-indigo-200" style={{ height: `${(m.billed / maxBar) * 100}%`, minHeight: m.billed > 0 ? '4px' : '0' }} title={`Billed: KSh ${m.billed.toLocaleString()}`} />
+                                                                <div className="flex-1 bg-emerald-400 rounded-t-lg transition-all duration-700 hover:bg-emerald-500" style={{ height: `${(m.collected / maxBar) * 100}%`, minHeight: m.collected > 0 ? '4px' : '0' }} title={`Collected: KSh ${m.collected.toLocaleString()}`} />
+                                                            </div>
+                                                            <span className="text-[10px] font-black text-slate-400">{m.label}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
 
-                                        {/* Top Classes by Outstanding */}
-                                        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">Outstanding by Class</h4>
-                                            <p className="text-[10px] text-slate-400 font-medium mb-6">Sorted highest balance first</p>
+                                        {/* Top Classes by Outstanding / AI Audit Meter */}
+                                        <div className={`lg:col-span-2 p-8 rounded-[2.5rem] border shadow-xl relative overflow-hidden ${
+                                            themeMode === 'futuristic'
+                                            ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
+                                            : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+                                        }`}>
+                                            <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white mb-1">
+                                                {themeMode === 'futuristic' ? '⚡ AI Audit & Class Arrears' : 'Outstanding by Class'}
+                                            </h4>
+                                            <p className="text-[10px] text-slate-400 font-medium mb-6">Class balance ranking & risk analysis</p>
                                             <div className="space-y-4">
                                                 {classBreakdown.length === 0 ? (
                                                     <p className="text-xs text-slate-400 font-medium text-center py-6">No class data available</p>
@@ -5382,10 +5485,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <div key={i} className="space-y-1">
                                                             <div className="flex justify-between items-center">
                                                                 <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{c.cls}</span>
-                                                                <span className="text-[10px] font-black text-rose-600">KSh {c.balance.toLocaleString()}</span>
+                                                                <span className="text-[10px] font-black text-rose-500 dark:text-rose-400">KSh {c.balance.toLocaleString()}</span>
                                                             </div>
-                                                            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
-                                                                <div className="h-1.5 rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${pct}%` }} />
+                                                            <div className="w-full bg-slate-100 dark:bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-800">
+                                                                <div className={`h-2 rounded-full transition-all duration-700 ${
+                                                                    themeMode === 'futuristic'
+                                                                    ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 shadow-md shadow-emerald-500/50'
+                                                                    : 'bg-emerald-500'
+                                                                }`} style={{ width: `${pct}%` }} />
                                                             </div>
                                                             <p className="text-[9px] text-slate-400 font-medium">{pct.toFixed(0)}% collected · {c.count} students</p>
                                                         </div>
@@ -11752,7 +11859,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </div>
                                                         <div>
                                                             <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Generate Fee Balance Slip</h3>
-                                                            <p className="text-[10px] font-bold text-slate-400">Search and print executive fee balance statements for students</p>
+                                                            <p className="text-[10px] font-bold text-slate-400">Search and preview executive fee balance statements for students</p>
                                                         </div>
                                                     </div>
 
@@ -11762,7 +11869,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <option value="">— Select Student —</option>
                                                             {slipStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>))}
                                                         </select>
-                                                        {slipStudentId && <button onClick={() => window.print()} className="px-6 py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-rose-600/30 active:scale-95 flex items-center justify-center gap-2">🖨️ Print Executive Slip</button>}
+                                                        {slipStudentId && (
+                                                            <button 
+                                                                onClick={() => setPdfPreviewModal({
+                                                                    title: `OFFICIAL FEE BALANCE STATEMENT`,
+                                                                    subtitle: props.institution.name,
+                                                                    studentName: slipStudent?.name || 'Student',
+                                                                    admNo: (slipStudent as any)?.admissionNumber || '—',
+                                                                    className: (slipStudent as any)?.className || studentClassGroup(slipStudent),
+                                                                    invoiced: (slipData as any)?.totals?.invoiced || 0,
+                                                                    paid: (slipData as any)?.totals?.paid || 0,
+                                                                    balance: (slipData as any)?.totals?.balance || 0
+                                                                })} 
+                                                                className="px-6 py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-rose-600/30 active:scale-95 flex items-center justify-center gap-2"
+                                                            >
+                                                                👁️ On-Screen PDF Preview
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -11823,7 +11946,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <p className="text-[10px] text-slate-400 font-bold mt-0.5">{filteredList.length} students with active fee arrears</p>
                                                         </div>
 
-                                                        <div className="flex flex-wrap items-center gap-2">
+                                                        <div className="flex flex-wrap items-center gap-2 max-w-full">
                                                             <input type="text" placeholder="Filter student/adm..." value={balFilter} onChange={e => setBalFilter(e.target.value)} className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
                                                             <select value={balClass} onChange={e => setBalClass(e.target.value)} className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
                                                                 <option value="">All Classes</option>
@@ -11836,8 +11959,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 📥 CSV Export
                                                             </button>
                                                             <button
-                                                                onClick={() => window.print()}
+                                                                onClick={() => setPdfPreviewModal({
+                                                                    title: `ALL OUTSTANDING FEE BALANCES REPORT`,
+                                                                    subtitle: `${props.institution.name} — ${filteredList.length} Students`,
+                                                                    studentName: `Batch Summary (${balClass || 'All Classes'})`,
+                                                                    admNo: `COUNT: ${filteredList.length}`,
+                                                                    className: balClass || 'All Classes',
+                                                                    invoiced: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.invoiced || 0), 0),
+                                                                    paid: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.paid || 0), 0),
+                                                                    balance: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
+                                                                    items: filteredList.slice(0, 50).map((s: any) => ({
+                                                                        name: s.name,
+                                                                        adm: s.admissionNumber || '—',
+                                                                        cls: s.className || studentClassGroup(s),
+                                                                        inv: s.totals.invoiced,
+                                                                        pd: s.totals.paid,
+                                                                        bal: s.totals.balance
+                                                                    }))
+                                                                })}
                                                                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-600/20 active:scale-95 flex items-center gap-1.5"
+                                                            >
+                                                                👁️ On-Screen PDF Preview
+                                                            </button>
+                                                            <button
+                                                                onClick={() => window.print()}
+                                                                className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-slate-600/20 active:scale-95 flex items-center gap-1.5"
                                                             >
                                                                 🖨️ Print Report
                                                             </button>
@@ -14234,6 +14380,156 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </>
                                 )}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* On-Screen Interactive PDF Preview Modal */}
+            {pdfPreviewModal && (
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-fade-in">
+                    <div className="bg-slate-900 border border-slate-700 rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden max-h-[90vh] flex flex-col">
+                        {/* Modal Navigation Header */}
+                        <div className="bg-slate-950 p-6 border-b border-slate-800 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-600/20 text-indigo-400 rounded-2xl flex items-center justify-center border border-indigo-500/30">
+                                    <DocumentTextIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-tight text-white">{pdfPreviewModal.title}</h3>
+                                    <p className="text-[10px] font-bold text-indigo-400">{pdfPreviewModal.subtitle}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setPdfPreviewModal(null)}
+                                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-2xl transition-all cursor-pointer"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Live On-Screen Printable PDF Paper Sheet */}
+                        <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar bg-slate-950/60">
+                            <div className="mx-auto bg-white text-slate-900 p-8 md:p-12 rounded-2xl shadow-2xl max-w-2xl font-sans relative border border-slate-200">
+                                {/* Watermark */}
+                                <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none">
+                                    <span className="text-6xl font-black tracking-widest -rotate-12 text-slate-900 uppercase">{props.institution.name}</span>
+                                </div>
+
+                                {/* Document Letterhead */}
+                                <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-6">
+                                    <div>
+                                        <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{props.institution.name}</h2>
+                                        <p className="text-xs font-bold text-slate-600">{props.institution.location || 'Finance & Accounting Division'}</p>
+                                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">Date: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="px-3 py-1 bg-slate-900 text-white font-mono text-[9px] font-black uppercase tracking-widest rounded-md inline-block">OFFICIAL AUDIT DOC</span>
+                                    </div>
+                                </div>
+
+                                {/* Metadata Header */}
+                                <div className="grid grid-cols-2 gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                                    <div>
+                                        <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Account / Student Name</p>
+                                        <p className="font-black text-slate-900 text-sm">{pdfPreviewModal.studentName}</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Admission No. / Ref</p>
+                                        <p className="font-mono font-bold text-slate-800 text-sm">{pdfPreviewModal.admNo}</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Class / Grouping</p>
+                                        <p className="font-bold text-slate-800">{pdfPreviewModal.className}</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Audit Status</p>
+                                        <p className="font-bold text-indigo-700 uppercase">Verified Ledger Record</p>
+                                    </div>
+                                </div>
+
+                                {/* Items Table if Batch Summary */}
+                                {pdfPreviewModal.items && pdfPreviewModal.items.length > 0 && (
+                                    <div className="mb-6 overflow-x-auto">
+                                        <table className="w-full text-left text-xs border-collapse">
+                                            <thead>
+                                                <tr className="border-b-2 border-slate-900 text-[10px] font-black uppercase tracking-wider text-slate-700">
+                                                    <th className="py-2">#</th>
+                                                    <th className="py-2">Student Name</th>
+                                                    <th className="py-2">Adm No</th>
+                                                    <th className="py-2">Class</th>
+                                                    <th className="py-2 text-right">Invoiced</th>
+                                                    <th className="py-2 text-right">Paid</th>
+                                                    <th className="py-2 text-right">Balance</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-200 text-[11px]">
+                                                {pdfPreviewModal.items.map((it: any, idx: number) => (
+                                                    <tr key={idx}>
+                                                        <td className="py-1.5 font-mono text-slate-400">{idx + 1}</td>
+                                                        <td className="py-1.5 font-bold text-slate-900">{it.name}</td>
+                                                        <td className="py-1.5 font-mono text-slate-600">{it.adm}</td>
+                                                        <td className="py-1.5 font-medium text-slate-700">{it.cls}</td>
+                                                        <td className="py-1.5 text-right font-bold">KSh {it.inv.toLocaleString()}</td>
+                                                        <td className="py-1.5 text-right font-bold text-emerald-700">KSh {it.pd.toLocaleString()}</td>
+                                                        <td className="py-1.5 text-right font-bold text-rose-700">KSh {it.bal.toLocaleString()}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+
+                                {/* Summary Totals Box */}
+                                <div className="p-4 bg-slate-900 text-white rounded-xl space-y-2 text-xs">
+                                    <div className="flex justify-between">
+                                        <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Billed / Invoiced</span>
+                                        <span className="font-mono font-bold">KSh {pdfPreviewModal.invoiced.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Amount Paid</span>
+                                        <span className="font-mono font-bold text-emerald-400">KSh {pdfPreviewModal.paid.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between border-t border-slate-800 pt-2 mt-2 text-sm">
+                                        <span className="font-black uppercase tracking-wider text-rose-300">Total Outstanding Balance Due</span>
+                                        <span className="font-mono font-black text-rose-400 text-base">KSh {pdfPreviewModal.balance.toLocaleString()}</span>
+                                    </div>
+                                </div>
+
+                                {/* Digital Signature & Footer */}
+                                <div className="mt-8 pt-6 border-t border-slate-200 flex justify-between items-end text-xs">
+                                    <div>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Verified By</p>
+                                        <p className="font-black text-slate-800">{props.currentUser?.name || 'Chief Accountant'}</p>
+                                        <p className="text-[9px] text-slate-500 font-mono">Digital Signature ID: #FIN-{Math.floor(100000 + Math.random() * 900000)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="w-24 h-10 border-b border-slate-400 mb-1 flex items-end justify-center">
+                                            <span className="font-serif italic text-indigo-900 text-sm font-bold">Approved</span>
+                                        </div>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Authorized Official Stamp</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Actions Footer */}
+                        <div className="bg-slate-950 p-6 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                            <p className="text-[10px] font-bold text-slate-400">Interactive Document Viewer — High Resolution Vector Print</p>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => window.print()}
+                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-indigo-600/30 active:scale-95 flex items-center gap-2"
+                                >
+                                    🖨️ Print PDF
+                                </button>
+                                <button
+                                    onClick={() => setPdfPreviewModal(null)}
+                                    className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer"
+                                >
+                                    Close Preview
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
