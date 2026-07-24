@@ -261,59 +261,56 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         }
     };
 
-    const handleTriggerFingerScanner = async (dev: BiometricDevice) => {
-        const fingerIndexStr = window.prompt("Select Finger to Scan on ZKTeco Device:\n\n0: Right Thumb\n1: Right Index (Recommended)\n2: Right Middle\n3: Right Ring\n4: Right Little\n5: Left Thumb\n6: Left Index\n7: Left Middle\n8: Left Ring\n9: Left Little", "1");
-        if (fingerIndexStr === null) return;
-
-        const selectedFingerIndex = parseInt(fingerIndexStr) || 0;
-        const fingerNames = ['Right Thumb','Right Index','Right Middle','Right Ring','Right Little','Left Thumb','Left Index','Left Middle','Left Ring','Left Little'];
-        const fingerName = fingerNames[selectedFingerIndex] || 'Right Thumb';
-
+    const handleOpenSensorRemotely = async (dev: BiometricDevice) => {
         setTestingDeviceId(dev.id);
         try {
-            const testPin = enrollments.length > 0 ? enrollments[0].devicePin : '1001';
-            const testName = enrollments.length > 0 ? (staff.find(s => s.id === enrollments[0].staffId)?.name || 'Test User') : 'Test User';
-            
-            await fetch(`/api/zkteco-webhook?action=enroll&institutionId=${institution.id}&SN=${dev.serialNumber}&sn=${dev.serialNumber}&pin=${testPin}&fingerIndex=${selectedFingerIndex}&name=${encodeURIComponent(testName)}`, {
-                method: 'POST'
-            }).catch(() => null);
+            const res = await fetch(
+                `/api/zkteco-webhook?action=open_sensor&institutionId=${institution.id}&SN=${dev.serialNumber}&sn=${dev.serialNumber}`,
+                { method: 'POST' }
+            ).then(r => r.json()).catch(() => null);
 
-            setTestModalResult({
-                deviceName: dev.deviceName,
-                success: true,
-                message: `📡 REMOTE OPEN SENSOR DIAGNOSTIC REPORT\n` +
-                         `═════════════════════════════════════════\n` +
-                         `• Device Target: ${dev.deviceName}\n` +
-                         `• Serial Number (SN): ${dev.serialNumber}\n` +
-                         `• Target Finger: ${fingerName} (FingerID: ${selectedFingerIndex})\n` +
-                         `• Device User PIN: ${testPin}\n` +
-                         `• ADMS Command Payload: C:1001:DATA ENROLL_FP PIN=${testPin} FingerID=${selectedFingerIndex}\n` +
-                         `• Webhook Endpoint: /iclock/getrequest?SN=${dev.serialNumber}\n` +
-                         `• Command Status: ✅ QUEUED & WAITING FOR DEVICE HEARTBEAT\n\n` +
-                         `🔍 TROUBLESHOOTING GUIDE (IF SENSOR HARDWARE DOES NOT OPEN):\n` +
-                         `─────────────────────────────────────────\n` +
-                         `1. 🌐 Cloud Server Settings on Terminal:\n` +
-                         `   On physical device, tap Menu ➔ Comm. ➔ Cloud Server / ADMS.\n` +
-                         `   - Server IP: Set to server IP / domain\n` +
-                         `   - Server Port: 80 (or 443)\n` +
-                         `   - Enable Domain Name: ON\n\n` +
-                         `2. ⏱️ Automatic Device Polling:\n` +
-                         `   ZKTeco devices poll for server commands every 10–30 seconds.\n\n` +
-                         `3. ⚡ Instant Trigger:\n` +
-                         `   Press Menu ➔ Data Mgt ➔ Sync on device to open sensor immediately!`,
-                timestamp: new Date().toLocaleTimeString()
-            });
+            if (res?.success) {
+                setTestModalResult({
+                    deviceName: dev.deviceName,
+                    success: true,
+                    message: `🚪 REMOTE OPEN SENSOR COMMAND DISPATCHED!\n` +
+                             `═════════════════════════════════════════\n` +
+                             `• Device: ${dev.deviceName} (SN: ${dev.serialNumber})\n` +
+                             `• ADMS Command: ${res.command}\n` +
+                             `• Relay Duration: ${(res.durationMs / 1000).toFixed(0)}s\n` +
+                             `• Status: ✅ QUEUED — Waiting for device heartbeat\n\n` +
+                             `⏱️ The device will execute this command on its next\n` +
+                             `   ADMS poll (every 10–30 seconds).\n\n` +
+                             `⚡ To trigger INSTANTLY on the physical terminal:\n` +
+                             `   Menu ➔ Data Mgt ➔ Sync\n\n` +
+                             `❗ If the door/sensor does NOT open after 60s:\n` +
+                             `   1. Verify Menu ➔ Comm. ➔ Cloud Server / ADMS is configured\n` +
+                             `   2. Server IP = portal.eduai.co.ke, Port = 80/443\n` +
+                             `   3. Enable Domain Name = ON`,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            } else {
+                setTestModalResult({
+                    deviceName: dev.deviceName,
+                    success: false,
+                    message: `❌ Failed to queue Open Sensor command.\n\n` +
+                             `Server response: ${JSON.stringify(res)}\n\n` +
+                             `Please check that the server is reachable and the biometric_device_commands table exists.`,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            }
         } catch (err: any) {
             setTestModalResult({
                 deviceName: dev.deviceName,
                 success: false,
-                message: `Failed to trigger finger scanner: ${err.message || err}`,
+                message: `❌ Open Sensor command failed: ${err.message || err}`,
                 timestamp: new Date().toLocaleTimeString()
             });
         } finally {
             setTestingDeviceId(null);
         }
     };
+
 
     const handleRemoteSyncDevice = async (dev: BiometricDevice) => {
         setTestingDeviceId(dev.id);
@@ -867,11 +864,11 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                     {testingDeviceId === dev.id ? '...' : '⚡ Test'}
                                                 </button>
                                                 <button
-                                                    onClick={() => handleTriggerFingerScanner(dev)}
+                                                    onClick={() => handleOpenSensorRemotely(dev)}
                                                     disabled={testingDeviceId === dev.id}
                                                     className="py-2.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 rounded-xl text-[8px] font-black uppercase tracking-wider hover:bg-purple-600 hover:text-white transition-all flex items-center justify-center gap-1"
                                                 >
-                                                    ☝️ Sensor
+                                                    🚪 Open
                                                 </button>
                                                 <button
                                                     onClick={() => handleRemoteSyncDevice(dev)}

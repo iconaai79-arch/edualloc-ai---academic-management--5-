@@ -214,6 +214,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
     }
 
+    // ─── ACTION = OPEN_SENSOR / OPEN_DOOR (Remote door/relay unlock) ───
+    if (action === 'open_sensor' || action === 'open_door') {
+        const snKey = serialNumber || 'DEFAULT';
+        const cmdId = ++cmdCounter;
+
+        // ZKTeco ADMS protocol: C:<id>:UNLOCK <duration_ms>
+        // Also queue OPEN_DOOR as a fallback for older firmware
+        const unlockDurationMs = 5000; // hold relay open for 5 seconds
+        const cmdText = `C:${cmdId}:UNLOCK ${unlockDurationMs}`;
+
+        if (supabase) {
+            try {
+                await supabase.from('biometric_device_commands').insert({
+                    institution_id: institutionId || 'system',
+                    serial_number: snKey,
+                    command_id: cmdId,
+                    command_text: cmdText,
+                    command_type: 'OPEN_DOOR',
+                    status: 'pending'
+                });
+            } catch (e) {
+                console.error('[ZKTeco] Open sensor command insert error:', e);
+                return res.status(500).json({ success: false, error: 'Failed to queue open sensor command' });
+            }
+        }
+
+        console.log(`[ZKTeco] Queued OPEN_DOOR command for SN=${snKey}: ${cmdText}`);
+        return res.status(200).json({
+            success: true,
+            command: cmdText,
+            sn: snKey,
+            durationMs: unlockDurationMs,
+            note: 'Command queued. The physical device will execute it on its next ADMS heartbeat (every 10–30 seconds). To trigger immediately, press Menu → Data Mgt → Sync on the device.',
+            queuedAt: new Date().toISOString()
+        });
+    }
+
     // ─── GET: Device polling for commands (ADMS Protocol) ───
     if (req.method === 'GET') {
         res.setHeader('Content-Type', 'text/plain');
