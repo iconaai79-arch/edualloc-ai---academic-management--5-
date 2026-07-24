@@ -342,15 +342,25 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             const todayStr = nowISO.split('T')[0];
             const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+            // Check if record already exists today for this staff member to prevent 23505 UNIQUE constraint violations
+            const existingRecords = await apiService.fetchModuleRecords<any>('staff_attendance_daily', institution.id).catch(() => []);
+            const existing = existingRecords.find((r: any) => 
+                (r.staffId === targetStaffId || r.staff_id === targetStaffId) && 
+                (r.attendanceDate === todayStr || r.attendance_date === todayStr)
+            );
+
+            const punchCount = (existing?.punchCount ?? existing?.punch_count ?? 0) + 1;
+
             const testAttendanceRecord: any = {
+                ...(existing?.id ? { id: existing.id } : {}),
                 institution_id: institution.id,
                 institutionId: institution.id,
                 staff_id: targetStaffId,
                 staffId: targetStaffId,
                 attendance_date: todayStr,
                 attendanceDate: todayStr,
-                first_in: nowISO,
-                firstIn: nowISO,
+                first_in: existing?.firstIn || existing?.first_in || nowISO,
+                firstIn: existing?.firstIn || existing?.first_in || nowISO,
                 last_out: nowISO,
                 lastOut: nowISO,
                 total_hours: 8,
@@ -362,10 +372,10 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                 lateMinutes: 0,
                 early_leave_minutes: 0,
                 earlyLeaveMinutes: 0,
-                punch_count: 1,
-                punchCount: 1,
-                created_at: nowISO,
-                createdAt: nowISO
+                punch_count: punchCount,
+                punchCount: punchCount,
+                created_at: existing?.createdAt || existing?.created_at || nowISO,
+                createdAt: existing?.createdAt || existing?.created_at || nowISO
             };
 
             await apiService.saveModuleRecord('staff_attendance_daily', testAttendanceRecord);
@@ -377,6 +387,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                          `• Staff ID: ${targetStaffId}\n` +
                          `• Device User PIN: ${targetPin}\n` +
                          `• Check-in Timestamp: ${nowTimeStr}\n` +
+                         `• Punch Count Today: ${punchCount}\n` +
                          `• Database Table: staff_attendance_daily\n` +
                          `• Status: ✅ Present & Recorded on Attendance Dashboard`,
                 timestamp: new Date().toLocaleTimeString()
