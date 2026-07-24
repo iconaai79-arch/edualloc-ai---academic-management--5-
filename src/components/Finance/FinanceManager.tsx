@@ -212,6 +212,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [slipStudentId, setSlipStudentId] = useState('');
     const [balFilter, setBalFilter] = useState('');
     const [balClass, setBalClass] = useState('');
+    const [balCurrentPage, setBalCurrentPage] = useState(1);
+    const [balItemsPerPage, setBalItemsPerPage] = useState(25);
     const [ledgerSubTab, setLedgerSubTab] = useState<'collection_summary' | 'cash_book' | 'fee_register' | 'cash_flow' | 'fee_installment'>('collection_summary');
     const [showOpPreview, setShowOpPreview] = useState(false);
     const [showInvPreview, setShowInvPreview] = useState(false);
@@ -11934,6 +11936,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 .filter((s: any) => !balClass || (s.className || studentClassGroup(s)) === balClass)
                                                 .sort((a: any, b: any) => b.totals.balance - a.totals.balance);
 
+                                            const totalItems = filteredList.length;
+                                            const totalPages = Math.max(1, Math.ceil(totalItems / balItemsPerPage));
+                                            const currentPage = Math.min(balCurrentPage, totalPages);
+                                            const startIndex = (currentPage - 1) * balItemsPerPage;
+                                            const paginatedList = filteredList.slice(startIndex, startIndex + balItemsPerPage);
+
                                             return (
                                                 <div className={`p-6 rounded-[2.5rem] border shadow-xl ${
                                                     themeMode === 'futuristic'
@@ -11943,14 +11951,44 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                                                         <div>
                                                             <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white">All Outstanding Fee Balances</h3>
-                                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">{filteredList.length} students with active fee arrears</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">{totalItems} students with active fee arrears</p>
                                                         </div>
 
                                                         <div className="flex flex-wrap items-center gap-2 max-w-full">
-                                                            <input type="text" placeholder="Filter student/adm..." value={balFilter} onChange={e => setBalFilter(e.target.value)} className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
-                                                            <select value={balClass} onChange={e => setBalClass(e.target.value)} className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Filter student/adm..."
+                                                                value={balFilter}
+                                                                onChange={e => {
+                                                                    setBalFilter(e.target.value);
+                                                                    setBalCurrentPage(1);
+                                                                }}
+                                                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                            />
+                                                            <select
+                                                                value={balClass}
+                                                                onChange={e => {
+                                                                    setBalClass(e.target.value);
+                                                                    setBalCurrentPage(1);
+                                                                }}
+                                                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                            >
                                                                 <option value="">All Classes</option>
                                                                 {classes.map((c: any) => <option key={c} value={c}>{c}</option>)}
+                                                            </select>
+                                                            <select
+                                                                value={balItemsPerPage}
+                                                                onChange={e => {
+                                                                    setBalItemsPerPage(Number(e.target.value));
+                                                                    setBalCurrentPage(1);
+                                                                }}
+                                                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                            >
+                                                                <option value={10}>10 / page</option>
+                                                                <option value={25}>25 / page</option>
+                                                                <option value={50}>50 / page</option>
+                                                                <option value={100}>100 / page</option>
+                                                                <option value={100000}>All ({totalItems})</option>
                                                             </select>
                                                             <button
                                                                 onClick={() => exportCSV('all_outstanding_balances', ['#', 'Student Name', 'Admission No', 'Class', 'Total Invoiced', 'Total Paid', 'Balance Owed'], filteredList.map((s, i) => [i + 1, s.name, s.admissionNumber, s.className || studentClassGroup(s), s.totals.invoiced, s.totals.paid, s.totals.balance]))}
@@ -11994,27 +12032,76 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <table className="w-full text-left">
                                                             <thead><tr>{['#', 'Student', 'Adm No.', 'Class', 'Invoiced', 'Paid', 'Balance Owed'].map(h => TH(h))}</tr></thead>
                                                             <tbody>
-                                                                {filteredList.map((s: any, i: number) => (
-                                                                    <tr key={i} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/60 transition-colors">
-                                                                        <TD cls="text-slate-400 font-bold">{i + 1}</TD>
-                                                                        <TD cls={`font-extrabold text-xs sm:text-sm tracking-tight ${themeMode === 'futuristic' ? 'text-cyan-300 drop-shadow-sm' : 'text-slate-900 dark:text-cyan-300'}`}>{s.name}</TD>
-                                                                        <TD cls={`font-mono font-bold ${themeMode === 'futuristic' ? 'text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}>{s.admissionNumber}</TD>
-                                                                        <TD cls={`font-bold ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-600 dark:text-slate-300'}`}>{s.className || studentClassGroup(s)}</TD>
-                                                                        <TD cls="font-black text-slate-700 dark:text-slate-200">KSh {s.totals.invoiced.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-emerald-600 dark:text-emerald-400">KSh {s.totals.paid.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-rose-600 dark:text-rose-400">
-                                                                            <span className="px-2.5 py-1 bg-rose-500/10 border border-rose-500/30 rounded-lg inline-block">
-                                                                                KSh {s.totals.balance.toLocaleString()}
-                                                                            </span>
-                                                                        </TD>
-                                                                    </tr>
-                                                                ))}
-                                                                {filteredList.length === 0 && (
+                                                                {paginatedList.map((s: any, idx: number) => {
+                                                                    const itemIndex = startIndex + idx + 1;
+                                                                    return (
+                                                                        <tr key={idx} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/60 transition-colors">
+                                                                            <TD cls="text-slate-400 font-bold">{itemIndex}</TD>
+                                                                            <TD cls={`font-extrabold text-xs sm:text-sm tracking-tight ${themeMode === 'futuristic' ? 'text-cyan-300 drop-shadow-sm' : 'text-slate-900 dark:text-cyan-300'}`}>{s.name}</TD>
+                                                                            <TD cls={`font-mono font-bold ${themeMode === 'futuristic' ? 'text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}>{s.admissionNumber}</TD>
+                                                                            <TD cls={`font-bold ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-600 dark:text-slate-300'}`}>{s.className || studentClassGroup(s)}</TD>
+                                                                            <TD cls="font-black text-slate-700 dark:text-slate-200">KSh {s.totals.invoiced.toLocaleString()}</TD>
+                                                                            <TD cls="font-black text-emerald-600 dark:text-emerald-400">KSh {s.totals.paid.toLocaleString()}</TD>
+                                                                            <TD cls="font-black text-rose-600 dark:text-rose-400">
+                                                                                <span className="px-2.5 py-1 bg-rose-500/10 border border-rose-500/30 rounded-lg inline-block">
+                                                                                    KSh {s.totals.balance.toLocaleString()}
+                                                                                </span>
+                                                                            </TD>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                                {paginatedList.length === 0 && (
                                                                     <tr><td colSpan={7} className="py-8 text-center text-slate-400 font-medium text-xs">No outstanding balances found matching filter criteria.</td></tr>
                                                                 )}
                                                             </tbody>
                                                         </table>
                                                     </div>
+
+                                                    {/* Pagination Footer */}
+                                                    {totalPages > 1 && (
+                                                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 mt-4 border-t border-slate-100 dark:border-slate-800/60">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                                Showing {totalItems > 0 ? startIndex + 1 : 0} to {Math.min(totalItems, startIndex + balItemsPerPage)} of {totalItems} Students
+                                                            </p>
+                                                            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-1">
+                                                                <button
+                                                                    disabled={currentPage === 1}
+                                                                    onClick={() => setBalCurrentPage(p => Math.max(1, p - 1))}
+                                                                    className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-all hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer disabled:cursor-not-allowed"
+                                                                >
+                                                                    ← Previous
+                                                                </button>
+                                                                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                                    .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                                                                    .map((p, idx, array) => {
+                                                                        const prevPage = array[idx - 1];
+                                                                        const showEllipsis = prevPage && p - prevPage > 1;
+                                                                        return (
+                                                                            <React.Fragment key={p}>
+                                                                                {showEllipsis && <span className="px-1 text-slate-400 text-xs font-bold">...</span>}
+                                                                                <button
+                                                                                    onClick={() => setBalCurrentPage(p)}
+                                                                                    className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                                                                                        currentPage === p
+                                                                                            ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                                                                                            : 'border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                                                    }`}
+                                                                                >
+                                                                                    {p}
+                                                                                </button>
+                                                                            </React.Fragment>
+                                                                        );
+                                                                    })}
+                                                                <button
+                                                                    disabled={currentPage === totalPages}
+                                                                    onClick={() => setBalCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                                    className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-all hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer disabled:cursor-not-allowed"
+                                                                >
+                                                                    Next →
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })()}
