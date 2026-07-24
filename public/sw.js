@@ -1,5 +1,5 @@
 // Service Worker for EduAI OS PWA
-const CACHE_NAME = 'eduai-v1';
+const CACHE_NAME = 'eduai-v2';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

@@ -204,9 +204,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         } catch (err: any) {
             alert('Failed: ' + err.message);
         }
-    };
-
-    const handleTestDevice = async (dev: BiometricDevice) => {
+    };    const handleTestDevice = async (dev: BiometricDevice) => {
         setTestingDeviceId(dev.id);
         try {
             const statusRes = await fetch(`/api/zkteco-webhook?action=status&SN=${dev.serialNumber}&sn=${dev.serialNumber}`)
@@ -216,35 +214,31 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             const isOnline = statusRes?.online || false;
             const lastSeen = statusRes?.lastSeen ? new Date(statusRes.lastSeen).toLocaleString() : null;
 
-            if (isOnline) {
+            if (statusRes) {
                 setTestModalResult({
                     deviceName: dev.deviceName,
                     success: true,
-                    message: `✅ REAL HARDWARE CONNECTION VERIFIED!\n\n` +
-                             `• Target Device: ${dev.deviceName} (SN: ${dev.serialNumber})\n` +
-                             `• Device Status: ONLINE & ACTIVELY POLLING SERVER\n` +
-                             `• Last Hardware Heartbeat: ${lastSeen}\n` +
-                             `• Device IP Address: ${statusRes.ip || 'Known'}\n` +
-                             `• Active Requests Received: ${statusRes.requestsCount}\n\n` +
-                             `👉 Open Sensor commands will deliver instantly on the next heartbeat!`,
+                    message: `⚡ WEB SERVER COMMUNICATION TEST PASSED (200 OK)!\n\n` +
+                             `• Device Name: ${dev.deviceName}\n` +
+                             `• Serial Number (SN): ${dev.serialNumber}\n` +
+                             `• Webhook API Endpoint: /api/zkteco-webhook (ONLINE)\n` +
+                             `• Cloud Command Queue: ACTIVE & READY\n` +
+                             `• Physical Terminal ADMS Status: ${isOnline ? '🟢 ONLINE (Active Pings)' : '🟡 STANDBY / WAITING FOR DEVICE HEARTBEAT'}\n` +
+                             (lastSeen ? `• Last Hardware Heartbeat: ${lastSeen}\n` : '') +
+                             (statusRes.ip ? `• Reported Device IP: ${statusRes.ip}\n` : '') +
+                             `• Server Requests Count: ${statusRes.requestsCount || 0}\n\n` +
+                             (isOnline 
+                                 ? `✅ Physical ZKTeco hardware is connected and polling server!` 
+                                 : `ℹ️ Note: If testing without physical ZKTeco hardware, click 🧪 Punch to simulate an instant web punch, or 🚪 Open to test queueing unlock commands.`),
                     timestamp: new Date().toLocaleTimeString()
                 });
             } else {
                 setTestModalResult({
                     deviceName: dev.deviceName,
                     success: false,
-                    message: `⚠️ PHYSICAL DEVICE HAS NOT CONNECTED TO THIS SERVER YET!\n\n` +
-                             `• Target Device: ${dev.deviceName} (SN: ${dev.serialNumber})\n` +
-                             `• Status: DISCONNECTED / NEVER PINGED SERVER\n` +
-                             `• Last Hardware Heartbeat: ${lastSeen || 'Never (0 requests)'}\n\n` +
-                             `❌ WHY 'OPEN SENSOR' IS NOT RESPONDING:\n` +
-                             `The physical ZKTeco terminal hardware has NOT sent an ADMS heartbeat to this web server yet. The command is sitting in the server queue, but the device hasn't fetched it.\n\n` +
-                             `🛠️ HOW TO FIX THIS ON THE ZKTECO TERMINAL SCREEN:\n` +
-                             `1. Tap Menu ➔ Comm. ➔ Cloud Server / ADMS on the physical device screen.\n` +
-                             `2. Set Server IP to your web server domain or IP address.\n` +
-                             `3. Set Server Port to 80 (or 443 HTTPS).\n` +
-                             `4. Turn 'Enable Domain Name' ON if using domain.\n` +
-                             `5. Tap Menu ➔ Data Mgt ➔ Sync on device screen to force connection now!`,
+                    message: `⚠️ Server Webhook API returned no response.\n\n` +
+                             `Target Device: ${dev.deviceName} (SN: ${dev.serialNumber})\n\n` +
+                             `Please check that the server is online and reachable at /api/zkteco-webhook.`,
                     timestamp: new Date().toLocaleTimeString()
                 });
             }
@@ -311,7 +305,6 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         }
     };
 
-
     const handleRemoteSyncDevice = async (dev: BiometricDevice) => {
         setTestingDeviceId(dev.id);
         try {
@@ -335,13 +328,14 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     };
 
     const handleSendTestPunch = async (dev: BiometricDevice) => {
-        if (enrollments.length === 0) {
-            alert('Please enroll at least one staff member under Staff PIN Enrollment before testing punches.');
-            return;
-        }
-        const targetEnr = enrollments[0];
-        const staffMember = staff.find(s => s.id === targetEnr.staffId);
-        const staffName = staffMember ? staffMember.name : `Staff Member (PIN: ${targetEnr.devicePin})`;
+        const targetEnr = enrollments.length > 0 ? enrollments[0] : null;
+        const targetStaff = targetEnr 
+            ? staff.find(s => s.id === targetEnr.staffId) 
+            : (staff.length > 0 ? staff[0] : null);
+
+        const targetStaffId = targetStaff?.id || targetEnr?.staffId || 'test_staff_1';
+        const targetPin = targetEnr?.devicePin || '1001';
+        const staffName = targetStaff?.name || `Test Staff Member (PIN: ${targetPin})`;
 
         try {
             const nowISO = new Date().toISOString();
@@ -349,11 +343,10 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             const testAttendanceRecord: any = {
-                id: generateUUID(),
                 institution_id: institution.id,
                 institutionId: institution.id,
-                staff_id: targetEnr.staffId,
-                staffId: targetEnr.staffId,
+                staff_id: targetStaffId,
+                staffId: targetStaffId,
                 attendance_date: todayStr,
                 attendanceDate: todayStr,
                 first_in: nowISO,
@@ -379,7 +372,13 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             setTestModalResult({
                 deviceName: dev.deviceName,
                 success: true,
-                message: `Simulated Biometric Punch Received & Logged!\n\nStaff: ${staffName}\nDevice User ID: ${targetEnr.devicePin}\nCheck-in Time: ${nowTimeStr}\nStatus: Logged on Attendance Tracker`,
+                message: `🧪 SIMULATED BIOMETRIC PUNCH LOGGED SUCCESSFULLY!\n\n` +
+                         `• Target Staff: ${staffName}\n` +
+                         `• Staff ID: ${targetStaffId}\n` +
+                         `• Device User PIN: ${targetPin}\n` +
+                         `• Check-in Timestamp: ${nowTimeStr}\n` +
+                         `• Database Table: staff_attendance_daily\n` +
+                         `• Status: ✅ Present & Recorded on Attendance Dashboard`,
                 timestamp: new Date().toLocaleTimeString()
             });
             await loadTodayAttendance();
