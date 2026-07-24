@@ -11876,7 +11876,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     subtitle: props.institution.name,
                                                                     studentName: slipStudent?.name || 'Student',
                                                                     admNo: (slipStudent as any)?.admissionNumber || '—',
-                                                                    className: (slipStudent as any)?.className || studentClassGroup(slipStudent),
+                                                                    className: (slipStudent as any)?.className || (slipStudent ? studentClassGroup(slipStudent) : '—'),
                                                                     invoiced: (slipData as any)?.totals?.invoiced || 0,
                                                                     paid: (slipData as any)?.totals?.paid || 0,
                                                                     balance: (slipData as any)?.totals?.balance || 0
@@ -11997,9 +11997,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 {filteredList.map((s: any, i: number) => (
                                                                     <tr key={i} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/60 transition-colors">
                                                                         <TD cls="text-slate-400 font-bold">{i + 1}</TD>
-                                                                        <TD cls="font-black text-slate-800 dark:text-white">{s.name}</TD>
-                                                                        <TD cls="text-slate-500 font-mono">{s.admissionNumber}</TD>
-                                                                        <TD cls="text-slate-600 dark:text-slate-300 font-bold">{s.className || studentClassGroup(s)}</TD>
+                                                                        <TD cls={`font-extrabold text-xs sm:text-sm tracking-tight ${themeMode === 'futuristic' ? 'text-cyan-300 drop-shadow-sm' : 'text-slate-900 dark:text-cyan-300'}`}>{s.name}</TD>
+                                                                        <TD cls={`font-mono font-bold ${themeMode === 'futuristic' ? 'text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}>{s.admissionNumber}</TD>
+                                                                        <TD cls={`font-bold ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-600 dark:text-slate-300'}`}>{s.className || studentClassGroup(s)}</TD>
                                                                         <TD cls="font-black text-slate-700 dark:text-slate-200">KSh {s.totals.invoiced.toLocaleString()}</TD>
                                                                         <TD cls="font-black text-emerald-600 dark:text-emerald-400">KSh {s.totals.paid.toLocaleString()}</TD>
                                                                         <TD cls="font-black text-rose-600 dark:text-rose-400">
