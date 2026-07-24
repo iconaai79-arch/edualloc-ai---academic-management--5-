@@ -1010,7 +1010,13 @@ export const apiService = {
             if (typeof item !== 'object' || item === null) return item;
             
             // Auto-generate primary key ID if missing or null to prevent PostgreSQL not-null constraint failures (ONLY for new record creation, NOT updates)
-            if (!isUpdate && !item.id) {
+            // Tables whose `id` column is `UUID` type must NOT receive a prefixed string id — Postgres will auto-generate a UUID via DEFAULT gen_random_uuid().
+            const UUID_PK_MODULES = [
+                'biometric_devices', 'biometric_enrollments', 'biometric_logs',
+                'staff_attendance_daily', 'student_attendance',
+                'zkteco_commands', 'zkteco_attendance_raw'
+            ];
+            if (!isUpdate && !item.id && !UUID_PK_MODULES.includes(module)) {
                 const prefixMap: Record<string, string> = {
                     books: 'bk_',
                     activity_log: 'log_',

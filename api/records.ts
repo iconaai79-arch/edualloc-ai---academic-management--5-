@@ -308,7 +308,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : appendBranch(recordWithTenancy);
 
             const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-            const UUID_STRICT_MODULES = ['student_attendance', 'staff_attendance_daily', 'biometric_logs', 'biometric_enrollments'];
+            const UUID_STRICT_MODULES = ['biometric_devices', 'student_attendance', 'staff_attendance_daily', 'biometric_logs', 'biometric_enrollments'];
 
             const sanitizeUUIDs = (r: any) => {
                 if (!r || typeof r !== 'object') return r;
