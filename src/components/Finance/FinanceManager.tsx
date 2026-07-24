@@ -12006,7 +12006,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     invoiced: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.invoiced || 0), 0),
                                                                     paid: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.paid || 0), 0),
                                                                     balance: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
-                                                                    items: filteredList.slice(0, 50).map((s: any) => ({
+                                                                    items: filteredList.map((s: any) => ({
                                                                         name: s.name,
                                                                         adm: s.admissionNumber || '—',
                                                                         cls: s.className || studentClassGroup(s),
@@ -12020,7 +12020,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 👁️ On-Screen PDF Preview
                                                             </button>
                                                             <button
-                                                                onClick={() => window.print()}
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `ALL OUTSTANDING FEE BALANCES REPORT`,
+                                                                        subtitle: `${props.institution.name} — ${filteredList.length} Students`,
+                                                                        studentName: `Batch Summary (${balClass || 'All Classes'})`,
+                                                                        admNo: `COUNT: ${filteredList.length}`,
+                                                                        className: balClass || 'All Classes',
+                                                                        invoiced: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.invoiced || 0), 0),
+                                                                        paid: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.paid || 0), 0),
+                                                                        balance: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
+                                                                        items: filteredList.map((s: any) => ({
+                                                                            name: s.name,
+                                                                            adm: s.admissionNumber || '—',
+                                                                            cls: s.className || studentClassGroup(s),
+                                                                            inv: s.totals.invoiced,
+                                                                            pd: s.totals.paid,
+                                                                            bal: s.totals.balance
+                                                                        }))
+                                                                    });
+                                                                    setTimeout(() => window.print(), 350);
+                                                                }}
                                                                 className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-slate-600/20 active:scale-95 flex items-center gap-1.5"
                                                             >
                                                                 🖨️ Print Report
@@ -14475,9 +14495,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             {/* On-Screen Interactive PDF Preview Modal */}
             {pdfPreviewModal && (
                 <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-fade-in">
+                    <style>{`
+                        @media print {
+                            body * {
+                                visibility: hidden !important;
+                            }
+                            #printable-pdf-document, #printable-pdf-document * {
+                                visibility: visible !important;
+                            }
+                            #printable-pdf-document {
+                                position: fixed !important;
+                                left: 0 !important;
+                                top: 0 !important;
+                                width: 100% !important;
+                                margin: 0 !important;
+                                padding: 24px !important;
+                                background: white !important;
+                                color: black !important;
+                                box-shadow: none !important;
+                                border: none !important;
+                                border-radius: 0 !important;
+                                max-width: none !important;
+                                z-index: 999999 !important;
+                            }
+                            .no-print {
+                                display: none !important;
+                            }
+                        }
+                    `}</style>
                     <div className="bg-slate-900 border border-slate-700 rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden max-h-[90vh] flex flex-col">
                         {/* Modal Navigation Header */}
-                        <div className="bg-slate-950 p-6 border-b border-slate-800 flex justify-between items-center">
+                        <div className="bg-slate-950 p-6 border-b border-slate-800 flex justify-between items-center no-print">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-indigo-600/20 text-indigo-400 rounded-2xl flex items-center justify-center border border-indigo-500/30">
                                     <DocumentTextIcon className="w-6 h-6" />
@@ -14497,7 +14545,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                         {/* Live On-Screen Printable PDF Paper Sheet */}
                         <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar bg-slate-950/60">
-                            <div className="mx-auto bg-white text-slate-900 p-8 md:p-12 rounded-2xl shadow-2xl max-w-2xl font-sans relative border border-slate-200">
+                            <div id="printable-pdf-document" className="mx-auto bg-white text-slate-900 p-8 md:p-12 rounded-2xl shadow-2xl max-w-2xl font-sans relative border border-slate-200">
                                 {/* Watermark */}
                                 <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none">
                                     <span className="text-6xl font-black tracking-widest -rotate-12 text-slate-900 uppercase">{props.institution.name}</span>
@@ -14601,7 +14649,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </div>
 
                         {/* Modal Actions Footer */}
-                        <div className="bg-slate-950 p-6 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                        <div className="bg-slate-950 p-6 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4 no-print">
                             <p className="text-[10px] font-bold text-slate-400">Interactive Document Viewer — High Resolution Vector Print</p>
                             <div className="flex items-center gap-3">
                                 <button
