@@ -78,10 +78,32 @@ async function callNativePlugin(methodName: string, args: any = {}): Promise<any
         if (!Print || typeof Print[methodName] !== 'function') {
             throw new Error(`Method ${methodName} not found on Print plugin`);
         }
-        return await Print[methodName](args);
+
+        // Race the plugin call against a timeout to prevent the
+        // "message channel closed before a response was received" unhandled promise
+        // rejection that occurs when the Capacitor bridge doesn't get a native response.
+        const PLUGIN_TIMEOUT_MS = 30000;
+        const pluginCall = Print[methodName](args);
+        const timeoutGuard = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Print plugin '${methodName}' timed out after ${PLUGIN_TIMEOUT_MS / 1000}s`)), PLUGIN_TIMEOUT_MS)
+        );
+
+        return await Promise.race([pluginCall, timeoutGuard]);
     } catch (e: any) {
         const errorMsg = e?.message || String(e);
-        if (errorMsg.toLowerCase().includes("not implemented")) {
+
+        // Capacitor bridge closes the message channel when the native side doesn't
+        // respond — catch this gracefully instead of letting it become an unhandled rejection.
+        if (errorMsg.toLowerCase().includes('message channel closed') ||
+            errorMsg.toLowerCase().includes('message channel was closed')) {
+            throw new Error(
+                'The printer plugin did not respond in time. ' +
+                'Please ensure the EduAI app is installed as a native APK (not run in a browser) ' +
+                'and that the printer plugin is included in the build.'
+            );
+        }
+
+        if (errorMsg.toLowerCase().includes('not implemented')) {
             throw new Error(
                 "The printing plugin is not active on this APK build. \n\n" +
                 "To fix this, please:\n" +
