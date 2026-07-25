@@ -113,13 +113,33 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [isVoting, setIsVoting] = useState(false);
     const [showResults, setShowResults] = useState(false);
 
+    // Active User Tree Permission Rights
+    const [userTreeRole, setUserTreeRole] = useState<'Patriarch' | 'Council Elder' | 'Branch Leader' | 'Descendant'>('Patriarch');
+
+    const treePermissions = useMemo(() => {
+        if (userTreeRole === 'Patriarch' || userTreeRole === 'Council Elder') {
+            return { canAddSoul: true, canEditTree: true, canDeleteTree: true, canManageVault: true, canPublishProclamations: true, label: 'Full Council Admin Rights' };
+        }
+        if (userTreeRole === 'Branch Leader') {
+            return { canAddSoul: true, canEditTree: true, canDeleteTree: false, canManageVault: true, canPublishProclamations: false, label: 'Branch Elder Rights' };
+        }
+        return { canAddSoul: false, canEditTree: false, canDeleteTree: false, canManageVault: false, canPublishProclamations: false, label: 'Read-Only Descendant Rights' };
+    }, [userTreeRole]);
+
     const [newMember, setNewMember] = useState<Partial<HeritageMember>>({ 
         name: '', 
         branch: 'Paternal', 
         relation: '', 
         birthYear: '', 
         deathYear: '', 
-        notes: '' 
+        notes: '',
+        role: 'Family Member',
+        accessRight: 'Branch Editor',
+        canAddSoul: true,
+        canEditTree: true,
+        canDeleteTree: false,
+        canManageVault: false,
+        canPublishProclamations: false
     });
     const [addMemberError, setAddMemberError] = useState('');
 
@@ -215,6 +235,11 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
             return;
         }
         
+        if (!treePermissions.canAddSoul) {
+            setAddMemberError('Permission Denied: Your active Family Tree role does not grant Add Soul rights.');
+            return;
+        }
+
         try {
             const memberToSave: HeritageMember = {
                 id: `hm_${Date.now()}`,
@@ -225,6 +250,13 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 deathYear: newMember.deathYear || '',
                 notes: newMember.notes || '',
                 profilePhotoUrl: newMember.profilePhotoUrl || '',
+                role: newMember.role || 'Family Member',
+                accessRight: newMember.accessRight || 'Branch Editor',
+                canAddSoul: newMember.canAddSoul ?? true,
+                canEditTree: newMember.canEditTree ?? true,
+                canDeleteTree: newMember.canDeleteTree ?? false,
+                canManageVault: newMember.canManageVault ?? false,
+                canPublishProclamations: newMember.canPublishProclamations ?? false,
                 institutionId: currentInstitution.id,
                 createdAt: new Date().toISOString()
             };
@@ -238,7 +270,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
             const recordToAdd = saved || memberToSave;
             setTreeMembers(prev => [...prev.filter(m => m.id !== recordToAdd.id), recordToAdd]);
-            setNewMember({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', notes: '', profilePhotoUrl: '' });
+            setNewMember({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', notes: '', profilePhotoUrl: '', role: 'Family Member', accessRight: 'Branch Editor', canAddSoul: true, canEditTree: true, canDeleteTree: false });
             setAddMemberError('');
             setShowAddMemberModal(false);
         } catch (error: any) {
@@ -1663,6 +1695,43 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     </button>
                                 </div>
                             </div>
+                        {/* ── Tree Rights & Permission Control Selector Bar ── */}
+                        <div className={`p-4 rounded-2xl border flex items-center justify-between gap-4 flex-wrap mb-6 ${
+                            themeMode === 'futuristic'
+                                ? 'bg-slate-900/90 border-amber-500/30 text-white shadow-xl'
+                                : 'bg-amber-50/70 border-amber-200 text-slate-900 shadow-sm'
+                        }`}>
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-amber-500/20 rounded-xl text-amber-400 border border-amber-500/30">
+                                    <ShieldCheck className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-mono font-black uppercase text-amber-400 tracking-widest">Family Tree Rights & Role Matrix</p>
+                                    <p className="text-xs font-bold">Active User Rights Level: <span className="text-amber-300 uppercase">{userTreeRole}</span></p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Switch Test Role:</span>
+                                <select
+                                    value={userTreeRole}
+                                    onChange={e => setUserTreeRole(e.target.value as any)}
+                                    className="px-3.5 py-2 bg-slate-950 border border-amber-500/40 rounded-xl font-bold text-white text-xs focus:outline-none focus:border-amber-400 transition-colors"
+                                >
+                                    <option value="Patriarch">👑 Patriarch (Full Council Admin Rights)</option>
+                                    <option value="Council Elder">🏛️ Council Elder (Full Council Admin Rights)</option>
+                                    <option value="Branch Leader">🌿 Branch Leader (Branch Editor Rights)</option>
+                                    <option value="Descendant">🛡️ Descendant (View Only Rights)</option>
+                                </select>
+
+                                <span className={`px-3 py-1.5 rounded-xl text-[9px] font-mono font-black uppercase tracking-widest ${
+                                    treePermissions.canAddSoul
+                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                }`}>
+                                    {treePermissions.label}
+                                </span>
+                            </div>
                         </div>
 
                         {/* Render Sub View Content */}
@@ -2110,6 +2179,45 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                         className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors resize-none"
                                     />
                                 </div>
+
+                                {/* Family Tree Rights & Council Role Assignment */}
+                                <div className="col-span-2 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <ShieldCheck className="w-4 h-4 text-amber-400" />
+                                        <span className="text-[9px] font-mono font-black uppercase text-amber-400 tracking-widest">Family Role & Permission Rights</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[8px] font-mono font-black uppercase text-slate-400 mb-1">Family Role</label>
+                                            <select
+                                                value={newMember.role || 'Family Member'}
+                                                onChange={e => setNewMember(p => ({ ...p, role: e.target.value as any }))}
+                                                className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:border-amber-400"
+                                            >
+                                                <option value="Patriarch">👑 Patriarch</option>
+                                                <option value="Matriarch">👑 Matriarch</option>
+                                                <option value="Council Elder">🏛️ Council Elder</option>
+                                                <option value="Branch Leader">🌿 Branch Leader</option>
+                                                <option value="Family Member">👤 Family Member</option>
+                                                <option value="Descendant">🛡️ Descendant</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[8px] font-mono font-black uppercase text-slate-400 mb-1">Access Level</label>
+                                            <select
+                                                value={newMember.accessRight || 'Branch Editor'}
+                                                onChange={e => setNewMember(p => ({ ...p, accessRight: e.target.value as any }))}
+                                                className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:border-amber-400"
+                                            >
+                                                <option value="Full Admin">Full Admin</option>
+                                                <option value="Branch Editor">Branch Editor</option>
+                                                <option value="View Only">View Only</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Actions */}
@@ -2265,6 +2373,45 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                         rows={3}
                                         className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors resize-none"
                                     />
+                                </div>
+
+                                {/* Family Tree Rights & Council Role Assignment */}
+                                <div className="col-span-2 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <ShieldCheck className="w-4 h-4 text-amber-400" />
+                                        <span className="text-[9px] font-mono font-black uppercase text-amber-400 tracking-widest">Family Role & Permission Rights</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[8px] font-mono font-black uppercase text-slate-400 mb-1">Family Role</label>
+                                            <select
+                                                value={editMemberForm.role || 'Family Member'}
+                                                onChange={e => setEditMemberForm(p => ({ ...p, role: e.target.value as any }))}
+                                                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:border-amber-400"
+                                            >
+                                                <option value="Patriarch">👑 Patriarch</option>
+                                                <option value="Matriarch">👑 Matriarch</option>
+                                                <option value="Council Elder">🏛️ Council Elder</option>
+                                                <option value="Branch Leader">🌿 Branch Leader</option>
+                                                <option value="Family Member">👤 Family Member</option>
+                                                <option value="Descendant">🛡️ Descendant</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[8px] font-mono font-black uppercase text-slate-400 mb-1">Access Level</label>
+                                            <select
+                                                value={editMemberForm.accessRight || 'Branch Editor'}
+                                                onChange={e => setEditMemberForm(p => ({ ...p, accessRight: e.target.value as any }))}
+                                                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:border-amber-400"
+                                            >
+                                                <option value="Full Admin">Full Admin</option>
+                                                <option value="Branch Editor">Branch Editor</option>
+                                                <option value="View Only">View Only</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 

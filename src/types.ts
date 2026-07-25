@@ -4543,6 +4543,13 @@ export interface HeritageMember {
     deathYear?: string;
     notes?: string;
     profilePhotoUrl?: string;
+    role?: 'Patriarch' | 'Matriarch' | 'Council Elder' | 'Branch Leader' | 'Family Member' | 'Descendant';
+    accessRight?: 'Full Admin' | 'Branch Editor' | 'View Only';
+    canAddSoul?: boolean;
+    canEditTree?: boolean;
+    canDeleteTree?: boolean;
+    canManageVault?: boolean;
+    canPublishProclamations?: boolean;
     createdAt?: string;
 }
 
