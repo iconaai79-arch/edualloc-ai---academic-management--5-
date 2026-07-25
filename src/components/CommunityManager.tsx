@@ -85,7 +85,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements' | 'members' | 'analytics' | 'records' | 'hud'>('tree');
+    const [heritageView, setHeritageView] = useState<'overview' | 'tree' | 'stories' | 'gallery' | 'announcements' | 'members' | 'analytics' | 'records' | 'hud'>('overview');
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
     const [showExcelImporterModal, setShowExcelImporterModal] = useState(false);
     const [editingMember, setEditingMember] = useState<HeritageMember | null>(null);
@@ -1514,8 +1514,153 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         </div>
     );
 
+    const renderHomeSubView = () => (
+        <div className="space-y-8 animate-fade-in">
+            {/* Main Welcome Hero Banner */}
+            <div className={`p-8 md:p-10 rounded-[3rem] relative overflow-hidden transition-all border ${
+                themeMode === 'futuristic'
+                    ? 'bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/40 border-amber-500/40 shadow-2xl shadow-amber-500/10 text-white'
+                    : 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-xl'
+            }`}>
+                <div className="absolute top-0 right-0 p-10 opacity-10 pointer-events-none">
+                    <TreePalm className="w-64 h-64 text-amber-400" />
+                </div>
+
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <span className="px-3.5 py-1 text-[9px] font-mono font-black uppercase tracking-widest rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300">
+                                👑 HERITAGE HOME PORTAL
+                            </span>
+                            <span className="text-[9px] font-mono text-slate-400">INSTITUTION ID: {currentInstitution.id.slice(0, 8)}</span>
+                        </div>
+
+                        <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight mt-3">
+                            {currentInstitution.name}
+                        </h2>
+                        <p className="text-sm font-medium text-slate-300 mt-2 max-w-2xl leading-relaxed">
+                            Welcome to your family heritage preservation workspace. Document ancestral lineage, explore 3D lineage maps, archive oral history chronicles, and record official council proclamations.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <button
+                            onClick={() => setHeritageView('tree')}
+                            className="px-6 py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-amber-500/30 hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
+                        >
+                            <Network className="w-4 h-4" />
+                            Explore 3D Lineage Tree
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick Metrics Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div 
+                    onClick={() => setHeritageView('tree')}
+                    className="p-6 bg-slate-900/90 border border-amber-500/30 rounded-[2.5rem] shadow-xl hover:border-amber-400 cursor-pointer transition-all group"
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-mono font-black uppercase text-slate-400 tracking-widest">Documented Souls</span>
+                        <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
+                            <Users className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <h4 className="text-3xl font-black text-amber-400 mt-3 group-hover:scale-105 transition-transform">{treeMembers.length}</h4>
+                    <p className="text-[10px] text-slate-400 mt-1 font-medium">Ancestral & Living Lineage</p>
+                </div>
+
+                <div 
+                    onClick={() => setHeritageView('stories')}
+                    className="p-6 bg-slate-900/90 border border-amber-500/30 rounded-[2.5rem] shadow-xl hover:border-amber-400 cursor-pointer transition-all group"
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-mono font-black uppercase text-slate-400 tracking-widest">Oral History</span>
+                        <div className="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl">
+                            <Library className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <h4 className="text-3xl font-black text-blue-400 mt-3 group-hover:scale-105 transition-transform">{heritageStories.length}</h4>
+                    <p className="text-[10px] text-slate-400 mt-1 font-medium">Chronicles & Testimonies</p>
+                </div>
+
+                <div 
+                    onClick={() => setHeritageView('gallery')}
+                    className="p-6 bg-slate-900/90 border border-amber-500/30 rounded-[2.5rem] shadow-xl hover:border-amber-400 cursor-pointer transition-all group"
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-mono font-black uppercase text-slate-400 tracking-widest">Vault Media</span>
+                        <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
+                            <ImageIcon className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <h4 className="text-3xl font-black text-emerald-400 mt-3 group-hover:scale-105 transition-transform">{heritageGallery.length}</h4>
+                    <p className="text-[10px] text-slate-400 mt-1 font-medium">Photos & Documents</p>
+                </div>
+
+                <div 
+                    onClick={() => setHeritageView('announcements')}
+                    className="p-6 bg-slate-900/90 border border-amber-500/30 rounded-[2.5rem] shadow-xl hover:border-amber-400 cursor-pointer transition-all group"
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-mono font-black uppercase text-slate-400 tracking-widest">Council Proclamations</span>
+                        <div className="p-2.5 bg-purple-500/20 text-purple-400 rounded-xl">
+                            <Ghost className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <h4 className="text-3xl font-black text-purple-400 mt-3 group-hover:scale-105 transition-transform">{heritageAnnouncements.length}</h4>
+                    <p className="text-[10px] text-slate-400 mt-1 font-medium">Official Proclamations</p>
+                </div>
+            </div>
+
+            {/* Quick Action Navigation Buttons */}
+            <div className="p-6 bg-slate-900/90 border border-amber-500/30 rounded-[2.5rem] shadow-xl space-y-4">
+                <h4 className="text-xs font-mono font-black uppercase text-amber-400 tracking-widest">Family Heritage Modules</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <button
+                        onClick={() => setHeritageView('tree')}
+                        className="p-4 bg-slate-950 border border-amber-500/20 hover:border-amber-400 rounded-2xl text-left transition-all group"
+                    >
+                        <Network className="w-6 h-6 text-amber-400 mb-2 group-hover:scale-110 transition-transform" />
+                        <p className="text-xs font-black uppercase text-white">Ancestry Map</p>
+                        <p className="text-[9px] text-slate-400 font-medium mt-0.5">3D Spatial Lineage Matrix</p>
+                    </button>
+
+                    <button
+                        onClick={() => setHeritageView('members')}
+                        className="p-4 bg-slate-950 border border-amber-500/20 hover:border-amber-400 rounded-2xl text-left transition-all group"
+                    >
+                        <Users className="w-6 h-6 text-blue-400 mb-2 group-hover:scale-110 transition-transform" />
+                        <p className="text-xs font-black uppercase text-white">Family Members</p>
+                        <p className="text-[9px] text-slate-400 font-medium mt-0.5">Directory & Tree Souls</p>
+                    </button>
+
+                    <button
+                        onClick={() => setHeritageView('announcements')}
+                        className="p-4 bg-slate-950 border border-amber-500/20 hover:border-amber-400 rounded-2xl text-left transition-all group"
+                    >
+                        <Ghost className="w-6 h-6 text-purple-400 mb-2 group-hover:scale-110 transition-transform" />
+                        <p className="text-xs font-black uppercase text-white">Family Council</p>
+                        <p className="text-[9px] text-slate-400 font-medium mt-0.5">Reunions & Proclamations</p>
+                    </button>
+
+                    <button
+                        onClick={() => setHeritageView('records')}
+                        className="p-4 bg-slate-950 border border-amber-500/20 hover:border-amber-400 rounded-2xl text-left transition-all group"
+                    >
+                        <FileSpreadsheet className="w-6 h-6 text-emerald-400 mb-2 group-hover:scale-110 transition-transform" />
+                        <p className="text-xs font-black uppercase text-white">Family Records</p>
+                        <p className="text-[9px] text-slate-400 font-medium mt-0.5">CSV Exports & Audit Logs</p>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+
     const renderHeritage = () => {
         const heritageSubTabs = [
+            { id: 'overview', label: 'Home', badge: 'Portal Home', icon: Home },
             { id: 'tree', label: 'Ancestry Map', badge: 'Lineage Tree', icon: Network },
             { id: 'members', label: 'Tree Members', badge: 'Directory', icon: Users },
             { id: 'announcements', label: 'Family Council', badge: 'Proclamations', icon: Ghost },
@@ -1851,6 +1996,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                         </div>
 
                         {/* Render Sub View Content */}
+                        {heritageView === 'overview' && renderHomeSubView()}
                         {heritageView === 'tree' && renderTreeSubView()}
                         {heritageView === 'stories' && renderStoriesSubView()}
                         {heritageView === 'gallery' && renderGallerySubView()}
