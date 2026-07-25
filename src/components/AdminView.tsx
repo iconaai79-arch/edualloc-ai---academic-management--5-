@@ -840,6 +840,17 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
 
 
+        if (isHeritage) {
+            return [
+                { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
+                { id: 'community', label: 'Family Council', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'users', label: 'Family Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'comms', label: 'Announcements', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+                { id: 'reports', label: 'Records', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            ];
+        }
+
         if (isCampaign) {
             return [
                 { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
@@ -1113,7 +1124,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         }
 
         return filteredTabs;
-    }, [props.currentUser?.role, props.activeRole, props.currentInstitution, isSchool, isEdu, isBusiness, businessSubType, institutionType, isRetailAgency, activeScope]);
+    }, [props.currentUser?.role, props.activeRole, props.currentInstitution, isSchool, isEdu, isBusiness, businessSubType, institutionType, isRetailAgency, activeScope, isHeritage]);
 
     const stats = useMemo(() => {
         const pendingCount = (requests || []).filter((r: AllocationRequest) => r && (r.status === 'pending' || r.status === 'hod_approved')).length;
