@@ -5221,7 +5221,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         studentAttendances,
         onOnboardStudent: handleOnboardStudent,
         onOffboardStudent: handleOffboardStudent,
-        onSwitchPerspective: (role: Role | null) => setImpersonatedRole(role),
+        onSwitchPerspective: (role: Role | null) => {
+            setImpersonatedRole(role);
+            setSelectedRole(role);
+        },
         onAddUser: async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); },
         onEditUser,
         onDeleteUser,
@@ -5578,7 +5581,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                             applicationTitle={companyDetails.applicationTitle}
                             activeRole={activeRole as Role}
                             onSwitchRole={(r) => setSelectedRole(r)}
-                            onExitPerspective={impersonatedRole ? () => setImpersonatedRole(null) : undefined}
+                            onExitPerspective={(impersonatedRole || selectedRole) ? () => { setImpersonatedRole(null); setSelectedRole(null); } : undefined}
                             onToggleHealthSystem={() => setIsHealthSystemOpen(!isHealthSystemOpen)}
                             onTogglePharmacySystem={() => setIsPharmacySystemOpen(!isPharmacySystemOpen)}
                             isHealthSystemOpen={isHealthSystemOpen}
@@ -6017,7 +6020,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             departments={departments}
                                             onLogAction={handleLogAction}
                                             activityLog={activityLog}
-                                            onSwitchPerspective={(role: any) => setImpersonatedRole(role)}
+                                            onSwitchPerspective={(role: any) => { setImpersonatedRole(role); setSelectedRole(role); }}
                                         />
                                     </ModuleAccessGuard>
                                 ) : activeRole === 'security' ? (
@@ -6038,6 +6041,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             onVerifyAsset={handleVerifyVisitorAsset}
                                             onRefreshData={async () => await loadData(false, true)}
                                             onAddUser={async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); }}
+                                            onSwitchPerspective={(role: any) => { setImpersonatedRole(role); setSelectedRole(role); }}
                                         />
                                     ) : (
                                         <SecurityView
@@ -6061,7 +6065,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                                 onLogAction: handleLogAction,
                                                 onTeacherGateCheckIn: handleTeacherGateCheckIn,
                                                 teacherCheckIns,
-                                                onSwitchPerspective: (role: any) => setImpersonatedRole(role)
+                                                onSwitchPerspective: (role: any) => { setImpersonatedRole(role); setSelectedRole(role); }
                                             } as any}
                                         />
                                     )
@@ -6083,6 +6087,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             onVerifyAsset={handleVerifyVisitorAsset}
                                             onRefreshData={async () => await loadData(false, true)}
                                             onAddUser={async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); }}
+                                            onSwitchPerspective={(role: any) => { setImpersonatedRole(role); setSelectedRole(role); }}
                                         />
                                     ) : (
                                         <InfoDeskView

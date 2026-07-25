@@ -38,6 +38,7 @@ interface BuildingSecurityManagerProps {
     onVerifyAsset: (assetId: string, verified: boolean) => Promise<void>;
     onRefreshData?: () => Promise<void>;
     onAddUser?: (user: any) => Promise<void>;
+    onSwitchPerspective?: (role: any) => void;
 }
 
 export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = ({
@@ -55,7 +56,8 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
     onUpdateVisitorLog,
     onVerifyAsset,
     onRefreshData,
-    onAddUser
+    onAddUser,
+    onSwitchPerspective
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'directory' | 'visitors' | 'checkpoint' | 'office_portal'>('dashboard');
     const [selectedPortalOfficeId, setSelectedPortalOfficeId] = useState('');
@@ -421,7 +423,16 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
             </div>
 
             {/* Tab Links */}
-            <div className="flex gap-4 border-b border-slate-200 dark:border-slate-800 mb-8 overflow-x-auto pb-1 no-scrollbar">
+            <div className="flex gap-4 border-b border-slate-200 dark:border-slate-800 mb-8 overflow-x-auto pb-1 no-scrollbar items-center">
+                {onSwitchPerspective && (
+                    <button
+                        onClick={() => onSwitchPerspective(null)}
+                        className="flex items-center gap-2 py-3.5 px-4 border-b-2 border-transparent font-black uppercase text-[10px] tracking-widest text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-all whitespace-nowrap mr-2 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl"
+                    >
+                        <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                        <span>Portal Hub</span>
+                    </button>
+                )}
                 {[
                     { id: 'dashboard', label: 'Security Dashboard', icon: '📊' },
                     { id: 'directory', label: 'Office Directory', icon: '🏢' },
