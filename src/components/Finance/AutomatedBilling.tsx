@@ -428,19 +428,23 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     };
 
     return (
-        <div className="max-w-3xl mx-auto space-y-8 py-10 animate-in fade-in zoom-in-95 duration-500">
-            <div className="text-center space-y-4">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-indigo-600 text-white rounded-[2rem] shadow-xl shadow-indigo-100 mb-4 animate-bounce">
-                    <ZapIcon className="w-10 h-10" />
-                </div>
-                <h2 className="text-4xl font-black text-slate-900 tracking-tight">Institutional Billing Wizard</h2>
-                <p className="text-slate-500 font-medium max-w-lg mx-auto">
-                    Automate your revenue lifecycle. Generate term-based invoices for targeted students in seconds.
-                </p>
-            </div>
-
+        <div className="max-w-4xl mx-auto space-y-4 py-2 animate-in fade-in zoom-in-95 duration-300">
             {step === 'config' && (
-                <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-2xl space-y-8">
+                <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-xl space-y-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-md shrink-0">
+                                <ZapIcon className="w-5 h-5" />
+                            </div>
+                            <div className="text-left">
+                                <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Institutional Billing Wizard</h2>
+                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Automate your revenue lifecycle. Generate term-based invoices for targeted students in seconds.</p>
+                            </div>
+                        </div>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 rounded-full text-[10px] font-black uppercase tracking-wider border border-indigo-100 dark:border-indigo-800 shrink-0">
+                            ⚡ Billing Form
+                        </span>
+                    </div>
                     <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Academic Year</label>
