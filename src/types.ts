@@ -4541,6 +4541,8 @@ export interface HeritageMember {
     relation: string;
     birthYear?: string;
     deathYear?: string;
+    phoneNumber?: string;
+    email?: string;
     notes?: string;
     profilePhotoUrl?: string;
     role?: 'Patriarch' | 'Matriarch' | 'Council Elder' | 'Branch Leader' | 'Family Member' | 'Descendant';

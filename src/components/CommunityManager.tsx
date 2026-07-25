@@ -126,12 +126,14 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         return { canAddSoul: false, canEditTree: false, canDeleteTree: false, canManageVault: false, canPublishProclamations: false, label: 'Read-Only Descendant Rights' };
     }, [userTreeRole]);
 
-    const [newMember, setNewMember] = useState<Partial<HeritageMember>>({ 
+    const [newMember, setNewMember] = useState<Partial<HeritageMember> & { sendAccessSms?: boolean }>({ 
         name: '', 
         branch: 'Paternal', 
         relation: '', 
         birthYear: '', 
         deathYear: '', 
+        phoneNumber: '',
+        email: '',
         notes: '',
         role: 'Family Member',
         accessRight: 'Branch Editor',
@@ -139,7 +141,8 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         canEditTree: true,
         canDeleteTree: false,
         canManageVault: false,
-        canPublishProclamations: false
+        canPublishProclamations: false,
+        sendAccessSms: true
     });
     const [addMemberError, setAddMemberError] = useState('');
 
@@ -248,6 +251,8 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 relation: newMember.relation.trim(),
                 birthYear: newMember.birthYear || '',
                 deathYear: newMember.deathYear || '',
+                phoneNumber: newMember.phoneNumber?.trim() || '',
+                email: newMember.email?.trim() || '',
                 notes: newMember.notes || '',
                 profilePhotoUrl: newMember.profilePhotoUrl || '',
                 role: newMember.role || 'Family Member',
@@ -270,7 +275,17 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
             const recordToAdd = saved || memberToSave;
             setTreeMembers(prev => [...prev.filter(m => m.id !== recordToAdd.id), recordToAdd]);
-            setNewMember({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', notes: '', profilePhotoUrl: '', role: 'Family Member', accessRight: 'Branch Editor', canAddSoul: true, canEditTree: true, canDeleteTree: false });
+
+            // Dispatch Access Link via SMS if requested & phone number provided
+            if (newMember.sendAccessSms && memberToSave.phoneNumber) {
+                const portalUrl = window.location.origin;
+                const smsMessage = `Greetings ${memberToSave.name}! You have been registered in the ${currentInstitution.name} Family Heritage & Lineage Portal as ${memberToSave.role || 'Family Member'} (${memberToSave.accessRight || 'Branch Editor'}). Access Portal: ${portalUrl}`;
+                apiService.sendSms(memberToSave.phoneNumber, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id).catch(err => {
+                    console.error('[CommunityManager] Failed to dispatch SMS access link:', err);
+                });
+            }
+
+            setNewMember({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', phoneNumber: '', email: '', notes: '', profilePhotoUrl: '', role: 'Family Member', accessRight: 'Branch Editor', canAddSoul: true, canEditTree: true, canDeleteTree: false, sendAccessSms: true });
             setAddMemberError('');
             setShowAddMemberModal(false);
         } catch (error: any) {
@@ -281,7 +296,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
     const handleOpenEditMember = (member: HeritageMember) => {
         setEditingMember(member);
-        setEditMemberForm({ ...member });
+        setEditMemberForm({ ...member, sendAccessSms: false } as any);
         setEditMemberError('');
     };
 
@@ -296,22 +311,34 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
             const updatedMember = {
                 ...editMemberForm,
                 id: editingMember?.id || `hm_${Date.now()}`,
+                phoneNumber: editMemberForm.phoneNumber?.trim() || '',
+                email: editMemberForm.email?.trim() || '',
                 institutionId: currentInstitution.id,
                 updatedAt: new Date().toISOString()
             } as HeritageMember;
 
             const saved = await apiService.saveModuleRecord('heritage_members', updatedMember);
-            if (saved) {
-                setTreeMembers(prev => {
-                    const exists = prev.some(m => m.id === saved.id);
-                    if (exists) {
-                        return prev.map(m => m.id === saved.id ? saved : m);
-                    }
-                    return [...prev, saved];
+            const recordToUpdate = saved || updatedMember;
+
+            setTreeMembers(prev => {
+                const exists = prev.some(m => m.id === recordToUpdate.id);
+                if (exists) {
+                    return prev.map(m => m.id === recordToUpdate.id ? recordToUpdate : m);
+                }
+                return [...prev, recordToUpdate];
+            });
+
+            // Dispatch Access Link via SMS if requested & phone number provided
+            if ((editMemberForm as any).sendAccessSms && recordToUpdate.phoneNumber) {
+                const portalUrl = window.location.origin;
+                const smsMessage = `Greetings ${recordToUpdate.name}! Your ${currentInstitution.name} Family Heritage record & permissions have been updated. Access Portal: ${portalUrl}`;
+                apiService.sendSms(recordToUpdate.phoneNumber, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id).catch(err => {
+                    console.error('[CommunityManager] Failed to dispatch SMS access link:', err);
                 });
-                setEditingMember(null);
-                setEditMemberError('');
             }
+
+            setEditingMember(null);
+            setEditMemberError('');
         } catch (error: any) {
             setEditMemberError(`Failed to update: ${error.message || 'Server error'}`);
         } finally {
@@ -2259,6 +2286,41 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     />
                                 </div>
 
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Phone Number (Optional - For Access Link)</label>
+                                    <input
+                                        type="tel"
+                                        value={newMember.phoneNumber || ''}
+                                        onChange={e => setNewMember(p => ({ ...p, phoneNumber: e.target.value }))}
+                                        placeholder="e.g. +254712345678"
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Email Address (Optional)</label>
+                                    <input
+                                        type="email"
+                                        value={newMember.email || ''}
+                                        onChange={e => setNewMember(p => ({ ...p, email: e.target.value }))}
+                                        placeholder="e.g. member@family.com"
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div className="col-span-2 flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
+                                    <input
+                                        type="checkbox"
+                                        id="sendAccessSmsAdd"
+                                        checked={newMember.sendAccessSms ?? true}
+                                        onChange={e => setNewMember(p => ({ ...p, sendAccessSms: e.target.checked }))}
+                                        className="w-4 h-4 rounded border-amber-500/40 text-amber-500 focus:ring-amber-400"
+                                    />
+                                    <label htmlFor="sendAccessSmsAdd" className="text-xs font-bold text-slate-700 dark:text-amber-200 cursor-pointer">
+                                        📱 Dispatch Instant Access Link via SMS (if Phone Number provided)
+                                    </label>
+                                </div>
+
                                 <div className="col-span-2">
                                     <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Historical Notes</label>
                                     <textarea
@@ -2417,6 +2479,41 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                         placeholder="Leave blank if alive"
                                         className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
                                     />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Phone Number (Optional - For Access Link)</label>
+                                    <input
+                                        type="tel"
+                                        value={editMemberForm.phoneNumber || ''}
+                                        onChange={e => setEditMemberForm(p => ({ ...p, phoneNumber: e.target.value }))}
+                                        placeholder="e.g. +254712345678"
+                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Email Address (Optional)</label>
+                                    <input
+                                        type="email"
+                                        value={editMemberForm.email || ''}
+                                        onChange={e => setEditMemberForm(p => ({ ...p, email: e.target.value }))}
+                                        placeholder="e.g. member@family.com"
+                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div className="col-span-2 flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
+                                    <input
+                                        type="checkbox"
+                                        id="sendAccessSmsEdit"
+                                        checked={(editMemberForm as any).sendAccessSms ?? false}
+                                        onChange={e => setEditMemberForm(p => ({ ...p, sendAccessSms: e.target.checked } as any))}
+                                        className="w-4 h-4 rounded border-amber-500/40 text-amber-500 focus:ring-amber-400"
+                                    />
+                                    <label htmlFor="sendAccessSmsEdit" className="text-xs font-bold text-amber-200 cursor-pointer">
+                                        📱 Dispatch / Re-send Portal Access Link via SMS
+                                    </label>
                                 </div>
 
                                 <div className="col-span-2">
