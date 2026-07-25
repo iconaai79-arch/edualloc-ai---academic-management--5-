@@ -99,6 +99,12 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [heritageStories, setHeritageStories] = useState<HeritageStory[]>([]);
     const [heritageGallery, setHeritageGallery] = useState<HeritageGallery[]>([]);
     const [heritageAnnouncements, setHeritageAnnouncements] = useState<HeritageAnnouncement[]>([]);
+
+    // 3D Family Tree Spatial Controls
+    const [is3DMode, setIs3DMode] = useState(true);
+    const [tiltX, setTiltX] = useState(18);
+    const [rotateY, setRotateY] = useState(-8);
+    const [zoomScale, setZoomScale] = useState(1);
     
     // Campaign Voting States
     const [allCampaigns, setAllCampaigns] = useState<CampaignProfile[]>([]);
@@ -597,205 +603,324 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
     const renderTreeSubView = () => (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-            {/* Visual Family Tree Preview */}
-            <div className={`lg:col-span-2 rounded-[3rem] p-6 md:p-12 relative overflow-hidden min-h-[480px] border shadow-2xl ${
+            {/* Visual Family Tree Preview with 3D Spatial Effects */}
+            <div className={`lg:col-span-2 rounded-[3rem] p-6 md:p-10 relative overflow-hidden min-h-[580px] border shadow-2xl transition-all ${
                 themeMode === 'futuristic'
-                    ? 'bg-slate-900/90 border-amber-500/40 text-white shadow-amber-500/10'
+                    ? 'bg-slate-950 border-amber-500/40 text-white shadow-amber-500/10'
                     : 'bg-slate-900 border-slate-800 text-white'
             }`}>
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/graphy.png')] opacity-10"></div>
+                {/* 3D Hologram Ambient Background & Grid */}
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/10 via-slate-950/80 to-slate-950 pointer-events-none"></div>
+                <div 
+                    className="absolute inset-0 opacity-20 pointer-events-none"
+                    style={{
+                        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.25) 1px, transparent 1px)',
+                        backgroundSize: '32px 32px',
+                        transform: is3DMode ? `perspective(1000px) rotateX(${tiltX * 0.5}deg)` : 'none',
+                        transition: 'transform 0.5s ease-out'
+                    }}
+                ></div>
+                
                 <div className="relative z-10 flex flex-col items-center">
-                    <div className="w-full flex justify-between items-center mb-10 flex-wrap gap-4">
-                        <span className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-amber-400">
-                            {themeMode === 'futuristic' ? '⚡ CYBER LINEAGE MATRIX' : 'Gen 1: Foundational Roots'}
-                        </span>
-                        <div className="flex items-center gap-4 flex-wrap">
-                            <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></div> Paternal</div>
-                                <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-pink-500 shadow-sm shadow-pink-500/50"></div> Maternal</div>
-                            </div>
+                    {/* Header & 3D Spatial Controls Bar */}
+                    <div className="w-full flex justify-between items-center mb-8 flex-wrap gap-4 pb-4 border-b border-amber-500/20">
+                        <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-amber-400 flex items-center gap-2">
+                                <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                                {is3DMode ? '⚡ 3D HOLOGRAM LINEAGE MATRIX' : '📄 2D LINEAGE MATRIX'}
+                            </span>
+                            {is3DMode && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[8px] font-mono font-black uppercase tracking-widest animate-pulse">
+                                    3D Active ({tiltX}° X, {rotateY}° Y)
+                                </span>
+                            )}
+                        </div>
+
+                        {/* 3D Mode & Orbit Viewport Controls */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                                onClick={() => setIs3DMode(!is3DMode)}
+                                className={`px-3 py-1.5 rounded-xl font-mono text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 border ${
+                                    is3DMode
+                                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/30'
+                                        : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white'
+                                }`}
+                            >
+                                <span>{is3DMode ? '🔮 3D Stage ON' : '📐 2D Flat Mode'}</span>
+                            </button>
+
+                            {is3DMode && (
+                                <>
+                                    <button
+                                        onClick={() => { setTiltX(22); setRotateY(-12); }}
+                                        className="px-2.5 py-1.5 bg-slate-900 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-slate-950 rounded-xl text-[9px] font-mono font-black uppercase transition-all"
+                                        title="Isometric 3D View"
+                                    >
+                                        🧊 Iso 3D
+                                    </button>
+                                    <button
+                                        onClick={() => { setTiltX(35); setRotateY(-18); }}
+                                        className="px-2.5 py-1.5 bg-slate-900 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-slate-950 rounded-xl text-[9px] font-mono font-black uppercase transition-all"
+                                        title="Deep Hologram 3D Perspective"
+                                    >
+                                        🔮 Deep 3D
+                                    </button>
+                                    <button
+                                        onClick={() => { setTiltX(0); setRotateY(0); }}
+                                        className="px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-[9px] font-mono font-black uppercase transition-all"
+                                        title="Frontal 3D View"
+                                    >
+                                        🎯 Frontal
+                                    </button>
+                                    <button
+                                        onClick={() => setZoomScale(p => Math.min(p + 0.15, 1.4))}
+                                        className="px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-300 hover:text-amber-400 rounded-xl text-[10px] font-mono font-black transition-all"
+                                        title="Zoom In"
+                                    >
+                                        +
+                                    </button>
+                                    <button
+                                        onClick={() => setZoomScale(p => Math.max(p - 0.15, 0.7))}
+                                        className="px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-300 hover:text-amber-400 rounded-xl text-[10px] font-mono font-black transition-all"
+                                        title="Zoom Out"
+                                    >
+                                        -
+                                    </button>
+                                </>
+                            )}
+
                             <button
                                 onClick={() => setShowAddMemberModal(true)}
-                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all ml-2"
                             >
-                                <Plus className="w-4 h-4" />
-                                Add Soul to Tree
+                                <Plus className="w-3.5 h-3.5" />
+                                Add Soul
                             </button>
                         </div>
                     </div>
 
-                    {/* Interactive Tree Root & Dynamic Nodes Simulation */}
-                    <div className="space-y-12 md:space-y-16 w-full max-w-2xl">
-                        {treeMembers.length > 0 ? (
-                            <div className="flex flex-col items-center">
-                                {/* Root Ancestor Node (First Member) */}
-                                {(() => {
-                                    const rootMember = treeMembers[0];
-                                    return (
-                                        <div 
-                                            onClick={() => handleOpenEditMember(rootMember)}
-                                            className={`p-4 md:p-5 border-2 rounded-2xl backdrop-blur-md text-center group cursor-pointer transition-all shadow-xl relative ${
-                                                themeMode === 'futuristic'
-                                                    ? 'bg-amber-500/15 border-amber-400 text-white hover:bg-amber-500 hover:text-slate-950 shadow-amber-500/30'
-                                                    : 'bg-white/10 border-amber-500 hover:bg-amber-500'
-                                            }`}
-                                        >
-                                            <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-500 text-slate-950 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Pencil className="w-3.5 h-3.5" />
-                                            </div>
-                                            <p className="font-black text-sm md:text-base uppercase tracking-tight group-hover:text-slate-950">{rootMember.name}</p>
-                                            <p className="text-[10px] font-mono font-black text-amber-400 group-hover:text-slate-900 uppercase">
-                                                {rootMember.relation} • {rootMember.branch} {rootMember.birthYear ? `(${rootMember.birthYear})` : ''}
-                                            </p>
-                                            <span className="text-[8px] font-mono block text-emerald-400 mt-1 uppercase font-bold">Click Node to Edit</span>
-                                        </div>
-                                    );
-                                })()}
-
-                                <div className="w-0.5 h-12 md:h-16 bg-gradient-to-b from-amber-500 via-amber-400 to-indigo-500"></div>
-
-                                <div className="flex gap-4 md:gap-12 items-start relative flex-wrap justify-center max-w-full">
-                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-0.5 bg-indigo-500"></div>
-                                    {treeMembers.slice(1, 4).map((child) => (
-                                        <div key={child.id} className="flex flex-col items-center">
-                                            <div className="w-0.5 h-8 bg-indigo-500"></div>
+                    {/* 3D Spatial Canvas Container */}
+                    <div 
+                        className="w-full flex flex-col items-center py-6"
+                        style={{
+                            perspective: is3DMode ? '1200px' : 'none',
+                            perspectiveOrigin: '50% 40%',
+                        }}
+                    >
+                        <div 
+                            className="space-y-12 md:space-y-16 w-full max-w-2xl transition-all duration-500 ease-out"
+                            style={{
+                                transformStyle: is3DMode ? 'preserve-3d' : 'flat',
+                                transform: is3DMode
+                                    ? `rotateX(${tiltX}deg) rotateY(${rotateY}deg) scale(${zoomScale})`
+                                    : `scale(${zoomScale})`,
+                            }}
+                        >
+                            {treeMembers.length > 0 ? (
+                                <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                    {/* Root Ancestor Node (First Member) - 3D Floating Layer */}
+                                    {(() => {
+                                        const rootMember = treeMembers[0];
+                                        return (
                                             <div 
-                                                onClick={() => handleOpenEditMember(child)}
-                                                className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all cursor-pointer hover:scale-105 active:scale-95 group relative ${
-                                                    child.branch === 'Paternal'
-                                                        ? 'bg-slate-950/80 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/10'
-                                                        : 'bg-slate-950/80 border-pink-500/50 text-pink-300 shadow-lg shadow-pink-500/10'
+                                                onClick={() => handleOpenEditMember(rootMember)}
+                                                style={{
+                                                    transform: is3DMode ? 'translateZ(60px)' : 'none',
+                                                    boxShadow: is3DMode ? '0 25px 50px -12px rgba(245, 158, 11, 0.4)' : undefined,
+                                                }}
+                                                className={`p-4 md:p-6 border-2 rounded-3xl backdrop-blur-xl text-center group cursor-pointer transition-all duration-300 relative ${
+                                                    themeMode === 'futuristic'
+                                                        ? 'bg-gradient-to-b from-amber-500/25 via-slate-950/90 to-amber-500/10 border-amber-400 text-white hover:border-yellow-300 hover:bg-amber-500 hover:text-slate-950'
+                                                        : 'bg-white/10 border-amber-500 hover:bg-amber-500'
                                                 }`}
                                             >
-                                                <div className="absolute -top-2 -right-2 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="absolute -top-3 -right-3 p-1.5 bg-amber-400 text-slate-950 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </div>
+                                                <div className="flex items-center justify-center gap-2 mb-1">
+                                                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                                                    <span className="text-[9px] font-mono font-black uppercase text-amber-400 group-hover:text-slate-900 tracking-widest">Root Patriarch / Matriarch</span>
+                                                </div>
+                                                <p className="font-black text-base md:text-lg uppercase tracking-tight group-hover:text-slate-950">{rootMember.name}</p>
+                                                <p className="text-[10px] font-mono font-black text-amber-300 group-hover:text-slate-900 uppercase mt-0.5">
+                                                    {rootMember.relation} • {rootMember.branch} {rootMember.birthYear ? `(${rootMember.birthYear})` : ''}
+                                                </p>
+                                                <span className="text-[8px] font-mono block text-emerald-400 group-hover:text-slate-950 mt-1.5 uppercase font-bold tracking-widest">Click Node to Edit</span>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* 3D Vertical Line Connector Beam */}
+                                    <div 
+                                        className="w-1 h-12 md:h-16 bg-gradient-to-b from-amber-400 via-yellow-400 to-indigo-500 shadow-lg shadow-amber-500/50"
+                                        style={{ transform: is3DMode ? 'translateZ(45px)' : 'none' }}
+                                    ></div>
+
+                                    {/* 3D Branch Container */}
+                                    <div 
+                                        className="flex gap-4 md:gap-10 items-start relative flex-wrap justify-center max-w-full"
+                                        style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}
+                                    >
+                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[82%] h-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-pink-500 shadow-lg shadow-indigo-500/50"></div>
+                                        {treeMembers.slice(1, 4).map((child, idx) => (
+                                            <div key={child.id} className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                                <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                                <div 
+                                                    onClick={() => handleOpenEditMember(child)}
+                                                    style={{
+                                                        transform: is3DMode ? `translateZ(${30 + idx * 10}px)` : 'none',
+                                                        boxShadow: is3DMode ? '0 15px 35px -8px rgba(99, 102, 241, 0.3)' : undefined,
+                                                    }}
+                                                    className={`p-4 rounded-2xl border-2 backdrop-blur-xl text-center transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 group relative ${
+                                                        child.branch === 'Paternal'
+                                                            ? 'bg-slate-950/90 border-cyan-400/60 text-cyan-200 hover:border-cyan-300 hover:shadow-cyan-500/40'
+                                                            : 'bg-slate-950/90 border-pink-400/60 text-pink-200 hover:border-pink-300 hover:shadow-pink-500/40'
+                                                    }`}
+                                                >
+                                                    <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md">
+                                                        <Pencil className="w-3 h-3" />
+                                                    </div>
+                                                    <p className="font-bold text-xs uppercase tracking-tight">{child.name}</p>
+                                                    <p className="text-[8px] font-mono font-black uppercase tracking-widest text-amber-300 mt-0.5">
+                                                        {child.relation} • {child.branch}
+                                                    </p>
+                                                    <span className="text-[7px] font-mono block text-emerald-400 mt-1 uppercase font-bold tracking-widest">Edit Node</span>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Direct Add Branch Soul Button with 3D Float */}
+                                        <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                            <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                            <button
+                                                onClick={() => setShowAddMemberModal(true)}
+                                                style={{ transform: is3DMode ? 'translateZ(35px)' : 'none' }}
+                                                className="p-4 border-2 border-dashed border-amber-400/70 rounded-2xl bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition-all duration-300 flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/20 active:scale-95 group hover:scale-105"
+                                            >
+                                                <Plus className="w-4 h-4 text-amber-400 group-hover:text-slate-950 animate-bounce" />
+                                                <span>Add Soul to Tree</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Fallback Demo Interactive Tree Nodes in 3D */
+                                <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                    <div 
+                                        onClick={() => handleOpenEditMember({
+                                            id: 'demo_root',
+                                            name: 'Samuel Mwangi Sr.',
+                                            relation: 'Grandfather / Root Ancestor',
+                                            branch: 'Paternal',
+                                            birthYear: '1892',
+                                            deathYear: '1968',
+                                            notes: 'Foundational patriarch of the family lineage.'
+                                        } as HeritageMember)}
+                                        style={{
+                                            transform: is3DMode ? 'translateZ(60px)' : 'none',
+                                            boxShadow: is3DMode ? '0 25px 50px -12px rgba(245, 158, 11, 0.45)' : undefined,
+                                        }}
+                                        className={`p-5 md:p-6 border-2 rounded-3xl backdrop-blur-xl text-center group cursor-pointer transition-all duration-300 relative ${
+                                            themeMode === 'futuristic'
+                                                ? 'bg-gradient-to-b from-amber-500/20 via-slate-950/90 to-amber-500/10 border-amber-400 text-white hover:bg-amber-500 hover:text-slate-950'
+                                                : 'bg-white/10 border-amber-500 hover:bg-amber-500'
+                                        }`}
+                                    >
+                                        <div className="absolute -top-3 -right-3 p-1.5 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+                                            <Pencil className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div className="flex items-center justify-center gap-2 mb-1">
+                                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                                            <span className="text-[9px] font-mono font-black uppercase text-amber-400 group-hover:text-slate-900 tracking-widest">Root Ancestor Node</span>
+                                        </div>
+                                        <p className="font-black text-base md:text-lg uppercase tracking-tight group-hover:text-slate-950">Samuel Mwangi Sr.</p>
+                                        <p className="text-[10px] font-mono font-black text-amber-300 group-hover:text-slate-900 uppercase">1892 - 1968 • Root Ancestor</p>
+                                        <span className="text-[8px] font-mono block text-emerald-400 group-hover:text-slate-950 mt-1 uppercase font-bold tracking-widest">Click Node to Edit</span>
+                                    </div>
+
+                                    <div className="w-1 h-12 md:h-16 bg-gradient-to-b from-amber-400 via-yellow-400 to-indigo-500 shadow-lg shadow-amber-500/50" style={{ transform: is3DMode ? 'translateZ(45px)' : 'none' }}></div>
+
+                                    <div className="flex gap-6 md:gap-10 items-start relative flex-wrap justify-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[82%] h-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-pink-500 shadow-lg shadow-indigo-500/50"></div>
+                                        <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                            <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                            <div 
+                                                onClick={() => handleOpenEditMember({
+                                                    id: 'demo_child1',
+                                                    name: 'John Mwangi',
+                                                    relation: 'Son',
+                                                    branch: 'Paternal',
+                                                    birthYear: '1924',
+                                                    notes: 'Paternal lineage heir.'
+                                                } as HeritageMember)}
+                                                style={{ transform: is3DMode ? 'translateZ(35px)' : 'none' }}
+                                                className={`p-4 rounded-2xl border-2 backdrop-blur-xl text-center transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 group relative ${
+                                                    themeMode === 'futuristic'
+                                                        ? 'bg-slate-950/90 border-cyan-400/60 text-cyan-200 hover:border-cyan-300'
+                                                        : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                }`}
+                                            >
+                                                <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <Pencil className="w-2.5 h-2.5" />
                                                 </div>
-                                                <p className="font-bold text-xs uppercase tracking-tight">{child.name}</p>
-                                                <p className="text-[8px] font-mono font-black uppercase tracking-widest text-amber-400">
-                                                    {child.relation} • {child.branch}
-                                                </p>
-                                                <span className="text-[7px] font-mono block text-emerald-400 mt-0.5 uppercase font-bold">Edit</span>
+                                                <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
+                                                <p className="text-[8px] font-mono font-black text-cyan-400 uppercase tracking-widest">Son • Gen 2 (Click to Edit)</p>
                                             </div>
                                         </div>
-                                    ))}
+                                        <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                            <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                            <div 
+                                                onClick={() => handleOpenEditMember({
+                                                    id: 'demo_child2',
+                                                    name: 'Grace Wamboi',
+                                                    relation: 'Daughter',
+                                                    branch: 'Maternal',
+                                                    birthYear: '1928',
+                                                    notes: 'Maternal matriarch.'
+                                                } as HeritageMember)}
+                                                style={{ transform: is3DMode ? 'translateZ(40px)' : 'none' }}
+                                                className={`p-4 rounded-2xl border-2 backdrop-blur-xl text-center transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 group relative ${
+                                                    themeMode === 'futuristic'
+                                                        ? 'bg-slate-950/90 border-pink-400/60 text-pink-200 hover:border-pink-300'
+                                                        : 'bg-white/5 border-white/10 border-t-4 border-t-amber-500'
+                                                }`}
+                                            >
+                                                <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Pencil className="w-2.5 h-2.5" />
+                                                </div>
+                                                <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
+                                                <p className="text-[8px] font-mono font-black text-pink-400 uppercase tracking-widest">Daughter • Gen 2 (Click to Edit)</p>
+                                            </div>
+                                        </div>
 
-                                    {/* Direct Add Branch Soul Button */}
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                        <button
-                                            onClick={() => setShowAddMemberModal(true)}
-                                            className="p-3.5 border-2 border-dashed border-amber-400/60 rounded-2xl bg-amber-500/15 text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition-all flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/10 active:scale-95 group"
-                                        >
-                                            <Plus className="w-4 h-4 text-amber-400 group-hover:text-slate-950" />
-                                            <span>Add Soul to Tree</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            /* Fallback Demo Interactive Tree Nodes */
-                            <div className="flex flex-col items-center">
-                                <div 
-                                    onClick={() => handleOpenEditMember({
-                                        id: 'demo_root',
-                                        name: 'Samuel Mwangi Sr.',
-                                        relation: 'Grandfather / Root Ancestor',
-                                        branch: 'Paternal',
-                                        birthYear: '1892',
-                                        deathYear: '1968',
-                                        notes: 'Foundational patriarch of the family lineage.'
-                                    } as HeritageMember)}
-                                    className={`p-4 md:p-5 border-2 rounded-2xl backdrop-blur-md text-center group cursor-pointer transition-all shadow-xl relative ${
-                                        themeMode === 'futuristic'
-                                            ? 'bg-amber-500/10 border-amber-400 text-white hover:bg-amber-500 hover:text-slate-950 shadow-amber-500/20'
-                                            : 'bg-white/10 border-amber-500 hover:bg-amber-500'
-                                    }`}
-                                >
-                                    <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Pencil className="w-3 h-3" />
-                                    </div>
-                                    <p className="font-black text-sm md:text-base uppercase tracking-tight group-hover:text-slate-950">Samuel Mwangi Sr.</p>
-                                    <p className="text-[10px] font-mono font-black text-amber-400 group-hover:text-slate-900 uppercase">1892 - 1968 • Root Ancestor</p>
-                                    <span className="text-[8px] font-mono block text-emerald-400 mt-1 uppercase font-bold">Click Node to Edit</span>
-                                </div>
-                                <div className="w-0.5 h-12 md:h-16 bg-gradient-to-b from-amber-500 via-amber-400 to-indigo-500"></div>
-                                <div className="flex gap-8 md:gap-12 items-start relative flex-wrap justify-center">
-                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-0.5 bg-indigo-500"></div>
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                        <div 
-                                            onClick={() => handleOpenEditMember({
-                                                id: 'demo_child1',
-                                                name: 'John Mwangi',
-                                                relation: 'Son',
-                                                branch: 'Paternal',
-                                                birthYear: '1924',
-                                                notes: 'Paternal lineage heir.'
-                                            } as HeritageMember)}
-                                            className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all cursor-pointer hover:scale-105 active:scale-95 group relative ${
-                                                themeMode === 'futuristic'
-                                                    ? 'bg-slate-950/80 border-cyan-500/40 text-cyan-300 hover:border-cyan-400'
-                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                            }`}
-                                        >
-                                            <div className="absolute -top-2 -right-2 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Pencil className="w-2.5 h-2.5" />
-                                            </div>
-                                            <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
-                                            <p className="text-[8px] font-mono font-black text-cyan-400 uppercase tracking-widest">Son • Gen 2 (Click Node to Edit)</p>
+                                        {/* Direct Add Node Button on Tree */}
+                                        <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                            <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                            <button
+                                                onClick={() => setShowAddMemberModal(true)}
+                                                style={{ transform: is3DMode ? 'translateZ(35px)' : 'none' }}
+                                                className="p-4 border-2 border-dashed border-amber-400/70 rounded-2xl bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition-all duration-300 flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/20 active:scale-95 group hover:scale-105"
+                                            >
+                                                <Plus className="w-4 h-4 text-amber-400 group-hover:text-slate-950 animate-bounce" />
+                                                <span>Add Soul to Tree</span>
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                        <div 
-                                            onClick={() => handleOpenEditMember({
-                                                id: 'demo_child2',
-                                                name: 'Grace Wamboi',
-                                                relation: 'Daughter',
-                                                branch: 'Maternal',
-                                                birthYear: '1928',
-                                                notes: 'Maternal matriarch.'
-                                            } as HeritageMember)}
-                                            className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all cursor-pointer hover:scale-105 active:scale-95 group relative ${
-                                                themeMode === 'futuristic'
-                                                    ? 'bg-slate-950/80 border-pink-500/50 text-pink-300 shadow-lg shadow-pink-500/10'
-                                                    : 'bg-white/5 border-white/10 border-t-4 border-t-amber-500'
-                                            }`}
-                                        >
-                                            <div className="absolute -top-2 -right-2 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Pencil className="w-2.5 h-2.5" />
-                                            </div>
-                                            <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
-                                            <p className="text-[8px] font-mono font-black text-pink-400 uppercase tracking-widest">Daughter • Gen 2 (Click Node to Edit)</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Direct Add Node Button on Tree */}
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                        <button
-                                            onClick={() => setShowAddMemberModal(true)}
-                                            className="p-3.5 border-2 border-dashed border-amber-400/60 rounded-2xl bg-amber-500/15 text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition-all flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/10 active:scale-95 group"
-                                        >
-                                            <Plus className="w-4 h-4 text-amber-400 group-hover:text-slate-950" />
-                                            <span>Add Soul to Tree</span>
-                                        </button>
-                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
 
-                    <div className="mt-12 flex flex-col items-center gap-3">
+                    <div className="mt-8 flex flex-col items-center gap-3">
                         <button
                             onClick={() => setShowAddMemberModal(true)}
-                            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-amber-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
                         >
                             <Plus className="w-4 h-4" />
                             Add New Soul directly to Tree
                         </button>
-                        <div className="text-[10px] font-mono font-black uppercase text-slate-500 tracking-[0.3em]">
-                            Click Any Ancestry Node Above to Edit • Click + Button to Add Soul
+                        <div className="text-[10px] font-mono font-black uppercase text-slate-400 tracking-[0.3em] flex items-center gap-2">
+                            <span>🔮 3D Hologram Spatial Mode</span> • <span>Click Any Ancestry Node Above to Edit</span>
                         </div>
                     </div>
                 </div>
