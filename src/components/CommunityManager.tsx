@@ -27,7 +27,19 @@ import {
     Star,
     Vote,
     CheckCircle,
-    FileSpreadsheet
+    FileSpreadsheet,
+    Menu,
+    X,
+    ChevronLeft,
+    ChevronRight,
+    Cpu,
+    Zap,
+    BarChart3,
+    Shield,
+    Upload,
+    Download,
+    Layers,
+    Activity
 } from 'lucide-react';
 import type { 
     Institution, User, 
@@ -68,7 +80,10 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
     const [activeTab, setActiveTab] = useState(getInitialTab());
     const [searchTerm, setSearchTerm] = useState('');
-    const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements'>('tree');
+    const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements' | 'members' | 'analytics' | 'hud'>('tree');
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
     const [showExcelImporterModal, setShowExcelImporterModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -492,322 +507,798 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         </div>
     );
 
-    const renderHeritage = () => {
-        return (
-            <div className="animate-fade-in space-y-8">
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-                        <TreePalm className="w-64 h-64" />
+    const renderTreeSubView = () => (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+            {/* Visual Family Tree Preview */}
+            <div className={`lg:col-span-2 rounded-[3rem] p-6 md:p-12 relative overflow-hidden min-h-[480px] border shadow-2xl ${
+                themeMode === 'futuristic'
+                    ? 'bg-slate-900/90 border-amber-500/40 text-white shadow-amber-500/10'
+                    : 'bg-slate-900 border-slate-800 text-white'
+            }`}>
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/graphy.png')] opacity-10"></div>
+                <div className="relative z-10 flex flex-col items-center">
+                    <div className="w-full flex justify-between items-center mb-10 flex-wrap gap-4">
+                        <span className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-amber-400">
+                            {themeMode === 'futuristic' ? '⚡ CYBER LINEAGE MATRIX - GEN 1' : 'Gen 1: Foundational Roots'}
+                        </span>
+                        <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></div> Paternal</div>
+                            <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-pink-500 shadow-sm shadow-pink-500/50"></div> Maternal</div>
+                        </div>
                     </div>
-                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-8">
-                        <div className="max-w-xl">
-                            <h3 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-4">
-                                <History className="w-10 h-10 text-amber-600" />
-                                {heritageView === 'tree' ? 'Ancestry Map' : 
-                                 heritageView === 'stories' ? 'Origin & Oral History' : 
-                                 heritageView === 'gallery' ? 'Heritage Gallery' : 'Family Council'}
-                            </h3>
-                            <p className="text-slate-500 font-medium mt-2">
-                                {heritageView === 'tree' ? 'Visualize your lineage and connect the branches of your family tree.' : 
-                                 heritageView === 'stories' ? 'Document the stories of your origin, migration, and family achievements.' : 
-                                 heritageView === 'gallery' ? 'Preserve the faces and places that define your family legacy.' : 'Coordinate family meetings, ceremonies, and important announcements.'}
-                            </p>
+
+                    {/* Interactive Tree Root Simulation */}
+                    <div className="space-y-12 md:space-y-16 w-full max-w-2xl">
+                        <div className="flex flex-col items-center">
+                            <div className={`p-4 md:p-5 border-2 rounded-2xl backdrop-blur-md text-center group cursor-pointer transition-all shadow-xl ${
+                                themeMode === 'futuristic'
+                                    ? 'bg-amber-500/10 border-amber-400 text-white hover:bg-amber-500 hover:text-slate-950 shadow-amber-500/20'
+                                    : 'bg-white/10 border-amber-500 hover:bg-amber-500'
+                            }`}>
+                                <p className="font-black text-sm md:text-base uppercase tracking-tight group-hover:text-slate-950">Samuel Mwangi Sr.</p>
+                                <p className="text-[10px] font-mono font-black text-amber-400 group-hover:text-slate-900 uppercase">1892 - 1968 • Root Ancestor</p>
+                            </div>
+                            <div className="w-0.5 h-12 md:h-16 bg-gradient-to-b from-amber-500 via-amber-400 to-indigo-500"></div>
+                            <div className="flex gap-8 md:gap-20 items-start relative">
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[160px] md:w-[240px] h-0.5 bg-indigo-500"></div>
+                                <div className="flex flex-col items-center">
+                                    <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                    <div className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all select-none ${
+                                        themeMode === 'futuristic'
+                                            ? 'bg-slate-950/80 border-cyan-500/40 text-cyan-300 hover:border-cyan-400'
+                                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                    }`}>
+                                        <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
+                                        <p className="text-[8px] font-mono font-black text-cyan-400 uppercase tracking-widest">Son • Gen 2</p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                    <div className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                                        themeMode === 'futuristic'
+                                            ? 'bg-slate-950/80 border-pink-500/50 text-pink-300 shadow-lg shadow-pink-500/10'
+                                            : 'bg-white/5 border-white/10 border-t-4 border-t-amber-500'
+                                    }`}>
+                                        <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
+                                        <p className="text-[8px] font-mono font-black text-pink-400 uppercase tracking-widest">Daughter • Gen 2</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
-                            {[
-                                { id: 'tree', label: 'Tree', icon: Network },
-                                { id: 'stories', label: 'Stories', icon: Library },
-                                { id: 'gallery', label: 'Gallery', icon: ImageIcon },
-                                { id: 'announcements', label: 'Council', icon: Ghost }
-                            ].map((view) => (
-                                <button
-                                    key={view.id}
-                                    onClick={() => setHeritageView(view.id as any)}
-                                    className={`px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${heritageView === view.id ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                                >
-                                    <view.icon className="w-4 h-4" />
-                                    <span className="hidden sm:inline">{view.label}</span>
-                                </button>
-                            ))}
-                        </div>
+                    </div>
+
+                    <div className="mt-12 text-center text-[10px] font-mono font-black uppercase text-slate-500 tracking-[0.4em]">
+                        Hold & Drag to Explore Interactive Lineage Map
+                    </div>
+                </div>
+            </div>
+
+            {/* Tree Members Panel */}
+            <div className="space-y-6">
+                <div className={`p-6 md:p-8 rounded-[3rem] border transition-all ${
+                    themeMode === 'futuristic'
+                        ? 'bg-slate-900/90 border-amber-500/30 shadow-2xl'
+                        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm'
+                }`}>
+                    <div className="flex justify-between items-center mb-6">
+                        <h4 className="text-xl font-black uppercase tracking-tight">Tree Members</h4>
+                        <button
+                            onClick={() => setShowAddMemberModal(true)}
+                            className="p-2 bg-amber-500 text-slate-950 rounded-xl hover:bg-amber-400 active:scale-95 transition-all"
+                            title="Add Soul"
+                        >
+                            <Plus className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <div className="space-y-3 max-h-72 overflow-y-auto pr-2">
+                        {treeMembers.length === 0 ? (
+                            <div className="p-6 text-center text-xs font-bold uppercase tracking-widest text-slate-400 border border-dashed border-slate-800 rounded-2xl">
+                                No tree members added yet.
+                            </div>
+                        ) : (
+                            treeMembers.map((m) => (
+                                <div key={m.id} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
+                                    themeMode === 'futuristic'
+                                        ? 'bg-slate-950/60 border-slate-800 hover:border-amber-500/40 text-white'
+                                        : 'bg-slate-50 dark:bg-slate-900/50 border-transparent hover:border-amber-100'
+                                }`}>
+                                    {m.profilePhotoUrl ? (
+                                        <img loading="lazy" 
+                                            src={m.profilePhotoUrl} 
+                                            alt={m.name} 
+                                            className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
+                                        />
+                                    ) : (
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs flex-shrink-0 ${
+                                            m.branch === 'Paternal' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                        }`}>
+                                            {m.name.charAt(0)}
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-black text-xs uppercase tracking-tight truncate">{m.name}</p>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{m.relation} · {m.branch}</p>
+                                    </div>
+                                    {m.birthYear && <span className="text-[9px] font-mono font-black text-amber-400 shrink-0">{m.birthYear}</span>}
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
 
-                {heritageView === 'tree' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Visual Family Tree Preview */}
-                        <div className="lg:col-span-2 bg-slate-900 rounded-[3rem] p-12 text-white relative overflow-hidden min-h-[500px] border-4 border-slate-800 shadow-2xl">
-                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/graphy.png')] opacity-10"></div>
-                            <div className="relative z-10 flex flex-col items-center">
-                                <div className="w-full flex justify-between items-center mb-12">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-400">Gen 1: Foundational Roots</p>
-                                    <div className="flex gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                        <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Paternal</div>
-                                        <div className="flex items-center gap-2 ml-4"><div className="w-2 h-2 rounded-full bg-pink-500"></div> Maternal</div>
-                                    </div>
-                                </div>
-
-                                {/* Interactive Tree Root Simulation */}
-                                <div className="space-y-16 w-full max-w-2xl">
-                                    <div className="flex flex-col items-center">
-                                        <div className="p-4 bg-white/10 border-2 border-amber-500 rounded-2xl backdrop-blur-md text-center group cursor-pointer hover:bg-amber-500 transition-all">
-                                            <p className="font-black text-sm uppercase tracking-tight group-hover:text-slate-900">Samuel Mwangi Sr.</p>
-                                            <p className="text-[9px] font-black text-amber-400 uppercase group-hover:text-slate-800">1892 - 1968</p>
-                                        </div>
-                                        <div className="w-0.5 h-16 bg-gradient-to-b from-amber-500 to-indigo-500"></div>
-                                        <div className="flex gap-20 items-start relative">
-                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[240px] h-0.5 bg-indigo-500"></div>
-                                            <div className="flex flex-col items-center">
-                                                <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                                <div className="p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm text-center transition-all hover:bg-white/10 select-none">
-                                                    <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
-                                                    <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Son</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex flex-col items-center">
-                                                <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                                <div className="p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm text-center border-t-4 border-t-amber-500 animate-pulse transition-all hover:scale-105 active:scale-95 cursor-pointer">
-                                                    <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
-                                                    <p className="text-[8px] font-black text-amber-400 uppercase tracking-widest">Daughter</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="absolute bottom-12 text-center text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">
-                                    Hold & Drag to Explore Lineage
-                                </div>
-                            </div>
+                <div className={`p-6 rounded-[2.5rem] border transition-all ${
+                    themeMode === 'futuristic'
+                        ? 'bg-slate-900/90 border-amber-500/30 shadow-xl'
+                        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm'
+                }`}>
+                    <h4 className="text-sm font-black uppercase tracking-tight mb-4 flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-amber-500" />
+                        Tree Lineage Health
+                    </h4>
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center text-[10px] font-mono font-black uppercase tracking-widest">
+                            <span className="text-slate-400">Total Recorded Souls</span>
+                            <span className="text-amber-400">{treeMembers.length} Members</span>
                         </div>
-
-                        {/* Heritage Status + Member List */}
-                        <div className="space-y-6">
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Tree Members</h4>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => setShowExcelImporterModal(true)}
-                                            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-100 dark:shadow-none hover:bg-emerald-700 active:scale-95 transition-all"
-                                        >
-                                            <FileSpreadsheet className="w-4 h-4" />
-                                            Import Excel
-                                        </button>
-                                        <button
-                                            onClick={() => setShowAddMemberModal(true)}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-100 dark:shadow-none hover:bg-amber-700 active:scale-95 transition-all"
-                                        >
-                                            <Plus className="w-4 h-4" />
-                                            Add Member
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
-                                    {treeMembers.map((m) => (
-                                        <div key={m.id} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent hover:border-amber-100 transition-all">
-                                            {m.profilePhotoUrl ? (
-                                                <img loading="lazy" 
-                                                    src={m.profilePhotoUrl} 
-                                                    alt={m.name} 
-                                                    className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
-                                                />
-                                            ) : (
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs flex-shrink-0 ${m.branch === 'Paternal' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-                                                    {m.name.charAt(0)}
-                                                </div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-black text-slate-800 dark:text-slate-200 text-xs uppercase tracking-tight truncate">{m.name}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{m.relation} · {m.branch}</p>
-                                            </div>
-                                            {m.birthYear && <span className="text-[9px] font-black text-slate-400 uppercase shrink-0">{m.birthYear}</span>}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight mb-4">Tree Health</h4>
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                                        <span>Total Members</span>
-                                        <span className="text-amber-600">{treeMembers.length} Souls</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                                        <span>Paternal Branch</span>
-                                        <span className="text-blue-600">{treeMembers.filter(m => m.branch === 'Paternal').length}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                                        <span>Maternal Branch</span>
-                                        <span className="text-pink-600">{treeMembers.filter(m => m.branch === 'Maternal').length}</span>
-                                    </div>
-                                    <div className="w-full h-2 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden mt-2">
-                                        <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${Math.min((treeMembers.length / 20) * 100, 100)}%` }}></div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div className="flex justify-between items-center text-[10px] font-mono font-black uppercase tracking-widest">
+                            <span className="text-slate-400">Paternal Lineage</span>
+                            <span className="text-blue-400">{treeMembers.filter(m => m.branch === 'Paternal').length}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] font-mono font-black uppercase tracking-widest">
+                            <span className="text-slate-400">Maternal Lineage</span>
+                            <span className="text-pink-400">{treeMembers.filter(m => m.branch === 'Maternal').length}</span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden mt-2 border border-slate-800">
+                            <div className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-500" style={{ width: `${Math.min((treeMembers.length / 20) * 100, 100)}%` }}></div>
                         </div>
                     </div>
-                )}
+                </div>
+            </div>
+        </div>
+    );
 
-                {heritageView === 'stories' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm min-h-[400px]">
-                            <div className="flex justify-between items-center mb-10">
-                                <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Historical Origins</h4>
-                                <button className="p-3 bg-amber-50 text-amber-600 rounded-2xl hover:bg-amber-100 transition-colors">
-                                    <Plus className="w-5 h-5" />
+    const renderStoriesSubView = () => (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+            <div className={`p-6 md:p-8 rounded-[3rem] border min-h-[400px] transition-all ${
+                themeMode === 'futuristic'
+                    ? 'bg-slate-900/90 border-amber-500/30 shadow-2xl'
+                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm'
+            }`}>
+                <div className="flex justify-between items-center mb-8">
+                    <h4 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
+                        <Library className="w-6 h-6 text-amber-500" />
+                        Historical Origins
+                    </h4>
+                    <button className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-2xl hover:bg-amber-500 hover:text-slate-950 transition-all">
+                        <Plus className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="space-y-6">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+                            <Loader2 className="w-8 h-8 animate-spin mb-2 text-amber-500" />
+                            <p className="text-[10px] font-mono font-black uppercase tracking-widest">Loading Stories...</p>
+                        </div>
+                    ) : heritageStories.length === 0 ? (
+                        <div className="text-center p-10 border-2 border-dashed border-slate-800 rounded-3xl">
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No oral histories documented yet.</p>
+                        </div>
+                    ) : (
+                        heritageStories.map((story, i) => (
+                            <div key={story.id || i} className={`p-6 rounded-3xl border transition-all cursor-pointer ${
+                                themeMode === 'futuristic'
+                                    ? 'bg-slate-950/60 border-slate-800 hover:border-amber-500/40'
+                                    : 'bg-slate-50 dark:bg-slate-900/50 border-transparent hover:border-amber-100'
+                            }`}>
+                                <div className="flex justify-between items-start mb-2">
+                                    <h5 className="font-black uppercase tracking-tight text-sm">{story.title}</h5>
+                                    <span className="text-[10px] font-mono font-bold text-amber-400 uppercase">{story.storyDate}</span>
+                                </div>
+                                <p className="text-slate-400 text-sm line-clamp-2 italic mb-4">"{story.storyText}"</p>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-mono font-black uppercase text-slate-500">Oral Historian: {story.authorName || 'Elder'}</span>
+                                    <ArrowRight className="w-4 h-4 text-amber-500" />
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            <div className={`rounded-[3rem] p-8 relative overflow-hidden flex items-center justify-center border transition-all ${
+                themeMode === 'futuristic'
+                    ? 'bg-slate-900/90 border-amber-500/40 text-white shadow-2xl shadow-amber-500/10'
+                    : 'bg-slate-900 text-white border-slate-800'
+            }`}>
+                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent pointer-events-none"></div>
+                <div className="relative z-10 text-center animate-pulse">
+                    <Mic className="w-20 h-20 text-amber-500 mx-auto mb-6 opacity-70" />
+                    <h4 className="text-2xl font-black uppercase tracking-tighter mb-2">Voice of Elders Vault</h4>
+                    <p className="text-slate-400 text-xs font-mono font-bold uppercase tracking-[0.2em]">Record Oral Testimony & Audio Archives</p>
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderGallerySubView = () => (
+        <div className="space-y-8">
+            <div className={`p-6 md:p-8 rounded-[3rem] border transition-all ${
+                themeMode === 'futuristic'
+                    ? 'bg-slate-900/90 border-amber-500/30 shadow-2xl'
+                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm'
+            }`}>
+                <div className="flex justify-between items-center mb-10 flex-wrap gap-4">
+                    <div>
+                        <h4 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
+                            <ImageIcon className="w-6 h-6 text-amber-500" />
+                            Heirloom Gallery
+                        </h4>
+                        <p className="text-slate-400 text-[10px] font-mono font-black uppercase tracking-widest mt-1">Encrypted Photo & Media Vault</p>
+                    </div>
+                    <button className="bg-gradient-to-r from-amber-500 to-yellow-600 text-slate-950 px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl hover:brightness-110 active:scale-95 transition-all">
+                        <Upload className="w-4 h-4" />
+                        Upload Heirlooms
+                    </button>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    {isLoading ? (
+                        <div className="col-span-full py-12 flex justify-center">
+                            <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+                        </div>
+                    ) : heritageGallery.length === 0 ? (
+                        <div className="col-span-full py-16 text-center border-2 border-dashed border-slate-800 rounded-[3rem]">
+                            <ImageIcon className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                            <p className="text-slate-400 text-[10px] font-mono font-black uppercase tracking-[0.2em]">The vault gallery is currently empty.</p>
+                        </div>
+                    ) : (
+                        heritageGallery.map((item, i) => (
+                            <div key={item.id || i} className="aspect-square bg-slate-950 rounded-3xl overflow-hidden group relative cursor-pointer border border-slate-800">
+                                <img loading="lazy" src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Sparkles className="w-8 h-8 text-amber-400 scale-0 group-hover:scale-100 transition-transform duration-500" />
+                                </div>
+                                <div className="absolute bottom-4 left-4 right-4">
+                                    <p className="text-[10px] font-mono font-black uppercase tracking-widest text-white truncate">{item.title}</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderAnnouncementsSubView = () => (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+            <div className="lg:col-span-2 space-y-8">
+                <div className={`p-6 md:p-8 rounded-[3rem] border transition-all ${
+                    themeMode === 'futuristic'
+                        ? 'bg-slate-900/90 border-amber-500/30 shadow-2xl'
+                        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm'
+                }`}>
+                    <h4 className="text-xl font-black uppercase tracking-tight mb-8 flex items-center gap-3">
+                        <Ghost className="w-6 h-6 text-amber-500" />
+                        Family Proclamations
+                    </h4>
+                    <div className="space-y-6">
+                        {isLoading ? (
+                            <div className="flex justify-center p-12">
+                                <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+                            </div>
+                        ) : heritageAnnouncements.length === 0 ? (
+                            <div className="text-center p-12 bg-slate-950/40 rounded-3xl border-2 border-dashed border-slate-800">
+                                <p className="text-slate-400 text-xs font-mono font-bold uppercase tracking-widest">No proclamations have been published.</p>
+                            </div>
+                        ) : (
+                            heritageAnnouncements.map((post, i) => (
+                                <div key={post.id || i} className={`p-6 rounded-3xl border flex gap-6 transition-all ${
+                                    themeMode === 'futuristic'
+                                        ? 'bg-slate-950/60 border-slate-800 hover:border-amber-500/40'
+                                        : 'bg-slate-50 dark:bg-slate-900/50 border-transparent hover:border-slate-100'
+                                }`}>
+                                    <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col items-center justify-center flex-shrink-0">
+                                        <span className="text-xs font-mono font-black text-amber-400 uppercase">
+                                            {post.announcementDate?.split(' ')[0] || 'TBD'}
+                                        </span>
+                                        <span className="text-[9px] font-mono text-slate-400 uppercase">
+                                            {post.announcementDate?.split(' ')[1] || ''}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[8px] font-mono font-black bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full tracking-widest uppercase">{post.type}</span>
+                                            <h5 className="font-black text-sm uppercase tracking-tight">{post.title}</h5>
+                                        </div>
+                                        <p className="text-slate-400 text-xs leading-relaxed">{post.detail}</p>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-6">
+                <div className={`p-8 rounded-[3rem] shadow-2xl relative overflow-hidden border transition-all ${
+                    themeMode === 'futuristic'
+                        ? 'bg-slate-900/90 border-amber-500/40 text-white shadow-amber-500/10'
+                        : 'bg-slate-900 text-white border-slate-800'
+                }`}>
+                    <div className="absolute top-0 right-0 p-8 opacity-10">
+                        <CalendarDaysIcon className="w-20 h-20 text-amber-500" />
+                    </div>
+                    <h4 className="text-lg font-black uppercase tracking-tighter mb-6 relative z-10 flex items-center gap-2">
+                        Council Meetings
+                    </h4>
+                    <div className="space-y-4 relative z-10">
+                        <div className="p-4 bg-white/10 rounded-2xl border border-white/10 backdrop-blur-md">
+                            <p className="text-[9px] font-mono font-black uppercase tracking-widest text-amber-400">Next Assembly</p>
+                            <p className="text-sm font-bold mt-1 uppercase">Heritage Elders Council Sync</p>
+                            <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono">Zoom • Saturday, 4PM</p>
+                        </div>
+                        <button className="w-full py-3 bg-amber-500 text-slate-950 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 hover:bg-amber-400 active:scale-95 transition-all">
+                            Join Council Link
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderMembersSubView = () => (
+        <div className="space-y-6">
+            <div className={`p-6 md:p-8 rounded-[3rem] border transition-all ${
+                themeMode === 'futuristic'
+                    ? 'bg-slate-900/90 border-amber-500/30 shadow-2xl'
+                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm'
+            }`}>
+                <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+                    <div>
+                        <h4 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
+                            <Users className="w-6 h-6 text-amber-500" />
+                            Tree Members Directory
+                        </h4>
+                        <p className="text-slate-400 text-[10px] font-mono font-black uppercase tracking-widest mt-1">
+                            Total Records: {treeMembers.length} Souls
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setShowExcelImporterModal(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-emerald-700 active:scale-95 transition-all"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" />
+                            Import Excel
+                        </button>
+                        <button
+                            onClick={() => setShowAddMemberModal(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-slate-950 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-amber-400 active:scale-95 transition-all"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Add Soul
+                        </button>
+                    </div>
+                </div>
+
+                {treeMembers.length === 0 ? (
+                    <div className="p-16 text-center text-xs font-mono font-bold uppercase tracking-widest text-slate-400 border border-dashed border-slate-800 rounded-3xl">
+                        No family tree members registered yet.
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-amber-500/20 bg-slate-950/40 text-[10px] font-mono font-black uppercase tracking-widest text-amber-400">
+                                    <th className="p-4">Full Name</th>
+                                    <th className="p-4">Branch</th>
+                                    <th className="p-4">Relationship</th>
+                                    <th className="p-4">Lifespan</th>
+                                    <th className="p-4">Historical Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/50 text-xs">
+                                {treeMembers.map((m, idx) => (
+                                    <tr key={m.id || idx} className="hover:bg-slate-800/50 transition-colors">
+                                        <td className="p-4 font-black uppercase flex items-center gap-3">
+                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs ${
+                                                m.branch === 'Paternal' ? 'bg-blue-500/20 text-blue-400' : 'bg-pink-500/20 text-pink-400'
+                                            }`}>
+                                                {m.name.charAt(0)}
+                                            </div>
+                                            <span>{m.name}</span>
+                                        </td>
+                                        <td className="p-4">
+                                            <span className={`px-3 py-1 rounded-full text-[9px] font-mono font-black uppercase ${
+                                                m.branch === 'Paternal' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                            }`}>
+                                                {m.branch}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 font-bold text-slate-300">{m.relation}</td>
+                                        <td className="p-4 font-mono font-bold text-amber-400">
+                                            {m.birthYear || '—'} {m.deathYear ? `- ${m.deathYear}` : ''}
+                                        </td>
+                                        <td className="p-4 text-slate-400 font-medium max-w-xs truncate">{m.notes || '—'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    const renderAnalyticsSubView = () => (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-slate-900/90 border border-amber-500/30 p-6 rounded-[2.5rem] shadow-xl">
+                    <span className="text-[9px] font-mono font-black uppercase text-slate-400 tracking-widest">Total Ancestral Souls</span>
+                    <h4 className="text-3xl font-black text-amber-400 mt-2">{treeMembers.length}</h4>
+                </div>
+                <div className="bg-slate-900/90 border border-amber-500/30 p-6 rounded-[2.5rem] shadow-xl">
+                    <span className="text-[9px] font-mono font-black uppercase text-slate-400 tracking-widest">Paternal Lineage</span>
+                    <h4 className="text-3xl font-black text-blue-400 mt-2">{treeMembers.filter(m => m.branch === 'Paternal').length}</h4>
+                </div>
+                <div className="bg-slate-900/90 border border-amber-500/30 p-6 rounded-[2.5rem] shadow-xl">
+                    <span className="text-[9px] font-mono font-black uppercase text-slate-400 tracking-widest">Maternal Lineage</span>
+                    <h4 className="text-3xl font-black text-pink-400 mt-2">{treeMembers.filter(m => m.branch === 'Maternal').length}</h4>
+                </div>
+                <div className="bg-slate-900/90 border border-amber-500/30 p-6 rounded-[2.5rem] shadow-xl">
+                    <span className="text-[9px] font-mono font-black uppercase text-slate-400 tracking-widest">Documented Lifespans</span>
+                    <h4 className="text-3xl font-black text-emerald-400 mt-2">{treeMembers.filter(m => m.birthYear || m.deathYear).length}</h4>
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderCyberHudSubView = () => (
+        <div className="space-y-6">
+            <div className="bg-slate-900/90 border border-amber-500/40 p-8 rounded-[3rem] shadow-2xl text-white">
+                <div className="flex items-center gap-3 mb-6">
+                    <Zap className="w-8 h-8 text-amber-400 animate-pulse" />
+                    <div>
+                        <h4 className="text-2xl font-black uppercase tracking-tight">Quantum Biometric Vault Status</h4>
+                        <p className="text-xs font-mono text-amber-400 uppercase tracking-widest">Encrypted Soul Ledger v4.0 • Zero-Knowledge Vault Active</p>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800">
+                        <p className="text-[9px] font-mono text-slate-400 uppercase">Encryption Cipher</p>
+                        <p className="text-sm font-mono font-black text-emerald-400 mt-1">AES-256 GCM ANCESTRY</p>
+                    </div>
+                    <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800">
+                        <p className="text-[9px] font-mono text-slate-400 uppercase">Vault Integrity</p>
+                        <p className="text-sm font-mono font-black text-amber-400 mt-1">100% SECURED</p>
+                    </div>
+                    <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800">
+                        <p className="text-[9px] font-mono text-slate-400 uppercase">Cloud Backup Hash</p>
+                        <p className="text-sm font-mono font-black text-blue-400 mt-1">0x89F...7C2</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderHeritage = () => {
+        const heritageSubTabs = [
+            { id: 'tree', label: 'Ancestry Map', badge: 'Lineage Tree', icon: Network },
+            { id: 'stories', label: 'Origin Stories', badge: 'Oral History', icon: Library },
+            { id: 'gallery', label: 'Heritage Vault', badge: 'Media Vault', icon: ImageIcon },
+            { id: 'announcements', label: 'Family Council', badge: 'Proclamations', icon: Ghost },
+            { id: 'members', label: 'Tree Members', badge: 'Directory', icon: Users },
+            { id: 'analytics', label: 'Lineage Analytics', badge: 'Metrics', icon: BarChart3 },
+            { id: 'hud', label: 'Cyber Vault HUD', badge: 'Quantum', icon: Zap }
+        ];
+
+        return (
+            <div className={`transition-all duration-500 min-h-[850px] w-full text-left ${
+                themeMode === 'futuristic'
+                    ? 'bg-slate-950/75 p-3 md:p-6 rounded-[3rem] border border-amber-500/30 shadow-2xl shadow-amber-500/10 text-white'
+                    : 'bg-white dark:bg-slate-800 p-4 md:p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm'
+            }`}>
+                
+                {/* ── Mobile Top Header (Android & Mobile Responsive) ── */}
+                <div className="md:hidden flex items-center justify-between p-4 mb-6 bg-slate-900/90 backdrop-blur-xl border border-amber-500/30 rounded-2xl shadow-xl">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-gradient-to-tr from-amber-500 to-yellow-600 rounded-xl text-slate-950 shadow-md">
+                            <History className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-xs uppercase tracking-tight text-white flex items-center gap-1.5 truncate max-w-[150px]">
+                                {currentInstitution.name}
+                            </h3>
+                            <p className="text-[9px] font-mono font-bold text-amber-400 uppercase tracking-widest">
+                                {themeMode === 'futuristic' ? '⚡ Cyber HUD' : 'Family Heritage'}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setThemeMode(themeMode === 'futuristic' ? 'classic' : 'futuristic')}
+                            className="p-2.5 bg-slate-800 border border-amber-500/30 text-amber-400 rounded-xl text-xs active:scale-95 transition-all"
+                            title="Toggle Futuristic Cyber Theme"
+                        >
+                            {themeMode === 'futuristic' ? '⚡' : '🏛️'}
+                        </button>
+                        <button
+                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                            className="p-2.5 bg-amber-500 text-slate-950 rounded-xl active:scale-95 transition-all shadow-lg font-black"
+                        >
+                            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── Mobile Slide-Over Navigation Drawer ── */}
+                {isMobileMenuOpen && (
+                    <div className="md:hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl p-6 flex flex-col justify-between animate-fade-in text-white">
+                        <div>
+                            <div className="flex justify-between items-center pb-6 border-b border-amber-500/20 mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-amber-500 text-slate-950 rounded-2xl font-black">
+                                        <History className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black text-sm uppercase text-white tracking-tight">Family Navigation</h4>
+                                        <p className="text-[9px] font-mono text-amber-400 uppercase tracking-widest">Ancestry Control System</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className="p-3 bg-slate-900 border border-slate-800 text-slate-400 rounded-2xl"
+                                >
+                                    <X className="w-6 h-6" />
                                 </button>
                             </div>
-                            <div className="space-y-6">
-                                {isLoading ? (
-                                    <div className="flex flex-col items-center justify-center p-12 text-slate-400">
-                                        <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest">Loading Stories...</p>
-                                    </div>
-                                ) : heritageStories.length === 0 ? (
-                                    <div className="text-center p-10 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
-                                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No oral histories documented yet.</p>
-                                    </div>
-                                ) : (
-                                    heritageStories.map((story, i) => (
-                                        <div key={story.id || i} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-amber-100 transition-all cursor-pointer">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h5 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">{story.title}</h5>
-                                                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">{story.storyDate}</span>
+
+                            <div className="space-y-2">
+                                {heritageSubTabs.map((tab) => {
+                                    const isActive = heritageView === tab.id;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => {
+                                                setHeritageView(tab.id as any);
+                                                setIsMobileMenuOpen(false);
+                                            }}
+                                            className={`w-full p-4 rounded-2xl flex items-center justify-between text-left font-bold text-xs uppercase tracking-wider transition-all ${
+                                                isActive
+                                                    ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-slate-950 font-black shadow-lg shadow-amber-500/30'
+                                                    : 'bg-slate-900/60 text-slate-300 border border-slate-800 hover:border-amber-500/40'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <tab.icon className="w-5 h-5" />
+                                                <span>{tab.label}</span>
                                             </div>
-                                            <p className="text-slate-500 text-sm line-clamp-2 italic mb-4">"{story.storyText}"</p>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[10px] font-black uppercase text-slate-400">Oral Historian: {story.authorName || 'Elder'}</span>
-                                                <ArrowRight className="w-4 h-4 text-slate-300" />
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
+                                            <span className={`text-[8px] font-mono px-2 py-0.5 rounded-full uppercase ${
+                                                isActive ? 'bg-slate-950/40 text-slate-950 font-bold' : 'bg-slate-800 text-amber-400'
+                                            }`}>
+                                                {tab.badge}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
-                        <div className="bg-slate-900 rounded-[3rem] p-8 text-white relative overflow-hidden flex items-center justify-center">
-                            <div className="absolute inset-0 bg-gradient-to-br from-amber-600/10 to-transparent"></div>
-                            <div className="relative z-10 text-center animate-pulse">
-                                <Mic className="w-20 h-20 text-amber-500 mx-auto mb-6 opacity-50" />
-                                <h4 className="text-2xl font-black uppercase tracking-tighter mb-2">Voice of Elders</h4>
-                                <p className="text-slate-400 text-sm uppercase font-bold tracking-[0.2em]">Record Oral Testimony</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {heritageView === 'gallery' && (
-                    <div className="space-y-8">
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <div className="flex justify-between items-center mb-10">
-                                <div>
-                                    <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Heirloom Gallery</h4>
-                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Preserve every smile & milestone</p>
-                                </div>
-                                <button className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl shadow-indigo-100 transition-all active:scale-95">
-                                    <ImageIcon className="w-5 h-5" />
-                                    Upload Photos
-                                </button>
-                            </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                {isLoading ? (
-                                    <div className="col-span-full py-12 flex justify-center">
-                                        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-                                    </div>
-                                ) : heritageGallery.length === 0 ? (
-                                    <div className="col-span-full py-20 text-center border-4 border-dashed border-slate-50 dark:border-slate-900 rounded-[3rem]">
-                                        <ImageIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">The gallery is currently empty.</p>
-                                    </div>
-                                ) : (
-                                    heritageGallery.map((item, i) => (
-                                        <div key={item.id || i} className="aspect-square bg-slate-100 dark:bg-slate-900 rounded-3xl overflow-hidden group relative cursor-pointer">
-                                            <img loading="lazy" src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                <Sparkles className="w-8 h-8 text-white scale-0 group-hover:scale-100 transition-transform duration-500" />
-                                            </div>
-                                            <div className="absolute bottom-4 left-4 right-4">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-white truncate">{item.title}</p>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {heritageView === 'announcements' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="lg:col-span-2 space-y-8">
-                            {/* Announcements Feed */}
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white mb-8">Family Proclamations</h4>
-                                <div className="space-y-6">
-                                    {isLoading ? (
-                                        <div className="flex justify-center p-12">
-                                            <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
-                                        </div>
-                                    ) : heritageAnnouncements.length === 0 ? (
-                                        <div className="text-center p-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800">
-                                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No proclamations have been made.</p>
-                                        </div>
-                                    ) : (
-                                        heritageAnnouncements.map((post, i) => (
-                                            <div key={post.id || i} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-slate-100 transition-all flex gap-6">
-                                                <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center border border-slate-100 shadow-sm flex-shrink-0">
-                                                    <span className="text-xs font-black text-amber-600 uppercase tracking-tighter">
-                                                        {post.announcementDate?.split(' ')[0] || 'TBD'}
-                                                    </span>
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                        {post.announcementDate?.split(' ')[1] || ''}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full tracking-widest">{post.type}</span>
-                                                        <h5 className="font-black text-slate-800 dark:text-white text-sm uppercase tracking-tight">{post.title}</h5>
-                                                    </div>
-                                                    <p className="text-slate-500 text-xs leading-relaxed">{post.detail}</p>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Calendar Quick View */}
-                        <div className="space-y-6">
-                            <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-8 opacity-10">
-                                    <CalendarDaysIcon className="w-20 h-20" />
-                                </div>
-                                <h4 className="text-lg font-black uppercase tracking-tighter mb-6 relative z-10 flex items-center gap-2">
-                                    Council Meetings
-                                </h4>
-                                <div className="space-y-4 relative z-10">
-                                    <div className="p-4 bg-white/10 rounded-2xl border border-white/5">
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">Next Meeting</p>
-                                        <p className="text-sm font-bold mt-1">Heritage Committee Sync</p>
-                                        <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Zoom • Saturday, 4PM</p>
-                                    </div>
-                                    <button className="w-full py-3 bg-amber-500 text-slate-900 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 active:scale-95 transition-all">
-                                        Join Council Link
-                                    </button>
-                                </div>
-                            </div>
-
-                            <button className="w-full p-8 border-4 border-dashed border-slate-100 dark:border-slate-800 rounded-[3rem] text-slate-300 font-black uppercase tracking-widest text-[10px] hover:border-amber-200 hover:text-amber-500 transition-all flex flex-col items-center gap-4">
-                                <Plus className="w-8 h-8" />
-                                Create Announcement
+                        <div className="pt-6 border-t border-slate-800">
+                            <button
+                                onClick={() => {
+                                    setThemeMode(themeMode === 'futuristic' ? 'classic' : 'futuristic');
+                                    setIsMobileMenuOpen(false);
+                                }}
+                                className="w-full py-4 bg-slate-900 border border-amber-500/40 text-amber-400 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2"
+                            >
+                                <Zap className="w-4 h-4" />
+                                {themeMode === 'futuristic' ? 'Switch to Classic ERP Theme' : 'Switch to Cyber HUD Theme'}
                             </button>
                         </div>
                     </div>
                 )}
+
+                {/* ── Desktop & Main Layout: Left Vertical Menu + Main View Content ── */}
+                <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start w-full">
+                    
+                    {/* ── Left Vertical Navigation Menu Sidebar (Desktop) ── */}
+                    <aside className={`hidden md:flex flex-col justify-between transition-all duration-300 ${
+                        isSidebarCollapsed ? 'w-20' : 'w-72'
+                    } flex-shrink-0 ${
+                        themeMode === 'futuristic'
+                            ? 'bg-slate-900/90 border border-amber-500/30 shadow-2xl rounded-[2.5rem] p-5'
+                            : 'bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-5'
+                    }`}>
+                        <div className="space-y-6">
+                            {/* Sidebar Header */}
+                            <div className="flex items-center justify-between pb-4 border-b border-amber-500/20">
+                                {!isSidebarCollapsed && (
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2.5 rounded-2xl ${
+                                            themeMode === 'futuristic'
+                                                ? 'bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 shadow-lg shadow-amber-500/30'
+                                                : 'bg-amber-600 text-white'
+                                        }`}>
+                                            <History className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h4 className={`font-black text-xs uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
+                                                Heritage Vault
+                                            </h4>
+                                            <p className={`text-[8px] font-mono font-bold uppercase tracking-widest ${themeMode === 'futuristic' ? 'text-amber-400' : 'text-slate-400'}`}>
+                                                {themeMode === 'futuristic' ? '⚡ Cyber HUD v4.0' : 'Navigation Menu'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                                    className={`p-2 rounded-xl border transition-all ${
+                                        themeMode === 'futuristic'
+                                            ? 'bg-slate-950 border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-slate-950'
+                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+                                    }`}
+                                    title={isSidebarCollapsed ? "Expand Menu" : "Collapse Menu"}
+                                >
+                                    {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                                </button>
+                            </div>
+
+                            {/* Vertical Menu Buttons */}
+                            <nav className="space-y-2">
+                                {heritageSubTabs.map((item) => {
+                                    const isActive = heritageView === item.id;
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => setHeritageView(item.id as any)}
+                                            className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2 py-3' : 'justify-between px-4 py-3'} rounded-2xl font-bold text-xs uppercase tracking-wider transition-all duration-200 group ${
+                                                isActive
+                                                    ? (themeMode === 'futuristic'
+                                                        ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-slate-950 font-black shadow-lg shadow-amber-500/30 scale-[1.02]'
+                                                        : 'bg-amber-600 text-white shadow-md')
+                                                    : (themeMode === 'futuristic'
+                                                        ? 'text-slate-300 hover:bg-slate-800/80 hover:text-amber-400 border border-transparent hover:border-amber-500/30'
+                                                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800')
+                                            }`}
+                                            title={item.label}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <item.icon className={`w-5 h-5 flex-shrink-0 ${
+                                                    isActive
+                                                        ? (themeMode === 'futuristic' ? 'text-slate-950' : 'text-white')
+                                                        : (themeMode === 'futuristic' ? 'text-amber-400 group-hover:text-amber-300' : 'text-slate-400')
+                                                }`} />
+                                                {!isSidebarCollapsed && (
+                                                    <span className="truncate">{item.label}</span>
+                                                )}
+                                            </div>
+                                            {!isSidebarCollapsed && (
+                                                <span className={`text-[7px] font-mono px-2 py-0.5 rounded-full uppercase ${
+                                                    isActive
+                                                        ? (themeMode === 'futuristic' ? 'bg-slate-950/50 text-slate-950 font-bold' : 'bg-white/20 text-white')
+                                                        : 'bg-slate-800/60 text-amber-400'
+                                                }`}>
+                                                    {item.badge}
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </nav>
+                        </div>
+
+                        {/* Sidebar Footer & Theme Toggle Switch */}
+                        {!isSidebarCollapsed && (
+                            <div className="mt-8 pt-4 border-t border-amber-500/20">
+                                <button
+                                    onClick={() => setThemeMode(themeMode === 'futuristic' ? 'classic' : 'futuristic')}
+                                    className={`w-full py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-between transition-all ${
+                                        themeMode === 'futuristic'
+                                            ? 'bg-slate-950 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-slate-950 shadow-md'
+                                            : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                    }`}
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <Sparkles className="w-4 h-4 text-amber-400" />
+                                        {themeMode === 'futuristic' ? '⚡ Cyber HUD' : '🏛️ Classic'}
+                                    </span>
+                                    <span className="text-[8px] font-mono opacity-80">TOGGLE</span>
+                                </button>
+                            </div>
+                        )}
+                    </aside>
+
+                    {/* ── Main View Panel Container ── */}
+                    <main className="flex-1 w-full space-y-6 md:space-y-8 min-w-0">
+                        {/* Header Banner */}
+                        <div className={`p-6 md:p-8 rounded-[2.5rem] relative overflow-hidden transition-all border ${
+                            themeMode === 'futuristic'
+                                ? 'bg-slate-900/90 border-amber-500/40 shadow-2xl shadow-amber-500/10'
+                                : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm'
+                        }`}>
+                            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                                <TreePalm className="w-48 h-48 text-amber-500" />
+                            </div>
+                            
+                            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                <div>
+                                    <div className="flex items-center gap-3">
+                                        <span className={`px-3 py-1 text-[9px] font-mono font-black uppercase tracking-widest rounded-full border ${
+                                            themeMode === 'futuristic'
+                                                ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
+                                                : 'bg-amber-50 text-amber-600 border-amber-200'
+                                        }`}>
+                                            {themeMode === 'futuristic' ? '⚡ QUANTUM ANCESTRY HUD' : 'FAMILY HERITAGE PRESERVATION'}
+                                        </span>
+                                        <span className="text-[9px] font-mono text-slate-400 hidden sm:inline">ID: {currentInstitution.id.slice(0, 8)}</span>
+                                    </div>
+
+                                    <h3 className={`text-2xl md:text-3xl font-black uppercase tracking-tight mt-2 flex items-center gap-3 ${
+                                        themeMode === 'futuristic' ? 'text-white' : 'text-slate-800 dark:text-white'
+                                    }`}>
+                                        <History className="w-8 h-8 text-amber-500" />
+                                        {heritageView === 'tree' ? 'Ancestry Map & Lineage Tree' : 
+                                         heritageView === 'stories' ? 'Origin & Oral History Chronicles' : 
+                                         heritageView === 'gallery' ? 'Heritage Vault Gallery' : 
+                                         heritageView === 'announcements' ? 'Family Council & Proclamations' : 
+                                         heritageView === 'members' ? 'Tree Members Directory' : 
+                                         heritageView === 'analytics' ? 'Ancestral Metrics & Analytics' : 'Cyber Vault Security HUD'}
+                                    </h3>
+                                    
+                                    <p className={`text-xs font-medium mt-1 ${themeMode === 'futuristic' ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        {heritageView === 'tree' ? 'Visualize your ancestral lineage and connect paternal/maternal branches.' : 
+                                         heritageView === 'stories' ? 'Document oral testimonies, migration histories, and family achievements.' : 
+                                         heritageView === 'gallery' ? 'Preserve faces, places, historical photos, and heirloom documents.' : 
+                                         heritageView === 'announcements' ? 'Coordinate family meetings, reunion dates, and official council proclamations.' : 
+                                         heritageView === 'members' ? 'Manage full family membership, batch import Excel files, and export lineage.' : 
+                                         heritageView === 'analytics' ? 'Statistical insights into generation depth, branch ratios, and lifespan records.' : 'Real-time encryption status, biometric lineage vault integrity, and backups.'}
+                                    </p>
+                                </div>
+
+                                {/* Top Quick Actions */}
+                                <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
+                                    <button
+                                        onClick={() => setShowExcelImporterModal(true)}
+                                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 transition-all"
+                                    >
+                                        <FileSpreadsheet className="w-4 h-4" />
+                                        Import Excel
+                                    </button>
+                                    <button
+                                        onClick={() => setShowAddMemberModal(true)}
+                                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-slate-950 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/30 hover:brightness-110 active:scale-95 transition-all"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Add Soul
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Render Sub View Content */}
+                        {heritageView === 'tree' && renderTreeSubView()}
+                        {heritageView === 'stories' && renderStoriesSubView()}
+                        {heritageView === 'gallery' && renderGallerySubView()}
+                        {heritageView === 'announcements' && renderAnnouncementsSubView()}
+                        {heritageView === 'members' && renderMembersSubView()}
+                        {heritageView === 'analytics' && renderAnalyticsSubView()}
+                        {heritageView === 'hud' && renderCyberHudSubView()}
+                    </main>
+                </div>
+
+                {/* ── Android & Mobile Bottom Floating Action Bar (FAB) ── */}
+                <div className="md:hidden fixed bottom-6 right-6 z-40 flex flex-col gap-3 items-end">
+                    <button
+                        onClick={() => setShowAddMemberModal(true)}
+                        className="p-4 bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 rounded-full shadow-2xl shadow-amber-500/50 active:scale-90 transition-transform font-black flex items-center gap-2"
+                        title="Add Member"
+                    >
+                        <Plus className="w-6 h-6" />
+                    </button>
+                </div>
             </div>
         );
     };
