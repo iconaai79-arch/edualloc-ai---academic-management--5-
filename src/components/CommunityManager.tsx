@@ -579,11 +579,20 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 <div className="relative z-10 flex flex-col items-center">
                     <div className="w-full flex justify-between items-center mb-10 flex-wrap gap-4">
                         <span className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-amber-400">
-                            {themeMode === 'futuristic' ? '⚡ CYBER LINEAGE MATRIX - INTERACTIVE EDITING ENABLED' : 'Gen 1: Foundational Roots'}
+                            {themeMode === 'futuristic' ? '⚡ CYBER LINEAGE MATRIX' : 'Gen 1: Foundational Roots'}
                         </span>
-                        <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></div> Paternal</div>
-                            <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-pink-500 shadow-sm shadow-pink-500/50"></div> Maternal</div>
+                        <div className="flex items-center gap-4 flex-wrap">
+                            <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></div> Paternal</div>
+                                <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-pink-500 shadow-sm shadow-pink-500/50"></div> Maternal</div>
+                            </div>
+                            <button
+                                onClick={() => setShowAddMemberModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Add Soul to Tree
+                            </button>
                         </div>
                     </div>
 
@@ -615,36 +624,45 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     );
                                 })()}
 
-                                {treeMembers.length > 1 && (
-                                    <>
-                                        <div className="w-0.5 h-12 md:h-16 bg-gradient-to-b from-amber-500 via-amber-400 to-indigo-500"></div>
-                                        <div className="flex gap-4 md:gap-12 items-start relative flex-wrap justify-center max-w-full">
-                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-0.5 bg-indigo-500"></div>
-                                            {treeMembers.slice(1, 4).map((child) => (
-                                                <div key={child.id} className="flex flex-col items-center">
-                                                    <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                                    <div 
-                                                        onClick={() => handleOpenEditMember(child)}
-                                                        className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all cursor-pointer hover:scale-105 active:scale-95 group relative ${
-                                                            child.branch === 'Paternal'
-                                                                ? 'bg-slate-950/80 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/10'
-                                                                : 'bg-slate-950/80 border-pink-500/50 text-pink-300 shadow-lg shadow-pink-500/10'
-                                                        }`}
-                                                    >
-                                                        <div className="absolute -top-2 -right-2 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <Pencil className="w-2.5 h-2.5" />
-                                                        </div>
-                                                        <p className="font-bold text-xs uppercase tracking-tight">{child.name}</p>
-                                                        <p className="text-[8px] font-mono font-black uppercase tracking-widest text-amber-400">
-                                                            {child.relation} • {child.branch}
-                                                        </p>
-                                                        <span className="text-[7px] font-mono block text-emerald-400 mt-0.5 uppercase font-bold">Edit</span>
-                                                    </div>
+                                <div className="w-0.5 h-12 md:h-16 bg-gradient-to-b from-amber-500 via-amber-400 to-indigo-500"></div>
+
+                                <div className="flex gap-4 md:gap-12 items-start relative flex-wrap justify-center max-w-full">
+                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-0.5 bg-indigo-500"></div>
+                                    {treeMembers.slice(1, 4).map((child) => (
+                                        <div key={child.id} className="flex flex-col items-center">
+                                            <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                            <div 
+                                                onClick={() => handleOpenEditMember(child)}
+                                                className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all cursor-pointer hover:scale-105 active:scale-95 group relative ${
+                                                    child.branch === 'Paternal'
+                                                        ? 'bg-slate-950/80 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/10'
+                                                        : 'bg-slate-950/80 border-pink-500/50 text-pink-300 shadow-lg shadow-pink-500/10'
+                                                }`}
+                                            >
+                                                <div className="absolute -top-2 -right-2 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Pencil className="w-2.5 h-2.5" />
                                                 </div>
-                                            ))}
+                                                <p className="font-bold text-xs uppercase tracking-tight">{child.name}</p>
+                                                <p className="text-[8px] font-mono font-black uppercase tracking-widest text-amber-400">
+                                                    {child.relation} • {child.branch}
+                                                </p>
+                                                <span className="text-[7px] font-mono block text-emerald-400 mt-0.5 uppercase font-bold">Edit</span>
+                                            </div>
                                         </div>
-                                    </>
-                                )}
+                                    ))}
+
+                                    {/* Direct Add Branch Soul Button */}
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                        <button
+                                            onClick={() => setShowAddMemberModal(true)}
+                                            className="p-3.5 border-2 border-dashed border-amber-400/60 rounded-2xl bg-amber-500/15 text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition-all flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/10 active:scale-95 group"
+                                        >
+                                            <Plus className="w-4 h-4 text-amber-400 group-hover:text-slate-950" />
+                                            <span>Add Soul to Tree</span>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             /* Fallback Demo Interactive Tree Nodes */
@@ -673,8 +691,8 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     <span className="text-[8px] font-mono block text-emerald-400 mt-1 uppercase font-bold">Click Node to Edit</span>
                                 </div>
                                 <div className="w-0.5 h-12 md:h-16 bg-gradient-to-b from-amber-500 via-amber-400 to-indigo-500"></div>
-                                <div className="flex gap-8 md:gap-20 items-start relative">
-                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[160px] md:w-[240px] h-0.5 bg-indigo-500"></div>
+                                <div className="flex gap-8 md:gap-12 items-start relative flex-wrap justify-center">
+                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-0.5 bg-indigo-500"></div>
                                     <div className="flex flex-col items-center">
                                         <div className="w-0.5 h-8 bg-indigo-500"></div>
                                         <div 
@@ -723,13 +741,34 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                             <p className="text-[8px] font-mono font-black text-pink-400 uppercase tracking-widest">Daughter • Gen 2 (Click Node to Edit)</p>
                                         </div>
                                     </div>
+
+                                    {/* Direct Add Node Button on Tree */}
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                        <button
+                                            onClick={() => setShowAddMemberModal(true)}
+                                            className="p-3.5 border-2 border-dashed border-amber-400/60 rounded-2xl bg-amber-500/15 text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition-all flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/10 active:scale-95 group"
+                                        >
+                                            <Plus className="w-4 h-4 text-amber-400 group-hover:text-slate-950" />
+                                            <span>Add Soul to Tree</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    <div className="mt-12 text-center text-[10px] font-mono font-black uppercase text-slate-500 tracking-[0.4em]">
-                        Click Any Ancestry Node Above to Edit Member Details
+                    <div className="mt-12 flex flex-col items-center gap-3">
+                        <button
+                            onClick={() => setShowAddMemberModal(true)}
+                            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Add New Soul directly to Tree
+                        </button>
+                        <div className="text-[10px] font-mono font-black uppercase text-slate-500 tracking-[0.3em]">
+                            Click Any Ancestry Node Above to Edit • Click + Button to Add Soul
+                        </div>
                     </div>
                 </div>
             </div>
