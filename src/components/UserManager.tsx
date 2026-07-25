@@ -980,6 +980,12 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                cat.includes('Campaign') || cat.includes('Political');
     }, [currentInstitution]);
 
+    const isHeritage = useMemo(() => {
+        const type = currentInstitution?.institutionType;
+        const cat = (currentInstitution as any)?.category || '';
+        return (type === 'Community' && (cat.includes('Heritage') || cat.includes('Family'))) || cat.includes('Heritage') || cat.includes('Family');
+    }, [currentInstitution]);
+
 
     // Form State
     const [name, setName] = useState('');
@@ -1407,7 +1413,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
             {isAdding && (
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in-up">
-                    <h4 className="font-bold text-lg mb-4">Register New {activeTab === 'staff' ? (isCoop ? 'Staff Member' : (isChurch ? 'Church Worker' : 'Staff Member')) : (activeTab === 'customer' ? (isChurch ? 'First-time Visitor' : 'Customer/Lead') : (isCoop ? 'Member/Farmer' : (isChurch ? 'Member' : 'Student')))}</h4>
+                    <h4 className="font-bold text-lg mb-4">Register New {activeTab === 'staff' ? (isHeritage ? 'Family Member' : (isCoop ? 'Staff Member' : (isChurch ? 'Church Worker' : 'Staff Member'))) : (activeTab === 'customer' ? (isChurch ? 'First-time Visitor' : 'Customer/Lead') : (isHeritage ? 'Family Member' : (isCoop ? 'Member/Farmer' : (isChurch ? 'Member' : 'Student'))))}</h4>
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div>
@@ -1425,9 +1431,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1">
-                                    {isRetailAgency ? (activeTab === 'staff' ? 'ID Number' : 'Client/Agent ID') : (isCoop ? (activeTab === 'staff' ? 'Employee ID' : 'Member Number') : (isChurch ? (activeTab === 'staff' ? 'Worker ID' : 'Member Number') : (activeTab === 'staff' ? 'Staff ID' : 'Student ID')))}
+                                    {isHeritage ? (activeTab === 'staff' ? 'Family ID / Council ID' : 'Family Member ID') : (isRetailAgency ? (activeTab === 'staff' ? 'ID Number' : 'Client/Agent ID') : (isCoop ? (activeTab === 'staff' ? 'Employee ID' : 'Member Number') : (isChurch ? (activeTab === 'staff' ? 'Worker ID' : 'Member Number') : (activeTab === 'staff' ? 'Staff ID' : 'Student ID'))))}
                                 </label>
-                                <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input w-full font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isRetailAgency ? "e.g. 12345678" : (isCoop ? "e.g. MBR-001" : (isChurch ? "e.g. CH-2024-001" : "EMP-001"))} required />
+                                <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input w-full font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isHeritage ? "e.g. FAM-001" : (isRetailAgency ? "e.g. 12345678" : (isCoop ? "e.g. MBR-001" : (isChurch ? "e.g. CH-2024-001" : "EMP-001")))} required />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1">Gender</label>
@@ -1598,7 +1604,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                 className="btn-primary px-8 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {isSaving && <ArrowPathIcon className="w-4 h-4 animate-spin" />}
-                                {isSaving ? 'Processing...' : `Save ${activeTab === 'staff' ? (isChurch ? 'Worker' : 'Staff') : (activeTab === 'visitors' ? 'Visitor' : (activeTab === 'customer' ? 'Record' : (isChurch ? 'Member' : 'Student')))}`}
+                                {isSaving ? 'Processing...' : `Save ${isHeritage ? 'Family Member' : (activeTab === 'staff' ? (isChurch ? 'Worker' : 'Staff') : (activeTab === 'visitors' ? 'Visitor' : (activeTab === 'customer' ? 'Record' : (isChurch ? 'Member' : 'Student'))))}`}
                             </button>
                         </div>
                     </form>

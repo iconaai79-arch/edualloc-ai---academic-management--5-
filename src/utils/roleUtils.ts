@@ -94,7 +94,11 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
         return ['church_admin', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'member', 'visitor', 'security'];
     }
 
-    // Political Campaign System
+    // Political Campaign & Family Heritage System
+    const cat = institution.category || '';
+    if (cat.includes('Heritage') || cat.includes('Family')) {
+        return ['patriarch', 'matriarch', 'council_elder', 'branch_leader', 'member', 'youth_member', 'descendant', 'visitor', 'security'];
+    }
     if (type === 'Community' || (type as any) === 'Political Campaign' || subType.includes('campaign') || subType.includes('politics')) {
         return ['campaign_admin', 'campaign_agent', 'staff', 'member', 'visitor', 'security'];
     }
@@ -282,6 +286,21 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'transport_assistant': return 'Transport Coordinator';
             case 'hr_officer': return 'HR Officer';
             case 'event_manager': return 'Events Manager';
+        }
+    }
+
+    // Family Heritage context
+    const catName = institution?.category || '';
+    if (catName.includes('Heritage') || catName.includes('Family')) {
+        switch (role) {
+            case 'patriarch': case 'admin': return 'Patriarch / Head of Family';
+            case 'matriarch': return 'Matriarch';
+            case 'council_elder': return 'Council Elder';
+            case 'branch_leader': return 'Branch Leader';
+            case 'member': case 'staff': return 'Family Member';
+            case 'youth_member': return 'Youth Council Member';
+            case 'descendant': return 'Descendant';
+            default: break;
         }
     }
 
