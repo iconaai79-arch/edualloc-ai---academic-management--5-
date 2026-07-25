@@ -1799,9 +1799,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
-        { id: 'student_invoices', label: 'Invoices', icon: ClipboardListIcon },
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
+        { id: 'student_invoices', label: 'Invoices', icon: ClipboardListIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
         { id: 'gok_capitation', label: 'GoK Capitation', icon: BuildingLibraryIcon },
         { id: 'bursaries', label: 'NG-CDF Bursaries', icon: ScaleIcon },
