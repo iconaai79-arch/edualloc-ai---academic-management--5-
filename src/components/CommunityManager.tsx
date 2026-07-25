@@ -1695,6 +1695,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     </button>
                                 </div>
                             </div>
+                        </div>
                         {/* ── Tree Rights & Permission Control Selector Bar ── */}
                         <div className={`p-4 rounded-2xl border flex items-center justify-between gap-4 flex-wrap mb-6 ${
                             themeMode === 'futuristic'
