@@ -859,6 +859,52 @@ export const analyzeIcdSpreadsheet = async (headers: string[]): Promise<Record<s
     }
 };
 
+export const analyzeHeritageSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+    const defaultMapping: Record<string, string | null> = {
+        name: null,
+        branch: null,
+        relation: null,
+        birthYear: null,
+        deathYear: null,
+        notes: null
+    };
+
+    // Heuristic fallback matching
+    headers.forEach(h => {
+        const lower = h.toLowerCase().trim();
+        if (!defaultMapping.name && (lower.includes('name') || lower.includes('full name') || lower.includes('member') || lower.includes('person'))) defaultMapping.name = h;
+        if (!defaultMapping.branch && (lower.includes('branch') || lower.includes('lineage') || lower.includes('side'))) defaultMapping.branch = h;
+        if (!defaultMapping.relation && (lower.includes('relation') || lower.includes('kin') || lower.includes('role') || lower.includes('title'))) defaultMapping.relation = h;
+        if (!defaultMapping.birthYear && (lower.includes('birth') || lower.includes('born') || lower.includes('dob'))) defaultMapping.birthYear = h;
+        if (!defaultMapping.deathYear && (lower.includes('death') || lower.includes('died') || lower.includes('dod') || lower.includes('passed'))) defaultMapping.deathYear = h;
+        if (!defaultMapping.notes && (lower.includes('note') || lower.includes('bio') || lower.includes('history') || lower.includes('legacy') || lower.includes('details'))) defaultMapping.notes = h;
+    });
+
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as a Family Genealogy & Heritage Data Integrator. Map these headers to Family Heritage fields:
+            - name: Full name of the family member
+            - branch: Lineage branch ('Paternal' or 'Maternal')
+            - relation: Relationship to family head or user (e.g. Grandfather, Mother, Son, Cousin, Ancestor)
+            - birthYear: Year of birth (e.g., 1950)
+            - deathYear: Year of death if deceased (e.g., 2012)
+            - notes: Historical notes, biography, or legacy details
+            
+            Spreadsheet Headers: ${JSON.stringify(headers)}
+            
+            Return ONLY a JSON object mapping these 6 fields to the original headers. Use null if not found.
+        `;
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
+        const aiMapping = sanitizeAndParseJson(response.text || "{}");
+        return { ...defaultMapping, ...aiMapping };
+    } catch (error) {
+        console.error("AI Heritage map error:", error);
+        return defaultMapping;
+    }
+};
+
+
 export async function suggestDiagnosis(patientData: {
     fullName: string,
     age: number,

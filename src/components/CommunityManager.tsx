@@ -26,7 +26,8 @@ import {
     Loader2,
     Star,
     Vote,
-    CheckCircle
+    CheckCircle,
+    FileSpreadsheet
 } from 'lucide-react';
 import type { 
     Institution, User, 
@@ -35,6 +36,7 @@ import type {
 } from '../types';
 import { apiService } from '../services/apiService';
 import { LeadScoutManager } from './LeadScoutManager';
+import { SmartHeritageMemberImporterModal } from './SmartHeritageMemberImporterModal';
 
 interface CommunityManagerProps {
     currentInstitution: Institution;
@@ -68,6 +70,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [searchTerm, setSearchTerm] = useState('');
     const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements'>('tree');
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+    const [showExcelImporterModal, setShowExcelImporterModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
     // Heritage Data States
@@ -92,6 +95,15 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         notes: '' 
     });
     const [addMemberError, setAddMemberError] = useState('');
+
+    const handleBatchImportHeritageMembers = async (members: HeritageMember[]) => {
+        const savedMembers: HeritageMember[] = [];
+        for (const m of members) {
+            const saved = await apiService.saveModuleRecord('heritage_members', m);
+            if (saved) savedMembers.push(saved);
+        }
+        setTreeMembers(prev => [...prev, ...savedMembers]);
+    };
 
     // Fetch Metadata
     React.useEffect(() => {
@@ -574,13 +586,22 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                                 <div className="flex justify-between items-center mb-6">
                                     <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Tree Members</h4>
-                                    <button
-                                        onClick={() => setShowAddMemberModal(true)}
-                                        className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-100 dark:shadow-none hover:bg-amber-700 active:scale-95 transition-all"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                        Add Member
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setShowExcelImporterModal(true)}
+                                            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-100 dark:shadow-none hover:bg-emerald-700 active:scale-95 transition-all"
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4" />
+                                            Import Excel
+                                        </button>
+                                        <button
+                                            onClick={() => setShowAddMemberModal(true)}
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-100 dark:shadow-none hover:bg-amber-700 active:scale-95 transition-all"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                            Add Member
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
                                     {treeMembers.map((m) => (
@@ -1232,6 +1253,15 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* ── Smart Excel Importer Modal for Family Heritage ── */}
+            {showExcelImporterModal && (
+                <SmartHeritageMemberImporterModal
+                    onClose={() => setShowExcelImporterModal(false)}
+                    onImport={handleBatchImportHeritageMembers}
+                    institutionId={currentInstitution.id}
+                />
             )}
         </div>
     );
