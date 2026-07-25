@@ -28,6 +28,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [assignedDepartmentId, setAssignedDepartmentId] = useState('');
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
+  const [customPermissions, setCustomPermissions] = useState<Record<string, boolean>>({});
 
   const [constituencies, setConstituencies] = useState<Constituency[]>([]);
   const [counties, setCounties] = useState<County[]>([]);
@@ -89,6 +90,14 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       setAssignedDepartmentId(fixedDepartmentId || user.departmentId || '');
       setGender(user.gender || 'Male');
       setDriverType(user.driverType || 'staff');
+      setCustomPermissions(user.customPermissions || {
+        procurement: userRoles.includes('procurement_officer') || user.role === 'procurement_officer' || true,
+        billing: true,
+        expenses: true,
+        requisitions: true,
+        reports: true,
+        settings: userRoles.includes('admin') || user.role === 'admin' || user.role === 'head_teacher' || false
+      });
 
       if (userRoles.some(r => r.startsWith('constituency_'))) {
         setSelectedConstituency(user.institutionId || '');
@@ -188,7 +197,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
         gender,
         driverType: roles.includes('driver') ? driverType : undefined,
         institutionId: finalInstitutionId,
-        countyId: finalCountyId
+        countyId: finalCountyId,
+        customPermissions
       });
       onClose();
     } catch (err: any) {
@@ -340,6 +350,37 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                       </select>
                     </div>
                   )}
+
+                  <div className="md:col-span-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between mb-3 ml-1">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest">Per-User Feature Permissions</label>
+                        <p className="text-[11px] text-slate-400 font-semibold mt-0.5">Toggle specific module and action rights for {name || 'this user'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {[
+                        { id: 'procurement', label: '🛒 Procurement Hub' },
+                        { id: 'billing', label: '🧾 Billing & Invoices' },
+                        { id: 'expenses', label: '💰 Expenses & Payments' },
+                        { id: 'requisitions', label: '📋 Requisitions' },
+                        { id: 'reports', label: '📊 Financial Reports' },
+                        { id: 'settings', label: '⚙️ System Settings' }
+                      ].map(p => (
+                        <label key={p.id} className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${customPermissions[p.id] !== false ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/20' : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 opacity-60'}`}>
+                          <input
+                            type="checkbox"
+                            checked={customPermissions[p.id] !== false}
+                            onChange={() => setCustomPermissions(prev => ({ ...prev, [p.id]: prev[p.id] === false ? true : false }))}
+                            className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span className={`text-[10px] font-bold uppercase tracking-tight ${customPermissions[p.id] !== false ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-400'}`}>
+                            {p.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-2xl border border-amber-100 dark:border-amber-800/30">
                   <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-1">Access Note</p>

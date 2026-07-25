@@ -101,7 +101,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers'>('home');
+    const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
+    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers'>(isProcurementOfficer ? 'requisitions' : 'home');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
@@ -442,28 +443,45 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [newFyEndDate, setNewFyEndDate] = useState('');
 
     // User Permissions states
-    const [selectedRole, setSelectedRole] = useState<'Accountant' | 'Teacher' | 'Registrar' | 'Admin'>('Accountant');
+    const [selectedRole, setSelectedRole] = useState<string>('Accountant');
+    const [selectedUserPermissionId, setSelectedUserPermissionId] = useState<string>('ROLE_LEVEL');
     const [permissionsMap, setPermissionsMap] = useState<Record<string, Record<string, boolean>>>({
-        Accountant: { billing: true, expenses: true, requisitions: true, audit: true, settings: false },
-        Teacher: { billing: false, expenses: false, requisitions: false, audit: false, settings: false },
-        Registrar: { billing: true, expenses: false, requisitions: false, audit: false, settings: false },
-        Admin: { billing: true, expenses: true, requisitions: true, audit: true, settings: true },
+        Accountant: { billing: true, expenses: true, requisitions: true, audit: true, settings: false, procurement: true },
+        'Procurement Officer': { billing: false, expenses: false, requisitions: true, audit: true, settings: false, procurement: true },
+        Teacher: { billing: false, expenses: false, requisitions: false, audit: false, settings: false, procurement: false },
+        Registrar: { billing: true, expenses: false, requisitions: false, audit: false, settings: false, procurement: false },
+        Admin: { billing: true, expenses: true, requisitions: true, audit: true, settings: true, procurement: true },
     });
 
-    const handleTogglePermission = (role: string, module: string) => {
+    const handleTogglePermission = (roleOrUser: string, module: string) => {
         setPermissionsMap(prev => ({
             ...prev,
-            [role]: {
-                ...prev[role],
-                [module]: !prev[role][module]
+            [roleOrUser]: {
+                ...(prev[roleOrUser] || { billing: false, expenses: false, requisitions: false, audit: false, settings: false, procurement: false }),
+                [module]: !((prev[roleOrUser] || {})[module])
             }
         }));
     };
 
     const handleSavePermissions = async () => {
-        alert(`Access control permissions for role ${selectedRole} updated successfully!`);
+        if (selectedUserPermissionId !== 'ROLE_LEVEL') {
+            const targetUser = (props.users || []).find(u => u.id === selectedUserPermissionId);
+            if (targetUser) {
+                try {
+                    await apiService.updateModuleRecord('users', targetUser.id, {
+                        customPermissions: permissionsMap[selectedUserPermissionId]
+                    });
+                    alert(`Custom per-user access permissions for user ${targetUser.name} saved successfully!`);
+                    if (props.onRefreshData) await props.onRefreshData();
+                } catch (e: any) {
+                    alert("Failed to save user permissions: " + e.message);
+                }
+            }
+        } else {
+            alert(`Access control default permissions for role ${selectedRole} updated successfully!`);
+        }
         if (props.onLogAction) {
-            await props.onLogAction(`Updated access permissions for role ${selectedRole}`);
+            await props.onLogAction(`Updated access permissions for ${selectedUserPermissionId !== 'ROLE_LEVEL' ? `user ID ${selectedUserPermissionId}` : `role ${selectedRole}`}`);
         }
     };
 

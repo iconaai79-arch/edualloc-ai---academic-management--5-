@@ -7,3 +7,4 @@ BEGIN
         ALTER TABLE public.his_patients ADD COLUMN admission_number TEXT;
     END IF;
 END $$;
+store

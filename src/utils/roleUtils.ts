@@ -76,17 +76,17 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Academic / Schools
     if (isSchoolInstitution(institution)) {
-        return ['head_teacher', 'operation_manager', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
+        return ['head_teacher', 'operation_manager', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'procurement_officer', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
     }
 
     // Tertiary / Higher Ed
     if (isHigherEdInstitution(institution)) {
-        return ['admin', 'operation_manager', 'hod', 'tto', 'lecturer', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
+        return ['admin', 'operation_manager', 'hod', 'tto', 'lecturer', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'procurement_officer', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
     }
 
     // HIS / Health Information System
     if (type === 'HIS') {
-        return ['his_admin', 'academics_officer', 'security', 'info_desk', 'store'];
+        return ['his_admin', 'academics_officer', 'security', 'info_desk', 'store', 'procurement_officer'];
     }
 
     // Church System
@@ -101,20 +101,20 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Car Showroom / Automotive Marketplace
     if (type === 'Car Showroom' || subType.includes('car sales') || subType.includes('showroom') || subType.includes('automotive') || subType.includes('motors')) {
-        return ['director', 'managing_director', 'finance', 'finance_officer', 'sales', 'reception', 'customer', 'lead'];
+        return ['director', 'managing_director', 'finance', 'finance_officer', 'procurement_officer', 'sales', 'reception', 'customer', 'lead'];
     }
 
     // Driving School
     if (isDSInstitution(institution)) {
-        return ['director', 'admin', 'driving_instructor', 'staff', 'student', 'security', 'driver'];
+        return ['director', 'admin', 'driving_instructor', 'staff', 'student', 'security', 'driver', 'procurement_officer'];
     }
 
     // Restaurant / Cafe / POS
     if (isRestaurantInstitution(institution)) {
-        return ['restaurant_admin', 'chef', 'waiter', 'cashier', 'finance', 'staff', 'security', 'driver', 'store'];
+        return ['restaurant_admin', 'chef', 'waiter', 'cashier', 'finance', 'staff', 'security', 'driver', 'store', 'procurement_officer'];
     }
 
-    return ['admin', 'managing_director', 'hr_officer', 'finance_officer', 'staff', 'security', 'driver', 'store', 'customer'] as any[];
+    return ['admin', 'managing_director', 'hr_officer', 'finance_officer', 'procurement_officer', 'staff', 'security', 'driver', 'store', 'customer'] as any[];
 };
 
 /**
@@ -274,6 +274,7 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'cateress': return 'Cateress';
             case 'finance': return 'Finance Manager';
             case 'finance_officer': return 'Finance Officer';
+            case 'procurement_officer': return 'Procurement Officer';
             case 'store': return 'Storekeeper';
             case 'librarian': return 'Librarian';
             case 'security': return 'Security Officer';
