@@ -39,7 +39,9 @@ import {
     Upload,
     Download,
     Layers,
-    Activity
+    Activity,
+    Pencil,
+    Trash2
 } from 'lucide-react';
 import type { 
     Institution, User, 
@@ -86,6 +88,10 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements' | 'members' | 'analytics' | 'hud'>('tree');
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
     const [showExcelImporterModal, setShowExcelImporterModal] = useState(false);
+    const [editingMember, setEditingMember] = useState<HeritageMember | null>(null);
+    const [editMemberForm, setEditMemberForm] = useState<Partial<HeritageMember>>({});
+    const [editMemberError, setEditMemberError] = useState('');
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
     // Heritage Data States
@@ -204,6 +210,60 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
             }
         } catch (error: any) {
             setAddMemberError(`Failed to save: ${error.message}`);
+        }
+    };
+
+    const handleOpenEditMember = (member: HeritageMember) => {
+        setEditingMember(member);
+        setEditMemberForm({ ...member });
+        setEditMemberError('');
+    };
+
+    const handleSaveEditMember = async () => {
+        if (!editMemberForm.name?.trim() || !editMemberForm.relation?.trim()) {
+            setEditMemberError('Full name and relationship are required.');
+            return;
+        }
+
+        setIsSavingEdit(true);
+        try {
+            const updatedMember = {
+                ...editMemberForm,
+                id: editingMember?.id || `hm_${Date.now()}`,
+                institutionId: currentInstitution.id,
+                updatedAt: new Date().toISOString()
+            } as HeritageMember;
+
+            const saved = await apiService.saveModuleRecord('heritage_members', updatedMember);
+            if (saved) {
+                setTreeMembers(prev => {
+                    const exists = prev.some(m => m.id === saved.id);
+                    if (exists) {
+                        return prev.map(m => m.id === saved.id ? saved : m);
+                    }
+                    return [...prev, saved];
+                });
+                setEditingMember(null);
+                setEditMemberError('');
+            }
+        } catch (error: any) {
+            setEditMemberError(`Failed to update: ${error.message || 'Server error'}`);
+        } finally {
+            setIsSavingEdit(false);
+        }
+    };
+
+    const handleDeleteMember = async (memberId: string) => {
+        if (!window.confirm('Are you sure you want to remove this soul from the family tree?')) return;
+        
+        try {
+            await apiService.deleteModuleRecord('heritage_members', memberId).catch(() => {});
+            setTreeMembers(prev => prev.filter(m => m.id !== memberId));
+            if (editingMember?.id === memberId) {
+                setEditingMember(null);
+            }
+        } catch (error) {
+            console.error('Failed to delete heritage member:', error);
         }
     };
 
@@ -519,7 +579,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 <div className="relative z-10 flex flex-col items-center">
                     <div className="w-full flex justify-between items-center mb-10 flex-wrap gap-4">
                         <span className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-amber-400">
-                            {themeMode === 'futuristic' ? '⚡ CYBER LINEAGE MATRIX - GEN 1' : 'Gen 1: Foundational Roots'}
+                            {themeMode === 'futuristic' ? '⚡ CYBER LINEAGE MATRIX - INTERACTIVE EDITING ENABLED' : 'Gen 1: Foundational Roots'}
                         </span>
                         <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
                             <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></div> Paternal</div>
@@ -527,48 +587,149 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                         </div>
                     </div>
 
-                    {/* Interactive Tree Root Simulation */}
+                    {/* Interactive Tree Root & Dynamic Nodes Simulation */}
                     <div className="space-y-12 md:space-y-16 w-full max-w-2xl">
-                        <div className="flex flex-col items-center">
-                            <div className={`p-4 md:p-5 border-2 rounded-2xl backdrop-blur-md text-center group cursor-pointer transition-all shadow-xl ${
-                                themeMode === 'futuristic'
-                                    ? 'bg-amber-500/10 border-amber-400 text-white hover:bg-amber-500 hover:text-slate-950 shadow-amber-500/20'
-                                    : 'bg-white/10 border-amber-500 hover:bg-amber-500'
-                            }`}>
-                                <p className="font-black text-sm md:text-base uppercase tracking-tight group-hover:text-slate-950">Samuel Mwangi Sr.</p>
-                                <p className="text-[10px] font-mono font-black text-amber-400 group-hover:text-slate-900 uppercase">1892 - 1968 • Root Ancestor</p>
+                        {treeMembers.length > 0 ? (
+                            <div className="flex flex-col items-center">
+                                {/* Root Ancestor Node (First Member) */}
+                                {(() => {
+                                    const rootMember = treeMembers[0];
+                                    return (
+                                        <div 
+                                            onClick={() => handleOpenEditMember(rootMember)}
+                                            className={`p-4 md:p-5 border-2 rounded-2xl backdrop-blur-md text-center group cursor-pointer transition-all shadow-xl relative ${
+                                                themeMode === 'futuristic'
+                                                    ? 'bg-amber-500/15 border-amber-400 text-white hover:bg-amber-500 hover:text-slate-950 shadow-amber-500/30'
+                                                    : 'bg-white/10 border-amber-500 hover:bg-amber-500'
+                                            }`}
+                                        >
+                                            <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-500 text-slate-950 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Pencil className="w-3.5 h-3.5" />
+                                            </div>
+                                            <p className="font-black text-sm md:text-base uppercase tracking-tight group-hover:text-slate-950">{rootMember.name}</p>
+                                            <p className="text-[10px] font-mono font-black text-amber-400 group-hover:text-slate-900 uppercase">
+                                                {rootMember.relation} • {rootMember.branch} {rootMember.birthYear ? `(${rootMember.birthYear})` : ''}
+                                            </p>
+                                            <span className="text-[8px] font-mono block text-emerald-400 mt-1 uppercase font-bold">Click Node to Edit</span>
+                                        </div>
+                                    );
+                                })()}
+
+                                {treeMembers.length > 1 && (
+                                    <>
+                                        <div className="w-0.5 h-12 md:h-16 bg-gradient-to-b from-amber-500 via-amber-400 to-indigo-500"></div>
+                                        <div className="flex gap-4 md:gap-12 items-start relative flex-wrap justify-center max-w-full">
+                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-0.5 bg-indigo-500"></div>
+                                            {treeMembers.slice(1, 4).map((child) => (
+                                                <div key={child.id} className="flex flex-col items-center">
+                                                    <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                                    <div 
+                                                        onClick={() => handleOpenEditMember(child)}
+                                                        className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all cursor-pointer hover:scale-105 active:scale-95 group relative ${
+                                                            child.branch === 'Paternal'
+                                                                ? 'bg-slate-950/80 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/10'
+                                                                : 'bg-slate-950/80 border-pink-500/50 text-pink-300 shadow-lg shadow-pink-500/10'
+                                                        }`}
+                                                    >
+                                                        <div className="absolute -top-2 -right-2 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <Pencil className="w-2.5 h-2.5" />
+                                                        </div>
+                                                        <p className="font-bold text-xs uppercase tracking-tight">{child.name}</p>
+                                                        <p className="text-[8px] font-mono font-black uppercase tracking-widest text-amber-400">
+                                                            {child.relation} • {child.branch}
+                                                        </p>
+                                                        <span className="text-[7px] font-mono block text-emerald-400 mt-0.5 uppercase font-bold">Edit</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
-                            <div className="w-0.5 h-12 md:h-16 bg-gradient-to-b from-amber-500 via-amber-400 to-indigo-500"></div>
-                            <div className="flex gap-8 md:gap-20 items-start relative">
-                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[160px] md:w-[240px] h-0.5 bg-indigo-500"></div>
-                                <div className="flex flex-col items-center">
-                                    <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                    <div className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all select-none ${
+                        ) : (
+                            /* Fallback Demo Interactive Tree Nodes */
+                            <div className="flex flex-col items-center">
+                                <div 
+                                    onClick={() => handleOpenEditMember({
+                                        id: 'demo_root',
+                                        name: 'Samuel Mwangi Sr.',
+                                        relation: 'Grandfather / Root Ancestor',
+                                        branch: 'Paternal',
+                                        birthYear: '1892',
+                                        deathYear: '1968',
+                                        notes: 'Foundational patriarch of the family lineage.'
+                                    } as HeritageMember)}
+                                    className={`p-4 md:p-5 border-2 rounded-2xl backdrop-blur-md text-center group cursor-pointer transition-all shadow-xl relative ${
                                         themeMode === 'futuristic'
-                                            ? 'bg-slate-950/80 border-cyan-500/40 text-cyan-300 hover:border-cyan-400'
-                                            : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                    }`}>
-                                        <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
-                                        <p className="text-[8px] font-mono font-black text-cyan-400 uppercase tracking-widest">Son • Gen 2</p>
+                                            ? 'bg-amber-500/10 border-amber-400 text-white hover:bg-amber-500 hover:text-slate-950 shadow-amber-500/20'
+                                            : 'bg-white/10 border-amber-500 hover:bg-amber-500'
+                                    }`}
+                                >
+                                    <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Pencil className="w-3 h-3" />
+                                    </div>
+                                    <p className="font-black text-sm md:text-base uppercase tracking-tight group-hover:text-slate-950">Samuel Mwangi Sr.</p>
+                                    <p className="text-[10px] font-mono font-black text-amber-400 group-hover:text-slate-900 uppercase">1892 - 1968 • Root Ancestor</p>
+                                    <span className="text-[8px] font-mono block text-emerald-400 mt-1 uppercase font-bold">Click Node to Edit</span>
+                                </div>
+                                <div className="w-0.5 h-12 md:h-16 bg-gradient-to-b from-amber-500 via-amber-400 to-indigo-500"></div>
+                                <div className="flex gap-8 md:gap-20 items-start relative">
+                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[160px] md:w-[240px] h-0.5 bg-indigo-500"></div>
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                        <div 
+                                            onClick={() => handleOpenEditMember({
+                                                id: 'demo_child1',
+                                                name: 'John Mwangi',
+                                                relation: 'Son',
+                                                branch: 'Paternal',
+                                                birthYear: '1924',
+                                                notes: 'Paternal lineage heir.'
+                                            } as HeritageMember)}
+                                            className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all cursor-pointer hover:scale-105 active:scale-95 group relative ${
+                                                themeMode === 'futuristic'
+                                                    ? 'bg-slate-950/80 border-cyan-500/40 text-cyan-300 hover:border-cyan-400'
+                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                            }`}
+                                        >
+                                            <div className="absolute -top-2 -right-2 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Pencil className="w-2.5 h-2.5" />
+                                            </div>
+                                            <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
+                                            <p className="text-[8px] font-mono font-black text-cyan-400 uppercase tracking-widest">Son • Gen 2 (Click Node to Edit)</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                        <div 
+                                            onClick={() => handleOpenEditMember({
+                                                id: 'demo_child2',
+                                                name: 'Grace Wamboi',
+                                                relation: 'Daughter',
+                                                branch: 'Maternal',
+                                                birthYear: '1928',
+                                                notes: 'Maternal matriarch.'
+                                            } as HeritageMember)}
+                                            className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all cursor-pointer hover:scale-105 active:scale-95 group relative ${
+                                                themeMode === 'futuristic'
+                                                    ? 'bg-slate-950/80 border-pink-500/50 text-pink-300 shadow-lg shadow-pink-500/10'
+                                                    : 'bg-white/5 border-white/10 border-t-4 border-t-amber-500'
+                                            }`}
+                                        >
+                                            <div className="absolute -top-2 -right-2 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Pencil className="w-2.5 h-2.5" />
+                                            </div>
+                                            <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
+                                            <p className="text-[8px] font-mono font-black text-pink-400 uppercase tracking-widest">Daughter • Gen 2 (Click Node to Edit)</p>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="flex flex-col items-center">
-                                    <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                    <div className={`p-3 md:p-4 rounded-2xl border backdrop-blur-sm text-center transition-all cursor-pointer hover:scale-105 active:scale-95 ${
-                                        themeMode === 'futuristic'
-                                            ? 'bg-slate-950/80 border-pink-500/50 text-pink-300 shadow-lg shadow-pink-500/10'
-                                            : 'bg-white/5 border-white/10 border-t-4 border-t-amber-500'
-                                    }`}>
-                                        <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
-                                        <p className="text-[8px] font-mono font-black text-pink-400 uppercase tracking-widest">Daughter • Gen 2</p>
-                                    </div>
-                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     <div className="mt-12 text-center text-[10px] font-mono font-black uppercase text-slate-500 tracking-[0.4em]">
-                        Hold & Drag to Explore Interactive Lineage Map
+                        Click Any Ancestry Node Above to Edit Member Details
                     </div>
                 </div>
             </div>
@@ -598,7 +759,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             </div>
                         ) : (
                             treeMembers.map((m) => (
-                                <div key={m.id} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
+                                <div key={m.id} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all group ${
                                     themeMode === 'futuristic'
                                         ? 'bg-slate-950/60 border-slate-800 hover:border-amber-500/40 text-white'
                                         : 'bg-slate-50 dark:bg-slate-900/50 border-transparent hover:border-amber-100'
@@ -620,7 +781,22 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                         <p className="font-black text-xs uppercase tracking-tight truncate">{m.name}</p>
                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{m.relation} · {m.branch}</p>
                                     </div>
-                                    {m.birthYear && <span className="text-[9px] font-mono font-black text-amber-400 shrink-0">{m.birthYear}</span>}
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            onClick={() => handleOpenEditMember(m)}
+                                            className="p-2 bg-amber-500/20 text-amber-400 rounded-xl hover:bg-amber-500 hover:text-slate-950 transition-all"
+                                            title="Edit Soul Record"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteMember(m.id)}
+                                            className="p-2 bg-rose-500/20 text-rose-400 rounded-xl hover:bg-rose-600 hover:text-white transition-all"
+                                            title="Delete Soul Record"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         )}
@@ -895,6 +1071,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     <th className="p-4">Relationship</th>
                                     <th className="p-4">Lifespan</th>
                                     <th className="p-4">Historical Notes</th>
+                                    <th className="p-4 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800/50 text-xs">
@@ -920,6 +1097,24 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                             {m.birthYear || '—'} {m.deathYear ? `- ${m.deathYear}` : ''}
                                         </td>
                                         <td className="p-4 text-slate-400 font-medium max-w-xs truncate">{m.notes || '—'}</td>
+                                        <td className="p-4 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleOpenEditMember(m)}
+                                                    className="px-3 py-1.5 bg-amber-500/20 text-amber-400 rounded-xl text-[10px] font-mono font-black uppercase hover:bg-amber-500 hover:text-slate-950 transition-all flex items-center gap-1"
+                                                >
+                                                    <Pencil className="w-3 h-3" />
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteMember(m.id)}
+                                                    className="px-3 py-1.5 bg-rose-500/20 text-rose-400 rounded-xl text-[10px] font-mono font-black uppercase hover:bg-rose-600 hover:text-white transition-all flex items-center gap-1"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -1739,6 +1934,170 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 >
                                     <Plus className="w-4 h-4" />
                                     Add to Tree
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Edit Member / Node Inspector Modal for Family Heritage ── */}
+            {editingMember && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    {/* Overlay */}
+                    <div
+                        className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+                        onClick={() => { setEditingMember(null); setEditMemberError(''); }}
+                    />
+                    {/* Modal Card */}
+                    <div className="relative z-10 bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-lg border border-amber-500/30 overflow-hidden text-white">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-amber-600 to-yellow-600 p-8 relative overflow-hidden">
+                            <div className="absolute -right-8 -top-8 opacity-10">
+                                <TreePalm className="w-48 h-48 text-slate-950" />
+                            </div>
+                            <div className="relative z-10">
+                                <p className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-slate-950 mb-1">Family Tree Matrix</p>
+                                <h3 className="text-2xl font-black text-slate-950 uppercase tracking-tighter flex items-center gap-2">
+                                    <Pencil className="w-6 h-6" />
+                                    Edit Soul Record
+                                </h3>
+                                <p className="text-slate-900 text-xs font-bold mt-1">Update ancestral node details and lineage properties.</p>
+                            </div>
+                        </div>
+
+                        {/* Form */}
+                        <div className="p-8 space-y-5">
+                            {editMemberError && (
+                                <div className="p-4 bg-red-500/20 border border-red-500/40 rounded-2xl text-red-300 text-xs font-bold uppercase tracking-widest">
+                                    {editMemberError}
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Full Name *</label>
+                                    <input
+                                        value={editMemberForm.name || ''}
+                                        onChange={e => setEditMemberForm(p => ({ ...p, name: e.target.value }))}
+                                        placeholder="e.g. Samuel Mwangi Sr."
+                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Branch *</label>
+                                    <select
+                                        value={editMemberForm.branch || 'Paternal'}
+                                        onChange={e => setEditMemberForm(p => ({ ...p, branch: e.target.value as 'Paternal' | 'Maternal' }))}
+                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white focus:outline-none focus:border-amber-400 transition-colors"
+                                    >
+                                        <option value="Paternal">Paternal</option>
+                                        <option value="Maternal">Maternal</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Relationship *</label>
+                                    <select
+                                        value={editMemberForm.relation || ''}
+                                        onChange={e => setEditMemberForm(p => ({ ...p, relation: e.target.value }))}
+                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white focus:outline-none focus:border-amber-400 transition-colors"
+                                    >
+                                        <option value="">Select Relation</option>
+                                        {RELATIONSHIP_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Year of Birth</label>
+                                    <input
+                                        value={editMemberForm.birthYear || ''}
+                                        onChange={e => setEditMemberForm(p => ({ ...p, birthYear: e.target.value }))}
+                                        placeholder="e.g. 1892"
+                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Year of Death</label>
+                                    <input
+                                        value={editMemberForm.deathYear || ''}
+                                        onChange={e => setEditMemberForm(p => ({ ...p, deathYear: e.target.value }))}
+                                        placeholder="Leave blank if alive"
+                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div className="col-span-2">
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Profile Picture</label>
+                                    <div className="flex items-center gap-4">
+                                        <div className="relative group overflow-hidden w-16 h-16 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-center">
+                                            {editMemberForm.profilePhotoUrl ? (
+                                                <img loading="lazy" 
+                                                    src={editMemberForm.profilePhotoUrl} 
+                                                    alt="Preview" 
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <ImageIcon className="w-6 h-6 text-slate-500" />
+                                            )}
+                                            <input 
+                                                type="file" 
+                                                accept="image/*"
+                                                className="absolute inset-0 opacity-0 cursor-pointer"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) {
+                                                        const url = await apiService.uploadFile('heritage', `members/${Date.now()}_${file.name}`, file);
+                                                        if (url) setEditMemberForm(p => ({ ...p, profilePhotoUrl: url }));
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <input
+                                            value={editMemberForm.profilePhotoUrl || ''}
+                                            onChange={e => setEditMemberForm(p => ({ ...p, profilePhotoUrl: e.target.value }))}
+                                            placeholder="Or enter Image URL..."
+                                            className="flex-1 p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="col-span-2">
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Historical Notes / Bio</label>
+                                    <textarea
+                                        value={editMemberForm.notes || ''}
+                                        onChange={e => setEditMemberForm(p => ({ ...p, notes: e.target.value }))}
+                                        placeholder="Brief notes on this family member's legacy..."
+                                        rows={3}
+                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors resize-none"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => handleDeleteMember(editingMember.id)}
+                                    className="py-4 px-5 bg-rose-500/20 text-rose-400 border border-rose-500/40 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all flex items-center gap-1.5"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete
+                                </button>
+                                <button
+                                    onClick={() => { setEditingMember(null); setEditMemberError(''); }}
+                                    className="flex-1 py-4 border border-slate-800 rounded-2xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:bg-slate-800 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSaveEditMember}
+                                    disabled={isSavingEdit}
+                                    className="flex-1 py-4 bg-gradient-to-r from-amber-500 to-yellow-600 text-slate-950 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 font-bold"
+                                >
+                                    {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+                                    Save Changes
                                 </button>
                             </div>
                         </div>
