@@ -103,6 +103,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Dynamic Tabs based on Institution Type
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
     const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers'>(isProcurementOfficer ? 'requisitions' : 'home');
+    const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
@@ -1798,11 +1799,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
-        { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
+        { id: 'student_invoices', label: 'Invoices', icon: ClipboardListIcon },
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
-        { id: 'student_invoices', label: 'Invoices', icon: ClipboardListIcon },
         { id: 'gok_capitation', label: 'GoK Capitation', icon: BuildingLibraryIcon },
         { id: 'bursaries', label: 'NG-CDF Bursaries', icon: ScaleIcon },
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
@@ -5066,7 +5066,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
                     } p-4 rounded-[2.5rem] border shadow-sm shrink-0 gap-4`}>
                         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto custom-scrollbar-horizontal max-w-[70vw] md:max-w-full pb-1">
-                            {activeTab === 'settings' ? (
+                            {activeTab === 'student_invoices' ? (
+                                [
+                                    { id: 'ledger', label: 'Invoices Ledger', icon: ClipboardListIcon, count: filteredStudentInvoices.length },
+                                    { id: 'wizard', label: '⚡ Billing Wizard', icon: SparklesIcon },
+                                ].map(sub => (
+                                    <button
+                                        key={sub.id}
+                                        onClick={() => setInvoicesMainTab(sub.id as any)}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap ${
+                                            invoicesMainTab === sub.id
+                                            ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105'
+                                            : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        <sub.icon className={`w-4 h-4 ${invoicesMainTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
+                                        <span className="text-[11px] font-black uppercase tracking-widest">{sub.label}</span>
+                                        {(sub as any).count !== undefined && (sub as any).count > 0 && (
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none ${
+                                                invoicesMainTab === sub.id ? 'bg-white/25 text-white' : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300'
+                                            }`}>
+                                                {(sub as any).count}
+                                            </span>
+                                        )}
+                                    </button>
+                                ))
+                            ) : activeTab === 'settings' ? (
                                 settingsSubTabs.map(sub => (
                                     <button
                                         key={sub.id}
@@ -6386,6 +6411,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'student_invoices' && (
+                    invoicesMainTab === 'wizard' ? (
+                        <AutomatedBilling 
+                            feeStructures={props.feeStructures}
+                            students={props.students}
+                            academicYears={props.academicYears}
+                            semesters={props.semesters}
+                            institution={props.institution}
+                            onGenerateInvoices={props.onGenerateInvoices}
+                            companyDetails={props.companyDetails}
+                            courses={props.courses || []}
+                        />
+                    ) : (
                     <div className="space-y-6 text-left animate-in fade-in duration-300">
                         {/* Header stats block */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -6441,6 +6478,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div>
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Invoices Ledger</h3>
                                     <p className="text-xs text-slate-500 font-semibold mt-0.5">Track, audit, print and manage all academic billing invoices issued to students.</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setInvoicesMainTab('wizard')}
+                                        className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95"
+                                    >
+                                        <SparklesIcon className="w-4 h-4" />
+                                        ⚡ Open Billing Wizard
+                                    </button>
                                 </div>
                                 {selectedInvoiceIds.size > 0 && (
                                     <button
@@ -6719,7 +6765,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             )}
                         </div>
                     </div>
-                )}
+                )
+            )}
 
                 {/* Invoice Details Modal */}
                 {selectedInvoiceForDetails && (() => {
