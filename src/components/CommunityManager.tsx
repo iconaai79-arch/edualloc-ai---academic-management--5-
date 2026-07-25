@@ -85,7 +85,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements' | 'members' | 'analytics' | 'hud'>('tree');
+    const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements' | 'members' | 'analytics' | 'records' | 'hud'>('tree');
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
     const [showExcelImporterModal, setShowExcelImporterModal] = useState(false);
     const [editingMember, setEditingMember] = useState<HeritageMember | null>(null);
@@ -1400,14 +1400,102 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         </div>
     );
 
+    const renderRecordsSubView = () => (
+        <div className="space-y-6">
+            <div className={`p-6 md:p-8 rounded-[3rem] border transition-all ${
+                themeMode === 'futuristic'
+                    ? 'bg-slate-900/90 border-amber-500/30 shadow-2xl text-white'
+                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm'
+            }`}>
+                <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+                    <div>
+                        <h4 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
+                            <FileSpreadsheet className="w-6 h-6 text-amber-500" />
+                            Family Records & Audit Logs
+                        </h4>
+                        <p className="text-slate-400 text-[10px] font-mono font-black uppercase tracking-widest mt-1">
+                            Preserved Lineage Documentation & Export Vault
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => {
+                                const csvContent = "data:text/csv;charset=utf-8," 
+                                    + ["Name,Branch,Relationship,Birth Year,Death Year,Notes", ...treeMembers.map(m => `"${m.name}","${m.branch}","${m.relation}","${m.birthYear || ''}","${m.deathYear || ''}","${m.notes || ''}"`)].join("\n");
+                                const encodedUri = encodeURI(csvContent);
+                                const link = document.createElement("a");
+                                link.setAttribute("href", encodedUri);
+                                link.setAttribute("download", `Family_Heritage_Records_${Date.now()}.csv`);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                            }}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-slate-950 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-amber-400 active:scale-95 transition-all"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" />
+                            Export CSV Ledger
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div className="p-5 bg-slate-950/80 rounded-2xl border border-amber-500/20">
+                        <p className="text-[9px] font-mono text-slate-400 uppercase">Documented Lineage Records</p>
+                        <p className="text-2xl font-black text-amber-400 mt-1">{treeMembers.length} Souls</p>
+                    </div>
+                    <div className="p-5 bg-slate-950/80 rounded-2xl border border-amber-500/20">
+                        <p className="text-[9px] font-mono text-slate-400 uppercase">Oral History Chronicles</p>
+                        <p className="text-2xl font-black text-blue-400 mt-1">{heritageStories.length} Stories</p>
+                    </div>
+                    <div className="p-5 bg-slate-950/80 rounded-2xl border border-amber-500/20">
+                        <p className="text-[9px] font-mono text-slate-400 uppercase">Vault Photos & Artifacts</p>
+                        <p className="text-2xl font-black text-emerald-400 mt-1">{heritageGallery.length} Files</p>
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-amber-500/20 bg-slate-950/40 text-[10px] font-mono font-black uppercase tracking-widest text-amber-400">
+                                <th className="p-4">Record ID</th>
+                                <th className="p-4">Full Name</th>
+                                <th className="p-4">Lineage Branch</th>
+                                <th className="p-4">Role & Rights</th>
+                                <th className="p-4">Recorded Lifespan</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/50 text-xs">
+                            {treeMembers.map((m, idx) => (
+                                <tr key={m.id || idx} className="hover:bg-slate-800/50 transition-colors">
+                                    <td className="p-4 font-mono font-bold text-amber-400">#HER-{(idx + 1).toString().padStart(3, '0')}</td>
+                                    <td className="p-4 font-black uppercase">{m.name}</td>
+                                    <td className="p-4">
+                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-mono font-black uppercase ${
+                                            m.branch === 'Paternal' ? 'bg-blue-500/20 text-blue-400' : 'bg-pink-500/20 text-pink-400'
+                                        }`}>
+                                            {m.branch}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 font-bold text-slate-300">{m.role || 'Family Member'} ({m.accessRight || 'Branch Editor'})</td>
+                                    <td className="p-4 font-mono text-slate-400">{m.birthYear || '—'} {m.deathYear ? `- ${m.deathYear}` : ''}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+
     const renderHeritage = () => {
         const heritageSubTabs = [
             { id: 'tree', label: 'Ancestry Map', badge: 'Lineage Tree', icon: Network },
+            { id: 'members', label: 'Tree Members', badge: 'Directory', icon: Users },
+            { id: 'announcements', label: 'Family Council', badge: 'Proclamations', icon: Ghost },
             { id: 'stories', label: 'Origin Stories', badge: 'Oral History', icon: Library },
             { id: 'gallery', label: 'Heritage Vault', badge: 'Media Vault', icon: ImageIcon },
-            { id: 'announcements', label: 'Family Council', badge: 'Proclamations', icon: Ghost },
-            { id: 'members', label: 'Tree Members', badge: 'Directory', icon: Users },
             { id: 'analytics', label: 'Lineage Analytics', badge: 'Metrics', icon: BarChart3 },
+            { id: 'records', label: 'Family Records', badge: 'Reports & Logs', icon: FileSpreadsheet },
             { id: 'hud', label: 'Cyber Vault HUD', badge: 'Quantum', icon: Zap }
         ];
 
@@ -1742,6 +1830,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                         {heritageView === 'announcements' && renderAnnouncementsSubView()}
                         {heritageView === 'members' && renderMembersSubView()}
                         {heritageView === 'analytics' && renderAnalyticsSubView()}
+                        {heritageView === 'records' && renderRecordsSubView()}
                         {heritageView === 'hud' && renderCyberHudSubView()}
                     </main>
                 </div>
