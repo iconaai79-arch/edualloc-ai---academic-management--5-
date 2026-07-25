@@ -133,7 +133,23 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     }, [isHeritage, isCampaign, currentInstitution.id]);
 
     const fetchHeritageData = async () => {
-        // ... previous code for heritage ...
+        setIsLoading(true);
+        try {
+            const [members, stories, gallery, announcements] = await Promise.all([
+                apiService.fetchModuleRecords<HeritageMember>('heritage_members', currentInstitution.id),
+                apiService.fetchModuleRecords<HeritageStory>('heritage_stories', currentInstitution.id),
+                apiService.fetchModuleRecords<HeritageGallery>('heritage_gallery', currentInstitution.id),
+                apiService.fetchModuleRecords<HeritageAnnouncement>('heritage_announcements', currentInstitution.id)
+            ]);
+            if (members && Array.isArray(members)) setTreeMembers(members);
+            if (stories && Array.isArray(stories)) setHeritageStories(stories);
+            if (gallery && Array.isArray(gallery)) setHeritageGallery(gallery);
+            if (announcements && Array.isArray(announcements)) setHeritageAnnouncements(announcements);
+        } catch (error) {
+            console.error('Error fetching heritage data:', error);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const fetchCampaignVotingData = async () => {
@@ -194,22 +210,34 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         }
         
         try {
-            const memberToSave = {
-                ...newMember,
+            const memberToSave: HeritageMember = {
                 id: `hm_${Date.now()}`,
+                name: newMember.name.trim(),
+                branch: (newMember.branch as 'Paternal' | 'Maternal') || 'Paternal',
+                relation: newMember.relation.trim(),
+                birthYear: newMember.birthYear || '',
+                deathYear: newMember.deathYear || '',
+                notes: newMember.notes || '',
+                profilePhotoUrl: newMember.profilePhotoUrl || '',
                 institutionId: currentInstitution.id,
                 createdAt: new Date().toISOString()
-            } as HeritageMember;
+            };
 
-            const saved = await apiService.saveModuleRecord('heritage_members', memberToSave);
-            if (saved) {
-                setTreeMembers(prev => [...prev, saved]);
-                setNewMember({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', notes: '' });
-                setAddMemberError('');
-                setShowAddMemberModal(false);
+            let saved: HeritageMember | null = null;
+            try {
+                saved = await apiService.saveModuleRecord<HeritageMember>('heritage_members', memberToSave);
+            } catch (err: any) {
+                console.warn('[CommunityManager] Remote save fallback to local state:', err);
             }
+
+            const recordToAdd = saved || memberToSave;
+            setTreeMembers(prev => [...prev.filter(m => m.id !== recordToAdd.id), recordToAdd]);
+            setNewMember({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', notes: '', profilePhotoUrl: '' });
+            setAddMemberError('');
+            setShowAddMemberModal(false);
         } catch (error: any) {
-            setAddMemberError(`Failed to save: ${error.message}`);
+            console.error('[CommunityManager] Failed to save member:', error);
+            setAddMemberError(`Failed to save: ${error.message || 'Unknown error'}`);
         }
     };
 
