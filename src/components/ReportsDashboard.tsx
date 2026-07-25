@@ -35,6 +35,7 @@ import { AttendanceAnalytics } from './AttendanceAnalytics';
 import { isEduInstitution } from '../utils/roleUtils';
 import { timeToMinutes, minutesToTime } from '../utils/timeUtils';
 import { ShieldIcon } from './icons/ShieldIcon';
+import { apiService } from '../services/apiService';
 
 const UserManager = React.lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 
@@ -363,9 +364,14 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
     const isAutoSales = currentInstitution?.businessSubType?.toLowerCase().includes('car') || currentInstitution?.businessSubType?.toLowerCase().includes('auto');
     const isDS = currentInstitution?.institutionType === 'Driving School' || currentInstitution?.category === 'Driving School' || currentInstitution?.institutionType?.toLowerCase().includes('driving school');
+    const isHeritage = useMemo(() => {
+        const cat = currentInstitution?.category || '';
+        const type = currentInstitution?.institutionType || '';
+        return cat.includes('Heritage') || cat.includes('Family') || type.includes('Heritage');
+    }, [currentInstitution]);
     const isEdu = useMemo(() => {
-        return isEduInstitution(currentInstitution) && !isDS;
-    }, [currentInstitution, isDS]);
+        return isEduInstitution(currentInstitution) && !isDS && !isHeritage;
+    }, [currentInstitution, isDS, isHeritage]);
 
     const isEduTransportScope = useMemo(() => {
         const cat = currentInstitution?.category || '';
@@ -379,6 +385,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     }, [currentInstitution]);
 
     const [subTab, setSubTab] = useState(() => {
+        if (isHeritage) return 'heritage_summary';
         if (activeScope === 'inventory') return 'inventory_valuation';
         if (activeScope === 'logistics') return 'fleet_overview';
         if (activeScope === 'boarding') return 'enrollment_capacity';
@@ -394,6 +401,26 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const [stockTransactions, setStockTransactions] = useState<StockTransaction[]>([]);
     const [loadingInventory, setLoadingInventory] = useState(false);
     const [inventorySearch, setInventorySearch] = useState('');
+
+    const [heritageMembers, setHeritageMembers] = useState<any[]>([]);
+    const [loadingHeritage, setLoadingHeritage] = useState(false);
+
+    useEffect(() => {
+        if (isHeritage && currentInstitution?.id) {
+            const fetchHeritageReportsData = async () => {
+                setLoadingHeritage(true);
+                try {
+                    const membersData = await apiService.fetchModuleRecords<any>('heritage_members', currentInstitution.id).catch(() => []);
+                    setHeritageMembers(membersData || []);
+                } catch (error) {
+                    console.error('Failed to load heritage reports data:', error);
+                } finally {
+                    setLoadingHeritage(false);
+                }
+            };
+            fetchHeritageReportsData();
+        }
+    }, [isHeritage, currentInstitution?.id]);
 
     useEffect(() => {
         if (activeScope === 'inventory' && currentInstitution?.id) {
@@ -758,6 +785,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     };
 
     const subTabs = [
+        { key: 'heritage_summary', label: 'Family Lineage & Ancestry Report', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'turnout', label: 'Electoral Turnout & Ballots', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'candidates', label: 'Candidate Standing Reports', icon: <CheckCircleIcon className="w-5 h-5 mr-3" /> },
         { key: 'inventory_valuation', label: 'Inventory Stock & Valuation', icon: <ArchiveBoxIcon className="w-5 h-5 mr-3" /> },
@@ -766,13 +794,13 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         { key: 'route_analytics', label: isEduTransportScope ? 'Route Analytics' : 'Route Analytics', icon: <ChartPieIcon className="w-5 h-5 mr-3" /> },
         { key: 'commute_stats', label: isEduTransportScope ? 'Commute Statistics' : 'Transport Statistics', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'visuals', label: 'Graphs & Visuals', icon: <ChartPieIcon className="w-5 h-5 mr-3" /> },
-        { key: 'stats', label: (isRetailAgency || isAutoSales) ? 'Personnel & Agent Stats' : 'Workload & Statistics', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
+        { key: 'stats', label: isHeritage ? 'Family Lineage Statistics' : ((isRetailAgency || isAutoSales) ? 'Personnel & Agent Stats' : 'Workload & Statistics'), icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
         { key: 'progress', label: 'Course Progress Tracking', icon: <CheckCircleIcon className="w-5 h-5 mr-3" /> },
         { key: 'enrollment_capacity', label: 'Enrollment vs Capacity', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'utilization', label: 'Room Utilization', icon: <BuildingOfficeIcon className="w-5 h-5 mr-3" /> },
         { key: 'distance', label: isEduTransportScope ? 'Bus Route Distances' : 'Travel Distance Report', icon: <DocumentArrowDownIcon className="w-5 h-5 mr-3" /> },
         { key: 'advisory', label: 'Room Advisory Report', icon: <ExclamationTriangleIcon className="w-5 h-5 mr-3" /> },
-        { key: 'audit', label: 'Audit Trail of Changes', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
+        { key: 'audit', label: isHeritage ? 'Family Vault Audit Logs' : 'Audit Trail of Changes', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'conflicts', label: 'Conflict Report', icon: <ExclamationTriangleIcon className="w-5 h-5 mr-3" /> },
         { key: 'attendance', label: (isRetailAgency || !isEdu) ? 'Staff Clock-In Reports' : 'Attendance Reports', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'assessments', label: 'Assessment Reports', icon: <AcademicCapIcon className="w-5 h-5 mr-3" /> },
@@ -782,6 +810,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         { key: 'client_statements', label: 'Client Statements', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'manage_users', label: 'Manage Showroom Users', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
     ].filter(tab => {
+        if (isHeritage) {
+            const allowed = ['heritage_summary', 'stats', 'audit'];
+            return allowed.includes(tab.key);
+        }
         if (isAutoSales) {
             const allowed = ['visuals', 'stats', 'audit', 'attendance', 'client_statements', 'manage_users'];
             return allowed.includes(tab.key);
@@ -862,6 +894,96 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 </aside>
 
                 <main className="flex-1 min-w-0">
+                    {subTab === 'heritage_summary' && (
+                        <div className="space-y-6 animate-fade-in text-slate-900 dark:text-white">
+                            <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <div>
+                                    <h3 className="text-2xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Family Lineage & Ancestry Report</h3>
+                                    <p className="text-xs text-slate-500 font-medium mt-1">Official registry of family souls, branches, and ancestral notes.</p>
+                                </div>
+                                <button
+                                    onClick={() => window.print()}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-amber-700 transition-all shadow-md"
+                                >
+                                    <PrinterIcon className="w-4 h-4" />
+                                    Print Report
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Family Members</span>
+                                    <h4 className="text-3xl font-black text-amber-600 mt-2">{heritageMembers.length}</h4>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Paternal Branch</span>
+                                    <h4 className="text-3xl font-black text-blue-600 mt-2">
+                                        {heritageMembers.filter(m => m.branch === 'Paternal').length}
+                                    </h4>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Maternal Branch</span>
+                                    <h4 className="text-3xl font-black text-pink-600 mt-2">
+                                        {heritageMembers.filter(m => m.branch === 'Maternal').length}
+                                    </h4>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Documented Elders</span>
+                                    <h4 className="text-3xl font-black text-emerald-600 mt-2">
+                                        {heritageMembers.filter(m => m.birthYear || m.deathYear).length}
+                                    </h4>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                                <div className="p-6 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20">
+                                    <h4 className="text-sm font-black uppercase tracking-tight">Ancestral Lineage Registry</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Detailed list of recorded family tree souls and legacy details</p>
+                                </div>
+                                {loadingHeritage ? (
+                                    <div className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                        Loading Family Lineage Records...
+                                    </div>
+                                ) : heritageMembers.length === 0 ? (
+                                    <div className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                        No family members registered yet.
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/10">
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Full Name</th>
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Branch</th>
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Relationship</th>
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Lifespan</th>
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Historical Notes</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50 text-xs">
+                                                {heritageMembers.map((m, idx) => (
+                                                    <tr key={m.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40">
+                                                        <td className="p-5 font-black text-slate-800 dark:text-white uppercase">{m.name}</td>
+                                                        <td className="p-5">
+                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${m.branch === 'Paternal' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-pink-50 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300'}`}>
+                                                                {m.branch}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-5 font-bold text-slate-600 dark:text-slate-300">{m.relation}</td>
+                                                        <td className="p-5 font-bold text-slate-500">
+                                                            {m.birthYear || '—'} {m.deathYear ? `- ${m.deathYear}` : ''}
+                                                        </td>
+                                                        <td className="p-5 text-slate-500 font-medium max-w-xs truncate">{m.notes || '—'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {subTab === 'turnout' && (
                         <div className="space-y-6 animate-fade-in text-slate-900 dark:text-white">
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
