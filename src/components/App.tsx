@@ -212,6 +212,24 @@ export const App: React.FC = () => {
         }
     }, [currentUser]);
 
+    // Handle 401 session-expiry events fired by apiService when token refresh fails
+    useEffect(() => {
+        let lastFiredAt = 0;
+        const onSessionExpired = () => {
+            // Debounce — avoid multiple toasts in quick succession
+            const now = Date.now();
+            if (now - lastFiredAt < 10000) return;
+            lastFiredAt = now;
+            warning('Your session has expired. Please log in again.');
+            // Clear all known session keys and force re-login
+            const sessionKeys = ['eduai_active_session', 'eduai_user_session', 'eduai_impersonated_user', 'user'];
+            sessionKeys.forEach(k => localStorage.removeItem(k));
+            setCurrentUser(null);
+        };
+        window.addEventListener('eduai:session_expired', onSessionExpired as EventListener);
+        return () => window.removeEventListener('eduai:session_expired', onSessionExpired as EventListener);
+    }, [warning]);
+
     const [impersonatedRole, setImpersonatedRole] = useState<Role | null>(null);
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
     const [selectedRegistrySchool, setSelectedRegistrySchool] = useState<SchoolRegistry | null>(null);

@@ -274,6 +274,19 @@ export const apiService = {
             try {
                 const { data } = _supabase.auth ? await _supabase.auth.getSession() : { data: { session: null } };
                 if (data?.session?.access_token) return data.session.access_token;
+
+                // Session missing or expired — attempt a silent refresh
+                if (_supabase.auth) {
+                    try {
+                        const { data: refreshData, error: refreshErr } = await _supabase.auth.refreshSession();
+                        if (!refreshErr && refreshData?.session?.access_token) {
+                            console.log('[apiService] Token silently refreshed.');
+                            return refreshData.session.access_token;
+                        }
+                    } catch (refreshEx) {
+                        console.warn('[apiService] Silent refresh failed:', refreshEx);
+                    }
+                }
             } catch (e) { }
 
             // fallback to localStorage supanse-auth-token if available
@@ -309,6 +322,12 @@ export const apiService = {
 
         const token = session?.id || (session as any)?.userId || (session as any)?.user_id || '';
         return token;
+    },
+    /** Dispatch a global event when all auth attempts fail with 401 so the UI can prompt re-login */
+    _notifySessionExpired(): void {
+        try {
+            window.dispatchEvent(new CustomEvent('eduai:session_expired', { detail: { ts: Date.now() } }));
+        } catch (e) { /* non-browser env */ }
     },
     getToken(): string {
         // Synchronous version for legacy/simple calls
@@ -824,7 +843,7 @@ export const apiService = {
 
         try {
             // Determine Auth Token (Try JWT then ID fallback)
-            const token = await apiService.getAuthToken();
+            let token = await apiService.getAuthToken();
 
             const url = new URL(`${window.location.origin}/api/records`);
             url.searchParams.append('module', module);
@@ -846,12 +865,37 @@ export const apiService = {
                 });
             }
 
-            const response = await fetch(url.toString(), {
+            const doFetch = (tkn: string) => fetch(url.toString(), {
                 headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Authorization': tkn ? `Bearer ${tkn}` : '',
                     'Content-Type': 'application/json'
                 }
             });
+
+            let response = await doFetch(token);
+
+            // --- 401 handler: try silent token refresh then retry once ---
+            if (response.status === 401) {
+                console.warn(`[apiService] 401 on fetch [${module}] — attempting token refresh...`);
+                if (_supabase?.auth) {
+                    try {
+                        const { data: rd } = await _supabase.auth.refreshSession();
+                        if (rd?.session?.access_token) {
+                            token = rd.session.access_token;
+                            console.log('[apiService] Token refreshed, retrying fetch...');
+                            response = await doFetch(token);
+                        }
+                    } catch (refreshErr) {
+                        console.warn('[apiService] Refresh failed during fetch:', refreshErr);
+                    }
+                }
+                if (response.status === 401) {
+                    apiService._notifySessionExpired();
+                    console.warn(`[apiService] Session expired — falling back to local storage for [${module}]`);
+                    return queryLocal();
+                }
+            }
+            // --- end 401 handler ---
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
@@ -1354,17 +1398,42 @@ export const apiService = {
         }
 
         try {
-            const token = await apiService.getAuthToken();
+            let token = await apiService.getAuthToken();
+
+            const doSaveRequest = async (tkn: string, currentPayload: any) => fetch('/api/records?module=' + module, {
+                method: 'POST',
+                headers: {
+                    'Authorization': tkn ? `Bearer ${tkn}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data: currentPayload })
+            });
 
             const attemptSave = async (currentPayload: any, retries: number = 5): Promise<any> => {
-                const response = await fetch('/api/records?module=' + module, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': token ? `Bearer ${token}` : '',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ data: currentPayload })
-                });
+                let response = await doSaveRequest(token, currentPayload);
+
+                // --- 401 handler: try silent token refresh then retry once ---
+                if (response.status === 401) {
+                    console.warn(`[apiService] 401 on save [${module}] — attempting token refresh...`);
+                    if (_supabase?.auth) {
+                        try {
+                            const { data: rd } = await _supabase.auth.refreshSession();
+                            if (rd?.session?.access_token) {
+                                token = rd.session.access_token;
+                                console.log('[apiService] Token refreshed, retrying save...');
+                                response = await doSaveRequest(token, currentPayload);
+                            }
+                        } catch (refreshErr) {
+                            console.warn('[apiService] Refresh failed during save:', refreshErr);
+                        }
+                    }
+                    // If still 401 after refresh attempt, signal session expiry
+                    if (response.status === 401) {
+                        apiService._notifySessionExpired();
+                        throw new Error('Session expired. Please log in again.');
+                    }
+                }
+                // --- end 401 handler ---
 
                 if (!response.ok) {
                     const contentType = response.headers.get('content-type');
@@ -1411,6 +1480,9 @@ export const apiService = {
         } catch (e: any) {
             console.error(`Save Exception [${module}]:`, e);
             const msg = e.message || String(e);
+            if (msg.includes('Session expired') || msg.includes('Please log in')) {
+                throw e; // propagate session-expiry errors, don't mask them
+            }
             if (msg.includes('Registry Conflict') || msg.includes('23505') || msg.toLowerCase().includes('unique constraint') || msg.toLowerCase().includes('already registered')) {
                 throw e;
             }
