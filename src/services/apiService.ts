@@ -1482,15 +1482,18 @@ export const apiService = {
             const savedData = await attemptSave(payload);
             return savedData ? toCamelCase(savedData) : null;
         } catch (e: any) {
-            console.error(`Save Exception [${module}]:`, e);
             const msg = e.message || String(e);
+            if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
+                console.warn(`[apiService] Database table '${module}' not present in Supabase cache [PGRST205]. Falling back to localStorage.`);
+            } else {
+                console.error(`Save Exception [${module}]:`, e);
+            }
             if (msg.includes('Session expired') || msg.includes('Please log in')) {
                 throw e; // propagate session-expiry errors, don't mask them
             }
             if (msg.includes('Registry Conflict') || msg.includes('23505') || msg.toLowerCase().includes('unique constraint') || msg.toLowerCase().includes('already registered')) {
                 throw e;
             }
-            console.warn(`[apiService] Falling back to localStorage save for ${module}`);
             ls.upsert(module, payload);
             return toCamelCase(payload);
         }
