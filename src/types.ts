@@ -4556,6 +4556,9 @@ export interface HeritageMember {
     positionY?: number;
     parentId?: string;
     parentName?: string;
+    spouseId?: string;
+    spouseName?: string;
+    relationshipType?: 'child' | 'spouse' | 'ancestor';
     generation?: number;
     createdAt?: string;
 }

@@ -409,6 +409,9 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 relation: newMember.relation.trim(),
                 parentId: newMember.parentId || '',
                 parentName: newMember.parentName || '',
+                spouseId: newMember.spouseId || '',
+                spouseName: newMember.spouseName || '',
+                relationshipType: (newMember.relationshipType as any) || (newMember.spouseId ? 'spouse' : (newMember.parentId ? 'child' : 'ancestor')),
                 birthYear: newMember.birthYear || '',
                 deathYear: newMember.deathYear || '',
                 phoneNumber: newMember.phoneNumber?.trim() || '',
@@ -445,7 +448,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 });
             }
 
-            setNewMember({ name: '', branch: 'Paternal', relation: '', parentId: '', parentName: '', birthYear: '', deathYear: '', phoneNumber: '', email: '', notes: '', profilePhotoUrl: '', role: 'Family Member', accessRight: 'Branch Editor', canAddSoul: true, canEditTree: true, canDeleteTree: false, sendAccessSms: true });
+            setNewMember({ name: '', branch: 'Paternal', relation: '', parentId: '', parentName: '', spouseId: '', spouseName: '', relationshipType: 'child', birthYear: '', deathYear: '', phoneNumber: '', email: '', notes: '', profilePhotoUrl: '', role: 'Family Member', accessRight: 'Branch Editor', canAddSoul: true, canEditTree: true, canDeleteTree: false, sendAccessSms: true });
             setAddMemberError('');
             setShowAddMemberModal(false);
         } catch (error: any) {
@@ -461,11 +464,44 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
             relation: 'Son / Daughter',
             parentId: parentMember.id,
             parentName: parentMember.name,
+            spouseId: '',
+            spouseName: '',
+            relationshipType: 'child',
             birthYear: '',
             deathYear: '',
             phoneNumber: '',
             email: '',
             notes: `Direct descendant under ${parentMember.name}`,
+            role: 'Family Member',
+            accessRight: 'Branch Editor',
+            canAddSoul: true,
+            canEditTree: true,
+            canDeleteTree: false,
+            canManageVault: false,
+            canPublishProclamations: false,
+            sendAccessSms: true
+        });
+        setShowAddMemberModal(true);
+    };
+
+    const handleOpenAddSpouse = (partnerMember: HeritageMember) => {
+        const isWifeTarget = partnerMember.relation.toLowerCase().includes('husband') || partnerMember.relation.toLowerCase().includes('son') || partnerMember.branch === 'Paternal';
+        const defaultSpouseRelation = isWifeTarget ? 'Wife' : 'Husband';
+        
+        setNewMember({
+            name: '',
+            branch: partnerMember.branch || 'Paternal',
+            relation: defaultSpouseRelation,
+            parentId: partnerMember.parentId || '',
+            parentName: partnerMember.parentName || '',
+            spouseId: partnerMember.id,
+            spouseName: partnerMember.name,
+            relationshipType: 'spouse',
+            birthYear: '',
+            deathYear: '',
+            phoneNumber: '',
+            email: '',
+            notes: `Spouse (${defaultSpouseRelation}) of ${partnerMember.name}`,
             role: 'Family Member',
             accessRight: 'Branch Editor',
             canAddSoul: true,
@@ -1057,7 +1093,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                         }}
                     >
                         <div 
-                            className="space-y-12 md:space-y-16 w-full max-w-2xl transition-all duration-500 ease-out"
+                            className="space-y-12 md:space-y-16 w-full max-w-4xl transition-all duration-500 ease-out"
                             style={{
                                 transformStyle: is3DMode ? 'preserve-3d' : 'flat',
                                 transform: is3DMode
@@ -1086,205 +1122,223 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                         </div>
                                     )}
 
-                                    {/* Root Ancestor Node (First Member) - 3D Floating & Draggable Layer */}
+                                    {/* Structured Ancestral Tree Matrix */}
                                     {(() => {
-                                        const rootMember = treeMembers[0];
-                                        const rootPos = nodePositions[rootMember.id] || { x: 0, y: 0 };
-                                        const isDragging = draggingNodeId === rootMember.id;
-                                        return (
-                                            <div 
-                                                onMouseDown={(e) => handleNodeMouseDown(e, rootMember.id)}
-                                                onTouchStart={(e) => handleNodeMouseDown(e, rootMember.id)}
-                                                onClick={(e) => {
-                                                    if (!isDragging) handleOpenEditMember(rootMember);
-                                                }}
-                                                style={{
-                                                    transform: is3DMode 
-                                                        ? `translate3d(${rootPos.x}px, ${rootPos.y}px, 60px)` 
-                                                        : `translate(${rootPos.x}px, ${rootPos.y}px)`,
-                                                    boxShadow: is3DMode ? '0 25px 50px -12px rgba(245, 158, 11, 0.4)' : undefined,
-                                                }}
-                                                className={`p-4 md:p-6 border-2 rounded-3xl backdrop-blur-xl text-center group transition-all duration-200 relative select-none ${
-                                                    isFreeformDragMode ? (isDragging ? 'cursor-grabbing scale-105 z-50 ring-4 ring-amber-400' : 'cursor-grab hover:ring-2 hover:ring-amber-400/60') : 'cursor-pointer'
-                                                } ${
-                                                    themeMode === 'futuristic'
-                                                        ? 'bg-gradient-to-b from-amber-500/25 via-slate-950/90 to-amber-500/10 border-amber-400 text-white hover:border-yellow-300'
-                                                        : 'bg-white/10 border-amber-500 hover:bg-amber-500'
-                                                }`}
-                                            >
-                                                {isFreeformDragMode && (
-                                                    <div className="absolute -top-3 -left-3 p-1.5 bg-emerald-500 text-slate-950 rounded-full shadow-lg opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[8px] font-mono font-black uppercase">
-                                                        <Move className="w-3 h-3" />
-                                                        <span className="hidden group-hover:inline">Drag</span>
-                                                    </div>
-                                                )}
+                                        // Track already rendered member IDs to avoid duplicate collisions
+                                        const renderedIds = new Set<string>();
 
-                                                <div className="absolute -top-3 -right-3 p-1.5 bg-amber-400 text-slate-950 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Pencil className="w-3.5 h-3.5" />
-                                                </div>
-                                                <div className="flex items-center justify-center gap-2 mb-1">
-                                                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                                                    <span className="text-[9px] font-mono font-black uppercase text-amber-400 group-hover:text-amber-300 tracking-widest">Root Patriarch / Matriarch</span>
-                                                </div>
-                                                <p className="font-black text-base md:text-lg uppercase tracking-tight">{rootMember.name}</p>
-                                                <p className="text-[10px] font-mono font-black text-amber-300 uppercase mt-0.5">
-                                                    {rootMember.relation} • {rootMember.branch} {rootMember.birthYear ? `(${rootMember.birthYear})` : ''}
-                                                </p>
-                                                <span className="text-[8px] font-mono block text-emerald-400 mt-1 uppercase font-bold tracking-widest">
-                                                    {isFreeformDragMode ? '🖐️ Hold & Drag to Position' : 'Click Node to Edit'}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleOpenAddChild(rootMember);
-                                                    }}
-                                                    className="mt-2.5 px-3 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 rounded-xl text-[8px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 mx-auto shadow-sm active:scale-95 group/childbtn"
-                                                    title={`Add son or daughter directly under ${rootMember.name}`}
-                                                >
-                                                    <Plus className="w-2.5 h-2.5 text-amber-400 group-hover/childbtn:text-slate-950" />
-                                                    <span>+ Add Child</span>
-                                                </button>
-                                            </div>
-                                        );
-                                    })()}
+                                        const renderMemberSubtree = (memberNode: HeritageMember, depth: number = 0): React.ReactNode => {
+                                            if (renderedIds.has(memberNode.id)) return null;
+                                            renderedIds.add(memberNode.id);
 
-                                    {/* 3D Vertical Line Connector Beam */}
-                                    <div 
-                                        className="w-1 h-12 md:h-16 bg-gradient-to-b from-amber-400 via-yellow-400 to-indigo-500 shadow-lg shadow-amber-500/50"
-                                        style={{ transform: is3DMode ? 'translateZ(45px)' : 'none' }}
-                                    ></div>
+                                            const nodePos = nodePositions[memberNode.id] || { x: 0, y: 0 };
+                                            const isDragging = draggingNodeId === memberNode.id;
 
-                                    {/* 3D Branch Container */}
-                                    <div 
-                                        className="flex gap-4 md:gap-10 items-start relative flex-wrap justify-center max-w-full"
-                                        style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}
-                                    >
-                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[82%] h-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-pink-500 shadow-lg shadow-indigo-500/50"></div>
-                                        {treeMembers.slice(1).map((child, idx) => {
-                                            const childPos = nodePositions[child.id] || { x: 0, y: 0 };
-                                            const isDragging = draggingNodeId === child.id;
-                                            const grandChildren = treeMembers.filter(m => m.parentId === child.id || (m.parentName && m.parentName === child.name));
+                                            // Find spouse(s) for this member
+                                            const spouses = treeMembers.filter(m => 
+                                                !renderedIds.has(m.id) && (
+                                                    (m.spouseId && m.spouseId === memberNode.id) || 
+                                                    (m.spouseName && m.spouseName.toLowerCase() === memberNode.name.toLowerCase()) ||
+                                                    (memberNode.spouseId && m.id === memberNode.spouseId) ||
+                                                    (memberNode.spouseName && m.name.toLowerCase() === memberNode.spouseName.toLowerCase()) ||
+                                                    (m.relationshipType === 'spouse' && m.parentId === memberNode.id)
+                                                )
+                                            );
+
+                                            spouses.forEach(s => renderedIds.add(s.id));
+
+                                            // Find children under this member or their spouse(s)
+                                            const parentIds = [memberNode.id, ...spouses.map(s => s.id)];
+                                            const parentNames = [memberNode.name.toLowerCase(), ...spouses.map(s => s.name.toLowerCase())];
+
+                                            const children = treeMembers.filter(m => {
+                                                if (renderedIds.has(m.id)) return false;
+                                                const matchesParentId = m.parentId && parentIds.includes(m.parentId);
+                                                const matchesParentName = m.parentName && parentNames.includes(m.parentName.toLowerCase());
+                                                return matchesParentId || matchesParentName;
+                                            });
+
                                             return (
-                                                <div key={child.id} className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
-                                                    <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                                    <div 
-                                                        onMouseDown={(e) => handleNodeMouseDown(e, child.id)}
-                                                        onTouchStart={(e) => handleNodeMouseDown(e, child.id)}
-                                                        onClick={(e) => {
-                                                            if (!isDragging) handleOpenEditMember(child);
-                                                        }}
-                                                        style={{
-                                                            transform: is3DMode 
-                                                                ? `translate3d(${childPos.x}px, ${childPos.y}px, ${30 + idx * 10}px)` 
-                                                                : `translate(${childPos.x}px, ${childPos.y}px)`,
-                                                            boxShadow: is3DMode ? '0 15px 35px -8px rgba(99, 102, 241, 0.3)' : undefined,
-                                                        }}
-                                                        className={`p-4 rounded-2xl border-2 backdrop-blur-xl text-center transition-all duration-200 group relative select-none ${
-                                                            isFreeformDragMode ? (isDragging ? 'cursor-grabbing scale-105 z-50 ring-4 ring-amber-400' : 'cursor-grab hover:ring-2 hover:ring-amber-400/60') : 'cursor-pointer hover:scale-105'
-                                                        } ${
-                                                            child.branch === 'Paternal'
-                                                                ? 'bg-slate-950/90 border-cyan-400/60 text-cyan-200 hover:border-cyan-300'
-                                                                : 'bg-slate-950/90 border-pink-400/60 text-pink-200 hover:border-pink-300'
-                                                        }`}
-                                                    >
-                                                        {isFreeformDragMode && (
-                                                            <div className="absolute -top-2.5 -left-2.5 p-1 bg-emerald-500 text-slate-950 rounded-full shadow-md opacity-80 group-hover:opacity-100 transition-opacity">
-                                                                <Move className="w-2.5 h-2.5" />
-                                                            </div>
-                                                        )}
-                                                        <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md">
-                                                            <Pencil className="w-3 h-3" />
-                                                        </div>
-                                                        <p className="font-bold text-xs uppercase tracking-tight">{child.name}</p>
-                                                        <p className="text-[8px] font-mono font-black uppercase tracking-widest text-amber-300 mt-0.5">
-                                                            {child.relation} • {child.branch}
-                                                        </p>
-                                                        {child.parentName && (
-                                                            <p className="text-[7px] font-mono text-cyan-300 uppercase mt-0.5">
-                                                                Child of {child.parentName}
-                                                            </p>
-                                                        )}
-                                                        <button
-                                                            type="button"
+                                                <div key={memberNode.id} className="flex flex-col items-center my-3" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                                    {/* Side-by-Side Spouse / Couple Container */}
+                                                    <div className="flex items-center gap-4 relative flex-wrap justify-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                                        {/* Primary Node Card */}
+                                                        <div 
+                                                            onMouseDown={(e) => handleNodeMouseDown(e, memberNode.id)}
+                                                            onTouchStart={(e) => handleNodeMouseDown(e, memberNode.id)}
                                                             onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleOpenAddChild(child);
+                                                                if (!isDragging) handleOpenEditMember(memberNode);
                                                             }}
-                                                            className="mt-2 px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 rounded-xl text-[7px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 mx-auto shadow-sm active:scale-95 group/cbtn"
-                                                            title={`Add son or daughter directly under ${child.name}`}
+                                                            style={{
+                                                                transform: is3DMode 
+                                                                    ? `translate3d(${nodePos.x}px, ${nodePos.y}px, ${60 - depth * 10}px)` 
+                                                                    : `translate(${nodePos.x}px, ${nodePos.y}px)`,
+                                                                boxShadow: is3DMode ? '0 20px 45px -10px rgba(245, 158, 11, 0.35)' : undefined,
+                                                            }}
+                                                            className={`p-4 md:p-5 border-2 rounded-3xl backdrop-blur-xl text-center group transition-all duration-200 relative select-none min-w-[180px] ${
+                                                                isFreeformDragMode ? (isDragging ? 'cursor-grabbing scale-105 z-50 ring-4 ring-amber-400' : 'cursor-grab hover:ring-2 hover:ring-amber-400/60') : 'cursor-pointer hover:scale-105'
+                                                            } ${
+                                                                depth === 0
+                                                                    ? 'bg-gradient-to-b from-amber-500/25 via-slate-950/90 to-amber-500/10 border-amber-400 text-white shadow-lg shadow-amber-500/20'
+                                                                    : memberNode.branch === 'Paternal'
+                                                                        ? 'bg-slate-950/90 border-cyan-400/60 text-cyan-200 hover:border-cyan-300'
+                                                                        : 'bg-slate-950/90 border-pink-400/60 text-pink-200 hover:border-pink-300'
+                                                            }`}
                                                         >
-                                                            <Plus className="w-2 h-2 text-amber-400 group-hover/cbtn:text-slate-950" />
-                                                            <span>+ Add Child</span>
-                                                        </button>
+                                                            {isFreeformDragMode && (
+                                                                <div className="absolute -top-2.5 -left-2.5 p-1 bg-emerald-500 text-slate-950 rounded-full shadow-md opacity-80 group-hover:opacity-100 transition-opacity">
+                                                                    <Move className="w-2.5 h-2.5" />
+                                                                </div>
+                                                            )}
+
+                                                            <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md">
+                                                                <Pencil className="w-3 h-3" />
+                                                            </div>
+
+                                                            <p className="font-black text-sm md:text-base uppercase tracking-tight">{memberNode.name}</p>
+                                                            <p className="text-[9px] font-mono font-black text-amber-300 uppercase mt-0.5">
+                                                                {memberNode.relation} • {memberNode.branch} {memberNode.birthYear ? `(${memberNode.birthYear})` : ''}
+                                                            </p>
+
+                                                            {/* Direct Actions: + Spouse & + Child */}
+                                                            <div className="mt-2.5 flex items-center justify-center gap-1.5 flex-wrap">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleOpenAddSpouse(memberNode);
+                                                                    }}
+                                                                    className="px-2 py-1 bg-pink-500/20 hover:bg-pink-500 hover:text-slate-950 text-pink-300 border border-pink-500/40 rounded-xl text-[7.5px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-0.5 shadow-sm active:scale-95 group/spbtn"
+                                                                    title={`Add wife or husband directly linked to ${memberNode.name}`}
+                                                                >
+                                                                    <Heart className="w-2.5 h-2.5 text-pink-400 group-hover/spbtn:text-slate-950" />
+                                                                    <span>+ Spouse</span>
+                                                                </button>
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleOpenAddChild(memberNode);
+                                                                    }}
+                                                                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 rounded-xl text-[7.5px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-0.5 shadow-sm active:scale-95 group/childbtn"
+                                                                    title={`Add son or daughter directly under ${memberNode.name}`}
+                                                                >
+                                                                    <Plus className="w-2.5 h-2.5 text-amber-400 group-hover/childbtn:text-slate-950" />
+                                                                    <span>+ Child</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Spouse Node(s) rendered side-by-side with Marriage Bridge */}
+                                                        {spouses.map(spouse => {
+                                                            const spousePos = nodePositions[spouse.id] || { x: 0, y: 0 };
+                                                            const spouseIsDragging = draggingNodeId === spouse.id;
+                                                            return (
+                                                                <React.Fragment key={spouse.id}>
+                                                                    <div className="flex items-center gap-1 px-2.5 py-1 bg-pink-500/20 border border-pink-400/60 rounded-2xl text-pink-300 text-[8px] font-mono font-black animate-pulse shadow-md">
+                                                                        <Heart className="w-3 h-3 text-pink-400 fill-pink-400" />
+                                                                        <span>💍 Marriage Bridge</span>
+                                                                    </div>
+
+                                                                    <div 
+                                                                        onMouseDown={(e) => handleNodeMouseDown(e, spouse.id)}
+                                                                        onTouchStart={(e) => handleNodeMouseDown(e, spouse.id)}
+                                                                        onClick={(e) => {
+                                                                            if (!spouseIsDragging) handleOpenEditMember(spouse);
+                                                                        }}
+                                                                        style={{
+                                                                            transform: is3DMode 
+                                                                                ? `translate3d(${spousePos.x}px, ${spousePos.y}px, ${60 - depth * 10}px)` 
+                                                                                : `translate(${spousePos.x}px, ${spousePos.y}px)`,
+                                                                        }}
+                                                                        className={`p-4 md:p-5 border-2 rounded-3xl backdrop-blur-xl text-center group transition-all duration-200 relative select-none min-w-[180px] bg-slate-950/90 border-pink-400/80 text-pink-200 shadow-lg shadow-pink-500/20 ${
+                                                                            isFreeformDragMode ? (spouseIsDragging ? 'cursor-grabbing scale-105 z-50 ring-4 ring-pink-400' : 'cursor-grab hover:ring-2 hover:ring-pink-400/60') : 'cursor-pointer hover:scale-105'
+                                                                        }`}
+                                                                    >
+                                                                        <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md">
+                                                                            <Pencil className="w-3 h-3" />
+                                                                        </div>
+
+                                                                        <div className="flex items-center justify-center gap-1 mb-1">
+                                                                            <Heart className="w-3 h-3 text-pink-400 fill-pink-400" />
+                                                                            <span className="text-[8px] font-mono font-black uppercase text-pink-400">Spouse ({spouse.relation || 'Wife'})</span>
+                                                                        </div>
+                                                                        <p className="font-black text-sm md:text-base uppercase tracking-tight text-white">{spouse.name}</p>
+                                                                        <p className="text-[8.5px] font-mono text-pink-300 uppercase mt-0.5">
+                                                                            Married to {memberNode.name}
+                                                                        </p>
+
+                                                                        <div className="mt-2.5 flex items-center justify-center gap-1.5 flex-wrap">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleOpenAddSpouse(spouse);
+                                                                                }}
+                                                                                className="px-2 py-1 bg-pink-500/20 hover:bg-pink-500 hover:text-slate-950 text-pink-300 border border-pink-500/40 rounded-xl text-[7.5px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-0.5 shadow-sm active:scale-95"
+                                                                            >
+                                                                                <Heart className="w-2.5 h-2.5 text-pink-400" />
+                                                                                <span>+ Spouse</span>
+                                                                            </button>
+
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleOpenAddChild(spouse);
+                                                                                }}
+                                                                                className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 rounded-xl text-[7.5px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-0.5 shadow-sm active:scale-95"
+                                                                            >
+                                                                                <Plus className="w-2.5 h-2.5 text-amber-400" />
+                                                                                <span>+ Child</span>
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </React.Fragment>
+                                                            );
+                                                        })}
                                                     </div>
 
-                                                    {/* Sub-Branch Descendants (Grandchildren) */}
-                                                    {grandChildren.length > 0 && (
-                                                        <div className="flex flex-col items-center mt-2" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
-                                                            <div className="w-0.5 h-6 bg-gradient-to-b from-indigo-500 to-amber-400"></div>
-                                                            <div className="flex gap-3 items-start relative flex-wrap justify-center max-w-full">
-                                                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[85%] h-0.5 bg-amber-400/80"></div>
-                                                                {grandChildren.map((gc, gcIdx) => {
-                                                                    const gcPos = nodePositions[gc.id] || { x: 0, y: 0 };
-                                                                    const gcIsDragging = draggingNodeId === gc.id;
-                                                                    return (
-                                                                        <div key={gc.id} className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
-                                                                            <div className="w-0.5 h-4 bg-amber-400"></div>
-                                                                            <div
-                                                                                onMouseDown={(e) => handleNodeMouseDown(e, gc.id)}
-                                                                                onTouchStart={(e) => handleNodeMouseDown(e, gc.id)}
-                                                                                onClick={(e) => {
-                                                                                    if (!gcIsDragging) handleOpenEditMember(gc);
-                                                                                }}
-                                                                                style={{
-                                                                                    transform: is3DMode
-                                                                                        ? `translate3d(${gcPos.x}px, ${gcPos.y}px, ${20 + gcIdx * 5}px)`
-                                                                                        : `translate(${gcPos.x}px, ${gcPos.y}px)`
-                                                                                }}
-                                                                                className={`p-3 rounded-xl border backdrop-blur-xl text-center transition-all duration-200 group relative select-none bg-slate-900/90 border-amber-400/50 text-amber-200 ${
-                                                                                    isFreeformDragMode ? (gcIsDragging ? 'cursor-grabbing scale-105 z-50 ring-2 ring-amber-400' : 'cursor-grab hover:ring-1 hover:ring-amber-400/60') : 'cursor-pointer hover:scale-105'
-                                                                                }`}
-                                                                            >
-                                                                                <p className="font-bold text-[10px] uppercase tracking-tight">{gc.name}</p>
-                                                                                <p className="text-[7px] font-mono font-black uppercase text-amber-300">
-                                                                                    {gc.relation} (under {gc.parentName || child.name})
-                                                                                </p>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation();
-                                                                                        handleOpenAddChild(gc);
-                                                                                    }}
-                                                                                    className="mt-1 px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/30 rounded-lg text-[6.5px] font-mono font-black uppercase transition-all flex items-center justify-center gap-0.5 mx-auto"
-                                                                                >
-                                                                                    <Plus className="w-2 h-2" />
-                                                                                    <span>+ Add Child</span>
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })}
+                                                    {/* Descendants Branching Lines & Children Subtrees */}
+                                                    {children.length > 0 && (
+                                                        <div className="flex flex-col items-center mt-3 w-full" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                                            {/* Vertical Connector Beam down from Parent Pair */}
+                                                            <div className="w-1 h-8 bg-gradient-to-b from-amber-400 via-yellow-400 to-indigo-500 shadow-md"></div>
+
+                                                            {/* Horizontal Connector Line across all Children */}
+                                                            <div className="flex gap-6 md:gap-10 items-start relative flex-wrap justify-center max-w-full">
+                                                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[85%] h-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-pink-500 shadow-md"></div>
+                                                                
+                                                                {children.map(child => (
+                                                                    <div key={child.id} className="flex flex-col items-center">
+                                                                        <div className="w-0.5 h-6 bg-indigo-500"></div>
+                                                                        {renderMemberSubtree(child, depth + 1)}
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                         </div>
                                                     )}
                                                 </div>
                                             );
-                                        })}
+                                        };
 
-                                        {/* Direct Add Branch Soul Button with 3D Float */}
-                                        <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
-                                            <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                            <button
-                                                onClick={() => setShowAddMemberModal(true)}
-                                                style={{ transform: is3DMode ? 'translateZ(35px)' : 'none' }}
-                                                className="p-4 border-2 border-dashed border-amber-400/70 rounded-2xl bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition-all duration-300 flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/20 active:scale-95 group hover:scale-105"
-                                            >
-                                                <Plus className="w-4 h-4 text-amber-400 group-hover:text-slate-950 animate-bounce" />
-                                                <span>Add Soul to Tree</span>
-                                            </button>
-                                        </div>
-                                    </div>
+                                        // Identify Top-Level Roots
+                                        const unrenderedRoots = treeMembers.filter(m => 
+                                            !m.parentId && !m.spouseId && 
+                                            (!m.relationshipType || m.relationshipType === 'ancestor' || m.relation.toLowerCase().includes('patriarch') || m.relation.toLowerCase().includes('root'))
+                                        );
+                                        const rootsToRender = unrenderedRoots.length > 0 ? unrenderedRoots : [treeMembers[0]];
+
+                                        return (
+                                            <div className="flex flex-col items-center gap-6 w-full">
+                                                {rootsToRender.map(r => renderMemberSubtree(r, 0))}
+
+                                                {/* Render any remaining members not caught in primary hierarchy */}
+                                                {treeMembers.filter(m => !renderedIds.has(m.id)).map(orphan => renderMemberSubtree(orphan, 1))}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             ) : (
                                 /* Fallback Demo Interactive Tree Nodes in 3D */
@@ -1358,23 +1412,42 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                 <span className="text-[8px] font-mono block text-emerald-400 group-hover:text-slate-950 mt-1 uppercase font-bold tracking-widest">
                                                     {isFreeformDragMode ? '🖐️ Hold & Drag Anywhere' : 'Click Node to Edit'}
                                                 </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleOpenAddChild({
-                                                            id: 'demo_root',
-                                                            name: 'Samuel Mwangi Sr.',
-                                                            relation: 'Grandfather / Root Ancestor',
-                                                            branch: 'Paternal',
-                                                            institutionId: currentInstitution.id
-                                                        } as HeritageMember);
-                                                    }}
-                                                    className="mt-2 px-3 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 rounded-xl text-[8px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 mx-auto shadow-sm active:scale-95 group/cbtn"
-                                                >
-                                                    <Plus className="w-2.5 h-2.5" />
-                                                    <span>+ Add Child</span>
-                                                </button>
+                                                <div className="mt-2.5 flex items-center justify-center gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenAddSpouse({
+                                                                id: 'demo_root',
+                                                                name: 'Samuel Mwangi Sr.',
+                                                                relation: 'Grandfather / Root Ancestor',
+                                                                branch: 'Paternal',
+                                                                institutionId: currentInstitution.id
+                                                            } as HeritageMember);
+                                                        }}
+                                                        className="px-2.5 py-1 bg-pink-500/20 hover:bg-pink-500 hover:text-slate-950 text-pink-300 border border-pink-500/40 rounded-xl text-[8px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-0.5 shadow-sm active:scale-95"
+                                                    >
+                                                        <Heart className="w-2.5 h-2.5 text-pink-400" />
+                                                        <span>+ Spouse</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenAddChild({
+                                                                id: 'demo_root',
+                                                                name: 'Samuel Mwangi Sr.',
+                                                                relation: 'Grandfather / Root Ancestor',
+                                                                branch: 'Paternal',
+                                                                institutionId: currentInstitution.id
+                                                            } as HeritageMember);
+                                                        }}
+                                                        className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 rounded-xl text-[8px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-0.5 shadow-sm active:scale-95"
+                                                    >
+                                                        <Plus className="w-2.5 h-2.5 text-amber-400" />
+                                                        <span>+ Child</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         );
                                     })()}
@@ -2910,32 +2983,107 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             )}
 
                             <div className="grid grid-cols-2 gap-3">
-                                <div className="col-span-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1">
-                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-500 tracking-[0.2em]">Parent / Ancestor Anchor (Lineage Parent)</label>
-                                    <select
-                                        value={newMember.parentId || ''}
-                                        onChange={e => {
-                                            const selectedId = e.target.value;
-                                            const parentObj = treeMembers.find(m => m.id === selectedId);
-                                            setNewMember(p => ({
-                                                ...p,
-                                                parentId: selectedId,
-                                                parentName: parentObj?.name || '',
-                                                branch: parentObj?.branch || p.branch
-                                            }));
-                                        }}
-                                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-amber-500/40 rounded-xl font-bold text-slate-800 dark:text-white text-xs focus:outline-none focus:border-amber-400 transition-colors"
-                                    >
-                                        <option value="">-- Root Level Ancestor (No Direct Parent) --</option>
-                                        {treeMembers.map(m => (
-                                            <option key={m.id} value={m.id}>
-                                                👑 {m.name} ({m.relation} • {m.branch})
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {newMember.parentName && (
-                                        <p className="text-[10px] font-mono font-bold text-emerald-400">
-                                            ✓ Adding child directly under: <span className="underline">{newMember.parentName}</span>
+                                <div className="col-span-2 p-3 bg-slate-900 border border-amber-500/30 rounded-2xl space-y-2">
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em]">Lineage Connection Type</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewMember(p => ({ ...p, relationshipType: 'child', spouseId: '', spouseName: '', relation: p.relation || 'Son / Daughter' }))}
+                                            className={`p-2.5 rounded-xl border text-[9px] font-mono font-black uppercase tracking-tight flex items-center justify-center gap-1 transition-all ${
+                                                newMember.relationshipType !== 'spouse' && newMember.relationshipType !== 'ancestor'
+                                                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold shadow-md'
+                                                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                                            }`}
+                                        >
+                                            👶 Child / Son
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewMember(p => ({ ...p, relationshipType: 'spouse', parentId: '', parentName: '', relation: p.relation === 'Husband' ? 'Husband' : 'Wife' }))}
+                                            className={`p-2.5 rounded-xl border text-[9px] font-mono font-black uppercase tracking-tight flex items-center justify-center gap-1 transition-all ${
+                                                newMember.relationshipType === 'spouse'
+                                                    ? 'bg-pink-500 text-slate-950 border-pink-400 font-extrabold shadow-md'
+                                                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                                            }`}
+                                        >
+                                            💍 Wife / Husband
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewMember(p => ({ ...p, relationshipType: 'ancestor', parentId: '', parentName: '', spouseId: '', spouseName: '', relation: 'Root Patriarch / Matriarch' }))}
+                                            className={`p-2.5 rounded-xl border text-[9px] font-mono font-black uppercase tracking-tight flex items-center justify-center gap-1 transition-all ${
+                                                newMember.relationshipType === 'ancestor'
+                                                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold shadow-md'
+                                                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                                            }`}
+                                        >
+                                            👑 Root Ancestor
+                                        </button>
+                                    </div>
+
+                                    {newMember.relationshipType === 'spouse' ? (
+                                        <div className="mt-2 space-y-1">
+                                            <label className="block text-[9px] font-mono font-black uppercase text-pink-400 tracking-[0.2em]">Spouse / Marriage Partner Anchor</label>
+                                            <select
+                                                value={newMember.spouseId || ''}
+                                                onChange={e => {
+                                                    const selectedId = e.target.value;
+                                                    const spouseObj = treeMembers.find(m => m.id === selectedId);
+                                                    setNewMember(p => ({
+                                                        ...p,
+                                                        spouseId: selectedId,
+                                                        spouseName: spouseObj?.name || '',
+                                                        branch: spouseObj?.branch || p.branch
+                                                    }));
+                                                }}
+                                                className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-pink-500/40 rounded-xl font-bold text-slate-800 dark:text-white text-xs focus:outline-none focus:border-pink-400 transition-colors"
+                                            >
+                                                <option value="">-- Select Marriage Partner --</option>
+                                                {treeMembers.map(m => (
+                                                    <option key={m.id} value={m.id}>
+                                                        💍 {m.name} ({m.relation} • {m.branch})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {newMember.spouseName && (
+                                                <p className="text-[10px] font-mono font-bold text-pink-400">
+                                                    ✓ Adding spouse (wife/husband) of: <span className="underline">{newMember.spouseName}</span>
+                                                </p>
+                                            )}
+                                        </div>
+                                    ) : newMember.relationshipType !== 'ancestor' ? (
+                                        <div className="mt-2 space-y-1">
+                                            <label className="block text-[9px] font-mono font-black uppercase text-amber-500 tracking-[0.2em]">Parent / Ancestor Anchor (Lineage Parent)</label>
+                                            <select
+                                                value={newMember.parentId || ''}
+                                                onChange={e => {
+                                                    const selectedId = e.target.value;
+                                                    const parentObj = treeMembers.find(m => m.id === selectedId);
+                                                    setNewMember(p => ({
+                                                        ...p,
+                                                        parentId: selectedId,
+                                                        parentName: parentObj?.name || '',
+                                                        branch: parentObj?.branch || p.branch
+                                                    }));
+                                                }}
+                                                className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-amber-500/40 rounded-xl font-bold text-slate-800 dark:text-white text-xs focus:outline-none focus:border-amber-400 transition-colors"
+                                            >
+                                                <option value="">-- Root Level Ancestor (No Direct Parent) --</option>
+                                                {treeMembers.map(m => (
+                                                    <option key={m.id} value={m.id}>
+                                                        👑 {m.name} ({m.relation} • {m.branch})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {newMember.parentName && (
+                                                <p className="text-[10px] font-mono font-bold text-emerald-400">
+                                                    ✓ Adding child directly under: <span className="underline">{newMember.parentName}</span>
+                                                </p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <p className="text-[10px] font-mono font-bold text-cyan-400 mt-1">
+                                            👑 Root level ancestor node (Top of family tree).
                                         </p>
                                     )}
                                 </div>
