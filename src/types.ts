@@ -4552,6 +4552,8 @@ export interface HeritageMember {
     canDeleteTree?: boolean;
     canManageVault?: boolean;
     canPublishProclamations?: boolean;
+    positionX?: number;
+    positionY?: number;
     createdAt?: string;
 }
 

@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
     Users, 
     Home, 
@@ -41,7 +41,9 @@ import {
     Layers,
     Activity,
     Pencil,
-    Trash2
+    Trash2,
+    Move,
+    RefreshCw
 } from 'lucide-react';
 import type { 
     Institution, User, 
@@ -106,6 +108,89 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [rotateY, setRotateY] = useState(-8);
     const [zoomScale, setZoomScale] = useState(1);
 
+    // Interactive 3D Canvas Freeform Repositioning
+    const [isFreeformDragMode, setIsFreeformDragMode] = useState<boolean>(true);
+    const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>(() => {
+        try {
+            const saved = localStorage.getItem(`heritage_node_positions_${currentInstitution.id}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {};
+    });
+
+    const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+    const dragOffsetRef = useRef<{ startX: number; startY: number; initialNodeX: number; initialNodeY: number } | null>(null);
+
+    const handleNodeMouseDown = (e: React.MouseEvent | React.TouchEvent, nodeId: string) => {
+        if (!isFreeformDragMode) return;
+        
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+
+        const currentPos = nodePositions[nodeId] || { x: 0, y: 0 };
+
+        setDraggingNodeId(nodeId);
+        dragOffsetRef.current = {
+            startX: clientX,
+            startY: clientY,
+            initialNodeX: currentPos.x,
+            initialNodeY: currentPos.y
+        };
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent | TouchEvent) => {
+            if (!draggingNodeId || !dragOffsetRef.current) return;
+            const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+            const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+
+            const deltaX = clientX - dragOffsetRef.current.startX;
+            const deltaY = clientY - dragOffsetRef.current.startY;
+
+            setNodePositions(prev => {
+                const updated = {
+                    ...prev,
+                    [draggingNodeId]: {
+                        x: Math.round(dragOffsetRef.current!.initialNodeX + deltaX),
+                        y: Math.round(dragOffsetRef.current!.initialNodeY + deltaY)
+                    }
+                };
+                return updated;
+            });
+        };
+
+        const handleMouseUp = () => {
+            if (draggingNodeId) {
+                setDraggingNodeId(null);
+                dragOffsetRef.current = null;
+                // Save positions to localStorage
+                try {
+                    localStorage.setItem(`heritage_node_positions_${currentInstitution.id}`, JSON.stringify(nodePositions));
+                } catch (e) {}
+            }
+        };
+
+        if (draggingNodeId) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+            window.addEventListener('touchmove', handleMouseMove);
+            window.addEventListener('touchend', handleMouseUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchmove', handleMouseMove);
+            window.removeEventListener('touchend', handleMouseUp);
+        };
+    }, [draggingNodeId, nodePositions, currentInstitution.id]);
+
+    const handleResetNodePositions = () => {
+        setNodePositions({});
+        try {
+            localStorage.removeItem(`heritage_node_positions_${currentInstitution.id}`);
+        } catch (e) {}
+    };
+
     // 3D Family Totem & Tree Crest Configuration
     const [showTotemModal, setShowTotemModal] = useState(false);
     const [totemConfig, setTotemConfig] = useState<{
@@ -138,7 +223,12 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         setTotemConfig(newConfig);
         try {
             localStorage.setItem(`heritage_totem_${currentInstitution.id}`, JSON.stringify(newConfig));
-            apiService.saveModuleRecord('heritage_totems', { id: `totem_${currentInstitution.id}`, institutionId: currentInstitution.id, ...newConfig }).catch(() => {});
+            localStorage.setItem('heritage_totem_active', JSON.stringify(newConfig));
+            apiService.saveModuleRecord('heritage_totems', { 
+                id: `totem_${currentInstitution.id}`, 
+                institutionId: currentInstitution.id, 
+                ...newConfig 
+            }).catch(() => {});
         } catch (e) {}
         setShowTotemModal(false);
     };
@@ -192,6 +282,14 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         setTreeMembers(prev => [...prev, ...savedMembers]);
     };
 
+    // Sync Totem config on institution change
+    React.useEffect(() => {
+        try {
+            const saved = localStorage.getItem(`heritage_totem_${currentInstitution.id}`) || localStorage.getItem('heritage_totem_active');
+            if (saved) setTotemConfig(JSON.parse(saved));
+        } catch (e) {}
+    }, [currentInstitution.id]);
+
     // Fetch Metadata
     React.useEffect(() => {
         if (isHeritage) fetchHeritageData();
@@ -201,16 +299,36 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const fetchHeritageData = async () => {
         setIsLoading(true);
         try {
-            const [members, stories, gallery, announcements] = await Promise.all([
+            const [members, stories, gallery, announcements, totems] = await Promise.all([
                 apiService.fetchModuleRecords<HeritageMember>('heritage_members', currentInstitution.id),
                 apiService.fetchModuleRecords<HeritageStory>('heritage_stories', currentInstitution.id),
                 apiService.fetchModuleRecords<HeritageGallery>('heritage_gallery', currentInstitution.id),
-                apiService.fetchModuleRecords<HeritageAnnouncement>('heritage_announcements', currentInstitution.id)
+                apiService.fetchModuleRecords<HeritageAnnouncement>('heritage_announcements', currentInstitution.id),
+                apiService.fetchModuleRecords<any>('heritage_totems', currentInstitution.id)
             ]);
             if (members && Array.isArray(members)) setTreeMembers(members);
             if (stories && Array.isArray(stories)) setHeritageStories(stories);
             if (gallery && Array.isArray(gallery)) setHeritageGallery(gallery);
             if (announcements && Array.isArray(announcements)) setHeritageAnnouncements(announcements);
+
+            if (totems && Array.isArray(totems) && totems.length > 0) {
+                const latestTotem = totems[0];
+                setTotemConfig({
+                    totemName: latestTotem.totemName || latestTotem.totem_name || 'Sacred Baobab Lineage Crest',
+                    motto: latestTotem.motto || 'Honor, Courage & Eternal Unity',
+                    totemPreset: latestTotem.totemPreset || latestTotem.totem_preset || 'baobab',
+                    customImageUrl: latestTotem.customImageUrl || latestTotem.custom_image_url || '',
+                    animationMode: latestTotem.animationMode || latestTotem.animation_mode || 'background_3d',
+                    rotationSpeed: latestTotem.rotationSpeed || latestTotem.rotation_speed || 'normal',
+                    glowColor: latestTotem.glowColor || latestTotem.glow_color || '#f59e0b',
+                    showAsTreeRoot: latestTotem.showAsTreeRoot ?? latestTotem.show_as_tree_root ?? true
+                });
+            } else {
+                try {
+                    const saved = localStorage.getItem(`heritage_totem_${currentInstitution.id}`) || localStorage.getItem('heritage_totem_active');
+                    if (saved) setTotemConfig(JSON.parse(saved));
+                } catch (e) {}
+            }
         } catch (error) {
             console.error('Error fetching heritage data:', error);
         } finally {
@@ -785,6 +903,31 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 </>
                             )}
 
+                            {/* Freeform Interactive Drag & Repositioning Controls */}
+                            <button
+                                onClick={() => setIsFreeformDragMode(p => !p)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all ${
+                                    isFreeformDragMode
+                                        ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95'
+                                        : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                                }`}
+                                title="Toggle interactive click-and-drag repositioning of nodes anywhere on the 3D canvas"
+                            >
+                                <Move className="w-3.5 h-3.5" />
+                                <span>{isFreeformDragMode ? '🖐️ Freeform Drag ON' : '📌 Drag Repositioning'}</span>
+                            </button>
+
+                            {Object.keys(nodePositions).length > 0 && (
+                                <button
+                                    onClick={handleResetNodePositions}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-900 border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white rounded-xl text-[9px] font-mono font-black uppercase transition-all shadow-md active:scale-95"
+                                    title="Reset all custom node positions back to standard structural hierarchy"
+                                >
+                                    <RefreshCw className="w-3 h-3" />
+                                    <span>Reset Layout</span>
+                                </button>
+                            )}
+
                             <button
                                 onClick={() => setShowTotemModal(true)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-600 to-yellow-600 text-slate-950 font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all"
@@ -795,7 +938,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
                             <button
                                 onClick={() => setShowAddMemberModal(true)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all ml-2"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all ml-1"
                             >
                                 <Plus className="w-3.5 h-3.5" />
                                 Add Soul
@@ -805,7 +948,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
                     {/* 3D Spatial Canvas Container */}
                     <div 
-                        className="w-full flex flex-col items-center py-6"
+                        className="w-full flex flex-col items-center py-6 select-none"
                         style={{
                             perspective: is3DMode ? '1200px' : 'none',
                             perspectiveOrigin: '50% 40%',
@@ -824,7 +967,15 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
                                     {/* 3D Foundational Root Totem Node */}
                                     {totemConfig.showAsTreeRoot && (
-                                        <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                        <div 
+                                            onMouseDown={(e) => handleNodeMouseDown(e, 'totem_root')}
+                                            onTouchStart={(e) => handleNodeMouseDown(e, 'totem_root')}
+                                            className={`flex flex-col items-center transition-transform ${isFreeformDragMode ? (draggingNodeId === 'totem_root' ? 'cursor-grabbing scale-105 z-50' : 'cursor-grab') : ''}`}
+                                            style={{ 
+                                                transformStyle: is3DMode ? 'preserve-3d' : 'flat',
+                                                transform: nodePositions['totem_root'] ? `translate3d(${nodePositions['totem_root'].x}px, ${nodePositions['totem_root'].y}px, 0px)` : 'none'
+                                            }}
+                                        >
                                             {render3DTotemElement(true)}
                                             <div 
                                                 className="w-1 h-12 md:h-16 bg-gradient-to-b from-amber-400 via-yellow-400 to-amber-500 shadow-lg shadow-amber-500/50"
@@ -833,34 +984,53 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                         </div>
                                     )}
 
-                                    {/* Root Ancestor Node (First Member) - 3D Floating Layer */}
+                                    {/* Root Ancestor Node (First Member) - 3D Floating & Draggable Layer */}
                                     {(() => {
                                         const rootMember = treeMembers[0];
+                                        const rootPos = nodePositions[rootMember.id] || { x: 0, y: 0 };
+                                        const isDragging = draggingNodeId === rootMember.id;
                                         return (
                                             <div 
-                                                onClick={() => handleOpenEditMember(rootMember)}
+                                                onMouseDown={(e) => handleNodeMouseDown(e, rootMember.id)}
+                                                onTouchStart={(e) => handleNodeMouseDown(e, rootMember.id)}
+                                                onClick={(e) => {
+                                                    if (!isDragging) handleOpenEditMember(rootMember);
+                                                }}
                                                 style={{
-                                                    transform: is3DMode ? 'translateZ(60px)' : 'none',
+                                                    transform: is3DMode 
+                                                        ? `translate3d(${rootPos.x}px, ${rootPos.y}px, 60px)` 
+                                                        : `translate(${rootPos.x}px, ${rootPos.y}px)`,
                                                     boxShadow: is3DMode ? '0 25px 50px -12px rgba(245, 158, 11, 0.4)' : undefined,
                                                 }}
-                                                className={`p-4 md:p-6 border-2 rounded-3xl backdrop-blur-xl text-center group cursor-pointer transition-all duration-300 relative ${
+                                                className={`p-4 md:p-6 border-2 rounded-3xl backdrop-blur-xl text-center group transition-all duration-200 relative select-none ${
+                                                    isFreeformDragMode ? (isDragging ? 'cursor-grabbing scale-105 z-50 ring-4 ring-amber-400' : 'cursor-grab hover:ring-2 hover:ring-amber-400/60') : 'cursor-pointer'
+                                                } ${
                                                     themeMode === 'futuristic'
-                                                        ? 'bg-gradient-to-b from-amber-500/25 via-slate-950/90 to-amber-500/10 border-amber-400 text-white hover:border-yellow-300 hover:bg-amber-500 hover:text-slate-950'
+                                                        ? 'bg-gradient-to-b from-amber-500/25 via-slate-950/90 to-amber-500/10 border-amber-400 text-white hover:border-yellow-300'
                                                         : 'bg-white/10 border-amber-500 hover:bg-amber-500'
                                                 }`}
                                             >
+                                                {isFreeformDragMode && (
+                                                    <div className="absolute -top-3 -left-3 p-1.5 bg-emerald-500 text-slate-950 rounded-full shadow-lg opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[8px] font-mono font-black uppercase">
+                                                        <Move className="w-3 h-3" />
+                                                        <span className="hidden group-hover:inline">Drag</span>
+                                                    </div>
+                                                )}
+
                                                 <div className="absolute -top-3 -right-3 p-1.5 bg-amber-400 text-slate-950 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <Pencil className="w-3.5 h-3.5" />
                                                 </div>
                                                 <div className="flex items-center justify-center gap-2 mb-1">
                                                     <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                                                    <span className="text-[9px] font-mono font-black uppercase text-amber-400 group-hover:text-slate-900 tracking-widest">Root Patriarch / Matriarch</span>
+                                                    <span className="text-[9px] font-mono font-black uppercase text-amber-400 group-hover:text-amber-300 tracking-widest">Root Patriarch / Matriarch</span>
                                                 </div>
-                                                <p className="font-black text-base md:text-lg uppercase tracking-tight group-hover:text-slate-950">{rootMember.name}</p>
-                                                <p className="text-[10px] font-mono font-black text-amber-300 group-hover:text-slate-900 uppercase mt-0.5">
+                                                <p className="font-black text-base md:text-lg uppercase tracking-tight">{rootMember.name}</p>
+                                                <p className="text-[10px] font-mono font-black text-amber-300 uppercase mt-0.5">
                                                     {rootMember.relation} • {rootMember.branch} {rootMember.birthYear ? `(${rootMember.birthYear})` : ''}
                                                 </p>
-                                                <span className="text-[8px] font-mono block text-emerald-400 group-hover:text-slate-950 mt-1.5 uppercase font-bold tracking-widest">Click Node to Edit</span>
+                                                <span className="text-[8px] font-mono block text-emerald-400 mt-1.5 uppercase font-bold tracking-widest">
+                                                    {isFreeformDragMode ? '🖐️ Hold & Drag to Position' : 'Click Node to Edit'}
+                                                </span>
                                             </div>
                                         );
                                     })()}
@@ -877,32 +1047,51 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                         style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}
                                     >
                                         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[82%] h-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-pink-500 shadow-lg shadow-indigo-500/50"></div>
-                                        {treeMembers.slice(1, 4).map((child, idx) => (
-                                            <div key={child.id} className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
-                                                <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                                <div 
-                                                    onClick={() => handleOpenEditMember(child)}
-                                                    style={{
-                                                        transform: is3DMode ? `translateZ(${30 + idx * 10}px)` : 'none',
-                                                        boxShadow: is3DMode ? '0 15px 35px -8px rgba(99, 102, 241, 0.3)' : undefined,
-                                                    }}
-                                                    className={`p-4 rounded-2xl border-2 backdrop-blur-xl text-center transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 group relative ${
-                                                        child.branch === 'Paternal'
-                                                            ? 'bg-slate-950/90 border-cyan-400/60 text-cyan-200 hover:border-cyan-300 hover:shadow-cyan-500/40'
-                                                            : 'bg-slate-950/90 border-pink-400/60 text-pink-200 hover:border-pink-300 hover:shadow-pink-500/40'
-                                                    }`}
-                                                >
-                                                    <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md">
-                                                        <Pencil className="w-3 h-3" />
+                                        {treeMembers.slice(1, 4).map((child, idx) => {
+                                            const childPos = nodePositions[child.id] || { x: 0, y: 0 };
+                                            const isDragging = draggingNodeId === child.id;
+                                            return (
+                                                <div key={child.id} className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                                    <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                                    <div 
+                                                        onMouseDown={(e) => handleNodeMouseDown(e, child.id)}
+                                                        onTouchStart={(e) => handleNodeMouseDown(e, child.id)}
+                                                        onClick={(e) => {
+                                                            if (!isDragging) handleOpenEditMember(child);
+                                                        }}
+                                                        style={{
+                                                            transform: is3DMode 
+                                                                ? `translate3d(${childPos.x}px, ${childPos.y}px, ${30 + idx * 10}px)` 
+                                                                : `translate(${childPos.x}px, ${childPos.y}px)`,
+                                                            boxShadow: is3DMode ? '0 15px 35px -8px rgba(99, 102, 241, 0.3)' : undefined,
+                                                        }}
+                                                        className={`p-4 rounded-2xl border-2 backdrop-blur-xl text-center transition-all duration-200 group relative select-none ${
+                                                            isFreeformDragMode ? (isDragging ? 'cursor-grabbing scale-105 z-50 ring-4 ring-amber-400' : 'cursor-grab hover:ring-2 hover:ring-amber-400/60') : 'cursor-pointer hover:scale-105'
+                                                        } ${
+                                                            child.branch === 'Paternal'
+                                                                ? 'bg-slate-950/90 border-cyan-400/60 text-cyan-200 hover:border-cyan-300'
+                                                                : 'bg-slate-950/90 border-pink-400/60 text-pink-200 hover:border-pink-300'
+                                                        }`}
+                                                    >
+                                                        {isFreeformDragMode && (
+                                                            <div className="absolute -top-2.5 -left-2.5 p-1 bg-emerald-500 text-slate-950 rounded-full shadow-md opacity-80 group-hover:opacity-100 transition-opacity">
+                                                                <Move className="w-2.5 h-2.5" />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md">
+                                                            <Pencil className="w-3 h-3" />
+                                                        </div>
+                                                        <p className="font-bold text-xs uppercase tracking-tight">{child.name}</p>
+                                                        <p className="text-[8px] font-mono font-black uppercase tracking-widest text-amber-300 mt-0.5">
+                                                            {child.relation} • {child.branch}
+                                                        </p>
+                                                        <span className="text-[7px] font-mono block text-emerald-400 mt-1 uppercase font-bold tracking-widest">
+                                                            {isFreeformDragMode ? '🖐️ Drag Node' : 'Edit Node'}
+                                                        </span>
                                                     </div>
-                                                    <p className="font-bold text-xs uppercase tracking-tight">{child.name}</p>
-                                                    <p className="text-[8px] font-mono font-black uppercase tracking-widest text-amber-300 mt-0.5">
-                                                        {child.relation} • {child.branch}
-                                                    </p>
-                                                    <span className="text-[7px] font-mono block text-emerald-400 mt-1 uppercase font-bold tracking-widest">Edit Node</span>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
 
                                         {/* Direct Add Branch Soul Button with 3D Float */}
                                         <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
@@ -921,91 +1110,165 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             ) : (
                                 /* Fallback Demo Interactive Tree Nodes in 3D */
                                 <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
-                                    <div 
-                                        onClick={() => handleOpenEditMember({
-                                            id: 'demo_root',
-                                            name: 'Samuel Mwangi Sr.',
-                                            relation: 'Grandfather / Root Ancestor',
-                                            branch: 'Paternal',
-                                            birthYear: '1892',
-                                            deathYear: '1968',
-                                            notes: 'Foundational patriarch of the family lineage.'
-                                        } as HeritageMember)}
-                                        style={{
-                                            transform: is3DMode ? 'translateZ(60px)' : 'none',
-                                            boxShadow: is3DMode ? '0 25px 50px -12px rgba(245, 158, 11, 0.45)' : undefined,
-                                        }}
-                                        className={`p-5 md:p-6 border-2 rounded-3xl backdrop-blur-xl text-center group cursor-pointer transition-all duration-300 relative ${
-                                            themeMode === 'futuristic'
-                                                ? 'bg-gradient-to-b from-amber-500/20 via-slate-950/90 to-amber-500/10 border-amber-400 text-white hover:bg-amber-500 hover:text-slate-950'
-                                                : 'bg-white/10 border-amber-500 hover:bg-amber-500'
-                                        }`}
-                                    >
-                                        <div className="absolute -top-3 -right-3 p-1.5 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
-                                            <Pencil className="w-3.5 h-3.5" />
-                                        </div>
-                                        <div className="flex items-center justify-center gap-2 mb-1">
-                                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                                            <span className="text-[9px] font-mono font-black uppercase text-amber-400 group-hover:text-slate-900 tracking-widest">Root Ancestor Node</span>
-                                        </div>
-                                        <p className="font-black text-base md:text-lg uppercase tracking-tight group-hover:text-slate-950">Samuel Mwangi Sr.</p>
-                                        <p className="text-[10px] font-mono font-black text-amber-300 group-hover:text-slate-900 uppercase">1892 - 1968 • Root Ancestor</p>
-                                        <span className="text-[8px] font-mono block text-emerald-400 group-hover:text-slate-950 mt-1 uppercase font-bold tracking-widest">Click Node to Edit</span>
-                                    </div>
+                                    {(() => {
+                                        const demoRootPos = nodePositions['demo_root'] || { x: 0, y: 0 };
+                                        const isDragging = draggingNodeId === 'demo_root';
+                                        return (
+                                            <div 
+                                                onMouseDown={(e) => handleNodeMouseDown(e, 'demo_root')}
+                                                onTouchStart={(e) => handleNodeMouseDown(e, 'demo_root')}
+                                                onClick={(e) => {
+                                                    if (!isDragging) handleOpenEditMember({
+                                                        id: 'demo_root',
+                                                        name: 'Samuel Mwangi Sr.',
+                                                        relation: 'Grandfather / Root Ancestor',
+                                                        branch: 'Paternal',
+                                                        birthYear: '1892',
+                                                        deathYear: '1968',
+                                                        notes: 'Foundational patriarch of the family lineage.'
+                                                    } as HeritageMember);
+                                                }}
+                                                style={{
+                                                    transform: is3DMode 
+                                                        ? `translate3d(${demoRootPos.x}px, ${demoRootPos.y}px, 60px)` 
+                                                        : `translate(${demoRootPos.x}px, ${demoRootPos.y}px)`,
+                                                    boxShadow: is3DMode ? '0 25px 50px -12px rgba(245, 158, 11, 0.45)' : undefined,
+                                                }}
+                                                className={`p-5 md:p-6 border-2 rounded-3xl backdrop-blur-xl text-center group transition-all duration-200 relative select-none ${
+                                                    isFreeformDragMode ? (isDragging ? 'cursor-grabbing scale-105 z-50 ring-4 ring-amber-400' : 'cursor-grab hover:ring-2 hover:ring-amber-400/60') : 'cursor-pointer'
+                                                } ${
+                                                    themeMode === 'futuristic'
+                                                        ? 'bg-gradient-to-b from-amber-500/20 via-slate-950/90 to-amber-500/10 border-amber-400 text-white hover:bg-amber-500 hover:text-slate-950'
+                                                        : 'bg-white/10 border-amber-500 hover:bg-amber-500'
+                                                }`}
+                                            >
+                                                {isFreeformDragMode && (
+                                                    <div className="absolute -top-3 -left-3 p-1.5 bg-emerald-500 text-slate-950 rounded-full shadow-lg opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[8px] font-mono font-black uppercase">
+                                                        <Move className="w-3 h-3" />
+                                                        <span className="hidden group-hover:inline">Drag</span>
+                                                    </div>
+                                                )}
+                                                <div className="absolute -top-3 -right-3 p-1.5 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </div>
+                                                <div className="flex items-center justify-center gap-2 mb-1">
+                                                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                                                    <span className="text-[9px] font-mono font-black uppercase text-amber-400 group-hover:text-slate-900 tracking-widest">Root Ancestor Node</span>
+                                                </div>
+                                                <p className="font-black text-base md:text-lg uppercase tracking-tight group-hover:text-slate-950">Samuel Mwangi Sr.</p>
+                                                <p className="text-[10px] font-mono font-black text-amber-300 group-hover:text-slate-900 uppercase">1892 - 1968 • Root Ancestor</p>
+                                                <span className="text-[8px] font-mono block text-emerald-400 group-hover:text-slate-950 mt-1 uppercase font-bold tracking-widest">
+                                                    {isFreeformDragMode ? '🖐️ Hold & Drag Anywhere' : 'Click Node to Edit'}
+                                                </span>
+                                            </div>
+                                        );
+                                    })()}
 
                                     <div className="w-1 h-12 md:h-16 bg-gradient-to-b from-amber-400 via-yellow-400 to-indigo-500 shadow-lg shadow-amber-500/50" style={{ transform: is3DMode ? 'translateZ(45px)' : 'none' }}></div>
 
                                     <div className="flex gap-6 md:gap-10 items-start relative flex-wrap justify-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
                                         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[82%] h-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-pink-500 shadow-lg shadow-indigo-500/50"></div>
+                                        
+                                        {/* Demo Child 1 */}
                                         <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
                                             <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                            <div 
-                                                onClick={() => handleOpenEditMember({
-                                                    id: 'demo_child1',
-                                                    name: 'John Mwangi',
-                                                    relation: 'Son',
-                                                    branch: 'Paternal',
-                                                    birthYear: '1924',
-                                                    notes: 'Paternal lineage heir.'
-                                                } as HeritageMember)}
-                                                style={{ transform: is3DMode ? 'translateZ(35px)' : 'none' }}
-                                                className={`p-4 rounded-2xl border-2 backdrop-blur-xl text-center transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 group relative ${
-                                                    themeMode === 'futuristic'
-                                                        ? 'bg-slate-950/90 border-cyan-400/60 text-cyan-200 hover:border-cyan-300'
-                                                        : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                                }`}
-                                            >
-                                                <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Pencil className="w-2.5 h-2.5" />
-                                                </div>
-                                                <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
-                                                <p className="text-[8px] font-mono font-black text-cyan-400 uppercase tracking-widest">Son • Gen 2 (Click to Edit)</p>
-                                            </div>
+                                            {(() => {
+                                                const c1Pos = nodePositions['demo_child1'] || { x: 0, y: 0 };
+                                                const isDragging = draggingNodeId === 'demo_child1';
+                                                return (
+                                                    <div 
+                                                        onMouseDown={(e) => handleNodeMouseDown(e, 'demo_child1')}
+                                                        onTouchStart={(e) => handleNodeMouseDown(e, 'demo_child1')}
+                                                        onClick={(e) => {
+                                                            if (!isDragging) handleOpenEditMember({
+                                                                id: 'demo_child1',
+                                                                name: 'John Mwangi',
+                                                                relation: 'Son',
+                                                                branch: 'Paternal',
+                                                                birthYear: '1924',
+                                                                notes: 'Paternal lineage heir.'
+                                                            } as HeritageMember);
+                                                        }}
+                                                        style={{ 
+                                                            transform: is3DMode 
+                                                                ? `translate3d(${c1Pos.x}px, ${c1Pos.y}px, 35px)` 
+                                                                : `translate(${c1Pos.x}px, ${c1Pos.y}px)` 
+                                                        }}
+                                                        className={`p-4 rounded-2xl border-2 backdrop-blur-xl text-center transition-all duration-200 group relative select-none ${
+                                                            isFreeformDragMode ? (isDragging ? 'cursor-grabbing scale-105 z-50 ring-4 ring-amber-400' : 'cursor-grab hover:ring-2 hover:ring-amber-400/60') : 'cursor-pointer hover:scale-105'
+                                                        } ${
+                                                            themeMode === 'futuristic'
+                                                                ? 'bg-slate-950/90 border-cyan-400/60 text-cyan-200 hover:border-cyan-300'
+                                                                : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                        }`}
+                                                    >
+                                                        {isFreeformDragMode && (
+                                                            <div className="absolute -top-2.5 -left-2.5 p-1 bg-emerald-500 text-slate-950 rounded-full shadow-md opacity-80 group-hover:opacity-100 transition-opacity">
+                                                                <Move className="w-2.5 h-2.5" />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <Pencil className="w-2.5 h-2.5" />
+                                                        </div>
+                                                        <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
+                                                        <p className="text-[8px] font-mono font-black text-cyan-400 uppercase tracking-widest">Son • Gen 2</p>
+                                                        <span className="text-[7px] font-mono block text-emerald-400 mt-0.5 uppercase font-bold">
+                                                            {isFreeformDragMode ? '🖐️ Drag Node' : 'Click to Edit'}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
+
+                                        {/* Demo Child 2 */}
                                         <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
                                             <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                            <div 
-                                                onClick={() => handleOpenEditMember({
-                                                    id: 'demo_child2',
-                                                    name: 'Grace Wamboi',
-                                                    relation: 'Daughter',
-                                                    branch: 'Maternal',
-                                                    birthYear: '1928',
-                                                    notes: 'Maternal matriarch.'
-                                                } as HeritageMember)}
-                                                style={{ transform: is3DMode ? 'translateZ(40px)' : 'none' }}
-                                                className={`p-4 rounded-2xl border-2 backdrop-blur-xl text-center transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 group relative ${
-                                                    themeMode === 'futuristic'
-                                                        ? 'bg-slate-950/90 border-pink-400/60 text-pink-200 hover:border-pink-300'
-                                                        : 'bg-white/5 border-white/10 border-t-4 border-t-amber-500'
-                                                }`}
-                                            >
-                                                <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Pencil className="w-2.5 h-2.5" />
-                                                </div>
-                                                <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
-                                                <p className="text-[8px] font-mono font-black text-pink-400 uppercase tracking-widest">Daughter • Gen 2 (Click to Edit)</p>
-                                            </div>
+                                            {(() => {
+                                                const c2Pos = nodePositions['demo_child2'] || { x: 0, y: 0 };
+                                                const isDragging = draggingNodeId === 'demo_child2';
+                                                return (
+                                                    <div 
+                                                        onMouseDown={(e) => handleNodeMouseDown(e, 'demo_child2')}
+                                                        onTouchStart={(e) => handleNodeMouseDown(e, 'demo_child2')}
+                                                        onClick={(e) => {
+                                                            if (!isDragging) handleOpenEditMember({
+                                                                id: 'demo_child2',
+                                                                name: 'Grace Wamboi',
+                                                                relation: 'Daughter',
+                                                                branch: 'Maternal',
+                                                                birthYear: '1928',
+                                                                notes: 'Maternal matriarch.'
+                                                            } as HeritageMember);
+                                                        }}
+                                                        style={{ 
+                                                            transform: is3DMode 
+                                                                ? `translate3d(${c2Pos.x}px, ${c2Pos.y}px, 40px)` 
+                                                                : `translate(${c2Pos.x}px, ${c2Pos.y}px)` 
+                                                        }}
+                                                        className={`p-4 rounded-2xl border-2 backdrop-blur-xl text-center transition-all duration-200 group relative select-none ${
+                                                            isFreeformDragMode ? (isDragging ? 'cursor-grabbing scale-105 z-50 ring-4 ring-amber-400' : 'cursor-grab hover:ring-2 hover:ring-amber-400/60') : 'cursor-pointer hover:scale-105'
+                                                        } ${
+                                                            themeMode === 'futuristic'
+                                                                ? 'bg-slate-950/90 border-pink-400/60 text-pink-200 hover:border-pink-300'
+                                                                : 'bg-white/5 border-white/10 border-t-4 border-t-amber-500'
+                                                        }`}
+                                                    >
+                                                        {isFreeformDragMode && (
+                                                            <div className="absolute -top-2.5 -left-2.5 p-1 bg-emerald-500 text-slate-950 rounded-full shadow-md opacity-80 group-hover:opacity-100 transition-opacity">
+                                                                <Move className="w-2.5 h-2.5" />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute -top-2.5 -right-2.5 p-1 bg-amber-400 text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <Pencil className="w-2.5 h-2.5" />
+                                                        </div>
+                                                        <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
+                                                        <p className="text-[8px] font-mono font-black text-pink-400 uppercase tracking-widest">Daughter • Gen 2</p>
+                                                        <span className="text-[7px] font-mono block text-emerald-400 mt-0.5 uppercase font-bold">
+                                                            {isFreeformDragMode ? '🖐️ Drag Node' : 'Click to Edit'}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
 
                                         {/* Direct Add Node Button on Tree */}
