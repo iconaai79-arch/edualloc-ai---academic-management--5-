@@ -66,11 +66,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         'c_form_3_south': false
     });
 
-    // Form states for creating a new exam
+    // Form states for creating a new exam matching screenshot
+    const [creationMethod, setCreationMethod] = useState<'raw_marks' | 'combine' | 'excel'>('raw_marks');
     const [newExamName, setNewExamName] = useState('');
-    const [newExamTerm, setNewExamTerm] = useState('TERM 2');
-    const [newExamType, setNewExamType] = useState('END TERM');
-    const [newExamYear, setNewExamYear] = useState<number>(2026);
+    const [newExamTypeRadio, setNewExamTypeRadio] = useState<'CAT' | 'End Term' | 'Inter-school'>('CAT');
+    const [newAcademicYear, setNewAcademicYear] = useState('2026');
+    const [newTerm, setNewTerm] = useState('Term 2');
+    const [newGradingSystem, setNewGradingSystem] = useState('Main grading system');
+    const [newExamStartDate, setNewExamStartDate] = useState('2026-07-26');
 
     const activeExam = useMemo(() => {
         return exams.find(e => e.id === selectedExamId) || exams[0];
@@ -149,13 +152,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const newExam: ExamUnitRecord = {
             id: `exam_${Date.now()}`,
             name: newExamName.trim(),
-            term: newExamTerm,
-            type: newExamType,
-            year: newExamYear,
+            term: newTerm.toUpperCase(),
+            type: newExamTypeRadio.toUpperCase(),
+            year: parseInt(newAcademicYear) || 2026,
             status: 'in_progress',
             submittedPercent: 0,
-            studentsEnrolled: 350,
-            missingMarks: 3500
+            studentsEnrolled: 360,
+            missingMarks: 3600
         };
         setExams(prev => [newExam, ...prev]);
         setSelectedExamId(newExam.id);
@@ -557,71 +560,198 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 </div>
             </div>
 
-            {/* MODAL 1: ADD NEW EXAM */}
+            {/* MODAL 1: ADD NEW EXAM MATCHING SCREENSHOT */}
             {isAddExamModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-xl space-y-5 animate-scale-in">
-                        <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-800">
-                            <h3 className="font-bold text-sm uppercase text-slate-900 dark:text-white">Create New Exam Session</h3>
-                            <button onClick={() => setIsAddExamModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XIcon className="w-5 h-5" /></button>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Exam Title</label>
-                                <input
-                                    type="text"
-                                    value={newExamName}
-                                    onChange={e => setNewExamName(e.target.value)}
-                                    className="w-full h-10 px-3 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
-                                    placeholder="e.g. Endterm 2 Exam 2026, Mock Exam"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Term</label>
-                                    <select
-                                        value={newExamTerm}
-                                        onChange={e => setNewExamTerm(e.target.value)}
-                                        className="w-full h-10 px-3 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white"
-                                    >
-                                        <option value="TERM 1">TERM 1</option>
-                                        <option value="TERM 2">TERM 2</option>
-                                        <option value="TERM 3">TERM 3</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Type</label>
-                                    <select
-                                        value={newExamType}
-                                        onChange={e => setNewExamType(e.target.value)}
-                                        className="w-full h-10 px-3 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white"
-                                    >
-                                        <option value="END TERM">END TERM</option>
-                                        <option value="CAT">CAT</option>
-                                        <option value="MOCK">MOCK</option>
-                                        <option value="MID TERM">MID TERM</option>
-                                    </select>
-                                </div>
+                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in">
+                        {/* Title Bar */}
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900">
+                            <h3 className="font-bold text-base text-slate-800 dark:text-white">Add exam</h3>
+                            <div className="flex items-center gap-3 text-slate-400">
+                                <button type="button" className="hover:text-slate-600 text-lg font-bold">+</button>
+                                <button type="button" onClick={() => setIsAddExamModalOpen(false)} className="hover:text-slate-600">
+                                    <XIcon className="w-5 h-5" />
+                                </button>
                             </div>
                         </div>
 
-                        <div className="flex gap-3 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => setIsAddExamModalOpen(false)}
-                                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold uppercase"
-                            >
-                                Cancel
-                            </button>
+                        {/* Modal Body */}
+                        <div className="p-6 space-y-6">
+                            {/* Instruction Text */}
+                            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                Start by choosing the type of exam you want to create from the three options below.
+                            </p>
+
+                            {/* Creation Method Radio Group */}
+                            <div className="flex flex-wrap items-center gap-6 text-xs font-medium text-slate-700 dark:text-slate-300">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="creationMethod"
+                                        checked={creationMethod === 'raw_marks'}
+                                        onChange={() => setCreationMethod('raw_marks')}
+                                        className="text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span>Allow teachers to enter raw marks</span>
+                                </label>
+
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="creationMethod"
+                                        checked={creationMethod === 'combine'}
+                                        onChange={() => setCreationMethod('combine')}
+                                        className="text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span>Combine existing exams</span>
+                                </label>
+
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="creationMethod"
+                                        checked={creationMethod === 'excel'}
+                                        onChange={() => setCreationMethod('excel')}
+                                        className="text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span>Import exam results from Excel</span>
+                                </label>
+                            </div>
+
+                            {/* Form Fields Table/Grid */}
+                            <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                {/* Exam Name */}
+                                <div className="grid grid-cols-3 items-center gap-4">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam name</label>
+                                    <div className="col-span-2">
+                                        <input
+                                            type="text"
+                                            value={newExamName}
+                                            onChange={e => setNewExamName(e.target.value)}
+                                            placeholder="e.g County pre-mock"
+                                            className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Exam Type */}
+                                <div className="grid grid-cols-3 items-center gap-4">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam type</label>
+                                    <div className="col-span-2 flex items-center gap-6 text-xs text-slate-700 dark:text-slate-300">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="examTypeRadio"
+                                                checked={newExamTypeRadio === 'CAT'}
+                                                onChange={() => setNewExamTypeRadio('CAT')}
+                                                className="text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>CAT</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="examTypeRadio"
+                                                checked={newExamTypeRadio === 'End Term'}
+                                                onChange={() => setNewExamTypeRadio('End Term')}
+                                                className="text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>End Term</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="examTypeRadio"
+                                                checked={newExamTypeRadio === 'Inter-school'}
+                                                onChange={() => setNewExamTypeRadio('Inter-school')}
+                                                className="text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>Inter-school</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Academic Year */}
+                                <div className="grid grid-cols-3 items-center gap-4">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Academic year</label>
+                                    <div className="col-span-2 relative">
+                                        <select
+                                            value={newAcademicYear}
+                                            onChange={e => setNewAcademicYear(e.target.value)}
+                                            className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
+                                        >
+                                            <option value="2026">2026</option>
+                                            <option value="2025">2025</option>
+                                            <option value="2024">2024</option>
+                                        </select>
+                                        <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                {/* Term */}
+                                <div className="grid grid-cols-3 items-center gap-4">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Term</label>
+                                    <div className="col-span-2 relative">
+                                        <select
+                                            value={newTerm}
+                                            onChange={e => setNewTerm(e.target.value)}
+                                            className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
+                                        >
+                                            <option value="Term 1">Term 1</option>
+                                            <option value="Term 2">Term 2</option>
+                                            <option value="Term 3">Term 3</option>
+                                        </select>
+                                        <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                {/* Grading System */}
+                                <div className="grid grid-cols-3 items-center gap-4">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Grading system</label>
+                                    <div className="col-span-2 relative">
+                                        <select
+                                            value={newGradingSystem}
+                                            onChange={e => setNewGradingSystem(e.target.value)}
+                                            className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
+                                        >
+                                            <option value="Main grading system">Main grading system</option>
+                                            <option value="8-4-4 KCSE Grading">8-4-4 KCSE Grading</option>
+                                            <option value="CBC Standardized Grading">CBC Standardized Grading</option>
+                                        </select>
+                                        <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                {/* Exam Starts On */}
+                                <div className="grid grid-cols-3 items-center gap-4">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam starts on</label>
+                                    <div className="col-span-2">
+                                        <input
+                                            type="date"
+                                            value={newExamStartDate}
+                                            onChange={e => setNewExamStartDate(e.target.value)}
+                                            className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer Buttons */}
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex justify-end items-center gap-3">
                             <button
                                 type="button"
                                 onClick={handleCreateExam}
-                                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-xs font-bold uppercase shadow-md"
+                                className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs rounded transition-all"
                             >
-                                Create Exam
+                                Next
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsAddExamModalOpen(false)}
+                                className="px-6 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-300 font-medium text-xs rounded transition-all"
+                            >
+                                Cancel
                             </button>
                         </div>
                     </div>
