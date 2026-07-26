@@ -453,7 +453,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const secondaryPhoneFields = useMemo(() => [
         { key: 'admissionNumber', label: 'Admission Number' },
         { key: 'name', label: 'Student Full Name' },
-        { key: 'secondaryPhone', label: 'Secondary Phone Number', required: true },
+        { key: 'parentPhone', label: 'Primary Phone Number (Parent / Guardian)' },
+        { key: 'secondaryPhone', label: 'Secondary / Alternative Phone Number' },
+        { key: 'parentName', label: 'Parent / Guardian Full Name' },
+        { key: 'gradeLevel', label: 'Grade / Class Level (e.g., Form 3, Grade 10)' },
+        { key: 'stream', label: 'Class Stream / Allocation (e.g., Central, East, West)' },
     ], []);
 
     const teacherFields = useMemo(() => [
@@ -1310,11 +1314,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
-    // Handle bulk update of secondary phone numbers from Excel
+    // Handle bulk update of student contacts (primary phone, secondary phone, parent name) from Excel
     const handleBulkUpdateSecondaryPhone = async (data: any[]) => {
         setIsUploading(false);
-        setStatusMsg({ type: 'info', message: `Updating secondary phone numbers for ${data.length} students...` });
         setIsLoading(true);
+        setStatusMsg({ type: 'info', message: `Updating contact records for ${data.length} student(s)...` });
         const results: {name: string; status: 'updated' | 'not_found' | 'skipped'}[] = [];
 
         try {
@@ -1324,10 +1328,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 await Promise.all(batch.map(async (item) => {
                     const admNo = item.admissionNumber ? String(item.admissionNumber).trim() : '';
                     const nameRaw = item.name ? String(item.name).trim().toLowerCase() : '';
-                    const newSecPhone = item.secondaryPhone ? String(item.secondaryPhone).trim() : (item.parentPhone ? String(item.parentPhone).trim() : '');
+                    const primaryPhoneVal = item.parentPhone ? String(item.parentPhone).trim() : (item.phoneNumber ? String(item.phoneNumber).trim() : '');
+                    const secPhoneVal = item.secondaryPhone ? String(item.secondaryPhone).trim() : '';
+                    const parentNameVal = item.parentName ? String(item.parentName).trim() : (item.guardianName ? String(item.guardianName).trim() : '');
+                    const gradeLevelVal = item.gradeLevel ? String(item.gradeLevel).trim() : (item.grade ? String(item.grade).trim() : (item.class ? String(item.class).trim() : ''));
+                    const streamVal = item.stream ? String(item.stream).trim() : (item.classStream ? String(item.classStream).trim() : '');
+
                     const displayName = item.name || admNo || 'Unknown';
 
-                    if (!newSecPhone) {
+                    if (!primaryPhoneVal && !secPhoneVal && !parentNameVal && !gradeLevelVal && !streamVal) {
                         results.push({ name: displayName, status: 'skipped' });
                         return;
                     }
@@ -1349,18 +1358,43 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     }
 
                     try {
+                        const currentMeta = matchedEnrollment.metadata || {};
+                        const updatedMeta = { ...currentMeta };
+
+                        if (primaryPhoneVal) {
+                            updatedMeta.parentPhone = primaryPhoneVal;
+                            updatedMeta.phoneNumber = primaryPhoneVal;
+                        }
+                        if (secPhoneVal) {
+                            updatedMeta.secondaryPhone = secPhoneVal;
+                        }
+                        if (parentNameVal) {
+                            updatedMeta.parentName = parentNameVal;
+                            updatedMeta.guardianName = parentNameVal;
+                        }
+                        if (gradeLevelVal) {
+                            updatedMeta.gradeLevel = gradeLevelVal;
+                        }
+                        if (streamVal) {
+                            updatedMeta.stream = streamVal;
+                        }
+
                         const updatedEnrollment = {
                             ...matchedEnrollment,
-                            metadata: {
-                                ...(matchedEnrollment.metadata || {}),
-                                secondaryPhone: newSecPhone
-                            },
+                            metadata: updatedMeta,
                             updatedAt: new Date().toISOString()
                         };
+
+                        // Also update User record if primary phone is updated
+                        const matchedUser = users.find(u => u.id === matchedEnrollment.userId);
+                        if (matchedUser && primaryPhoneVal) {
+                            await apiService.updateModuleRecord('users', matchedUser.id, { ...matchedUser, phoneNumber: primaryPhoneVal }).catch(() => {});
+                        }
+
                         await apiService.updateModuleRecord('student_enrollments', matchedEnrollment.id, updatedEnrollment);
                         results.push({ name: displayName, status: 'updated' });
                     } catch (err: any) {
-                        console.error(`Failed to update secondary phone for ${displayName}:`, err);
+                        console.error(`Failed to update contacts for ${displayName}:`, err);
                         results.push({ name: displayName, status: 'not_found' });
                     }
                 }));
@@ -1369,10 +1403,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const updatedCount = results.filter(r => r.status === 'updated').length;
             const notFoundCount = results.filter(r => r.status === 'not_found').length;
             setSecondaryPhoneImportResult(results);
-            setStatusMsg({ type: 'success', message: `Updated ${updatedCount} student(s). ${notFoundCount > 0 ? `${notFoundCount} record(s) not matched.` : ''}` });
+            setStatusMsg({ type: 'success', message: `Updated contacts for ${updatedCount} student(s). ${notFoundCount > 0 ? `${notFoundCount} record(s) not matched.` : ''}` });
             loadAllData();
         } catch (err: any) {
-            console.error('Secondary phone bulk update failed:', err);
+            console.error('Contact bulk update failed:', err);
             setStatusMsg({ type: 'error', message: `Bulk update failed: ${err.message}` });
         } finally {
             setIsLoading(false);
@@ -4055,8 +4089,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         setImportGradeLevel('');
                         setImportStream('');
                     }}
-                    title={importMode === 'update_secondary_phone' ? 'Update Secondary Phone Numbers from Excel' : undefined}
-                    description={importMode === 'update_secondary_phone' ? 'Map the Admission Number (or Student Full Name) and Secondary Phone Number columns. Records will be matched and their secondary contact number updated.' : undefined}
+                    title={importMode === 'update_secondary_phone' ? 'Update Contacts, Grade Level & Class Stream from Excel' : undefined}
+                    description={importMode === 'update_secondary_phone' ? 'Map Admission Number (or Student Full Name) plus Primary Phone, Secondary Phone, Parent Name, Grade Level, and/or Class Stream. Matched student records will be updated.' : undefined}
                 >
                     {activeTab === 'students' && context === 'academic' && (
                         <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 mt-6 space-y-4">
@@ -4143,10 +4177,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         <button 
                             onClick={() => { setImportMode('update_secondary_phone'); setIsUploading(true); }}
                             className="px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-teal-500/10"
-                            title="Update secondary phone numbers from an Excel file (requires Admission Number or Student Name + Secondary Phone Number columns)"
+                            title="Update primary phone number, secondary phone number, or parent name from an Excel file (requires Admission Number or Student Name)"
                         >
                             <Phone className="w-4 h-4" />
-                            Update Secondary Number
+                            Update Contacts
                         </button>
                         <button
                             onClick={() => {

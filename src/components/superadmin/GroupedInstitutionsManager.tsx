@@ -199,6 +199,24 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
 
         setIsSubmittingBranch(true);
         try {
+            if (branchCreationMode === 'new') {
+                const newInstId = `inst_br_${Date.now()}`;
+                const newInstRecord: any = {
+                    id: newInstId,
+                    name: `${selectedInstForNewBranch.name} (${branchName})`,
+                    institutionCode: `${(selectedInstForNewBranch.institutionCode || 'INST').toUpperCase()}-${branchName.replace(/\s+/g, '').slice(0, 3).toUpperCase()}`,
+                    institutionType: selectedInstForNewBranch.institutionType || 'Secondary',
+                    address: branchLoc,
+                    status: 'active',
+                    parentInstitutionId: selectedInstForNewBranch.id,
+                    isBranch: true,
+                    countyId: selectedInstForNewBranch.countyId
+                };
+
+                await apiService.saveModuleRecord('institutions', newInstRecord).catch(err => console.warn('Failed to save institution for branch:', err));
+                linkedInstId = newInstId;
+            }
+
             const branchId = newBranchData.customId.trim() || (linkedInstId ? `br_${linkedInstId}` : `br_${selectedInstForNewBranch.id}_${Date.now()}`);
             const record: Partial<Branch> = {
                 id: branchId,
@@ -212,7 +230,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
             
             success(branchCreationMode === 'pick_existing'
                 ? `Linked existing institution "${branchName}" as a branch location!`
-                : `Branch "${branchName}" created successfully`
+                : `Branch "${branchName}" created and registered under institutions!`
             );
 
             setIsAddBranchModalOpen(false);

@@ -3859,6 +3859,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <button
                             type="button"
                             onClick={() => {
+                                setIsFeeReminderModalOpen(true);
+                            }}
+                            className="py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-teal-500/25 active:scale-95 cursor-pointer shrink-0"
+                            title="Update primary phone, secondary phone, or parent names from Excel"
+                        >
+                            <AcademicCapIcon className="w-4 h-4" />
+                            <span>Update Contacts</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
                                 const exportData = studentFinanceData.map(s => [
                                     s.admissionNumber || '—',
                                     s.name,
