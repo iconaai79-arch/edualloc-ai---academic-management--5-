@@ -159,7 +159,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         onTimetableGenerated = async () => {}
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'home' | 'exam_units' | 'students' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'exam_units' | 'students' | 'teachers' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
     const [isLoading, setIsLoading] = useState(false);
@@ -262,6 +262,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
         { id: 'students', label: 'Students Registry', icon: UserPlusIcon },
+        { id: 'teachers', label: 'Teachers Registry', icon: UserGroupIcon },
         { id: 'exam_insights', label: 'Exam Insights', icon: BarChart3Icon },
         { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
         { id: 'people', label: 'People Governance', icon: UserGroupIcon },
@@ -269,7 +270,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
     ] as const;
 
-    const verticalTabs = horizontalTabs.filter(t => t.id !== 'students');
+    const verticalTabs = horizontalTabs.filter(t => t.id !== 'students' && t.id !== 'teachers');
 
     return (
         <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[750px] w-full text-left">
@@ -523,6 +524,19 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         context="academic"
                         currentInstitution={currentInstitution!}
                         activeTab="students"
+                        companyDetails={companyDetails}
+                        currentUser={currentUser!}
+                        onLogAction={onLogAction}
+                    />
+                </div>
+            )}
+
+            {activeTab === 'teachers' && (
+                <div className="animate-fade-in space-y-6">
+                    <StudentEnrollmentManager
+                        context="academic"
+                        currentInstitution={currentInstitution!}
+                        activeTab="teachers"
                         companyDetails={companyDetails}
                         currentUser={currentUser!}
                         onLogAction={onLogAction}
