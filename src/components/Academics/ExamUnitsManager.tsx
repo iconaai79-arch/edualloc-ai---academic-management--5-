@@ -24,6 +24,15 @@ export interface ExamUnitRecord {
     missingMarks: number; // e.g. 4354
 }
 
+export interface TestedPaperConfig {
+    id: string;
+    subject: string;
+    paperName: string;
+    maxInputScore: number; // e.g. 30 for 30%
+    convertToHundred: boolean; // Auto convert raw scores to 100%
+    enabled: boolean;
+}
+
 interface ExamUnitsManagerProps {
     currentInstitution?: Institution | null;
     subjects?: Subject[];
@@ -81,12 +90,31 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [targetStudentSearch, setTargetStudentSearch] = useState('');
     const [selectedClasses, setSelectedClasses] = useState<string[]>(['Form 3 Central', 'Form 3 South', 'Form 3 East', 'Form 3 West', 'Grade 10']);
     const [isPapersModalOpen, setIsPapersModalOpen] = useState(false);
-    const [selectedTestedSubjects, setSelectedTestedSubjects] = useState<string[]>([
-        'English', 'Kiswahili', 'Mathematics', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography', 'CRE', 'Business Studies'
+    // Tested Papers Configuration State:
+    const [testedPaperConfigs, setTestedPaperConfigs] = useState<TestedPaperConfig[]>([
+        { id: 'tp_1', subject: 'Mathematics', paperName: 'Paper 1', maxInputScore: 30, convertToHundred: true, enabled: true },
+        { id: 'tp_2', subject: 'Mathematics', paperName: 'Paper 2', maxInputScore: 70, convertToHundred: true, enabled: true },
+        { id: 'tp_3', subject: 'English', paperName: 'Paper 1 (Functional Skills)', maxInputScore: 60, convertToHundred: true, enabled: true },
+        { id: 'tp_4', subject: 'English', paperName: 'Paper 2 (Comprehension)', maxInputScore: 80, convertToHundred: true, enabled: true },
+        { id: 'tp_5', subject: 'English', paperName: 'Paper 3 (Creative Writing)', maxInputScore: 40, convertToHundred: true, enabled: true },
+        { id: 'tp_6', subject: 'Kiswahili', paperName: 'Insha (Paper 1)', maxInputScore: 40, convertToHundred: true, enabled: true },
+        { id: 'tp_7', subject: 'Kiswahili', paperName: 'Lugha (Paper 2)', maxInputScore: 80, convertToHundred: true, enabled: true },
+        { id: 'tp_8', subject: 'Biology', paperName: 'Paper 1 (Theory)', maxInputScore: 80, convertToHundred: true, enabled: true },
+        { id: 'tp_9', subject: 'Biology', paperName: 'Paper 2 (Practical)', maxInputScore: 40, convertToHundred: true, enabled: true },
+        { id: 'tp_10', subject: 'Chemistry', paperName: 'Paper 1 (Theory)', maxInputScore: 80, convertToHundred: true, enabled: true },
+        { id: 'tp_11', subject: 'Physics', paperName: 'Paper 1 (Theory)', maxInputScore: 80, convertToHundred: true, enabled: true }
     ]);
     const [useCustomRanking, setUseCustomRanking] = useState(false);
+    const [rankingScope, setRankingScope] = useState<'overall' | 'per_class'>('overall');
     const [customRankingCriteria, setCustomRankingCriteria] = useState<'Points' | 'Total Marks' | 'Mean Score'>('Points');
     const [customRankingSubjectsCount, setCustomRankingSubjectsCount] = useState<number>(7);
+    const [perClassRankingSettings, setPerClassRankingSettings] = useState<Record<string, { criteria: 'Points' | 'Total Marks' | 'Mean Score'; subjectsCount: number; enabled: boolean }>>({
+        'Form 3 Central': { criteria: 'Points', subjectsCount: 7, enabled: true },
+        'Form 3 South': { criteria: 'Points', subjectsCount: 7, enabled: true },
+        'Form 3 East': { criteria: 'Points', subjectsCount: 7, enabled: true },
+        'Form 3 West': { criteria: 'Points', subjectsCount: 7, enabled: true },
+        'Grade 10 Central': { criteria: 'Points', subjectsCount: 7, enabled: true },
+    });
 
     const activeExam = useMemo(() => {
         return exams.find(e => e.id === selectedExamId) || exams[0];
@@ -815,7 +843,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
                                     <div>
                                         <h4 className="text-xs font-bold text-slate-800 dark:text-white">Exam Papers</h4>
-                                        <p className="text-[10px] text-slate-400">{selectedTestedSubjects.length} subjects configured for testing</p>
+                                        <p className="text-[10px] text-slate-400">{testedPaperConfigs.filter(p => p.enabled).length} paper components configured for testing</p>
                                     </div>
                                     <button
                                         type="button"
@@ -839,33 +867,133 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     </label>
 
                                     {useCustomRanking && (
-                                        <div className="grid grid-cols-2 gap-4 pl-6 pt-1 animate-fade-in">
-                                            <div>
-                                                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Criteria</label>
-                                                <select
-                                                    value={customRankingCriteria}
-                                                    onChange={e => setCustomRankingCriteria(e.target.value as any)}
-                                                    className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold text-slate-900 dark:text-white"
-                                                >
-                                                    <option value="Points">Points</option>
-                                                    <option value="Total Marks">Total Marks</option>
-                                                    <option value="Mean Score">Mean Score</option>
-                                                </select>
+                                        <div className="space-y-4 pl-6 pt-1 animate-fade-in">
+                                            {/* Scope Radio options: Overall vs Per-Class */}
+                                            <div className="flex flex-wrap items-center gap-6 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="rankingScope"
+                                                        checked={rankingScope === 'overall'}
+                                                        onChange={() => setRankingScope('overall')}
+                                                        className="text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span>Overall (All sitting classes)</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="rankingScope"
+                                                        checked={rankingScope === 'per_class'}
+                                                        onChange={() => setRankingScope('per_class')}
+                                                        className="text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span>Specify unique criteria per class</span>
+                                                </label>
                                             </div>
 
-                                            <div>
-                                                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Subjects Count</label>
-                                                <select
-                                                    value={customRankingSubjectsCount}
-                                                    onChange={e => setCustomRankingSubjectsCount(parseInt(e.target.value) || 7)}
-                                                    className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold text-slate-900 dark:text-white"
-                                                >
-                                                    <option value={7}>7 Subjects</option>
-                                                    <option value={8}>8 Subjects</option>
-                                                    <option value={9}>9 Subjects</option>
-                                                    <option value={10}>10 Subjects</option>
-                                                </select>
-                                            </div>
+                                            {rankingScope === 'overall' ? (
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Criteria</label>
+                                                        <select
+                                                            value={customRankingCriteria}
+                                                            onChange={e => setCustomRankingCriteria(e.target.value as any)}
+                                                            className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold text-slate-900 dark:text-white"
+                                                        >
+                                                            <option value="Points">Points</option>
+                                                            <option value="Total Marks">Total Marks</option>
+                                                            <option value="Mean Score">Mean Score</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Subjects Count</label>
+                                                        <select
+                                                            value={customRankingSubjectsCount}
+                                                            onChange={e => setCustomRankingSubjectsCount(parseInt(e.target.value) || 7)}
+                                                            className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold text-slate-900 dark:text-white"
+                                                        >
+                                                            <option value={7}>7 Subjects</option>
+                                                            <option value={8}>8 Subjects</option>
+                                                            <option value={9}>9 Subjects</option>
+                                                            <option value={10}>10 Subjects</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                /* Per Class Table View */
+                                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-950 shadow-sm max-h-48 overflow-y-auto">
+                                                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+                                                        <thead className="bg-slate-50 dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-400">
+                                                            <tr>
+                                                                <th className="px-3 py-2 text-left">Class Name</th>
+                                                                <th className="px-3 py-2 text-center w-16">Rank</th>
+                                                                <th className="px-3 py-2 text-left">Criteria</th>
+                                                                <th className="px-3 py-2 text-center w-24">Subjects</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                            {selectedClasses.map(cName => {
+                                                                const conf = perClassRankingSettings[cName] || { criteria: 'Points', subjectsCount: 7, enabled: true };
+                                                                return (
+                                                                    <tr key={cName} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                                                        <td className="px-3 py-2 font-bold text-slate-800 dark:text-slate-200">{cName}</td>
+                                                                        <td className="px-3 py-2 text-center">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={conf.enabled}
+                                                                                onChange={e => {
+                                                                                    setPerClassRankingSettings(prev => ({
+                                                                                        ...prev,
+                                                                                        [cName]: { ...conf, enabled: e.target.checked }
+                                                                                    }));
+                                                                                }}
+                                                                                className="text-blue-600 rounded focus:ring-blue-500"
+                                                                            />
+                                                                        </td>
+                                                                        <td className="px-3 py-2">
+                                                                            <select
+                                                                                value={conf.criteria}
+                                                                                disabled={!conf.enabled}
+                                                                                onChange={e => {
+                                                                                    setPerClassRankingSettings(prev => ({
+                                                                                        ...prev,
+                                                                                        [cName]: { ...conf, criteria: e.target.value as any }
+                                                                                    }));
+                                                                                }}
+                                                                                className="w-full h-7 px-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs font-semibold disabled:opacity-50"
+                                                                            >
+                                                                                <option value="Points">Points</option>
+                                                                                <option value="Total Marks">Total Marks</option>
+                                                                                <option value="Mean Score">Mean Score</option>
+                                                                            </select>
+                                                                        </td>
+                                                                        <td className="px-3 py-2 text-center">
+                                                                            <select
+                                                                                value={conf.subjectsCount}
+                                                                                disabled={!conf.enabled}
+                                                                                onChange={e => {
+                                                                                    setPerClassRankingSettings(prev => ({
+                                                                                        ...prev,
+                                                                                        [cName]: { ...conf, subjectsCount: parseInt(e.target.value) || 7 }
+                                                                                    }));
+                                                                                }}
+                                                                                className="w-full h-7 px-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs font-semibold text-center disabled:opacity-50"
+                                                                            >
+                                                                                <option value={7}>7</option>
+                                                                                <option value={8}>8</option>
+                                                                                <option value={9}>9</option>
+                                                                                <option value={10}>10</option>
+                                                                            </select>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -921,44 +1049,109 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 </div>
             )}
 
-            {/* MODAL 2: PAPERS TO TEST SELECTOR */}
+            {/* MODAL 2: PAPERS TO TEST & MAX SCORE CONVERSION CONFIGURATION */}
             {isPapersModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4 animate-scale-in">
-                        <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
-                            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase">Choose Papers Being Tested</h4>
+                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in">
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900">
+                            <div>
+                                <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase">Papers to Test & Max Input Score</h4>
+                                <p className="text-[10px] text-slate-400 font-medium">Configure maximum raw input marks per paper (e.g. Math Paper 1: 30 marks) & auto-conversion to 100%.</p>
+                            </div>
                             <button onClick={() => setIsPapersModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XIcon className="w-5 h-5" /></button>
                         </div>
 
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {['English', 'Kiswahili', 'Mathematics', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography', 'CRE', 'Business Studies', 'Agriculture', 'Computer Studies'].map(sub => {
-                                const isChecked = selectedTestedSubjects.includes(sub);
-                                return (
-                                    <label key={sub} className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300">
-                                        <span>{sub}</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => {
-                                                setSelectedTestedSubjects(prev =>
-                                                    isChecked ? prev.filter(s => s !== sub) : [...prev, sub]
-                                                );
-                                            }}
-                                            className="text-blue-600 rounded focus:ring-blue-500"
-                                        />
-                                    </label>
-                                );
-                            })}
-                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 shadow-sm max-h-72 overflow-y-auto">
+                                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-400">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left">Subject</th>
+                                            <th className="px-4 py-3 text-left">Paper Component</th>
+                                            <th className="px-4 py-3 text-center w-32">Max Input Score</th>
+                                            <th className="px-4 py-3 text-center w-36">Convert to 100%</th>
+                                            <th className="px-4 py-3 text-center w-16">Tested</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {testedPaperConfigs.map(tp => (
+                                            <tr key={tp.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                                <td className="px-4 py-2.5 font-bold text-slate-800 dark:text-slate-200">{tp.subject}</td>
+                                                <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 font-medium">{tp.paperName}</td>
+                                                <td className="px-4 py-2.5 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <input
+                                                            type="number"
+                                                            value={tp.maxInputScore}
+                                                            disabled={!tp.enabled}
+                                                            onChange={e => {
+                                                                const val = parseInt(e.target.value) || 0;
+                                                                setTestedPaperConfigs(prev => prev.map(item => item.id === tp.id ? { ...item, maxInputScore: val } : item));
+                                                            }}
+                                                            className="w-16 h-7 px-2 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold text-slate-900 dark:text-white disabled:opacity-50"
+                                                        />
+                                                        <span className="text-[10px] text-slate-400 font-bold">pts</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-2.5 text-center">
+                                                    <label className="inline-flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={tp.convertToHundred}
+                                                            disabled={!tp.enabled}
+                                                            onChange={e => {
+                                                                setTestedPaperConfigs(prev => prev.map(item => item.id === tp.id ? { ...item, convertToHundred: e.target.checked } : item));
+                                                            }}
+                                                            className="text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
+                                                        />
+                                                        <span>&rarr; 100%</span>
+                                                    </label>
+                                                </td>
+                                                <td className="px-4 py-2.5 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={tp.enabled}
+                                                        onChange={e => {
+                                                            setTestedPaperConfigs(prev => prev.map(item => item.id === tp.id ? { ...item, enabled: e.target.checked } : item));
+                                                        }}
+                                                        className="text-blue-600 rounded focus:ring-blue-500"
+                                                    />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
 
-                        <div className="pt-2 flex justify-end">
-                            <button
-                                type="button"
-                                onClick={() => setIsPapersModalOpen(false)}
-                                className="px-5 py-2 bg-blue-600 text-white font-bold text-xs rounded shadow-sm"
-                            >
-                                Done ({selectedTestedSubjects.length} Selected)
-                            </button>
+                            {/* Quick Add Custom Paper Component */}
+                            <div className="flex justify-between items-center pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const subName = prompt('Enter Subject Name (e.g. Computer Studies):', 'Computer Studies');
+                                        if (!subName) return;
+                                        const pName = prompt('Enter Paper Name (e.g. Paper 1 Practical):', 'Paper 1');
+                                        if (!pName) return;
+                                        const maxScore = parseInt(prompt('Enter Max Raw Input Score (e.g. 50):', '50') || '50') || 50;
+
+                                        setTestedPaperConfigs(prev => [
+                                            ...prev,
+                                            { id: `tp_${Date.now()}`, subject: subName, paperName: pName, maxInputScore: maxScore, convertToHundred: true, enabled: true }
+                                        ]);
+                                    }}
+                                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded transition-all flex items-center gap-1"
+                                >
+                                    <PlusIcon className="w-3.5 h-3.5" /> Add Custom Paper Component
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPapersModalOpen(false)}
+                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-md transition-all"
+                                >
+                                    Save Papers Configuration ({testedPaperConfigs.filter(p => p.enabled).length} Active)
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
