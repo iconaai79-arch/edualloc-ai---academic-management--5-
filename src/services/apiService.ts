@@ -678,41 +678,45 @@ export const apiService = {
                 });
             }
 
-            const { data, error } = await _supabase.storage
-                .from(bucket)
+            let activeBucket = bucket;
+            let { data, error } = await _supabase.storage
+                .from(activeBucket)
                 .upload(path, file, {
                     upsert: true,
                     cacheControl: '3600',
                     contentType: contentType || file.type
                 });
 
-            if (error) {
-                console.error(`[Storage] Supabase upload error (${bucket}/${path}):`, error);
-
-                if (error.message === 'Failed to fetch') {
-                    console.warn(`[Storage] Supabase host unreachable. Falling back to local Base64 storage.`);
-                    return new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result as string);
-                        reader.readAsDataURL(file);
+            // Fallback to default 'eduai' bucket if custom bucket doesn't exist
+            if (error && activeBucket !== 'eduai') {
+                console.warn(`[Storage] Bucket '${activeBucket}' returned error (${error.message}). Retrying upload using default 'eduai' bucket...`);
+                activeBucket = 'eduai';
+                const retryRes = await _supabase.storage
+                    .from(activeBucket)
+                    .upload(path, file, {
+                        upsert: true,
+                        cacheControl: '3600',
+                        contentType: contentType || file.type
                     });
-                }
+                data = retryRes.data;
+                error = retryRes.error;
+            }
 
-                // Specifically alert for common policy issues
-                if ((error as any).status === 403 || error.message.toLowerCase().includes('denied') || error.message.includes('row-level security')) {
-                    alert(`Storage Error: Access Denied. Please ensure your '${bucket}' bucket has appropriate RLS policies for 'INSERT' and 'UPDATE' operations for the 'anon' role.`);
-                } else {
-                    alert(`Storage Error: ${error.message}`);
-                }
-                return null;
+            if (error) {
+                console.error(`[Storage] Supabase upload error (${activeBucket}/${path}):`, error);
+                console.warn(`[Storage] Falling back to Base64 data URL storage.`);
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(file);
+                });
             }
 
             if (data) {
                 const { data: { publicUrl } } = _supabase.storage
-                    .from(bucket)
+                    .from(activeBucket)
                     .getPublicUrl(path);
 
-                // console.log(`[Storage] Uploaded to Supabase: ${publicUrl}`);
                 return publicUrl;
             }
 

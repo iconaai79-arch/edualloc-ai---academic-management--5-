@@ -2549,7 +2549,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                 onChange={async (e) => {
                                                     const file = e.target.files?.[0];
                                                     if (file) {
-                                                        const url = await apiService.uploadFile('heritage', `members/${Date.now()}_${file.name}`, file);
+                                                        const url = await apiService.uploadFile('eduai', `members/${Date.now()}_${file.name}`, file);
                                                         if (url) setNewMember(p => ({ ...p, profilePhotoUrl: url }));
                                                     }
                                                 }}
@@ -2829,7 +2829,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                 onChange={async (e) => {
                                                     const file = e.target.files?.[0];
                                                     if (file) {
-                                                        const url = await apiService.uploadFile('heritage', `members/${Date.now()}_${file.name}`, file);
+                                                        const url = await apiService.uploadFile('eduai', `members/${Date.now()}_${file.name}`, file);
                                                         if (url) setEditMemberForm(p => ({ ...p, profilePhotoUrl: url }));
                                                     }
                                                 }}
@@ -3038,7 +3038,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                 onChange={async (e) => {
                                                     const file = e.target.files?.[0];
                                                     if (file) {
-                                                        const url = await apiService.uploadFile('heritage', `totems/${Date.now()}_${file.name}`, file);
+                                                        const url = await apiService.uploadFile('eduai', `totems/${Date.now()}_${file.name}`, file);
                                                         if (url) setTotemConfig(p => ({ ...p, customImageUrl: url, totemPreset: 'custom' }));
                                                     }
                                                 }}
