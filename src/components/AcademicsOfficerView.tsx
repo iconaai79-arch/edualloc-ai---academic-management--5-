@@ -319,6 +319,25 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
             {/* Main Content Area */}
             <div className="flex-1 w-full min-w-0 space-y-6">
+                {/* Primary Horizontal Navigation Menu Bar */}
+                <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 p-4 rounded-[2.5rem] shadow-sm shrink-0 gap-4">
+                    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto custom-scrollbar-horizontal max-w-[70vw] md:max-w-full pb-1">
+                        {tabs.map(sub => (
+                            <button
+                                key={sub.id}
+                                onClick={() => setActiveTab(sub.id as any)}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap cursor-pointer ${
+                                    activeTab === sub.id
+                                    ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105 font-black'
+                                    : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 font-semibold'
+                                }`}
+                            >
+                                <sub.icon className={`w-4 h-4 ${activeTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
+                                <span className="text-[11px] uppercase tracking-widest">{sub.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
                 {activeTab === 'home' && (
                 <div className="space-y-6">
