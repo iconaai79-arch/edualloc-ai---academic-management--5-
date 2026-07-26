@@ -588,6 +588,20 @@ export interface Institution {
     useSubdomain?: boolean;
     kioskSecurityPin?: string;
     kioskStatus?: 'active' | 'locked';
+    classExamConfigs?: any[];
+    treeGradingNodes?: Record<string, any>;
+    classTeacherCommentsConfig?: any[];
+    classRankingConfigs?: any[];
+    othersExamSettings?: {
+        inviteCode?: string;
+        meanPointsDecimal?: number;
+        meanScoreDecimal?: number;
+        meanMarksDecimal?: number;
+        absentGrade?: string;
+        irregularityGrade?: string;
+        incompleteGrade?: string;
+        includeNonRankingInAnalysis?: boolean;
+    };
 }
 
 export interface SchoolGallery {

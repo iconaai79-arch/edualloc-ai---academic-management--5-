@@ -165,7 +165,15 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ curr
     }, [currentInstitution]);
 
     const activeNode = useMemo(() => {
-        return gradingNodes[selectedNodeId] || gradingNodes['node_f3_101'] || gradingNodes['root_main'];
+        const found = gradingNodes[selectedNodeId] || gradingNodes['node_f3_101'] || gradingNodes['root_main'] || Object.values(gradingNodes)[0];
+        if (found) return found;
+        return {
+            id: 'root_main',
+            label: 'Overall grading system',
+            title: 'OVERALL DEFAULT GRADING SYSTEM',
+            type: 'root' as const,
+            definitions: defaultDefinitions
+        };
     }, [gradingNodes, selectedNodeId]);
 
     const toggleExpand = (key: string) => {
@@ -489,7 +497,7 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ curr
                     {/* Header Title with Add New Grade Button */}
                     <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-800">
                         <h3 className="font-black text-sm uppercase text-slate-900 dark:text-white tracking-wider">
-                            {activeNode.title}
+                            {activeNode?.title || 'OVERALL GRADING SYSTEM'}
                         </h3>
                         <button
                             type="button"
@@ -514,7 +522,7 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ curr
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                {activeNode.definitions.map(g => (
+                                {(activeNode?.definitions || []).map(g => (
                                     <tr key={g.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                                         {/* Grade Input */}
                                         <td className="px-4 py-2.5">

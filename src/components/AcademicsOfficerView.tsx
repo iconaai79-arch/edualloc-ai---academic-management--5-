@@ -32,6 +32,7 @@ import { AcademicReportsHub } from './Academics/AcademicReportsHub';
 import { BulkImportWizard } from './BulkImportWizard';
 import { DisciplineManager } from './Academics/DisciplineManager';
 import { StudentEnrollmentManager } from './common/StudentEnrollmentManager';
+import { ExamUnitsManager } from './Academics/ExamUnitsManager';
 
 interface AcademicsOfficerViewProps {
     currentUser?: User;
@@ -467,52 +468,15 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
             )}
 
             {activeTab === 'exam_units' && (
-                <div className="space-y-6">
-                    <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Manage Exam Units</h3>
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                        <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-md">
-                            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-                                <thead className="bg-slate-50 dark:bg-slate-700">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Unit Code</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Unit Name</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Department</th>
-                                        <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Has Exam?</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                                    {filteredExamUnits.map(subject => (
-                                        <tr key={subject.id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{subject.code}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{subject.name}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-                                                {departments.find(d => d.id === subject.departmentId)?.name || 'Unknown'}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                <button
-                                                    onClick={() => onUpdateSubject(subject.id, { hasExam: subject.hasExam === false ? true : false })}
-                                                    className={`inline-flex items-center justify-center p-2 rounded-full transition-colors ${subject.hasExam !== false
-                                                        ? 'bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/50 dark:hover:bg-green-900'
-                                                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600'
-                                                        }`}
-                                                    title={subject.hasExam !== false ? "Click to disable exam" : "Click to enable exam"}
-                                                >
-                                                    {subject.hasExam !== false ? <CheckCircleIcon className="w-6 h-6" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-500" />}
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {filteredExamUnits.length === 0 && (
-                                        <tr>
-                                            <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
-                                                No units found matching your criteria.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                <div className="space-y-6 animate-fade-in w-full">
+                    <ExamUnitsManager
+                        currentInstitution={currentInstitution}
+                        subjects={subjects}
+                        users={users}
+                        assessments={assessments}
+                        marks={marks}
+                        courses={courses}
+                    />
                 </div>
             )}
 
