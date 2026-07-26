@@ -55,6 +55,7 @@ const RecordCarPaymentModal = lazy(() => import('./modals/RecordCarPaymentModal'
 const CarReceiptModal = lazy(() => import('./modals/CarReceiptModal').then(m => ({ default: m.CarReceiptModal })));
 const AddCarLeadModal = lazy(() => import('./modals/AddCarLeadModal').then(m => ({ default: m.AddCarLeadModal })));
 const AcademicConfigManager = lazy(() => import('./AcademicConfigManager').then(m => ({ default: m.AcademicConfigManager })));
+const AcademicsOfficerView = lazy(() => import('./AcademicsOfficerView').then(m => ({ default: m.AcademicsOfficerView })));
 const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
 const ExamInsights = lazy(() => import('./Academics/ExamInsights').then(m => ({ default: m.ExamInsights })));
 const AcademicReportsHub = lazy(() => import('./Academics/AcademicReportsHub').then(m => ({ default: m.AcademicReportsHub })));
@@ -958,7 +959,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 return true;
             }
 
-            if (['enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(tab.id)) {
+            if (['enrollment_students', 'enrollment_teachers', 'enrollment_support_staff'].includes(tab.id)) {
                 return isEdu && activeScope === 'academics';
             }
 
@@ -981,7 +982,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     const academicsTabs = ['settings', 'reports'];
                     if (isModuleActive('timetable')) academicsTabs.push('timetable');
                     if (isModuleActive('academics')) academicsTabs.push('courses');
-                    academicsTabs.push('enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests', 'eduflow', 'eduvote');
+                    academicsTabs.push('enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'eduflow');
                     return academicsTabs.includes(tab.id);
                 }
                 if (activeScope === 'inventory') {
@@ -2667,191 +2668,256 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 {activeTab === 'timetable' && (
                     <ModuleAccessGuard
                         moduleId="timetable"
-                        moduleName="Smart Timetable"
+                        moduleName="Smart Timetable & Academics"
                         description="Access automated timetable generators, manage lesson structures, teaching allocations, and calendar events."
                         institution={props.currentInstitution}
                         onActivateTrial={onActivateModuleTrial}
                     >
-                        <div className="space-y-6">
-                        <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full">
-                            <button onClick={() => setTimetableSubTab('wizard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'wizard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Wizard</button>
-                            <button onClick={() => setTimetableSubTab('scheduler')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'scheduler' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Lesson Scheduler</button>
-                            <button onClick={() => setTimetableSubTab('teachers')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'teachers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Teachers</button>
-                            <button onClick={() => setTimetableSubTab('students')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'students' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Students</button>
-                            <button onClick={() => setTimetableSubTab('insights')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'insights' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Exam Insights</button>
-                            <button onClick={() => setTimetableSubTab('intelligence')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'intelligence' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Intelligence Hub</button>
-                            <button onClick={() => setTimetableSubTab('discipline')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'discipline' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Student Discipline</button>
-                            <button onClick={() => setTimetableSubTab('registry')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'registry' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>
-                                Registry
-                                {stats.totalActionable > 0 && (
-                                    <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
-                                        {stats.totalActionable}
-                                    </span>
-                                )}
-                            </button>
-                        </div>
-
-                        <div className="animate-fade-in-up">
-                            {timetableSubTab === 'wizard' ? (
-                                <TimetableWizard
-                                    isInline={true}
-                                    allocations={(requests || []).filter(r => r.status === 'approved')}
-                                    subjects={subjects}
-                                    lecturers={users.filter(u => u.role === 'lecturer' || u.role === 'teacher')}
-                                    rooms={rooms}
-                                    courses={courses}
-                                    timetableSettings={props.timetableSettings!}
-                                    activeAcademicYear={props.activeAcademicYear || null}
-                                    activeSemester={activeSemester || null}
-                                    currentInstitution={currentInstitution}
-                                    courseSizes={props.courseSizes || new Map<string, number>()}
-                                    timeOffRequests={props.timeOffRequests || []}
-                                    onTimetableGenerated={props.onTimetableGenerated as any}
-                                    onLogAction={props.onLogAction}
-                                    onNavigateToSettings={(tab) => {
-                                        if (tab === 'calendar' || tab === 'academic_settings') {
-                                            setActiveTab('courses');
-                                            setCoursesSubTab(tab === 'calendar' ? 'calendar' : 'settings');
-                                        } else {
-                                            setActiveTab('settings');
-                                            if (tab) setRequestedSettingsTab(tab);
-                                        }
-                                    }}
-                                />
-                            ) : timetableSubTab === 'scheduler' ? (
-                                <TimetablesView
-                                    generatedTimetable={props.generatedTimetable || []}
-                                    subjects={props.subjects || []}
-                                    lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
-                                    allUsers={props.users || []}
-                                    rooms={props.rooms || []}
-                                    courses={props.courses || []}
-                                    departments={props.departments || []}
-                                    buildings={props.buildings || []}
-                                    allocations={(props.requests || []).filter((r: AllocationRequest) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
-                                    getSubjectById={props.getSubjectById || ((id: string) => props.subjects?.find(s => s && s.id === id))}
-                                    getLecturerById={props.getLecturerById || ((id: string) => props.users?.find(u => u && u.id === id))}
-                                    getRoomById={props.getRoomById || ((id: string) => props.rooms?.find(r => r && r.id === id))}
-                                    letterheadConfig={props.letterheadConfig || { headerImageUrl: null, stampImageUrl: null, showStamp: false }}
-                                    logoUrl={props.logoUrl || null}
-                                    footerImageUrl={props.footerImageUrl || null}
-                                    currentUser={props.currentUser!}
-                                    timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
-                                    onSaveTimetableSettings={props.onSaveTimetableSettings || (() => { })}
-                                    academicYears={props.academicYears || []}
-                                    activeSemester={activeSemester || null}
-                                    currentInstitution={props.currentInstitution}
-                                    onMoveTimetableEntry={props.onMoveTimetableEntry}
-                                    onLogAction={props.onLogAction}
-                                    preSelectedViewMode={timetablePreselectedViewMode ?? undefined}
-                                    preSelectedLecturerId={timetablePreselectedLecturerId}
-                                    preSelectedCourseId={timetablePreselectedCourseId}
-                                    onClearPreSelected={() => {
-                                        setTimetablePreselectedViewMode(null);
-                                        setTimetablePreselectedLecturerId('');
-                                        setTimetablePreselectedCourseId('all');
-                                    }}
-                                />
-                            ) : timetableSubTab === 'teachers' ? (
-                                <TimetableUserDirectory
-                                    institutionId={props.currentInstitution?.id || ''}
-                                    role="teacher"
-                                    allUsers={props.users || []}
-                                    allCourses={props.courses || []}
-                                    departments={props.departments || []}
-                                    timetableEntries={props.generatedTimetable || []}
-                                    subjects={props.subjects || []}
-                                    allocations={(props.requests || []).filter((r: any) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
-                                    isSchool={!!(props.currentInstitution as any)?.isSchool}
-                                    onDirectAssign={props.onDirectAssign as any}
-                                    onUpdateRequest={props.onUpdateRequest as any}
-                                    onWithdrawRequest={props.onWithdrawRequest as any}
-                                    onAddTimeOffRequest={props.onAddTimeOffRequest as any}
-                                    onRestoreSchedule={(userId) => {
-                                        alert(`Schedule restore queued for teacher ${userId}. Re-run the Timetable Wizard to regenerate their entries.`);
-                                    }}
-                                    onViewCalendar={(user) => {
-                                        setTimetablePreselectedViewMode('lecturer_schedule');
-                                        setTimetablePreselectedLecturerId(user.id);
-                                        setTimetableSubTab('scheduler');
-                                    }}
-                                />
-                            ) : timetableSubTab === 'students' ? (
-                                <TimetableUserDirectory
-                                    institutionId={props.currentInstitution?.id || ''}
-                                    role="student"
-                                    allUsers={props.users || []}
-                                    allCourses={props.courses || []}
-                                    departments={props.departments || []}
-                                    timetableEntries={props.generatedTimetable || []}
-                                    onViewCalendar={(user) => {
-                                        setTimetablePreselectedViewMode('master_course');
-                                        setTimetablePreselectedCourseId(user.courseId || 'all');
-                                        setTimetableSubTab('scheduler');
-                                    }}
-                                />
-                            ) : timetableSubTab === 'insights' ? (
-                                <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
-                                    <ExamInsights
-                                        assessment={props.assessments?.[0] || { id: 'na', title: 'No Assessment', status: 'pending', type: 'Exam' } as any}
-                                        marks={props.marks || []}
-                                        subjects={props.subjects || []}
-                                        students={(props.users || []).filter(u => u.role === 'student')}
-                                        teachers={(props.users || []).filter(u => u.role === 'teacher' || u.role === 'lecturer')}
-                                    />
-                                </Suspense>
-                            ) : timetableSubTab === 'intelligence' ? (
-                                <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
-                                    <AcademicReportsHub
-                                        students={(props.users || []).filter(u => u.role === 'student')}
-                                        assessments={props.assessments || []}
-                                        marks={props.marks || []}
-                                        subjects={props.subjects || []}
-                                        institution={props.currentInstitution!}
-                                        gradingSystem={(props.currentInstitution?.academicConfig as any)?.gradingSystem || null}
-                                    />
-                                </Suspense>
-                            ) : timetableSubTab === 'discipline' ? (
-                                <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
-                                    <DisciplineManager
-                                        incidents={props.incidents || []}
-                                        students={(props.users || []).filter(u => u && u.role === 'student')}
-                                        onAddIncident={props.onAddIncident || (async () => {})}
-                                    />
-                                </Suspense>
-                            ) : timetableSubTab === 'registry' ? (
-                                <InteractionsManager
-                                    {...props as any}
-                                    absenceRequests={props.absenceRequests || []}
-                                    contracts={props.contracts || []}
-                                    feedbackSubmissions={props.feedbackSubmissions || []}
-                                    lessonRatings={props.lessonRatings || []}
-                                    studentAbsenceRequests={props.studentAbsenceRequests || []}
-                                    enrollmentRequests={props.enrollmentRequests || []}
-                                    onOpenDirectAssign={() => setIsDirectAssignOpen(true)}
-                                    onUpdateRequestStatus={props.onUpdateRequestStatus || (async () => {})}
-                                    onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus || (async () => {})}
-                                    getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
-                                    getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
-                                    allocations={props.allocations || []}
-                                />
-                            ) : (
-                                <TimetableGenerator {...props as any}
-                                    {...props}
-                                    examTimetable={[]}
+                        {isEdu ? (
+                            <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                <AcademicsOfficerView
+                                    currentUser={props.currentUser}
+                                    subjects={props.subjects}
+                                    onUpdateSubject={props.onUpdateSubject as any}
+                                    courses={props.courses}
+                                    onUpdateCourse={props.onUpdateCourse}
+                                    users={props.users}
+                                    rooms={props.rooms}
+                                    onUpdateRoom={props.onUpdateRoom}
+                                    onDeleteRoom={props.onDeleteRoom}
+                                    onAddRoom={props.onAddRoom}
+                                    departments={props.departments}
+                                    onAddDepartment={props.onAddDepartment}
+                                    onUpdateDepartment={props.onUpdateDepartment}
+                                    onDeleteDepartment={props.onDeleteDepartment}
+                                    onImportDepartments={props.onImportDepartments}
+                                    activeAcademicYear={props.activeAcademicYear}
+                                    activeSemester={activeSemester}
+                                    onExamTimetableGenerated={async (entries: any, ay: any, sem: any) => apiService.saveExamTimetable(props.currentUser!.institutionId, ay, sem, entries)}
+                                    examTimetable={props.examTimetable || []}
+                                    getSubjectById={props.getSubjectById}
+                                    getLecturerById={props.getLecturerById}
+                                    getRoomById={props.getRoomById}
                                     courseSizes={props.courseSizes || new Map()}
-                                    allocations={(props.requests || []).filter((r: AllocationRequest) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
-                                    lecturers={props.users || []}
-                                    setActiveTab={(tab: string) => setActiveTab(tab as any)}
-                                    onSaveTimetableSettings={props.onSaveTimetableSettings!}
-                                    onTimetableGenerated={props.onTimetableGenerated as any}
-                                    getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
-                                    getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
-                                    getRoomById={props.getRoomById || ((id: string) => (props.rooms || []).find(r => r && r.id === id))}
+                                    academicYears={props.academicYears}
+                                    semesters={props.semesters}
+                                    timetableSettings={props.timetableSettings}
+                                    buildings={props.buildings}
+                                    onUpdateBuilding={props.onUpdateBuilding}
+                                    onDeleteBuilding={props.onDeleteBuilding}
+                                    onAddBuilding={props.onAddBuilding}
+                                    academicLevels={props.academicLevels}
+                                    letterheadConfig={props.letterheadConfig}
+                                    logoUrl={props.logoUrl}
+                                    footerImageUrl={props.footerImageUrl}
+                                    emailConfig={props.emailConfig}
+                                    onSaveEmailConfig={props.onSaveEmailConfig as any}
+                                    onSendTestEmail={props.onSendTestEmail as any}
+                                    currentInstitution={props.currentInstitution}
+                                    examTimetableSettings={props.examTimetableSettings}
+                                    onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any}
+                                    onAddAcademicYear={props.onAddAcademicYear}
+                                    onUpdateAcademicYear={props.onUpdateAcademicYear}
+                                    onDeleteAcademicYear={props.onDeleteAcademicYear}
+                                    onAddSemester={props.onAddSemester}
+                                    onUpdateSemester={props.onUpdateSemester}
+                                    onDeleteSemester={props.onDeleteSemester}
+                                    onSaveTimetableSettings={props.onSaveTimetableSettings}
+                                    onImportRooms={props.onImportRooms}
+                                    smsConfig={props.smsConfig as any}
+                                    themeColor={props.themeColor}
+                                    allocations={props.requests as any}
+                                    timeOffRequests={props.timeOffRequests}
+                                    lessonRatings={props.lessonRatings}
+                                    assessments={props.assessments}
+                                    marks={props.assessmentMarks as any}
+                                    activityLog={props.activityLog}
+                                    incidents={props.incidents}
+                                    onAddIncident={props.onAddIncident}
                                 />
-                            )}
+                            </Suspense>
+                        ) : (
+                            <div className="space-y-6">
+                            <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full">
+                                <button onClick={() => setTimetableSubTab('wizard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'wizard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Wizard</button>
+                                <button onClick={() => setTimetableSubTab('scheduler')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'scheduler' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Lesson Scheduler</button>
+                                <button onClick={() => setTimetableSubTab('teachers')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'teachers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Teachers</button>
+                                <button onClick={() => setTimetableSubTab('students')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'students' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Students</button>
+                                <button onClick={() => setTimetableSubTab('insights')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'insights' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Exam Insights</button>
+                                <button onClick={() => setTimetableSubTab('intelligence')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'intelligence' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Intelligence Hub</button>
+                                <button onClick={() => setTimetableSubTab('discipline')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'discipline' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Student Discipline</button>
+                                <button onClick={() => setTimetableSubTab('registry')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'registry' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>
+                                    Registry
+                                    {stats.totalActionable > 0 && (
+                                        <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
+                                            {stats.totalActionable}
+                                        </span>
+                                    )}
+                                </button>
+                            </div>
+
+                            <div className="animate-fade-in-up">
+                                {timetableSubTab === 'wizard' ? (
+                                    <TimetableWizard
+                                        isInline={true}
+                                        allocations={(requests || []).filter(r => r.status === 'approved')}
+                                        subjects={subjects}
+                                        lecturers={users.filter(u => u.role === 'lecturer' || u.role === 'teacher')}
+                                        rooms={rooms}
+                                        courses={courses}
+                                        timetableSettings={props.timetableSettings!}
+                                        activeAcademicYear={props.activeAcademicYear || null}
+                                        activeSemester={activeSemester || null}
+                                        currentInstitution={currentInstitution}
+                                        courseSizes={props.courseSizes || new Map<string, number>()}
+                                        timeOffRequests={props.timeOffRequests || []}
+                                        onTimetableGenerated={props.onTimetableGenerated as any}
+                                        onLogAction={props.onLogAction}
+                                        onNavigateToSettings={(tab) => {
+                                            if (tab === 'calendar' || tab === 'academic_settings') {
+                                                setActiveTab('courses');
+                                                setCoursesSubTab(tab === 'calendar' ? 'calendar' : 'settings');
+                                            } else {
+                                                setActiveTab('settings');
+                                                if (tab) setRequestedSettingsTab(tab);
+                                            }
+                                        }}
+                                    />
+                                ) : timetableSubTab === 'scheduler' ? (
+                                    <TimetablesView
+                                        generatedTimetable={props.generatedTimetable || []}
+                                        subjects={props.subjects || []}
+                                        lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
+                                        allUsers={props.users || []}
+                                        rooms={props.rooms || []}
+                                        courses={props.courses || []}
+                                        departments={props.departments || []}
+                                        buildings={props.buildings || []}
+                                        allocations={(props.requests || []).filter((r: AllocationRequest) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
+                                        getSubjectById={props.getSubjectById || ((id: string) => props.subjects?.find(s => s && s.id === id))}
+                                        getLecturerById={props.getLecturerById || ((id: string) => props.users?.find(u => u && u.id === id))}
+                                        getRoomById={props.getRoomById || ((id: string) => props.rooms?.find(r => r && r.id === id))}
+                                        letterheadConfig={props.letterheadConfig || { headerImageUrl: null, stampImageUrl: null, showStamp: false }}
+                                        logoUrl={props.logoUrl || null}
+                                        footerImageUrl={props.footerImageUrl || null}
+                                        currentUser={props.currentUser!}
+                                        timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                        onSaveTimetableSettings={props.onSaveTimetableSettings || (() => { })}
+                                        academicYears={props.academicYears || []}
+                                        activeSemester={activeSemester || null}
+                                        currentInstitution={props.currentInstitution}
+                                        onMoveTimetableEntry={props.onMoveTimetableEntry}
+                                        onLogAction={props.onLogAction}
+                                        preSelectedViewMode={timetablePreselectedViewMode ?? undefined}
+                                        preSelectedLecturerId={timetablePreselectedLecturerId}
+                                        preSelectedCourseId={timetablePreselectedCourseId}
+                                        onClearPreSelected={() => {
+                                            setTimetablePreselectedViewMode(null);
+                                            setTimetablePreselectedLecturerId('');
+                                            setTimetablePreselectedCourseId('all');
+                                        }}
+                                    />
+                                ) : timetableSubTab === 'teachers' ? (
+                                    <TimetableUserDirectory
+                                        institutionId={props.currentInstitution?.id || ''}
+                                        role="teacher"
+                                        allUsers={props.users || []}
+                                        allCourses={props.courses || []}
+                                        departments={props.departments || []}
+                                        timetableEntries={props.generatedTimetable || []}
+                                        subjects={props.subjects || []}
+                                        allocations={(props.requests || []).filter((r: any) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
+                                        isSchool={!!(props.currentInstitution as any)?.isSchool}
+                                        onDirectAssign={props.onDirectAssign as any}
+                                        onUpdateRequest={props.onUpdateRequest as any}
+                                        onWithdrawRequest={props.onWithdrawRequest as any}
+                                        onAddTimeOffRequest={props.onAddTimeOffRequest as any}
+                                        onRestoreSchedule={(userId) => {
+                                            alert(`Schedule restore queued for teacher ${userId}. Re-run the Timetable Wizard to regenerate their entries.`);
+                                        }}
+                                        onViewCalendar={(user) => {
+                                            setTimetablePreselectedViewMode('lecturer_schedule');
+                                            setTimetablePreselectedLecturerId(user.id);
+                                            setTimetableSubTab('scheduler');
+                                        }}
+                                    />
+                                ) : timetableSubTab === 'students' ? (
+                                    <TimetableUserDirectory
+                                        institutionId={props.currentInstitution?.id || ''}
+                                        role="student"
+                                        allUsers={props.users || []}
+                                        allCourses={props.courses || []}
+                                        departments={props.departments || []}
+                                        timetableEntries={props.generatedTimetable || []}
+                                        onViewCalendar={(user) => {
+                                            setTimetablePreselectedViewMode('master_course');
+                                            setTimetablePreselectedCourseId(user.courseId || 'all');
+                                            setTimetableSubTab('scheduler');
+                                        }}
+                                    />
+                                ) : timetableSubTab === 'insights' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
+                                        <ExamInsights
+                                            assessment={props.assessments?.[0] || { id: 'na', title: 'No Assessment', status: 'pending', type: 'Exam' } as any}
+                                            marks={props.marks || []}
+                                            subjects={props.subjects || []}
+                                            students={(props.users || []).filter(u => u.role === 'student')}
+                                            teachers={(props.users || []).filter(u => u.role === 'teacher' || u.role === 'lecturer')}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'intelligence' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
+                                        <AcademicReportsHub
+                                            students={(props.users || []).filter(u => u.role === 'student')}
+                                            assessments={props.assessments || []}
+                                            marks={props.marks || []}
+                                            subjects={props.subjects || []}
+                                            institution={props.currentInstitution!}
+                                            gradingSystem={(props.currentInstitution?.academicConfig as any)?.gradingSystem || null}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'discipline' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
+                                        <DisciplineManager
+                                            incidents={props.incidents || []}
+                                            students={(props.users || []).filter(u => u && u.role === 'student')}
+                                            onAddIncident={props.onAddIncident || (async () => {})}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'registry' ? (
+                                    <InteractionsManager
+                                        {...props as any}
+                                        absenceRequests={props.absenceRequests || []}
+                                        contracts={props.contracts || []}
+                                        feedbackSubmissions={props.feedbackSubmissions || []}
+                                        lessonRatings={props.lessonRatings || []}
+                                        studentAbsenceRequests={props.studentAbsenceRequests || []}
+                                        enrollmentRequests={props.enrollmentRequests || []}
+                                        onOpenDirectAssign={() => setIsDirectAssignOpen(true)}
+                                        onUpdateRequestStatus={props.onUpdateRequestStatus || (async () => {})}
+                                        onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus || (async () => {})}
+                                        getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
+                                        getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
+                                        allocations={props.allocations || []}
+                                    />
+                                ) : (
+                                    <TimetableGenerator {...props as any}
+                                        {...props}
+                                        examTimetable={[]}
+                                        courseSizes={props.courseSizes || new Map()}
+                                        allocations={(props.requests || []).filter((r: AllocationRequest) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
+                                        lecturers={props.users || []}
+                                        setActiveTab={(tab: string) => setActiveTab(tab as any)}
+                                        onSaveTimetableSettings={props.onSaveTimetableSettings!}
+                                        onTimetableGenerated={props.onTimetableGenerated as any}
+                                        getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
+                                        getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
+                                        getRoomById={props.getRoomById || ((id: string) => (props.rooms || []).find(r => r && r.id === id))}
+                                    />
+                                )}
+                            </div>
                         </div>
-                    </div>
+                        )}
                     </ModuleAccessGuard>
                 )}
 
