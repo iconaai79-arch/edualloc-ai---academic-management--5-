@@ -105,6 +105,43 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [tiltX, setTiltX] = useState(18);
     const [rotateY, setRotateY] = useState(-8);
     const [zoomScale, setZoomScale] = useState(1);
+
+    // 3D Family Totem & Tree Crest Configuration
+    const [showTotemModal, setShowTotemModal] = useState(false);
+    const [totemConfig, setTotemConfig] = useState<{
+        totemName: string;
+        motto: string;
+        totemPreset: 'baobab' | 'lion' | 'eagle' | 'shield' | 'crown' | 'panther' | 'flame' | 'elephant' | 'custom';
+        customImageUrl?: string;
+        animationMode: 'background_3d' | 'tree_root_3d' | 'orbit_3d';
+        rotationSpeed: 'slow' | 'normal' | 'fast';
+        glowColor: string;
+        showAsTreeRoot: boolean;
+    }>(() => {
+        try {
+            const saved = localStorage.getItem(`heritage_totem_${currentInstitution.id}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {
+            totemName: 'Sacred Baobab Lineage Crest',
+            motto: 'Honor, Courage & Eternal Unity',
+            totemPreset: 'baobab',
+            customImageUrl: '',
+            animationMode: 'background_3d',
+            rotationSpeed: 'normal',
+            glowColor: '#f59e0b',
+            showAsTreeRoot: true
+        };
+    });
+
+    const handleSaveTotemConfig = (newConfig: typeof totemConfig) => {
+        setTotemConfig(newConfig);
+        try {
+            localStorage.setItem(`heritage_totem_${currentInstitution.id}`, JSON.stringify(newConfig));
+            apiService.saveModuleRecord('heritage_totems', { id: `totem_${currentInstitution.id}`, institutionId: currentInstitution.id, ...newConfig }).catch(() => {});
+        } catch (e) {}
+        setShowTotemModal(false);
+    };
     
     // Campaign Voting States
     const [allCampaigns, setAllCampaigns] = useState<CampaignProfile[]>([]);
@@ -749,6 +786,14 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             )}
 
                             <button
+                                onClick={() => setShowTotemModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-600 to-yellow-600 text-slate-950 font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all"
+                            >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>🎨 3D Totem Crest</span>
+                            </button>
+
+                            <button
                                 onClick={() => setShowAddMemberModal(true)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all ml-2"
                             >
@@ -777,6 +822,17 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                         >
                             {treeMembers.length > 0 ? (
                                 <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                    {/* 3D Foundational Root Totem Node */}
+                                    {totemConfig.showAsTreeRoot && (
+                                        <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                            {render3DTotemElement(true)}
+                                            <div 
+                                                className="w-1 h-12 md:h-16 bg-gradient-to-b from-amber-400 via-yellow-400 to-amber-500 shadow-lg shadow-amber-500/50"
+                                                style={{ transform: is3DMode ? 'translateZ(65px)' : 'none' }}
+                                            ></div>
+                                        </div>
+                                    )}
+
                                     {/* Root Ancestor Node (First Member) - 3D Floating Layer */}
                                     {(() => {
                                         const rootMember = treeMembers[0];
@@ -1513,6 +1569,97 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
             </div>
         </div>
     );
+
+    const render3DTotemElement = (isRootNode?: boolean) => {
+        const getTotemIcon = () => {
+            if (totemConfig.customImageUrl) {
+                return (
+                    <img loading="lazy" 
+                        src={totemConfig.customImageUrl} 
+                        alt="Family Totem" 
+                        className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-full border-2 border-amber-400/80 shadow-2xl shadow-amber-500/50" 
+                    />
+                );
+            }
+            switch (totemConfig.totemPreset) {
+                case 'lion': return <Crown className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
+                case 'eagle': return <Star className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
+                case 'shield': return <ShieldCheck className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
+                case 'crown': return <Crown className="w-12 h-12 md:w-16 md:h-16 text-yellow-300" />;
+                case 'panther': return <Ghost className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
+                case 'flame': return <Zap className="w-12 h-12 md:w-16 md:h-16 text-amber-400 animate-pulse" />;
+                case 'elephant': return <TreePalm className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
+                case 'baobab':
+                default: return <TreePalm className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
+            }
+        };
+
+        const rotationDuration = totemConfig.rotationSpeed === 'fast' ? '6s' : totemConfig.rotationSpeed === 'slow' ? '20s' : '12s';
+
+        return (
+            <div 
+                onClick={() => setShowTotemModal(true)}
+                title="Click to customize 3D Family Totem & Tree Crest"
+                className={`relative group cursor-pointer transition-all duration-500 flex flex-col items-center justify-center ${
+                    isRootNode ? 'z-30 mb-2' : 'my-4'
+                }`}
+                style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}
+            >
+                {/* 3D Holographic Orbit Ring & Aura Glow */}
+                <div 
+                    className="relative p-6 md:p-8 rounded-full backdrop-blur-2xl border-2 flex items-center justify-center transition-transform group-hover:scale-110"
+                    style={{
+                        borderColor: `${totemConfig.glowColor || '#f59e0b'}80`,
+                        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                        boxShadow: `0 0 60px ${totemConfig.glowColor || '#f59e0b'}60, inset 0 0 30px ${totemConfig.glowColor || '#f59e0b'}40`,
+                        transform: is3DMode ? 'translateZ(75px)' : 'none'
+                    }}
+                >
+                    {/* Animated 3D Spinning Ring */}
+                    <div 
+                        className="absolute inset-0 rounded-full border-2 border-dashed opacity-75 animate-spin"
+                        style={{ 
+                            borderColor: totemConfig.glowColor || '#f59e0b',
+                            animationDuration: rotationDuration
+                        }}
+                    />
+                    
+                    {/* Pulsing Outer Quantum Field */}
+                    <div 
+                        className="absolute -inset-3 rounded-full opacity-30 animate-ping pointer-events-none"
+                        style={{ backgroundColor: `${totemConfig.glowColor || '#f59e0b'}` }}
+                    />
+
+                    {/* Totem Symbol */}
+                    <div className="relative z-10 flex items-center justify-center">
+                        {getTotemIcon()}
+                    </div>
+
+                    {/* Hover Quick Edit Badge */}
+                    <div className="absolute -top-2 -right-2 p-1.5 bg-amber-400 text-slate-950 rounded-full shadow-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Pencil className="w-3.5 h-3.5" />
+                    </div>
+                </div>
+
+                {/* Totem Name & Family Motto Text Plate */}
+                <div 
+                    className="mt-3 px-5 py-2 rounded-2xl bg-slate-950/90 border border-amber-500/40 text-center shadow-xl backdrop-blur-md group-hover:border-amber-400 transition-all max-w-xs"
+                    style={{ transform: is3DMode ? 'translateZ(85px)' : 'none' }}
+                >
+                    <div className="flex items-center justify-center gap-1.5 text-amber-400">
+                        <Sparkles className="w-3 h-3 animate-spin" />
+                        <span className="text-[9px] font-mono font-black uppercase tracking-widest">
+                            {isRootNode ? '🌳 FOUNDATIONAL TOTEM NODE' : '👑 ANCESTRAL FAMILY CREST'}
+                        </span>
+                    </div>
+                    <h4 className="text-xs font-black uppercase text-white tracking-tight mt-0.5">{totemConfig.totemName}</h4>
+                    {totemConfig.motto && (
+                        <p className="text-[9px] font-mono italic text-amber-200/90 mt-0.5">"{totemConfig.motto}"</p>
+                    )}
+                </div>
+            </div>
+        );
+    };
 
     const renderHomeSubView = () => (
         <div className="space-y-8 animate-fade-in">
@@ -2326,44 +2473,44 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                         onClick={() => { setShowAddMemberModal(false); setAddMemberError(''); }}
                     />
                     {/* Modal Card */}
-                    <div className="relative z-10 bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl w-full max-w-lg border border-slate-100 dark:border-slate-700 overflow-hidden">
+                    <div className="relative z-10 bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col max-h-[85vh]">
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-amber-600 to-amber-700 p-8 relative overflow-hidden">
+                        <div className="bg-gradient-to-r from-amber-600 to-amber-700 p-6 flex-shrink-0 relative overflow-hidden">
                             <div className="absolute -right-8 -top-8 opacity-10">
-                                <TreePalm className="w-48 h-48 text-white" />
+                                <TreePalm className="w-40 h-40 text-white" />
                             </div>
                             <div className="relative z-10">
-                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-200 mb-1">Family Tree</p>
-                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Add Family Member</h3>
-                                <p className="text-amber-100 text-xs mt-1">Grow your ancestral lineage one soul at a time.</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-200 mb-0.5">Family Tree</p>
+                                <h3 className="text-xl font-black text-white uppercase tracking-tighter">Add Family Member</h3>
+                                <p className="text-amber-100 text-[11px]">Grow your ancestral lineage one soul at a time.</p>
                             </div>
                         </div>
 
-                        {/* Form */}
-                        <div className="p-8 space-y-5">
+                        {/* Form Body (Scrollable) */}
+                        <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
                             {addMemberError && (
-                                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-xs font-bold uppercase tracking-widest">
+                                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-bold uppercase tracking-widest">
                                     {addMemberError}
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div className="col-span-2">
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Full Name *</label>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Full Name *</label>
                                     <input
                                         value={newMember.name}
                                         onChange={e => setNewMember(p => ({ ...p, name: e.target.value }))}
                                         placeholder="e.g. James Mwangi"
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white placeholder:text-slate-400 text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Branch *</label>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Branch *</label>
                                     <select
                                         value={newMember.branch}
                                         onChange={e => setNewMember(p => ({ ...p, branch: e.target.value as 'Paternal' | 'Maternal' }))}
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     >
                                         <option value="Paternal">Paternal</option>
                                         <option value="Maternal">Maternal</option>
@@ -2371,11 +2518,11 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Relationship *</label>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Relationship *</label>
                                     <select
                                         value={newMember.relation}
                                         onChange={e => setNewMember(p => ({ ...p, relation: e.target.value }))}
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     >
                                         <option value="">Select Relation</option>
                                         {RELATIONSHIP_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -2383,9 +2530,9 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 </div>
 
                                 <div className="col-span-2">
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Profile Picture</label>
-                                    <div className="flex items-center gap-4">
-                                        <div className="relative group overflow-hidden w-20 h-20 bg-slate-100 dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Profile Picture</label>
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative group overflow-hidden w-14 h-14 bg-slate-100 dark:bg-slate-900 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center">
                                             {newMember.profilePhotoUrl ? (
                                                 <img loading="lazy" 
                                                     src={newMember.profilePhotoUrl} 
@@ -2393,7 +2540,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
-                                                <ImageIcon className="w-8 h-8 text-slate-300" />
+                                                <ImageIcon className="w-6 h-6 text-slate-400" />
                                             )}
                                             <input 
                                                 type="file" 
@@ -2408,53 +2555,53 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                 }}
                                             />
                                         </div>
-                                        <p className="text-[10px] text-slate-500 font-medium">Click box to upload legacy photo.</p>
+                                        <p className="text-[10px] text-slate-400 font-medium">Click box to upload photo.</p>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Year of Birth</label>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Year of Birth</label>
                                     <input
                                         value={newMember.birthYear}
                                         onChange={e => setNewMember(p => ({ ...p, birthYear: e.target.value }))}
                                         placeholder="e.g. 1952"
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white placeholder:text-slate-400 text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Year of Death</label>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Year of Death</label>
                                     <input
                                         value={newMember.deathYear}
                                         onChange={e => setNewMember(p => ({ ...p, deathYear: e.target.value }))}
                                         placeholder="Leave blank if alive"
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white placeholder:text-slate-400 text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Phone Number (Optional - For Access Link)</label>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Phone (Optional)</label>
                                     <input
                                         type="tel"
                                         value={newMember.phoneNumber || ''}
                                         onChange={e => setNewMember(p => ({ ...p, phoneNumber: e.target.value }))}
                                         placeholder="e.g. +254712345678"
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white placeholder:text-slate-400 text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Email Address (Optional)</label>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Email (Optional)</label>
                                     <input
                                         type="email"
                                         value={newMember.email || ''}
                                         onChange={e => setNewMember(p => ({ ...p, email: e.target.value }))}
                                         placeholder="e.g. member@family.com"
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white placeholder:text-slate-400 text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     />
                                 </div>
 
-                                <div className="col-span-2 flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
+                                <div className="col-span-2 flex items-center gap-2.5 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
                                     <input
                                         type="checkbox"
                                         id="sendAccessSmsAdd"
@@ -2462,24 +2609,24 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                         onChange={e => setNewMember(p => ({ ...p, sendAccessSms: e.target.checked }))}
                                         className="w-4 h-4 rounded border-amber-500/40 text-amber-500 focus:ring-amber-400"
                                     />
-                                    <label htmlFor="sendAccessSmsAdd" className="text-xs font-bold text-slate-700 dark:text-amber-200 cursor-pointer">
-                                        📱 Dispatch Instant Access Link via SMS (if Phone Number provided)
+                                    <label htmlFor="sendAccessSmsAdd" className="text-[11px] font-bold text-slate-700 dark:text-amber-200 cursor-pointer">
+                                        📱 Dispatch Instant Access Link via SMS
                                     </label>
                                 </div>
 
                                 <div className="col-span-2">
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Historical Notes</label>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Historical Notes</label>
                                     <textarea
                                         value={newMember.notes}
                                         onChange={e => setNewMember(p => ({ ...p, notes: e.target.value }))}
                                         placeholder="Brief notes on this family member's legacy..."
-                                        rows={3}
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors resize-none"
+                                        rows={2}
+                                        className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white placeholder:text-slate-400 text-xs focus:outline-none focus:border-amber-400 transition-colors resize-none"
                                     />
                                 </div>
 
                                 {/* Family Tree Rights & Council Role Assignment */}
-                                <div className="col-span-2 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-3">
+                                <div className="col-span-2 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
                                     <div className="flex items-center gap-2">
                                         <ShieldCheck className="w-4 h-4 text-amber-400" />
                                         <span className="text-[9px] font-mono font-black uppercase text-amber-400 tracking-widest">Family Role & Permission Rights</span>
@@ -2491,7 +2638,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                             <select
                                                 value={newMember.role || 'Family Member'}
                                                 onChange={e => setNewMember(p => ({ ...p, role: e.target.value as any }))}
-                                                className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:border-amber-400"
+                                                className="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-bold text-white focus:border-amber-400"
                                             >
                                                 <option value="Patriarch">👑 Patriarch</option>
                                                 <option value="Matriarch">👑 Matriarch</option>
@@ -2507,7 +2654,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                             <select
                                                 value={newMember.accessRight || 'Branch Editor'}
                                                 onChange={e => setNewMember(p => ({ ...p, accessRight: e.target.value as any }))}
-                                                className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:border-amber-400"
+                                                className="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-bold text-white focus:border-amber-400"
                                             >
                                                 <option value="Full Admin">Full Admin</option>
                                                 <option value="Branch Editor">Branch Editor</option>
@@ -2517,23 +2664,23 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            {/* Actions */}
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    onClick={() => { setShowAddMemberModal(false); setAddMemberError(''); }}
-                                    className="flex-1 py-4 border-2 border-slate-100 dark:border-slate-700 rounded-2xl font-black uppercase text-[10px] tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleAddMember}
-                                    className="flex-1 py-4 bg-amber-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-amber-200 dark:shadow-none hover:bg-amber-700 active:scale-95 transition-all flex items-center justify-center gap-2"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    Add to Tree
-                                </button>
-                            </div>
+                        {/* Modal Sticky Footer Actions */}
+                        <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 flex gap-3 flex-shrink-0">
+                            <button
+                                onClick={() => { setShowAddMemberModal(false); setAddMemberError(''); }}
+                                className="flex-1 py-3 border border-slate-200 dark:border-slate-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleAddMember}
+                                className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Add to Tree
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -2548,47 +2695,47 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                         onClick={() => { setEditingMember(null); setEditMemberError(''); }}
                     />
                     {/* Modal Card */}
-                    <div className="relative z-10 bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-lg border border-amber-500/30 overflow-hidden text-white">
+                    <div className="relative z-10 bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-amber-500/30 overflow-hidden text-white flex flex-col max-h-[85vh]">
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-amber-600 to-yellow-600 p-8 relative overflow-hidden">
+                        <div className="bg-gradient-to-r from-amber-600 to-yellow-600 p-6 flex-shrink-0 relative overflow-hidden">
                             <div className="absolute -right-8 -top-8 opacity-10">
-                                <TreePalm className="w-48 h-48 text-slate-950" />
+                                <TreePalm className="w-40 h-40 text-slate-950" />
                             </div>
                             <div className="relative z-10">
-                                <p className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-slate-950 mb-1">Family Tree Matrix</p>
-                                <h3 className="text-2xl font-black text-slate-950 uppercase tracking-tighter flex items-center gap-2">
-                                    <Pencil className="w-6 h-6" />
+                                <p className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-slate-950 mb-0.5">Family Tree Matrix</p>
+                                <h3 className="text-xl font-black text-slate-950 uppercase tracking-tighter flex items-center gap-2">
+                                    <Pencil className="w-5 h-5" />
                                     Edit Soul Record
                                 </h3>
-                                <p className="text-slate-900 text-xs font-bold mt-1">Update ancestral node details and lineage properties.</p>
+                                <p className="text-slate-900 text-[11px] font-bold">Update ancestral node details and lineage properties.</p>
                             </div>
                         </div>
 
-                        {/* Form */}
-                        <div className="p-8 space-y-5">
+                        {/* Form Body (Scrollable) */}
+                        <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
                             {editMemberError && (
-                                <div className="p-4 bg-red-500/20 border border-red-500/40 rounded-2xl text-red-300 text-xs font-bold uppercase tracking-widest">
+                                <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-red-300 text-xs font-bold uppercase tracking-widest">
                                     {editMemberError}
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div className="col-span-2">
-                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Full Name *</label>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-1">Full Name *</label>
                                     <input
                                         value={editMemberForm.name || ''}
                                         onChange={e => setEditMemberForm(p => ({ ...p, name: e.target.value }))}
                                         placeholder="e.g. Samuel Mwangi Sr."
-                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white placeholder:text-slate-600 text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Branch *</label>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-1">Branch *</label>
                                     <select
                                         value={editMemberForm.branch || 'Paternal'}
                                         onChange={e => setEditMemberForm(p => ({ ...p, branch: e.target.value as 'Paternal' | 'Maternal' }))}
-                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     >
                                         <option value="Paternal">Paternal</option>
                                         <option value="Maternal">Maternal</option>
@@ -2596,11 +2743,11 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Relationship *</label>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-1">Relationship *</label>
                                     <select
                                         value={editMemberForm.relation || ''}
                                         onChange={e => setEditMemberForm(p => ({ ...p, relation: e.target.value }))}
-                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     >
                                         <option value="">Select Relation</option>
                                         {RELATIONSHIP_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -2608,48 +2755,48 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Year of Birth</label>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-1">Year of Birth</label>
                                     <input
                                         value={editMemberForm.birthYear || ''}
                                         onChange={e => setEditMemberForm(p => ({ ...p, birthYear: e.target.value }))}
                                         placeholder="e.g. 1892"
-                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white placeholder:text-slate-600 text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Year of Death</label>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-1">Year of Death</label>
                                     <input
                                         value={editMemberForm.deathYear || ''}
                                         onChange={e => setEditMemberForm(p => ({ ...p, deathYear: e.target.value }))}
                                         placeholder="Leave blank if alive"
-                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white placeholder:text-slate-600 text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Phone Number (Optional - For Access Link)</label>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-1">Phone (Optional)</label>
                                     <input
                                         type="tel"
                                         value={editMemberForm.phoneNumber || ''}
                                         onChange={e => setEditMemberForm(p => ({ ...p, phoneNumber: e.target.value }))}
                                         placeholder="e.g. +254712345678"
-                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white placeholder:text-slate-600 text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Email Address (Optional)</label>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-1">Email (Optional)</label>
                                     <input
                                         type="email"
                                         value={editMemberForm.email || ''}
                                         onChange={e => setEditMemberForm(p => ({ ...p, email: e.target.value }))}
                                         placeholder="e.g. member@family.com"
-                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                        className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white placeholder:text-slate-600 text-xs focus:outline-none focus:border-amber-400 transition-colors"
                                     />
                                 </div>
 
-                                <div className="col-span-2 flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
+                                <div className="col-span-2 flex items-center gap-2.5 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
                                     <input
                                         type="checkbox"
                                         id="sendAccessSmsEdit"
@@ -2657,15 +2804,15 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                         onChange={e => setEditMemberForm(p => ({ ...p, sendAccessSms: e.target.checked } as any))}
                                         className="w-4 h-4 rounded border-amber-500/40 text-amber-500 focus:ring-amber-400"
                                     />
-                                    <label htmlFor="sendAccessSmsEdit" className="text-xs font-bold text-amber-200 cursor-pointer">
+                                    <label htmlFor="sendAccessSmsEdit" className="text-[11px] font-bold text-amber-200 cursor-pointer">
                                         📱 Dispatch / Re-send Portal Access Link via SMS
                                     </label>
                                 </div>
 
                                 <div className="col-span-2">
-                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Profile Picture</label>
-                                    <div className="flex items-center gap-4">
-                                        <div className="relative group overflow-hidden w-16 h-16 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-center">
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-1">Profile Picture</label>
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative group overflow-hidden w-14 h-14 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-center">
                                             {editMemberForm.profilePhotoUrl ? (
                                                 <img loading="lazy" 
                                                     src={editMemberForm.profilePhotoUrl} 
@@ -2673,7 +2820,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
-                                                <ImageIcon className="w-6 h-6 text-slate-500" />
+                                                <ImageIcon className="w-5 h-5 text-slate-500" />
                                             )}
                                             <input 
                                                 type="file" 
@@ -2692,24 +2839,24 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                             value={editMemberForm.profilePhotoUrl || ''}
                                             onChange={e => setEditMemberForm(p => ({ ...p, profilePhotoUrl: e.target.value }))}
                                             placeholder="Or enter Image URL..."
-                                            className="flex-1 p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
+                                            className="flex-1 p-3 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="col-span-2">
-                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Historical Notes / Bio</label>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-1">Historical Notes / Bio</label>
                                     <textarea
                                         value={editMemberForm.notes || ''}
                                         onChange={e => setEditMemberForm(p => ({ ...p, notes: e.target.value }))}
                                         placeholder="Brief notes on this family member's legacy..."
-                                        rows={3}
-                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors resize-none"
+                                        rows={2}
+                                        className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl font-bold text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors resize-none"
                                     />
                                 </div>
 
                                 {/* Family Tree Rights & Council Role Assignment */}
-                                <div className="col-span-2 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-3">
+                                <div className="col-span-2 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
                                     <div className="flex items-center gap-2">
                                         <ShieldCheck className="w-4 h-4 text-amber-400" />
                                         <span className="text-[9px] font-mono font-black uppercase text-amber-400 tracking-widest">Family Role & Permission Rights</span>
@@ -2721,7 +2868,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                             <select
                                                 value={editMemberForm.role || 'Family Member'}
                                                 onChange={e => setEditMemberForm(p => ({ ...p, role: e.target.value as any }))}
-                                                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:border-amber-400"
+                                                className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-xs font-bold text-white focus:border-amber-400"
                                             >
                                                 <option value="Patriarch">👑 Patriarch</option>
                                                 <option value="Matriarch">👑 Matriarch</option>
@@ -2737,7 +2884,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                             <select
                                                 value={editMemberForm.accessRight || 'Branch Editor'}
                                                 onChange={e => setEditMemberForm(p => ({ ...p, accessRight: e.target.value as any }))}
-                                                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:border-amber-400"
+                                                className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-xs font-bold text-white focus:border-amber-400"
                                             >
                                                 <option value="Full Admin">Full Admin</option>
                                                 <option value="Branch Editor">Branch Editor</option>
@@ -2747,31 +2894,248 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            {/* Actions */}
-                            <div className="flex gap-3 pt-4">
-                                <button
-                                    onClick={() => handleDeleteMember(editingMember.id)}
-                                    className="py-4 px-5 bg-rose-500/20 text-rose-400 border border-rose-500/40 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all flex items-center gap-1.5"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                    Delete
-                                </button>
-                                <button
-                                    onClick={() => { setEditingMember(null); setEditMemberError(''); }}
-                                    className="flex-1 py-4 border border-slate-800 rounded-2xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:bg-slate-800 transition-all"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSaveEditMember}
-                                    disabled={isSavingEdit}
-                                    className="flex-1 py-4 bg-gradient-to-r from-amber-500 to-yellow-600 text-slate-950 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 font-bold"
-                                >
-                                    {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
-                                    Save Changes
-                                </button>
+                        {/* Modal Sticky Footer Actions */}
+                        <div className="p-4 bg-slate-950 border-t border-slate-800 flex gap-3 flex-shrink-0">
+                            <button
+                                onClick={() => handleDeleteMember(editingMember.id)}
+                                className="py-3 px-4 bg-rose-500/20 text-rose-400 border border-rose-500/40 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all flex items-center gap-1.5"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Delete
+                            </button>
+                            <button
+                                onClick={() => { setEditingMember(null); setEditMemberError(''); }}
+                                className="flex-1 py-3 border border-slate-800 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:bg-slate-800 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveEditMember}
+                                disabled={isSavingEdit}
+                                className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-slate-950 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 font-bold"
+                            >
+                                {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── 3D Family Totem Customizer Modal ── */}
+            {showTotemModal && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 text-left">
+                    <div
+                        className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+                        onClick={() => setShowTotemModal(false)}
+                    />
+                    <div className="relative z-10 bg-slate-900 border border-amber-500/40 rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden text-white">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-yellow-600 p-8 relative overflow-hidden">
+                            <div className="absolute -right-8 -top-8 opacity-15">
+                                <TreePalm className="w-48 h-48 text-white" />
                             </div>
+                            <div className="relative z-10">
+                                <p className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-amber-200 mb-1">3D Spatial Linage Matrix</p>
+                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-2">
+                                    <Sparkles className="w-6 h-6 text-amber-300" />
+                                    Customize Family Totem & Tree Crest
+                                </h3>
+                                <p className="text-amber-100 text-xs mt-1">Upload a custom family emblem or select an animated 3D sacred totem.</p>
+                            </div>
+                        </div>
+
+                        {/* Form Body */}
+                        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                            {/* Totem Name & Motto */}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Family Totem / Crest Name *</label>
+                                    <input
+                                        value={totemConfig.totemName}
+                                        onChange={e => setTotemConfig(p => ({ ...p, totemName: e.target.value }))}
+                                        placeholder="e.g. Sacred Baobab of Kapngersheu Lineage"
+                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors text-xs"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Ancestral Family Motto</label>
+                                    <input
+                                        value={totemConfig.motto}
+                                        onChange={e => setTotemConfig(p => ({ ...p, motto: e.target.value }))}
+                                        placeholder="e.g. Honor, Resilience & Eternal Unity"
+                                        className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400 transition-colors text-xs"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Preset Sacred Totems vs Custom Image Upload */}
+                            <div className="space-y-3">
+                                <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em]">Select Sacred Totem Crest or Upload Custom Emblem</label>
+                                
+                                <div className="grid grid-cols-4 gap-3">
+                                    {[
+                                        { id: 'baobab', label: 'Sacred Baobab', icon: '🌳' },
+                                        { id: 'lion', label: 'Golden Lion', icon: '🦁' },
+                                        { id: 'eagle', label: 'Sky Eagle', icon: '🦅' },
+                                        { id: 'shield', label: 'Royal Shield', icon: '🛡️' },
+                                        { id: 'crown', label: 'Crown', icon: '👑' },
+                                        { id: 'panther', label: 'Panther', icon: '🐆' },
+                                        { id: 'flame', label: 'Sacred Flame', icon: '🔥' },
+                                        { id: 'elephant', label: 'Regal Elephant', icon: '🐘' }
+                                    ].map(preset => (
+                                        <button
+                                            key={preset.id}
+                                            type="button"
+                                            onClick={() => setTotemConfig(p => ({ ...p, totemPreset: preset.id as any, customImageUrl: '' }))}
+                                            className={`p-3 rounded-2xl border flex flex-col items-center justify-center transition-all ${
+                                                totemConfig.totemPreset === preset.id && !totemConfig.customImageUrl
+                                                    ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-lg shadow-amber-500/20 scale-105'
+                                                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                                            }`}
+                                        >
+                                            <span className="text-2xl mb-1">{preset.icon}</span>
+                                            <span className="text-[8px] font-mono font-black uppercase tracking-tight text-center">{preset.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Custom Upload Section */}
+                                <div className="mt-4 p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[9px] font-mono font-black uppercase text-amber-300">Custom Image Upload</span>
+                                        {totemConfig.customImageUrl && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setTotemConfig(p => ({ ...p, customImageUrl: '' }))}
+                                                className="text-[8px] font-mono text-red-400 hover:underline uppercase"
+                                            >
+                                                Clear Custom Image
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center gap-4">
+                                        {totemConfig.customImageUrl ? (
+                                            <img loading="lazy" 
+                                                src={totemConfig.customImageUrl} 
+                                                alt="Preview" 
+                                                className="w-16 h-16 object-cover rounded-2xl border border-amber-400 shadow-lg" 
+                                            />
+                                        ) : (
+                                            <div className="w-16 h-16 bg-slate-900 rounded-2xl border border-dashed border-slate-700 flex items-center justify-center">
+                                                <Upload className="w-6 h-6 text-slate-500" />
+                                            </div>
+                                        )}
+
+                                        <div className="flex-1 space-y-2">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) {
+                                                        const url = await apiService.uploadFile('heritage', `totems/${Date.now()}_${file.name}`, file);
+                                                        if (url) setTotemConfig(p => ({ ...p, customImageUrl: url, totemPreset: 'custom' }));
+                                                    }
+                                                }}
+                                                className="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[9px] file:font-mono file:font-black file:uppercase file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-400 cursor-pointer"
+                                            />
+                                            <p className="text-[9px] text-slate-500 font-medium">Upload custom clan crest, family logo, or sacred symbol photo (PNG, JPG, SVG).</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 3D Animation Settings */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">3D Spatial Animation</label>
+                                    <select
+                                        value={totemConfig.animationMode}
+                                        onChange={e => setTotemConfig(p => ({ ...p, animationMode: e.target.value as any }))}
+                                        className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white text-xs focus:outline-none focus:border-amber-400 transition-colors"
+                                    >
+                                        <option value="background_3d">🌐 3D Floating Watermark</option>
+                                        <option value="tree_root_3d">🌳 Foundational Tree Root Node</option>
+                                        <option value="orbit_3d">🛰️ Quantum Orbit Matrix</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">3D Spin Speed</label>
+                                    <select
+                                        value={totemConfig.rotationSpeed}
+                                        onChange={e => setTotemConfig(p => ({ ...p, rotationSpeed: e.target.value as any }))}
+                                        className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl font-bold text-white text-xs focus:outline-none focus:border-amber-400 transition-colors"
+                                    >
+                                        <option value="slow">🐌 Slow Majestic (20s Orbit)</option>
+                                        <option value="normal">⚖️ Normal Steady (12s Orbit)</option>
+                                        <option value="fast">⚡ Fast Quantum (6s Orbit)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Glow Color & Root Anchor Toggle */}
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-400 tracking-[0.2em] mb-2">Holographic Aura Glow Color</label>
+                                    <div className="flex items-center gap-3">
+                                        {[
+                                            { color: '#f59e0b', name: 'Imperial Amber' },
+                                            { color: '#3b82f6', name: 'Sapphire Blue' },
+                                            { color: '#10b981', name: 'Emerald Green' },
+                                            { color: '#a855f7', name: 'Amethyst Purple' },
+                                            { color: '#ef4444', name: 'Crimson Flame' }
+                                        ].map(item => (
+                                            <button
+                                                key={item.color}
+                                                type="button"
+                                                onClick={() => setTotemConfig(p => ({ ...p, glowColor: item.color }))}
+                                                className={`w-9 h-9 rounded-xl border-2 transition-transform ${
+                                                    totemConfig.glowColor === item.color ? 'scale-115 border-white shadow-lg' : 'border-transparent opacity-60 hover:opacity-100'
+                                                }`}
+                                                style={{ backgroundColor: item.color }}
+                                                title={item.name}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
+                                    <input
+                                        type="checkbox"
+                                        id="showAsTreeRoot"
+                                        checked={totemConfig.showAsTreeRoot}
+                                        onChange={e => setTotemConfig(p => ({ ...p, showAsTreeRoot: e.target.checked }))}
+                                        className="w-4 h-4 rounded border-amber-500/40 text-amber-500 focus:ring-amber-400"
+                                    />
+                                    <label htmlFor="showAsTreeRoot" className="text-xs font-bold text-amber-200 cursor-pointer">
+                                        🌳 Anchor 3D Totem as Foundational Root of Family Tree
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-6 bg-slate-950 border-t border-slate-800 flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setShowTotemModal(false)}
+                                className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 font-black text-xs uppercase tracking-widest rounded-2xl transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleSaveTotemConfig(totemConfig)}
+                                className="px-8 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-amber-500/30 hover:brightness-110 active:scale-95 transition-all"
+                            >
+                                Save 3D Family Totem
+                            </button>
                         </div>
                     </div>
                 </div>
