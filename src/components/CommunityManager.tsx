@@ -140,34 +140,28 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent | TouchEvent) => {
-            if (!draggingNodeId || !dragOffsetRef.current) return;
+            const dragInfo = dragOffsetRef.current;
+            const targetNodeId = draggingNodeId;
+            if (!targetNodeId || !dragInfo) return;
+
             const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
             const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
 
-            const deltaX = clientX - dragOffsetRef.current.startX;
-            const deltaY = clientY - dragOffsetRef.current.startY;
+            const deltaX = clientX - dragInfo.startX;
+            const deltaY = clientY - dragInfo.startY;
 
-            setNodePositions(prev => {
-                const updated = {
-                    ...prev,
-                    [draggingNodeId]: {
-                        x: Math.round(dragOffsetRef.current!.initialNodeX + deltaX),
-                        y: Math.round(dragOffsetRef.current!.initialNodeY + deltaY)
-                    }
-                };
-                return updated;
-            });
+            const newX = Math.round(dragInfo.initialNodeX + deltaX);
+            const newY = Math.round(dragInfo.initialNodeY + deltaY);
+
+            setNodePositions(prev => ({
+                ...prev,
+                [targetNodeId]: { x: newX, y: newY }
+            }));
         };
 
         const handleMouseUp = () => {
-            if (draggingNodeId) {
-                setDraggingNodeId(null);
-                dragOffsetRef.current = null;
-                // Save positions to localStorage
-                try {
-                    localStorage.setItem(`heritage_node_positions_${currentInstitution.id}`, JSON.stringify(nodePositions));
-                } catch (e) {}
-            }
+            setDraggingNodeId(null);
+            dragOffsetRef.current = null;
         };
 
         if (draggingNodeId) {
@@ -182,7 +176,16 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
             window.removeEventListener('touchmove', handleMouseMove);
             window.removeEventListener('touchend', handleMouseUp);
         };
-    }, [draggingNodeId, nodePositions, currentInstitution.id]);
+    }, [draggingNodeId, currentInstitution.id]);
+
+    // Persist custom node positions on change
+    useEffect(() => {
+        if (Object.keys(nodePositions).length > 0) {
+            try {
+                localStorage.setItem(`heritage_node_positions_${currentInstitution.id}`, JSON.stringify(nodePositions));
+            } catch (e) {}
+        }
+    }, [nodePositions, currentInstitution.id]);
 
     const handleResetNodePositions = () => {
         setNodePositions({});
