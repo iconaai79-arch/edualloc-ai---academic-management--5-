@@ -67,6 +67,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     });
 
     // Form states for creating a new exam matching screenshot
+    const [wizardStep, setWizardStep] = useState<1 | 2>(1);
     const [creationMethod, setCreationMethod] = useState<'raw_marks' | 'combine' | 'excel'>('raw_marks');
     const [newExamName, setNewExamName] = useState('');
     const [newExamTypeRadio, setNewExamTypeRadio] = useState<'CAT' | 'End Term' | 'Inter-school'>('CAT');
@@ -75,6 +76,17 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [newGradingSystem, setNewGradingSystem] = useState('Main grading system');
     const [newExamStartDate, setNewExamStartDate] = useState('2026-07-26');
     const [newExamSubmissionDate, setNewExamSubmissionDate] = useState('2026-08-05');
+
+    // Step 2 Wizard States:
+    const [targetStudentSearch, setTargetStudentSearch] = useState('');
+    const [selectedClasses, setSelectedClasses] = useState<string[]>(['Form 3 Central', 'Form 3 South', 'Form 3 East', 'Form 3 West', 'Grade 10']);
+    const [isPapersModalOpen, setIsPapersModalOpen] = useState(false);
+    const [selectedTestedSubjects, setSelectedTestedSubjects] = useState<string[]>([
+        'English', 'Kiswahili', 'Mathematics', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography', 'CRE', 'Business Studies'
+    ]);
+    const [useCustomRanking, setUseCustomRanking] = useState(false);
+    const [customRankingCriteria, setCustomRankingCriteria] = useState<'Points' | 'Total Marks' | 'Mean Score'>('Points');
+    const [customRankingSubjectsCount, setCustomRankingSubjectsCount] = useState<number>(7);
 
     const activeExam = useMemo(() => {
         return exams.find(e => e.id === selectedExamId) || exams[0];
@@ -561,211 +573,391 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 </div>
             </div>
 
-            {/* MODAL 1: ADD NEW EXAM MATCHING SCREENSHOT */}
+            {/* MODAL 1: ADD NEW EXAM (STEP 1 & STEP 2) */}
             {isAddExamModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-slate-900 rounded-xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in">
                         {/* Title Bar */}
                         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900">
-                            <h3 className="font-bold text-base text-slate-800 dark:text-white">Add exam</h3>
+                            <div>
+                                <h3 className="font-bold text-base text-slate-800 dark:text-white">Add exam</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Step {wizardStep} of 2</p>
+                            </div>
                             <div className="flex items-center gap-3 text-slate-400">
                                 <button type="button" className="hover:text-slate-600 text-lg font-bold">+</button>
-                                <button type="button" onClick={() => setIsAddExamModalOpen(false)} className="hover:text-slate-600">
+                                <button type="button" onClick={() => { setIsAddExamModalOpen(false); setWizardStep(1); }} className="hover:text-slate-600">
                                     <XIcon className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>
 
                         {/* Modal Body */}
-                        <div className="p-6 space-y-6">
-                            {/* Instruction Text */}
-                            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                                Start by choosing the type of exam you want to create from the three options below.
-                            </p>
+                        {wizardStep === 1 ? (
+                            /* STEP 1: GENERAL CONFIG */
+                            <div className="p-6 space-y-6">
+                                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                    Start by choosing the type of exam you want to create from the three options below.
+                                </p>
 
-                            {/* Creation Method Radio Group */}
-                            <div className="flex flex-wrap items-center gap-6 text-xs font-medium text-slate-700 dark:text-slate-300">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="creationMethod"
-                                        checked={creationMethod === 'raw_marks'}
-                                        onChange={() => setCreationMethod('raw_marks')}
-                                        className="text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span>Allow teachers to enter raw marks</span>
-                                </label>
+                                {/* Creation Method Radio Group */}
+                                <div className="flex flex-wrap items-center gap-6 text-xs font-medium text-slate-700 dark:text-slate-300">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="creationMethod"
+                                            checked={creationMethod === 'raw_marks'}
+                                            onChange={() => setCreationMethod('raw_marks')}
+                                            className="text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span>Allow teachers to enter raw marks</span>
+                                    </label>
 
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="creationMethod"
-                                        checked={creationMethod === 'combine'}
-                                        onChange={() => setCreationMethod('combine')}
-                                        className="text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span>Combine existing exams</span>
-                                </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="creationMethod"
+                                            checked={creationMethod === 'combine'}
+                                            onChange={() => setCreationMethod('combine')}
+                                            className="text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span>Combine existing exams</span>
+                                    </label>
 
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="creationMethod"
-                                        checked={creationMethod === 'excel'}
-                                        onChange={() => setCreationMethod('excel')}
-                                        className="text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span>Import exam results from Excel</span>
-                                </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="creationMethod"
+                                            checked={creationMethod === 'excel'}
+                                            onChange={() => setCreationMethod('excel')}
+                                            className="text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span>Import exam results from Excel</span>
+                                    </label>
+                                </div>
+
+                                {/* Form Fields Table/Grid */}
+                                <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                    {/* Exam Name */}
+                                    <div className="grid grid-cols-3 items-center gap-4">
+                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam name</label>
+                                        <div className="col-span-2">
+                                            <input
+                                                type="text"
+                                                value={newExamName}
+                                                onChange={e => setNewExamName(e.target.value)}
+                                                placeholder="e.g County pre-mock"
+                                                className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Exam Type */}
+                                    <div className="grid grid-cols-3 items-center gap-4">
+                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam type</label>
+                                        <div className="col-span-2 flex items-center gap-6 text-xs text-slate-700 dark:text-slate-300">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="examTypeRadio"
+                                                    checked={newExamTypeRadio === 'CAT'}
+                                                    onChange={() => setNewExamTypeRadio('CAT')}
+                                                    className="text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span>CAT</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="examTypeRadio"
+                                                    checked={newExamTypeRadio === 'End Term'}
+                                                    onChange={() => setNewExamTypeRadio('End Term')}
+                                                    className="text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span>End Term</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="examTypeRadio"
+                                                    checked={newExamTypeRadio === 'Inter-school'}
+                                                    onChange={() => setNewExamTypeRadio('Inter-school')}
+                                                    className="text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span>Inter-school</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Academic Year */}
+                                    <div className="grid grid-cols-3 items-center gap-4">
+                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Academic year</label>
+                                        <div className="col-span-2 relative">
+                                            <select
+                                                value={newAcademicYear}
+                                                onChange={e => setNewAcademicYear(e.target.value)}
+                                                className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
+                                            >
+                                                <option value="2026">2026</option>
+                                                <option value="2025">2025</option>
+                                                <option value="2024">2024</option>
+                                            </select>
+                                            <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                        </div>
+                                    </div>
+
+                                    {/* Term */}
+                                    <div className="grid grid-cols-3 items-center gap-4">
+                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Term</label>
+                                        <div className="col-span-2 relative">
+                                            <select
+                                                value={newTerm}
+                                                onChange={e => setNewTerm(e.target.value)}
+                                                className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
+                                            >
+                                                <option value="Term 1">Term 1</option>
+                                                <option value="Term 2">Term 2</option>
+                                                <option value="Term 3">Term 3</option>
+                                            </select>
+                                            <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                        </div>
+                                    </div>
+
+                                    {/* Grading System */}
+                                    <div className="grid grid-cols-3 items-center gap-4">
+                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Grading system</label>
+                                        <div className="col-span-2 relative">
+                                            <select
+                                                value={newGradingSystem}
+                                                onChange={e => setNewGradingSystem(e.target.value)}
+                                                className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
+                                            >
+                                                <option value="Main grading system">Main grading system</option>
+                                                <option value="8-4-4 KCSE Grading">8-4-4 KCSE Grading</option>
+                                                <option value="CBC Standardized Grading">CBC Standardized Grading</option>
+                                            </select>
+                                            <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                        </div>
+                                    </div>
+
+                                    {/* Exam Starts On */}
+                                    <div className="grid grid-cols-3 items-center gap-4">
+                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam starts on</label>
+                                        <div className="col-span-2">
+                                            <input
+                                                type="date"
+                                                value={newExamStartDate}
+                                                onChange={e => setNewExamStartDate(e.target.value)}
+                                                className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Marks Submission Deadline */}
+                                    <div className="grid grid-cols-3 items-center gap-4">
+                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Marks submission deadline</label>
+                                        <div className="col-span-2">
+                                            <input
+                                                type="date"
+                                                value={newExamSubmissionDate}
+                                                onChange={e => setNewExamSubmissionDate(e.target.value)}
+                                                className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+                        ) : (
+                            /* STEP 2: STUDENTS & PAPERS SCOPE & UNIQUE RANKING CRITERIA */
+                            <div className="p-6 space-y-6">
+                                {/* Instructions prompt matching exact wording */}
+                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-relaxed">
+                                    Specify the students that will be sitting this exam by entering student names, admission or class name. If not all subjects will be tested, click <span className="font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/40 px-1.5 py-0.5 rounded">'Papers to Test'</span> to choose papers being tested. You can also specify a unique ranking criteria to be used on this exam only.
+                                </p>
 
-                            {/* Form Fields Table/Grid */}
-                            <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                {/* Exam Name */}
-                                <div className="grid grid-cols-3 items-center gap-4">
-                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam name</label>
-                                    <div className="col-span-2">
+                                {/* Section 1: Student Scope & Search */}
+                                <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                    <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">Students Sitting Exam</label>
+                                    <input
+                                        type="text"
+                                        value={targetStudentSearch}
+                                        onChange={e => setTargetStudentSearch(e.target.value)}
+                                        placeholder="Search student names, admission no. or class..."
+                                        className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                                    />
+
+                                    {/* Target Classes Selector */}
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                        {['Form 3 Central', 'Form 3 South', 'Form 3 East', 'Form 3 West', 'Grade 10 Central'].map(cName => {
+                                            const isSelected = selectedClasses.includes(cName);
+                                            return (
+                                                <button
+                                                    key={cName}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedClasses(prev =>
+                                                            isSelected ? prev.filter(c => c !== cName) : [...prev, cName]
+                                                        );
+                                                    }}
+                                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all border ${
+                                                        isSelected
+                                                            ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-300 text-blue-600 dark:text-blue-300'
+                                                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 text-slate-500'
+                                                    }`}
+                                                >
+                                                    {isSelected ? '✓ ' : '+ '}{cName}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Section 2: Papers to Test Button */}
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-800 dark:text-white">Exam Papers</h4>
+                                        <p className="text-[10px] text-slate-400">{selectedTestedSubjects.length} subjects configured for testing</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsPapersModalOpen(true)}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-sm transition-all flex items-center gap-1.5"
+                                    >
+                                        <DocumentTextIcon className="w-4 h-4" /> Papers to Test
+                                    </button>
+                                </div>
+
+                                {/* Section 3: Unique Ranking Criteria */}
+                                <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800 dark:text-white">
                                         <input
-                                            type="text"
-                                            value={newExamName}
-                                            onChange={e => setNewExamName(e.target.value)}
-                                            placeholder="e.g County pre-mock"
-                                            className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                                            type="checkbox"
+                                            checked={useCustomRanking}
+                                            onChange={e => setUseCustomRanking(e.target.checked)}
+                                            className="text-blue-600 rounded focus:ring-blue-500"
                                         />
-                                    </div>
-                                </div>
+                                        <span>Specify a unique ranking criteria for this exam only</span>
+                                    </label>
 
-                                {/* Exam Type */}
-                                <div className="grid grid-cols-3 items-center gap-4">
-                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam type</label>
-                                    <div className="col-span-2 flex items-center gap-6 text-xs text-slate-700 dark:text-slate-300">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="examTypeRadio"
-                                                checked={newExamTypeRadio === 'CAT'}
-                                                onChange={() => setNewExamTypeRadio('CAT')}
-                                                className="text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span>CAT</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="examTypeRadio"
-                                                checked={newExamTypeRadio === 'End Term'}
-                                                onChange={() => setNewExamTypeRadio('End Term')}
-                                                className="text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span>End Term</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="examTypeRadio"
-                                                checked={newExamTypeRadio === 'Inter-school'}
-                                                onChange={() => setNewExamTypeRadio('Inter-school')}
-                                                className="text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span>Inter-school</span>
-                                        </label>
-                                    </div>
-                                </div>
+                                    {useCustomRanking && (
+                                        <div className="grid grid-cols-2 gap-4 pl-6 pt-1 animate-fade-in">
+                                            <div>
+                                                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Criteria</label>
+                                                <select
+                                                    value={customRankingCriteria}
+                                                    onChange={e => setCustomRankingCriteria(e.target.value as any)}
+                                                    className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold text-slate-900 dark:text-white"
+                                                >
+                                                    <option value="Points">Points</option>
+                                                    <option value="Total Marks">Total Marks</option>
+                                                    <option value="Mean Score">Mean Score</option>
+                                                </select>
+                                            </div>
 
-                                {/* Academic Year */}
-                                <div className="grid grid-cols-3 items-center gap-4">
-                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Academic year</label>
-                                    <div className="col-span-2 relative">
-                                        <select
-                                            value={newAcademicYear}
-                                            onChange={e => setNewAcademicYear(e.target.value)}
-                                            className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
-                                        >
-                                            <option value="2026">2026</option>
-                                            <option value="2025">2025</option>
-                                            <option value="2024">2024</option>
-                                        </select>
-                                        <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                                    </div>
-                                </div>
-
-                                {/* Term */}
-                                <div className="grid grid-cols-3 items-center gap-4">
-                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Term</label>
-                                    <div className="col-span-2 relative">
-                                        <select
-                                            value={newTerm}
-                                            onChange={e => setNewTerm(e.target.value)}
-                                            className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
-                                        >
-                                            <option value="Term 1">Term 1</option>
-                                            <option value="Term 2">Term 2</option>
-                                            <option value="Term 3">Term 3</option>
-                                        </select>
-                                        <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                                    </div>
-                                </div>
-
-                                {/* Grading System */}
-                                <div className="grid grid-cols-3 items-center gap-4">
-                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Grading system</label>
-                                    <div className="col-span-2 relative">
-                                        <select
-                                            value={newGradingSystem}
-                                            onChange={e => setNewGradingSystem(e.target.value)}
-                                            className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
-                                        >
-                                            <option value="Main grading system">Main grading system</option>
-                                            <option value="8-4-4 KCSE Grading">8-4-4 KCSE Grading</option>
-                                            <option value="CBC Standardized Grading">CBC Standardized Grading</option>
-                                        </select>
-                                        <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                                    </div>
-                                </div>
-
-                                {/* Exam Starts On */}
-                                <div className="grid grid-cols-3 items-center gap-4">
-                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam starts on</label>
-                                    <div className="col-span-2">
-                                        <input
-                                            type="date"
-                                            value={newExamStartDate}
-                                            onChange={e => setNewExamStartDate(e.target.value)}
-                                            className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Marks Submission Deadline */}
-                                <div className="grid grid-cols-3 items-center gap-4">
-                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Marks submission deadline</label>
-                                    <div className="col-span-2">
-                                        <input
-                                            type="date"
-                                            value={newExamSubmissionDate}
-                                            onChange={e => setNewExamSubmissionDate(e.target.value)}
-                                            className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                                        />
-                                    </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Subjects Count</label>
+                                                <select
+                                                    value={customRankingSubjectsCount}
+                                                    onChange={e => setCustomRankingSubjectsCount(parseInt(e.target.value) || 7)}
+                                                    className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold text-slate-900 dark:text-white"
+                                                >
+                                                    <option value={7}>7 Subjects</option>
+                                                    <option value={8}>8 Subjects</option>
+                                                    <option value={9}>9 Subjects</option>
+                                                    <option value={10}>10 Subjects</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Modal Footer Buttons */}
-                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex justify-end items-center gap-3">
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            {wizardStep === 2 ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setWizardStep(1)}
+                                    className="px-5 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-300 font-medium text-xs rounded transition-all"
+                                >
+                                    &larr; Back
+                                </button>
+                            ) : <div></div>}
+
+                            <div className="flex items-center gap-3">
+                                {wizardStep === 1 ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (!newExamName.trim()) {
+                                                alert('Please enter an exam name.');
+                                                return;
+                                            }
+                                            setWizardStep(2);
+                                        }}
+                                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-sm transition-all"
+                                    >
+                                        Next &rarr;
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={handleCreateExam}
+                                        className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded shadow-sm transition-all"
+                                    >
+                                        Save & Create Exam
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsAddExamModalOpen(false); setWizardStep(1); }}
+                                    className="px-6 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-300 font-medium text-xs rounded transition-all"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL 2: PAPERS TO TEST SELECTOR */}
+            {isPapersModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4 animate-scale-in">
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+                            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase">Choose Papers Being Tested</h4>
+                            <button onClick={() => setIsPapersModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XIcon className="w-5 h-5" /></button>
+                        </div>
+
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {['English', 'Kiswahili', 'Mathematics', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography', 'CRE', 'Business Studies', 'Agriculture', 'Computer Studies'].map(sub => {
+                                const isChecked = selectedTestedSubjects.includes(sub);
+                                return (
+                                    <label key={sub} className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300">
+                                        <span>{sub}</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => {
+                                                setSelectedTestedSubjects(prev =>
+                                                    isChecked ? prev.filter(s => s !== sub) : [...prev, sub]
+                                                );
+                                            }}
+                                            className="text-blue-600 rounded focus:ring-blue-500"
+                                        />
+                                    </label>
+                                );
+                            })}
+                        </div>
+
+                        <div className="pt-2 flex justify-end">
                             <button
                                 type="button"
-                                onClick={handleCreateExam}
-                                className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs rounded transition-all"
+                                onClick={() => setIsPapersModalOpen(false)}
+                                className="px-5 py-2 bg-blue-600 text-white font-bold text-xs rounded shadow-sm"
                             >
-                                Next
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setIsAddExamModalOpen(false)}
-                                className="px-6 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-300 font-medium text-xs rounded transition-all"
-                            >
-                                Cancel
+                                Done ({selectedTestedSubjects.length} Selected)
                             </button>
                         </div>
                     </div>
