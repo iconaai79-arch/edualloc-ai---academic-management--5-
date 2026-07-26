@@ -4554,6 +4554,9 @@ export interface HeritageMember {
     canPublishProclamations?: boolean;
     positionX?: number;
     positionY?: number;
+    parentId?: string;
+    parentName?: string;
+    generation?: number;
     createdAt?: string;
 }
 

@@ -407,6 +407,8 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 name: newMember.name.trim(),
                 branch: (newMember.branch as 'Paternal' | 'Maternal') || 'Paternal',
                 relation: newMember.relation.trim(),
+                parentId: newMember.parentId || '',
+                parentName: newMember.parentName || '',
                 birthYear: newMember.birthYear || '',
                 deathYear: newMember.deathYear || '',
                 phoneNumber: newMember.phoneNumber?.trim() || '',
@@ -443,13 +445,37 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 });
             }
 
-            setNewMember({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', phoneNumber: '', email: '', notes: '', profilePhotoUrl: '', role: 'Family Member', accessRight: 'Branch Editor', canAddSoul: true, canEditTree: true, canDeleteTree: false, sendAccessSms: true });
+            setNewMember({ name: '', branch: 'Paternal', relation: '', parentId: '', parentName: '', birthYear: '', deathYear: '', phoneNumber: '', email: '', notes: '', profilePhotoUrl: '', role: 'Family Member', accessRight: 'Branch Editor', canAddSoul: true, canEditTree: true, canDeleteTree: false, sendAccessSms: true });
             setAddMemberError('');
             setShowAddMemberModal(false);
         } catch (error: any) {
             console.error('[CommunityManager] Failed to save member:', error);
             setAddMemberError(`Failed to save: ${error.message || 'Unknown error'}`);
         }
+    };
+
+    const handleOpenAddChild = (parentMember: HeritageMember) => {
+        setNewMember({
+            name: '',
+            branch: parentMember.branch || 'Paternal',
+            relation: 'Son / Daughter',
+            parentId: parentMember.id,
+            parentName: parentMember.name,
+            birthYear: '',
+            deathYear: '',
+            phoneNumber: '',
+            email: '',
+            notes: `Direct descendant under ${parentMember.name}`,
+            role: 'Family Member',
+            accessRight: 'Branch Editor',
+            canAddSoul: true,
+            canEditTree: true,
+            canDeleteTree: false,
+            canManageVault: false,
+            canPublishProclamations: false,
+            sendAccessSms: true
+        });
+        setShowAddMemberModal(true);
     };
 
     const handleOpenEditMember = (member: HeritageMember) => {
@@ -1031,9 +1057,21 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                 <p className="text-[10px] font-mono font-black text-amber-300 uppercase mt-0.5">
                                                     {rootMember.relation} • {rootMember.branch} {rootMember.birthYear ? `(${rootMember.birthYear})` : ''}
                                                 </p>
-                                                <span className="text-[8px] font-mono block text-emerald-400 mt-1.5 uppercase font-bold tracking-widest">
+                                                <span className="text-[8px] font-mono block text-emerald-400 mt-1 uppercase font-bold tracking-widest">
                                                     {isFreeformDragMode ? '🖐️ Hold & Drag to Position' : 'Click Node to Edit'}
                                                 </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenAddChild(rootMember);
+                                                    }}
+                                                    className="mt-2.5 px-3 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 rounded-xl text-[8px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 mx-auto shadow-sm active:scale-95 group/childbtn"
+                                                    title={`Add son or daughter directly under ${rootMember.name}`}
+                                                >
+                                                    <Plus className="w-2.5 h-2.5 text-amber-400 group-hover/childbtn:text-slate-950" />
+                                                    <span>+ Add Child</span>
+                                                </button>
                                             </div>
                                         );
                                     })()}
@@ -1050,9 +1088,10 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                         style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}
                                     >
                                         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[82%] h-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-pink-500 shadow-lg shadow-indigo-500/50"></div>
-                                        {treeMembers.slice(1, 4).map((child, idx) => {
+                                        {treeMembers.slice(1).map((child, idx) => {
                                             const childPos = nodePositions[child.id] || { x: 0, y: 0 };
                                             const isDragging = draggingNodeId === child.id;
+                                            const grandChildren = treeMembers.filter(m => m.parentId === child.id || (m.parentName && m.parentName === child.name));
                                             return (
                                                 <div key={child.id} className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
                                                     <div className="w-0.5 h-8 bg-indigo-500"></div>
@@ -1088,10 +1127,74 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                         <p className="text-[8px] font-mono font-black uppercase tracking-widest text-amber-300 mt-0.5">
                                                             {child.relation} • {child.branch}
                                                         </p>
-                                                        <span className="text-[7px] font-mono block text-emerald-400 mt-1 uppercase font-bold tracking-widest">
-                                                            {isFreeformDragMode ? '🖐️ Drag Node' : 'Edit Node'}
-                                                        </span>
+                                                        {child.parentName && (
+                                                            <p className="text-[7px] font-mono text-cyan-300 uppercase mt-0.5">
+                                                                Child of {child.parentName}
+                                                            </p>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenAddChild(child);
+                                                            }}
+                                                            className="mt-2 px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 rounded-xl text-[7px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 mx-auto shadow-sm active:scale-95 group/cbtn"
+                                                            title={`Add son or daughter directly under ${child.name}`}
+                                                        >
+                                                            <Plus className="w-2 h-2 text-amber-400 group-hover/cbtn:text-slate-950" />
+                                                            <span>+ Add Child</span>
+                                                        </button>
                                                     </div>
+
+                                                    {/* Sub-Branch Descendants (Grandchildren) */}
+                                                    {grandChildren.length > 0 && (
+                                                        <div className="flex flex-col items-center mt-2" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                                            <div className="w-0.5 h-6 bg-gradient-to-b from-indigo-500 to-amber-400"></div>
+                                                            <div className="flex gap-3 items-start relative flex-wrap justify-center max-w-full">
+                                                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[85%] h-0.5 bg-amber-400/80"></div>
+                                                                {grandChildren.map((gc, gcIdx) => {
+                                                                    const gcPos = nodePositions[gc.id] || { x: 0, y: 0 };
+                                                                    const gcIsDragging = draggingNodeId === gc.id;
+                                                                    return (
+                                                                        <div key={gc.id} className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                                                            <div className="w-0.5 h-4 bg-amber-400"></div>
+                                                                            <div
+                                                                                onMouseDown={(e) => handleNodeMouseDown(e, gc.id)}
+                                                                                onTouchStart={(e) => handleNodeMouseDown(e, gc.id)}
+                                                                                onClick={(e) => {
+                                                                                    if (!gcIsDragging) handleOpenEditMember(gc);
+                                                                                }}
+                                                                                style={{
+                                                                                    transform: is3DMode
+                                                                                        ? `translate3d(${gcPos.x}px, ${gcPos.y}px, ${20 + gcIdx * 5}px)`
+                                                                                        : `translate(${gcPos.x}px, ${gcPos.y}px)`
+                                                                                }}
+                                                                                className={`p-3 rounded-xl border backdrop-blur-xl text-center transition-all duration-200 group relative select-none bg-slate-900/90 border-amber-400/50 text-amber-200 ${
+                                                                                    isFreeformDragMode ? (gcIsDragging ? 'cursor-grabbing scale-105 z-50 ring-2 ring-amber-400' : 'cursor-grab hover:ring-1 hover:ring-amber-400/60') : 'cursor-pointer hover:scale-105'
+                                                                                }`}
+                                                                            >
+                                                                                <p className="font-bold text-[10px] uppercase tracking-tight">{gc.name}</p>
+                                                                                <p className="text-[7px] font-mono font-black uppercase text-amber-300">
+                                                                                    {gc.relation} (under {gc.parentName || child.name})
+                                                                                </p>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleOpenAddChild(gc);
+                                                                                    }}
+                                                                                    className="mt-1 px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/30 rounded-lg text-[6.5px] font-mono font-black uppercase transition-all flex items-center justify-center gap-0.5 mx-auto"
+                                                                                >
+                                                                                    <Plus className="w-2 h-2" />
+                                                                                    <span>+ Add Child</span>
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}
@@ -1163,6 +1266,23 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                 <span className="text-[8px] font-mono block text-emerald-400 group-hover:text-slate-950 mt-1 uppercase font-bold tracking-widest">
                                                     {isFreeformDragMode ? '🖐️ Hold & Drag Anywhere' : 'Click Node to Edit'}
                                                 </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenAddChild({
+                                                            id: 'demo_root',
+                                                            name: 'Samuel Mwangi Sr.',
+                                                            relation: 'Grandfather / Root Ancestor',
+                                                            branch: 'Paternal',
+                                                            institutionId: currentInstitution.id
+                                                        } as HeritageMember);
+                                                    }}
+                                                    className="mt-2 px-3 py-1 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40 rounded-xl text-[8px] font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 mx-auto shadow-sm active:scale-95 group/cbtn"
+                                                >
+                                                    <Plus className="w-2.5 h-2.5" />
+                                                    <span>+ Add Child</span>
+                                                </button>
                                             </div>
                                         );
                                     })()}
@@ -1215,9 +1335,22 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                         </div>
                                                         <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
                                                         <p className="text-[8px] font-mono font-black text-cyan-400 uppercase tracking-widest">Son • Gen 2</p>
-                                                        <span className="text-[7px] font-mono block text-emerald-400 mt-0.5 uppercase font-bold">
-                                                            {isFreeformDragMode ? '🖐️ Drag Node' : 'Click to Edit'}
-                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenAddChild({
+                                                                    id: 'demo_child1',
+                                                                    name: 'John Mwangi',
+                                                                    branch: 'Paternal',
+                                                                    institutionId: currentInstitution.id
+                                                                } as HeritageMember);
+                                                            }}
+                                                            className="mt-1.5 px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/30 rounded-lg text-[6.5px] font-mono font-black uppercase transition-all flex items-center justify-center gap-0.5 mx-auto"
+                                                        >
+                                                            <Plus className="w-2 h-2" />
+                                                            <span>+ Add Child</span>
+                                                        </button>
                                                     </div>
                                                 );
                                             })()}
@@ -1266,9 +1399,22 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                                         </div>
                                                         <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
                                                         <p className="text-[8px] font-mono font-black text-pink-400 uppercase tracking-widest">Daughter • Gen 2</p>
-                                                        <span className="text-[7px] font-mono block text-emerald-400 mt-0.5 uppercase font-bold">
-                                                            {isFreeformDragMode ? '🖐️ Drag Node' : 'Click to Edit'}
-                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenAddChild({
+                                                                    id: 'demo_child2',
+                                                                    name: 'Grace Wamboi',
+                                                                    branch: 'Maternal',
+                                                                    institutionId: currentInstitution.id
+                                                                } as HeritageMember);
+                                                            }}
+                                                            className="mt-1.5 px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/30 rounded-lg text-[6.5px] font-mono font-black uppercase transition-all flex items-center justify-center gap-0.5 mx-auto"
+                                                        >
+                                                            <Plus className="w-2 h-2" />
+                                                            <span>+ Add Child</span>
+                                                        </button>
                                                     </div>
                                                 );
                                             })()}
@@ -2761,6 +2907,36 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             )}
 
                             <div className="grid grid-cols-2 gap-3">
+                                <div className="col-span-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1">
+                                    <label className="block text-[9px] font-mono font-black uppercase text-amber-500 tracking-[0.2em]">Parent / Ancestor Anchor (Lineage Parent)</label>
+                                    <select
+                                        value={newMember.parentId || ''}
+                                        onChange={e => {
+                                            const selectedId = e.target.value;
+                                            const parentObj = treeMembers.find(m => m.id === selectedId);
+                                            setNewMember(p => ({
+                                                ...p,
+                                                parentId: selectedId,
+                                                parentName: parentObj?.name || '',
+                                                branch: parentObj?.branch || p.branch
+                                            }));
+                                        }}
+                                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-amber-500/40 rounded-xl font-bold text-slate-800 dark:text-white text-xs focus:outline-none focus:border-amber-400 transition-colors"
+                                    >
+                                        <option value="">-- Root Level Ancestor (No Direct Parent) --</option>
+                                        {treeMembers.map(m => (
+                                            <option key={m.id} value={m.id}>
+                                                👑 {m.name} ({m.relation} • {m.branch})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {newMember.parentName && (
+                                        <p className="text-[10px] font-mono font-bold text-emerald-400">
+                                            ✓ Adding child directly under: <span className="underline">{newMember.parentName}</span>
+                                        </p>
+                                    )}
+                                </div>
+
                                 <div className="col-span-2">
                                     <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Full Name *</label>
                                     <input
