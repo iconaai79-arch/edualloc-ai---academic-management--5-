@@ -342,6 +342,52 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
                 {activeTab === 'home' && (
                 <div className="space-y-6">
+                    {/* ACADEMICS PORTAL HUB - EASY SWITCHER */}
+                    <section className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl border border-indigo-900/50 space-y-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <span className="text-[10px] font-black tracking-widest uppercase text-indigo-400 bg-indigo-900/60 px-3 py-1 rounded-full border border-indigo-700/50">
+                                    🚀 Cyber Academic Operations
+                                </span>
+                                <h3 className="text-2xl font-black tracking-tight uppercase mt-2 text-white flex items-center gap-2">
+                                    Academics Portal Hub
+                                </h3>
+                                <p className="text-xs text-slate-300">
+                                    Instant 1-click portal switching across exam management, registries, reports & settings.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Portal Hub Cards Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {tabs.map(portal => (
+                                <button
+                                    key={portal.id}
+                                    onClick={() => setActiveTab(portal.id as any)}
+                                    className={`p-4 rounded-2xl transition-all duration-300 text-left border flex flex-col justify-between h-28 group cursor-pointer ${
+                                        activeTab === portal.id
+                                            ? 'bg-gradient-to-r from-emerald-500 to-indigo-600 border-white/30 text-white shadow-lg scale-105 font-bold'
+                                            : 'bg-white/10 hover:bg-white/20 border-white/10 text-slate-200 hover:text-white'
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <div className="p-2 rounded-xl bg-white/10 group-hover:scale-110 transition-transform">
+                                            <portal.icon className="w-5 h-5 text-white" />
+                                        </div>
+                                        <span className="text-[9px] font-black uppercase tracking-widest bg-black/20 px-2 py-0.5 rounded-full text-slate-300">
+                                            Switch &rarr;
+                                        </span>
+                                    </div>
+
+                                    <div>
+                                        <span className="text-xs font-black uppercase tracking-wide block truncate">{portal.label}</span>
+                                        <span className="text-[9px] opacity-75 font-medium block">Click to open portal</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+
                     <section className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                         <h3 className="text-xl font-black tracking-tighter uppercase mb-6 flex items-center gap-2 text-slate-900 dark:text-white">
                             <SparklesIcon className="w-5 h-5 text-indigo-600" />
