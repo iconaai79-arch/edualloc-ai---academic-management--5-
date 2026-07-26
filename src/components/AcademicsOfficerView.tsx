@@ -253,22 +253,65 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         window.print();
     };
 
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    const tabs = [
+        { id: 'dashboard', label: 'Dashboard', icon: ClipboardListIcon },
+        { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
+        { id: 'exam_insights', label: 'Exam Insights', icon: BarChart3Icon },
+        { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
+        { id: 'people', label: 'People Governance', icon: UserGroupIcon },
+        { id: 'discipline', label: 'Discipline', icon: ShieldExclamationIcon },
+        { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
+    ] as const;
+
     return (
-        <div className="space-y-6">
-            <h2 className="text-3xl font-bold tracking-tight">Academics Officer Dashboard</h2>
-            <div className="border-b border-slate-200 dark:border-slate-700 no-print text-slate-900 dark:text-slate-100">
-                <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-                    <button onClick={() => setActiveTab('dashboard')} className={`${activeTab === 'dashboard' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><ClipboardListIcon className="w-5 h-5 mr-2" /> Dashboard</button>
-                    <button onClick={() => setActiveTab('exam_units')} className={`${activeTab === 'exam_units' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><BookOpenIcon className="w-5 h-5 mr-2" /> Exam Units</button>
-                    <button onClick={() => setActiveTab('exam_insights')} className={`${activeTab === 'exam_insights' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><BarChart3Icon className="w-5 h-5 mr-2" /> Exam Insights</button>
-                    <button onClick={() => setActiveTab('reports')} className={`${activeTab === 'reports' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><ChartBarIcon className="w-5 h-5 mr-2" /> Intelligence Hub</button>
-                    <button onClick={() => setActiveTab('people')} className={`${activeTab === 'people' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><UserGroupIcon className="w-5 h-5 mr-2" /> People Management</button>
-                    <button onClick={() => setActiveTab('discipline')} className={`${activeTab === 'discipline' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><ShieldExclamationIcon className="w-5 h-5 mr-2" /> Discipline</button>
-                    <button onClick={() => setActiveTab('settings')} className={`${activeTab === 'settings' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><Cog8ToothIcon className="w-5 h-5 mr-2" /> Settings</button>
+        <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[750px] w-full text-left">
+            {/* Sidebar (Vertical Menu) */}
+            <div className={`${isSidebarOpen ? 'w-full lg:w-72' : 'w-full lg:w-24'} bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-[2.5rem] shadow-sm transition-all duration-500 flex flex-col p-6 shrink-0 no-print`}>
+                <div className="flex items-center gap-4 mb-8 px-2">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 shadow-xl shadow-indigo-500/20 flex items-center justify-center text-white shrink-0">
+                        <BookOpenIcon className="w-7 h-7" />
+                    </div>
+                    {isSidebarOpen && (
+                        <div className="animate-fade-in whitespace-nowrap">
+                            <h2 className="text-[13px] font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none mb-1">
+                                Academics Hub
+                            </h2>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                                AI Operations & Governance
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <nav className="space-y-1.5 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
+                    {tabs.map(item => (
+                        <button
+                            key={item.id}
+                            onClick={() => setActiveTab(item.id as any)}
+                            className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 relative group cursor-pointer ${
+                                activeTab === item.id 
+                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 scale-105' 
+                                : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-750 dark:text-slate-400 dark:hover:text-white'
+                            }`}
+                        >
+                            <div className={`${activeTab === item.id ? 'scale-110' : 'group-hover:scale-110'} transition-transform duration-300`}>
+                                <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-white' : 'text-slate-400'}`} />
+                            </div>
+                            {isSidebarOpen && (
+                                <span className="font-extrabold text-xs tracking-wide uppercase transition-colors duration-300">
+                                    {item.label}
+                                </span>
+                            )}
+                        </button>
+                    ))}
                 </nav>
             </div>
 
-            {activeTab === 'dashboard' && (
+            {/* Main Content Area */}
+            <div className="flex-1 w-full min-w-0 space-y-6">
+                {activeTab === 'dashboard' && (
                 <div className="space-y-6">
                     <section className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                         <h3 className="text-xl font-black tracking-tighter uppercase mb-6 flex items-center gap-2 text-slate-900 dark:text-white">
@@ -585,6 +628,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     }}
                 />
             )}
+            </div>
 
             <style>{`
                 .btn-primary { padding: 0.5rem 1rem; background-color: var(--color-primary); color: white; border-radius: 0.375rem; font-weight: 600; border: none; cursor: pointer; } 

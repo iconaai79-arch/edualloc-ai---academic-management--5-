@@ -15,6 +15,7 @@ import { TrashIcon } from '../icons/TrashIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { XIcon } from '../icons/XIcon';
 import { EyeIcon } from '../icons/EyeIcon';
+import { EyeOffIcon } from '../icons/EyeOffIcon';
 import { XCircleIcon } from '../icons/XCircleIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { CheckIcon } from '../icons/CheckIcon';
@@ -1065,6 +1066,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [balanceSortOption, setBalanceSortOption] = useState<'latest' | 'highest_balance' | 'lowest_balance' | 'name'>('latest');
     const [balancesCurrentPage, setBalancesCurrentPage] = useState(1);
     const [balancesPerPage, setBalancesPerPage] = useState<number | 'All'>(15);
+    const [isFeeBalancesHeaderCollapsed, setIsFeeBalancesHeaderCollapsed] = useState<boolean>(() => {
+        try {
+            return localStorage.getItem('eduai_fee_balances_header_collapsed') === 'true';
+        } catch {
+            return false;
+        }
+    });
+
+    const toggleFeeBalancesHeader = () => {
+        setIsFeeBalancesHeaderCollapsed(prev => {
+            const next = !prev;
+            try {
+                localStorage.setItem('eduai_fee_balances_header_collapsed', String(next));
+            } catch {}
+            return next;
+        });
+    };
 
     // Fee Reminders SMS Modal State & Sibling Consolidation
     const [isFeeReminderModalOpen, setIsFeeReminderModalOpen] = useState(false);
@@ -3798,74 +3816,155 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     };
 
     const renderFeeBalancesContent = () => (
-        <div className="space-y-8 animate-in fade-in duration-300">
-            {/* Header & Quick Action Banner */}
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
-                <div>
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-                        <BanknotesIcon className="w-6 h-6 text-indigo-600" />
-                        Fee Balances Registry
-                    </h3>
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Manage student balances, filter status, and dispatch SMS reminders to parents</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
-                    <div className="bg-rose-50 dark:bg-rose-950/40 px-4 py-2.5 rounded-2xl text-left border border-rose-100 dark:border-rose-900/40 shrink-0">
-                        <p className="text-[8px] font-black text-rose-500 dark:text-rose-400 uppercase tracking-widest">Total Outstanding</p>
-                        <p className="text-sm font-black text-rose-600 dark:text-rose-400">KSh {totalOutstandingAll.toLocaleString()}</p>
+        <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Header & Quick Action Banner (Full Mode) */}
+            {!isFeeBalancesHeaderCollapsed ? (
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm transition-all duration-300">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                            <BanknotesIcon className="w-6 h-6 text-indigo-600" />
+                            Fee Balances Registry
+                        </h3>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Manage student balances, filter status, and dispatch SMS reminders to parents</p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => setIsPtpDashboardOpen(true)}
-                        className="py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/25 active:scale-95 cursor-pointer relative shrink-0"
-                    >
-                        <ClockIcon className="w-4 h-4" />
-                        <span>PTP Promises Tracker</span>
-                        {Object.keys(studentActivePromiseMap).length > 0 && (
-                            <span className="ml-1 px-2 py-0.5 bg-white text-amber-700 rounded-full text-[10px] font-black shadow-xs">
-                                {Object.keys(studentActivePromiseMap).length}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setReminderSendSuccess(null);
-                            setIsFeeReminderModalOpen(true);
-                        }}
-                        className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-95 cursor-pointer shrink-0"
-                    >
-                        <PaperAirplaneIcon className="w-4 h-4" />
-                        <span>Send Fee Reminders</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            const exportData = studentFinanceData.map(s => [
-                                s.admissionNumber || '—',
-                                s.name,
-                                s.className || studentClassGroup(s),
-                                s.totals.invoiced,
-                                s.totals.paid,
-                                s.totals.balance,
-                                s.totals.prepayment > 0 ? 'Prepaid' : s.totals.balance <= 0 ? 'Fully Paid' : s.totals.paid > 0 ? 'Partial' : 'No Payment'
-                            ]);
-                            exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
-                        }}
-                        className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer shrink-0"
-                    >
-                        <DownloadIcon className="w-4 h-4" />
-                        <span>Export CSV</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => window.print()}
-                        className="py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
-                    >
-                        <PrinterIcon className="w-4 h-4" />
-                        <span>Print</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
+                        <div className="bg-rose-50 dark:bg-rose-950/40 px-4 py-2.5 rounded-2xl text-left border border-rose-100 dark:border-rose-900/40 shrink-0">
+                            <p className="text-[8px] font-black text-rose-500 dark:text-rose-400 uppercase tracking-widest">Total Outstanding</p>
+                            <p className="text-sm font-black text-rose-600 dark:text-rose-400">KSh {totalOutstandingAll.toLocaleString()}</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsPtpDashboardOpen(true)}
+                            className="py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/25 active:scale-95 cursor-pointer relative shrink-0"
+                        >
+                            <ClockIcon className="w-4 h-4" />
+                            <span>PTP Promises Tracker</span>
+                            {Object.keys(studentActivePromiseMap).length > 0 && (
+                                <span className="ml-1 px-2 py-0.5 bg-white text-amber-700 rounded-full text-[10px] font-black shadow-xs">
+                                    {Object.keys(studentActivePromiseMap).length}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setReminderSendSuccess(null);
+                                setIsFeeReminderModalOpen(true);
+                            }}
+                            className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-95 cursor-pointer shrink-0"
+                        >
+                            <PaperAirplaneIcon className="w-4 h-4" />
+                            <span>Send Fee Reminders</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const exportData = studentFinanceData.map(s => [
+                                    s.admissionNumber || '—',
+                                    s.name,
+                                    s.className || studentClassGroup(s),
+                                    s.totals.invoiced,
+                                    s.totals.paid,
+                                    s.totals.balance,
+                                    s.totals.prepayment > 0 ? 'Prepaid' : s.totals.balance <= 0 ? 'Fully Paid' : s.totals.paid > 0 ? 'Partial' : 'No Payment'
+                                ]);
+                                exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
+                            }}
+                            className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer shrink-0"
+                        >
+                            <DownloadIcon className="w-4 h-4" />
+                            <span>Export CSV</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => window.print()}
+                            className="py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
+                        >
+                            <PrinterIcon className="w-4 h-4" />
+                            <span>Print</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={toggleFeeBalancesHeader}
+                            className="py-3 px-3.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0"
+                            title="Collapse Banner Header to Maximize Vertical List Space"
+                        >
+                            <EyeOffIcon className="w-4 h-4 text-slate-500" />
+                            <span>Hide Header</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
+            ) : (
+                /* Compact Strip when Header is Collapsed */
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 px-6 py-3.5 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm transition-all duration-300">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                            <BanknotesIcon className="w-5 h-5 text-indigo-600" />
+                            <span className="text-sm font-black uppercase text-slate-900 dark:text-white tracking-tight">Fee Balances</span>
+                        </div>
+                        <span className="px-3 py-1 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-full text-xs font-black border border-rose-100 dark:border-rose-900/40">
+                            Outstanding: KSh {totalOutstandingAll.toLocaleString()}
+                        </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setIsPtpDashboardOpen(true)}
+                            className="py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                        >
+                            <ClockIcon className="w-3.5 h-3.5" />
+                            <span>PTP Tracker ({Object.keys(studentActivePromiseMap).length})</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setReminderSendSuccess(null);
+                                setIsFeeReminderModalOpen(true);
+                            }}
+                            className="py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                        >
+                            <PaperAirplaneIcon className="w-3.5 h-3.5" />
+                            <span>Reminders</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const exportData = studentFinanceData.map(s => [
+                                    s.admissionNumber || '—',
+                                    s.name,
+                                    s.className || studentClassGroup(s),
+                                    s.totals.invoiced,
+                                    s.totals.paid,
+                                    s.totals.balance,
+                                    s.totals.prepayment > 0 ? 'Prepaid' : s.totals.balance <= 0 ? 'Fully Paid' : s.totals.paid > 0 ? 'Partial' : 'No Payment'
+                                ]);
+                                exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
+                            }}
+                            className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                        >
+                            <DownloadIcon className="w-3.5 h-3.5" />
+                            <span>Export</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => window.print()}
+                            className="py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                        >
+                            <PrinterIcon className="w-3.5 h-3.5" />
+                            <span>Print</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={toggleFeeBalancesHeader}
+                            className="py-2 px-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                            title="Expand Banner Header"
+                        >
+                            <EyeIcon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                            <span>Show Header</span>
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Filter Bar */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm items-center">
@@ -5014,7 +5113,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         const isEdu = isEduInstitution(props.institution);
                         if (item.id === 'gok_capitation') return isEdu;
                         if (item.id === 'bursaries') return isEdu;
-                        if (item.id === 'wizard') return !isDrivingSchool;
+                        if (item.id === 'wizard') return false;
                         if (item.id === 'billing') return isDrivingSchool;
                         return true;
                     }).map(item => (
@@ -5072,7 +5171,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {activeTab === 'student_invoices' ? (
                                 [
                                     { id: 'ledger', label: 'Invoices Ledger', icon: ClipboardListIcon, count: filteredStudentInvoices.length },
-                                    { id: 'wizard', label: '⚡ Billing Wizard', icon: SparklesIcon },
                                 ].map(sub => (
                                     <button
                                         key={sub.id}
