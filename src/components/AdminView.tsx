@@ -979,10 +979,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     return ['remedials', 'reports', 'settings'].includes(tab.id);
                 }
                 if (activeScope === 'academics') {
-                    const academicsTabs = ['settings', 'reports'];
-                    if (isModuleActive('timetable')) academicsTabs.push('timetable');
-                    if (isModuleActive('academics')) academicsTabs.push('courses');
-                    academicsTabs.push('enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'eduflow');
+                    const academicsTabs = ['timetable', 'reports', 'settings'];
                     return academicsTabs.includes(tab.id);
                 }
                 if (activeScope === 'inventory') {
@@ -1307,7 +1304,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 return;
                                             }
                                             setActiveScope('academics'); 
-                                            setActiveTab('enrollment_students'); 
+                                            setActiveTab('timetable'); 
                                         }}
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
