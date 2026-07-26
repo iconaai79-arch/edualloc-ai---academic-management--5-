@@ -844,6 +844,79 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         </div>
     );
 
+    const render3DTotemElement = (isRootNode: boolean = true) => {
+        const presetIcons: Record<string, string> = {
+            baobab: '🌳',
+            lion: '🦁',
+            eagle: '🦅',
+            shield: '🛡️',
+            crown: '👑',
+            panther: '🐆',
+            flame: '🔥',
+            elephant: '🐘'
+        };
+
+        const currentPresetIcon = presetIcons[totemConfig.totemPreset] || '🌳';
+        const speedClass = totemConfig.rotationSpeed === 'fast' 
+            ? 'animate-spin' 
+            : totemConfig.rotationSpeed === 'slow' 
+                ? 'animate-pulse' 
+                : 'animate-bounce';
+
+        return (
+            <div 
+                onClick={() => setShowTotemModal(true)}
+                className="relative group cursor-pointer flex flex-col items-center select-none"
+                style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}
+            >
+                {/* Glowing Aura Effect */}
+                <div 
+                    className="absolute -inset-4 rounded-full blur-xl opacity-60 group-hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: totemConfig.glowColor || '#f59e0b' }}
+                ></div>
+
+                {/* 3D Holographic Crest Frame */}
+                <div 
+                    style={{
+                        transform: is3DMode ? 'translateZ(75px)' : 'none',
+                        boxShadow: `0 20px 50px -10px ${totemConfig.glowColor || '#f59e0b'}80`,
+                        borderColor: totemConfig.glowColor || '#f59e0b'
+                    }}
+                    className="relative p-5 md:p-6 bg-slate-950/90 border-2 rounded-3xl backdrop-blur-2xl text-center group-hover:scale-105 transition-all duration-300 border-amber-400"
+                >
+                    <div className="absolute -top-3 -right-3 p-1.5 bg-amber-400 text-slate-950 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Pencil className="w-3.5 h-3.5" />
+                    </div>
+
+                    <div className="flex items-center justify-center mb-2">
+                        {totemConfig.customImageUrl ? (
+                            <img loading="lazy" 
+                                src={totemConfig.customImageUrl} 
+                                alt={totemConfig.totemName} 
+                                className={`w-20 h-20 md:w-24 md:h-24 object-cover rounded-2xl border-2 border-amber-400/80 shadow-2xl ${speedClass}`}
+                            />
+                        ) : (
+                            <div className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br from-amber-500/20 via-slate-900 to-amber-500/10 border border-amber-500/40 flex items-center justify-center text-5xl md:text-6xl shadow-inner ${speedClass}`}>
+                                {currentPresetIcon}
+                            </div>
+                        )}
+                    </div>
+
+                    <p className="font-black text-sm md:text-base uppercase tracking-tight text-amber-300 group-hover:text-white transition-colors">
+                        {totemConfig.totemName || 'Sacred Baobab Lineage Crest'}
+                    </p>
+                    <p className="text-[9px] font-mono font-bold text-slate-300 italic tracking-wider mt-0.5 max-w-[200px] truncate">
+                        "{totemConfig.motto || 'Honor, Courage & Eternal Unity'}"
+                    </p>
+
+                    <span className="mt-2 text-[7px] font-mono block text-emerald-400 font-bold uppercase tracking-widest">
+                        👑 Ancestral Family Totem • Click to Customize
+                    </span>
+                </div>
+            </div>
+        );
+    };
+
     const renderTreeSubView = () => (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
             {/* Visual Family Tree Preview with 3D Spatial Effects */}
@@ -1216,6 +1289,25 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             ) : (
                                 /* Fallback Demo Interactive Tree Nodes in 3D */
                                 <div className="flex flex-col items-center" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                    {/* 3D Foundational Root Totem Node */}
+                                    {totemConfig.showAsTreeRoot && (
+                                        <div 
+                                            onMouseDown={(e) => handleNodeMouseDown(e, 'totem_root')}
+                                            onTouchStart={(e) => handleNodeMouseDown(e, 'totem_root')}
+                                            className={`flex flex-col items-center transition-transform ${isFreeformDragMode ? (draggingNodeId === 'totem_root' ? 'cursor-grabbing scale-105 z-50' : 'cursor-grab') : ''}`}
+                                            style={{ 
+                                                transformStyle: is3DMode ? 'preserve-3d' : 'flat',
+                                                transform: nodePositions['totem_root'] ? `translate3d(${nodePositions['totem_root'].x}px, ${nodePositions['totem_root'].y}px, 0px)` : 'none'
+                                            }}
+                                        >
+                                            {render3DTotemElement(true)}
+                                            <div 
+                                                className="w-1 h-12 md:h-16 bg-gradient-to-b from-amber-400 via-yellow-400 to-amber-500 shadow-lg shadow-amber-500/50"
+                                                style={{ transform: is3DMode ? 'translateZ(65px)' : 'none' }}
+                                            ></div>
+                                        </div>
+                                    )}
+
                                     {(() => {
                                         const demoRootPos = nodePositions['demo_root'] || { x: 0, y: 0 };
                                         const isDragging = draggingNodeId === 'demo_root';
@@ -1982,96 +2074,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         </div>
     );
 
-    const render3DTotemElement = (isRootNode?: boolean) => {
-        const getTotemIcon = () => {
-            if (totemConfig.customImageUrl) {
-                return (
-                    <img loading="lazy" 
-                        src={totemConfig.customImageUrl} 
-                        alt="Family Totem" 
-                        className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-full border-2 border-amber-400/80 shadow-2xl shadow-amber-500/50" 
-                    />
-                );
-            }
-            switch (totemConfig.totemPreset) {
-                case 'lion': return <Crown className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
-                case 'eagle': return <Star className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
-                case 'shield': return <ShieldCheck className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
-                case 'crown': return <Crown className="w-12 h-12 md:w-16 md:h-16 text-yellow-300" />;
-                case 'panther': return <Ghost className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
-                case 'flame': return <Zap className="w-12 h-12 md:w-16 md:h-16 text-amber-400 animate-pulse" />;
-                case 'elephant': return <TreePalm className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
-                case 'baobab':
-                default: return <TreePalm className="w-12 h-12 md:w-16 md:h-16 text-amber-400" />;
-            }
-        };
 
-        const rotationDuration = totemConfig.rotationSpeed === 'fast' ? '6s' : totemConfig.rotationSpeed === 'slow' ? '20s' : '12s';
-
-        return (
-            <div 
-                onClick={() => setShowTotemModal(true)}
-                title="Click to customize 3D Family Totem & Tree Crest"
-                className={`relative group cursor-pointer transition-all duration-500 flex flex-col items-center justify-center ${
-                    isRootNode ? 'z-30 mb-2' : 'my-4'
-                }`}
-                style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}
-            >
-                {/* 3D Holographic Orbit Ring & Aura Glow */}
-                <div 
-                    className="relative p-6 md:p-8 rounded-full backdrop-blur-2xl border-2 flex items-center justify-center transition-transform group-hover:scale-110"
-                    style={{
-                        borderColor: `${totemConfig.glowColor || '#f59e0b'}80`,
-                        backgroundColor: 'rgba(2, 6, 23, 0.85)',
-                        boxShadow: `0 0 60px ${totemConfig.glowColor || '#f59e0b'}60, inset 0 0 30px ${totemConfig.glowColor || '#f59e0b'}40`,
-                        transform: is3DMode ? 'translateZ(75px)' : 'none'
-                    }}
-                >
-                    {/* Animated 3D Spinning Ring */}
-                    <div 
-                        className="absolute inset-0 rounded-full border-2 border-dashed opacity-75 animate-spin"
-                        style={{ 
-                            borderColor: totemConfig.glowColor || '#f59e0b',
-                            animationDuration: rotationDuration
-                        }}
-                    />
-                    
-                    {/* Pulsing Outer Quantum Field */}
-                    <div 
-                        className="absolute -inset-3 rounded-full opacity-30 animate-ping pointer-events-none"
-                        style={{ backgroundColor: `${totemConfig.glowColor || '#f59e0b'}` }}
-                    />
-
-                    {/* Totem Symbol */}
-                    <div className="relative z-10 flex items-center justify-center">
-                        {getTotemIcon()}
-                    </div>
-
-                    {/* Hover Quick Edit Badge */}
-                    <div className="absolute -top-2 -right-2 p-1.5 bg-amber-400 text-slate-950 rounded-full shadow-xl opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Pencil className="w-3.5 h-3.5" />
-                    </div>
-                </div>
-
-                {/* Totem Name & Family Motto Text Plate */}
-                <div 
-                    className="mt-3 px-5 py-2 rounded-2xl bg-slate-950/90 border border-amber-500/40 text-center shadow-xl backdrop-blur-md group-hover:border-amber-400 transition-all max-w-xs"
-                    style={{ transform: is3DMode ? 'translateZ(85px)' : 'none' }}
-                >
-                    <div className="flex items-center justify-center gap-1.5 text-amber-400">
-                        <Sparkles className="w-3 h-3 animate-spin" />
-                        <span className="text-[9px] font-mono font-black uppercase tracking-widest">
-                            {isRootNode ? '🌳 FOUNDATIONAL TOTEM NODE' : '👑 ANCESTRAL FAMILY CREST'}
-                        </span>
-                    </div>
-                    <h4 className="text-xs font-black uppercase text-white tracking-tight mt-0.5">{totemConfig.totemName}</h4>
-                    {totemConfig.motto && (
-                        <p className="text-[9px] font-mono italic text-amber-200/90 mt-0.5">"{totemConfig.motto}"</p>
-                    )}
-                </div>
-            </div>
-        );
-    };
 
     const renderHomeSubView = () => (
         <div className="space-y-8 animate-fade-in">
