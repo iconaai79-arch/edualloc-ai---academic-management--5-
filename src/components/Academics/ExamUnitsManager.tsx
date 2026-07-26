@@ -74,6 +74,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [newTerm, setNewTerm] = useState('Term 2');
     const [newGradingSystem, setNewGradingSystem] = useState('Main grading system');
     const [newExamStartDate, setNewExamStartDate] = useState('2026-07-26');
+    const [newExamSubmissionDate, setNewExamSubmissionDate] = useState('2026-08-05');
 
     const activeExam = useMemo(() => {
         return exams.find(e => e.id === selectedExamId) || exams[0];
@@ -730,6 +731,19 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                             type="date"
                                             value={newExamStartDate}
                                             onChange={e => setNewExamStartDate(e.target.value)}
+                                            className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Marks Submission Deadline */}
+                                <div className="grid grid-cols-3 items-center gap-4">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Marks submission deadline</label>
+                                    <div className="col-span-2">
+                                        <input
+                                            type="date"
+                                            value={newExamSubmissionDate}
+                                            onChange={e => setNewExamSubmissionDate(e.target.value)}
                                             className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                                         />
                                     </div>
