@@ -12,6 +12,7 @@ import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTe
 import { SparklesIcon } from './icons/SparklesIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { XIcon } from './icons/XIcon';
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
 
 export interface ClassSubjectPaper {
     id: string;
@@ -33,11 +34,17 @@ export interface ClassExamConfig {
     subjects: ClassSubjectConfig[];
 }
 
-export interface TeacherCommentRule {
-    grade: string; // e.g. A, B+, B, C+, C, D+, D, E
-    minScore: number;
+export interface ClassTeacherCommentRule {
+    id: string;
+    grade: string; // e.g. A, A-, B+, B, B-, C+, C, C-, D+, D, D-, E
     classTeacherComment: string;
-    principalComment: string;
+    schoolHeadComment: string;
+}
+
+export interface ClassTeacherCommentsConfig {
+    classId: string;
+    className: string;
+    rules: ClassTeacherCommentRule[];
 }
 
 export interface RankingConfig {
@@ -87,6 +94,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     }, [academicLevels, courses, defaultClasses]);
 
     const [activeClassId, setActiveClassId] = useState<string>('form_3');
+    const [activeCommentClassId, setActiveCommentClassId] = useState<string>('form_3');
 
     // Default initial Per-Class Exam Papers state
     const initialClassConfigs: ClassExamConfig[] = useMemo(() => [
@@ -255,20 +263,62 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     const [modalPaperName, setModalPaperName] = useState('Main paper');
     const [modalMaxScore, setModalMaxScore] = useState<number>(100);
 
-    // 2. Teachers Comments State
-    const [commentRules, setCommentRules] = useState<TeacherCommentRule[]>([
-        { grade: 'A', minScore: 80, classTeacherComment: 'An outstanding academic performance. Keep up the high standard!', principalComment: 'Excellent result. Approved for promotion with distinction.' },
-        { grade: 'A-', minScore: 75, classTeacherComment: 'Very strong intellectual capability. Consistently commendable work.', principalComment: 'Superb effort. Keep striving for the top grade.' },
-        { grade: 'B+', minScore: 70, classTeacherComment: 'Good performance. Shows great potential for an A grade.', principalComment: 'Very good work. Approved for promotion.' },
-        { grade: 'B', minScore: 65, classTeacherComment: 'Good result overall. Continue working hard in core subjects.', principalComment: 'Good effort. Strive for higher performance.' },
-        { grade: 'B-', minScore: 60, classTeacherComment: 'Fair performance. Needs more effort in technical subjects.', principalComment: 'Satisfactory result. Encouraged to aim higher.' },
-        { grade: 'C+', minScore: 55, classTeacherComment: 'Average performance. Potential exists for better scores with focus.', principalComment: 'Average result. Work harder in weaker areas.' },
-        { grade: 'C', minScore: 50, classTeacherComment: 'Pass grade. Needs consistent revision and assistance.', principalComment: 'Passable effort. Must double effort next term.' },
-        { grade: 'C-', minScore: 45, classTeacherComment: 'Below average. More dedication required in daily assignments.', principalComment: 'Needs improvement. Close academic monitoring advised.' },
-        { grade: 'D+', minScore: 40, classTeacherComment: 'Weak performance. Requires remediation in core subjects.', principalComment: 'Weak result. Needs urgent academic focus.' },
-        { grade: 'D', minScore: 35, classTeacherComment: 'Poor performance. Regular study plan strongly recommended.', principalComment: 'Underperforming. Parent conference required.' },
-        { grade: 'E', minScore: 0, classTeacherComment: 'Unsatisfactory result. Requires intensive remedial coaching.', principalComment: 'Critical concern. Urgent intervention plan mandated.' }
-    ]);
+    // 2. Per-Class Teachers Comments State matching screenshot
+    const initialClassComments: ClassTeacherCommentsConfig[] = useMemo(() => [
+        {
+            classId: 'form_3',
+            className: 'Form 3',
+            rules: [
+                { id: 'r1', grade: 'A', classTeacherComment: 'Excellent work, keep it up to maintain these encouraging results.', schoolHeadComment: 'Congratulations, you have scored an excellent mean grade. Keep up and work even harder.' },
+                { id: 'r2', grade: 'A-', classTeacherComment: 'Excellent work, keep it up so as to improve further.', schoolHeadComment: 'Very good performance but aim even higher. You have the potential.' },
+                { id: 'r3', grade: 'B', classTeacherComment: 'Good work but aim higher. You have potential.', schoolHeadComment: 'Good, but aim higher. You are capable of doing much better.' },
+                { id: 'r4', grade: 'B-', classTeacherComment: 'Good work but aim higher. You have potential.', schoolHeadComment: 'Good, but aim higher. You are capable of doing much better.' },
+                { id: 'r5', grade: 'B+', classTeacherComment: 'Good work but aim higher for better grades.', schoolHeadComment: 'Good work but aim higher. You have potential.' },
+                { id: 'r6', grade: 'C', classTeacherComment: 'Average but work harder, you can do much better than this.', schoolHeadComment: 'Average, but work harder, there is a lot of room for improvement.' },
+                { id: 'r7', grade: 'C+', classTeacherComment: 'Fair performance, double your efforts to get to the top band.', schoolHeadComment: 'Fair performance, stay focused and aim for grade B and above.' },
+                { id: 'r8', grade: 'C-', classTeacherComment: 'Passable work, put more effort into your weak subjects.', schoolHeadComment: 'Passable effort. You can achieve better results with consistency.' },
+                { id: 'r9', grade: 'D+', classTeacherComment: 'Weak performance, seek help from subject teachers immediately.', schoolHeadComment: 'Weak performance. Regular study and remedial assistance recommended.' },
+                { id: 'r10', grade: 'D', classTeacherComment: 'Poor performance, work harder in daily assignments.', schoolHeadComment: 'Poor performance. Parent consultation strongly advised.' },
+                { id: 'r11', grade: 'D-', classTeacherComment: 'Very poor performance, urgent academic intervention required.', schoolHeadComment: 'Very poor performance. Must follow remedial revision program.' },
+                { id: 'r12', grade: 'E', classTeacherComment: 'Unsatisfactory result, total commitment to studies is mandated.', schoolHeadComment: 'Unsatisfactory result. Critical academic concern.' }
+            ]
+        },
+        {
+            classId: 'form_4',
+            className: 'Form 4',
+            rules: [
+                { id: 'r4_1', grade: 'A', classTeacherComment: 'Outstanding candidate performance. Keep maintaining top position.', schoolHeadComment: 'Superb result! Maintain this high standard for your national exams.' },
+                { id: 'r4_2', grade: 'A-', classTeacherComment: 'Very strong candidate. Great potential for Grade A.', schoolHeadComment: 'Excellent effort. Focus on weak subject areas.' },
+                { id: 'r4_3', grade: 'B+', classTeacherComment: 'Good candidate result. Double effort for distinctions.', schoolHeadComment: 'Very good performance. Aim higher in final papers.' },
+                { id: 'r4_4', grade: 'B', classTeacherComment: 'Solid performance. Focus on consistent revision.', schoolHeadComment: 'Good effort. Keep revising core syllabus.' },
+                { id: 'r4_5', grade: 'B-', classTeacherComment: 'Satisfactory result. Work harder on practical subjects.', schoolHeadComment: 'Good result, but room for improvement exists.' },
+                { id: 'r4_6', grade: 'C+', classTeacherComment: 'Average performance. Double your study hours.', schoolHeadComment: 'Average result. Consistent practice required.' },
+                { id: 'r4_7', grade: 'C', classTeacherComment: 'Fair result. Requires extra tuition in sciences.', schoolHeadComment: 'Passable performance. Work harder.' },
+                { id: 'r4_8', grade: 'C-', classTeacherComment: 'Below average candidate grade.', schoolHeadComment: 'Needs close academic monitoring.' },
+                { id: 'r4_9', grade: 'D+', classTeacherComment: 'Weak performance. Mandatory remedial classes.', schoolHeadComment: 'Weak result. Urgent intervention required.' },
+                { id: 'r4_10', grade: 'D', classTeacherComment: 'Poor performance in mock exams.', schoolHeadComment: 'Parent consultation required.' },
+                { id: 'r4_11', grade: 'D-', classTeacherComment: 'Very weak result.', schoolHeadComment: 'Requires intensive revision plan.' },
+                { id: 'r4_12', grade: 'E', classTeacherComment: 'Unsatisfactory grade.', schoolHeadComment: 'Critical academic concern.' }
+            ]
+        },
+        {
+            classId: 'grade_10',
+            className: 'Grade 10',
+            rules: [
+                { id: 'rg10_1', grade: 'A', classTeacherComment: 'Exceptional performance across all CBC learning areas.', schoolHeadComment: 'Outstanding achievement! Keep up the brilliant effort.' },
+                { id: 'rg10_2', grade: 'A-', classTeacherComment: 'High competence level demonstrated.', schoolHeadComment: 'Very good performance. Aim for top honors.' },
+                { id: 'rg10_3', grade: 'B+', classTeacherComment: 'Good understanding of core concepts.', schoolHeadComment: 'Good work, keep improving.' },
+                { id: 'rg10_4', grade: 'B', classTeacherComment: 'Meets expectations consistently.', schoolHeadComment: 'Good effort overall.' },
+                { id: 'rg10_5', grade: 'C+', classTeacherComment: 'Approaching expectation. More practice needed.', schoolHeadComment: 'Fair effort, stay focused.' },
+                { id: 'rg10_6', grade: 'C', classTeacherComment: 'Average competence level.', schoolHeadComment: 'Needs more dedication.' },
+                { id: 'rg10_7', grade: 'D+', classTeacherComment: 'Below expectation. Remediation advised.', schoolHeadComment: 'Requires additional support.' },
+                { id: 'rg10_8', grade: 'D', classTeacherComment: 'Needs significant improvement.', schoolHeadComment: 'Parent conference recommended.' },
+                { id: 'rg10_9', grade: 'E', classTeacherComment: 'Below minimum benchmark level.', schoolHeadComment: 'Urgent remedial plan mandated.' }
+            ]
+        }
+    ], []);
+
+    const [classComments, setClassComments] = useState<ClassTeacherCommentsConfig[]>(initialClassComments);
 
     // 3. Ranking State
     const [rankingConfig, setRankingConfig] = useState<RankingConfig>({
@@ -295,9 +345,9 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                 setClassConfigs(savedClassConfigs);
             }
 
-            const savedComments = (currentInstitution as any)?.teacherCommentRules;
-            if (savedComments && Array.isArray(savedComments)) {
-                setCommentRules(savedComments);
+            const savedCommentsConfig = (currentInstitution as any)?.classTeacherCommentsConfig;
+            if (savedCommentsConfig && Array.isArray(savedCommentsConfig) && savedCommentsConfig.length > 0) {
+                setClassComments(savedCommentsConfig);
             }
 
             const savedRanking = (currentInstitution as any)?.examRankingConfig;
@@ -311,7 +361,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         }
     }, [currentInstitution]);
 
-    // Active class configuration helper
+    // Active class configuration helper for Exam Papers
     const activeClassConfig = useMemo(() => {
         let found = classConfigs.find(c => c.classId === activeClassId);
         if (!found) {
@@ -325,11 +375,32 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         return found;
     }, [classConfigs, activeClassId, classList]);
 
+    // Active class comments helper for Teacher Comments
+    const activeClassComments = useMemo(() => {
+        let found = classComments.find(c => c.classId === activeCommentClassId);
+        if (!found) {
+            const activeClassObj = classList.find(c => c.id === activeCommentClassId);
+            found = {
+                classId: activeCommentClassId,
+                className: activeClassObj?.name || 'Class',
+                rules: []
+            };
+        }
+        return found;
+    }, [classComments, activeCommentClassId, classList]);
+
     // Helper to get total paper count for a class
     const getClassPaperCount = (cId: string): number => {
         const conf = classConfigs.find(c => c.classId === cId);
         if (!conf) return 0;
         return conf.subjects.reduce((sum, s) => sum + s.papers.length, 0);
+    };
+
+    // Helper to get total teacher comment rules count for a class
+    const getClassCommentCount = (cId: string): number => {
+        const conf = classComments.find(c => c.classId === cId);
+        if (!conf) return 0;
+        return conf.rules.length;
     };
 
     // Save handler
@@ -339,7 +410,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         try {
             await onUpdateInstitution(currentInstitution.id, {
                 classExamConfigs: classConfigs,
-                teacherCommentRules: commentRules,
+                classTeacherCommentsConfig: classComments,
                 examRankingConfig: rankingConfig
             } as any);
 
@@ -464,6 +535,67 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         setModalPaperName('Main paper');
         setModalMaxScore(100);
         setModalSelectedSubjectId('');
+    };
+
+    // Teacher comment row change
+    const handleUpdateTeacherComment = (ruleId: string, field: 'grade' | 'classTeacherComment' | 'schoolHeadComment', value: string) => {
+        setClassComments(prev => {
+            return prev.map(c => {
+                if (c.classId === activeCommentClassId) {
+                    return {
+                        ...c,
+                        rules: c.rules.map(r => r.id === ruleId ? { ...r, [field]: value } : r)
+                    };
+                }
+                return c;
+            });
+        });
+    };
+
+    // Add teacher comment rule to active class
+    const handleAddTeacherCommentRule = () => {
+        const newRule: ClassTeacherCommentRule = {
+            id: `r_${Date.now()}`,
+            grade: 'B',
+            classTeacherComment: 'Good performance, keep pushing for higher grades.',
+            schoolHeadComment: 'Good result, aim higher.'
+        };
+
+        setClassComments(prev => {
+            const classIdx = prev.findIndex(c => c.classId === activeCommentClassId);
+            const activeClassObj = classList.find(c => c.id === activeCommentClassId);
+            const className = activeClassObj?.name || 'Class';
+
+            if (classIdx >= 0) {
+                const updated = [...prev];
+                updated[classIdx] = {
+                    ...updated[classIdx],
+                    rules: [...updated[classIdx].rules, newRule]
+                };
+                return updated;
+            } else {
+                return [...prev, {
+                    classId: activeCommentClassId,
+                    className: className,
+                    rules: [newRule]
+                }];
+            }
+        });
+    };
+
+    // Delete teacher comment rule from active class
+    const handleDeleteTeacherCommentRule = (ruleId: string) => {
+        setClassComments(prev => {
+            return prev.map(c => {
+                if (c.classId === activeCommentClassId) {
+                    return {
+                        ...c,
+                        rules: c.rules.filter(r => r.id !== ruleId)
+                    };
+                }
+                return c;
+            });
+        });
     };
 
     return (
@@ -672,71 +804,149 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                 </div>
             )}
 
-            {/* TAB 3: TEACHER COMMENTS */}
+            {/* TAB 3: TEACHER COMMENTS (MATCHING SCREENSHOT EXACTLY) */}
             {activeSubTab === 'teachers_comments' && (
                 <div className="bg-white dark:bg-slate-900 rounded-b-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 animate-fade-in shadow-sm">
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                        Teacher comments allow us to automate remarks made by the class teacher and the school's head as shown in the report card and results slips.
+                        <span className="bg-blue-600 text-white font-bold px-1 rounded">Teacher comments</span> allow us to automate remarks made by the class teacher and the school's head as shown in the report card and results slips.
                     </p>
 
-                    <div className="overflow-hidden border border-slate-200 dark:border-slate-800 rounded-xl">
-                        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
-                            <thead className="bg-slate-50 dark:bg-slate-800/50">
-                                <tr>
-                                    <th className="px-4 py-3 text-center text-[10px] font-black text-slate-500 uppercase tracking-wider w-20">Grade</th>
-                                    <th className="px-4 py-3 text-center text-[10px] font-black text-slate-500 uppercase tracking-wider w-24">Min %</th>
-                                    <th className="px-6 py-3 text-left text-[10px] font-black text-slate-500 uppercase tracking-wider">Automated Class Teacher Remarks</th>
-                                    <th className="px-6 py-3 text-left text-[10px] font-black text-slate-500 uppercase tracking-wider">Automated Principal / Head Remarks</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                {commentRules.map((rule, idx) => (
-                                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                                        <td className="px-4 py-3.5 text-center">
-                                            <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 font-bold text-xs rounded-md">
-                                                {rule.grade}
+                    {/* Grid Layout: Left Sidebar for CHOOSE YEAR GROUP, Right Table for Comments */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+                        {/* Left Column: CHOOSE YEAR GROUP Sidebar */}
+                        <div className="bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                            <div className="p-3 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                CHOOSE YEAR GROUP
+                            </div>
+                            <div className="divide-y divide-slate-200/60 dark:divide-slate-800">
+                                {classList.map(c => {
+                                    const isSelected = activeCommentClassId === c.id;
+                                    const cCount = getClassCommentCount(c.id);
+                                    return (
+                                        <button
+                                            key={c.id}
+                                            type="button"
+                                            onClick={() => setActiveCommentClassId(c.id)}
+                                            className={`w-full text-left px-4 py-3.5 text-xs font-bold transition-all flex items-center justify-between ${
+                                                isSelected
+                                                    ? 'bg-blue-600 text-white font-black shadow-md'
+                                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            <span>{c.name}</span>
+                                            <span className={`text-[11px] font-medium ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
+                                                &#40;{cCount}&#41;
                                             </span>
-                                        </td>
-                                        <td className="px-4 py-3.5 text-center font-bold text-xs">{rule.minScore}%</td>
-                                        <td className="px-6 py-3.5">
-                                            <input
-                                                type="text"
-                                                value={rule.classTeacherComment}
-                                                onChange={e => {
-                                                    const updated = [...commentRules];
-                                                    updated[idx].classTeacherComment = e.target.value;
-                                                    setCommentRules(updated);
-                                                }}
-                                                className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium"
-                                            />
-                                        </td>
-                                        <td className="px-6 py-3.5">
-                                            <input
-                                                type="text"
-                                                value={rule.principalComment}
-                                                onChange={e => {
-                                                    const updated = [...commentRules];
-                                                    updated[idx].principalComment = e.target.value;
-                                                    setCommentRules(updated);
-                                                }}
-                                                className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium"
-                                            />
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
 
-                    <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
-                        <button
-                            type="button"
-                            onClick={handleSaveAllExamConfigs}
-                            disabled={saveStatus === 'saving'}
-                            className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all disabled:opacity-50"
-                        >
-                            Save Teacher Comments
-                        </button>
+                        {/* Right Panel Table */}
+                        <div className="md:col-span-3 space-y-4">
+                            <div className="flex justify-between items-center pb-2">
+                                <h3 className="font-black text-xs uppercase text-slate-900 dark:text-white tracking-wider">
+                                    {activeClassComments.className.toUpperCase()} REMARKS SETUP
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={handleAddTeacherCommentRule}
+                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all border border-slate-300 dark:border-slate-700 flex items-center gap-1.5"
+                                >
+                                    <PlusIcon className="w-3.5 h-3.5" /> Add New Comment
+                                </button>
+                            </div>
+
+                            {/* Table Matching Screenshot */}
+                            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm">
+                                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
+                                    <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left text-xs font-bold w-24">Grade</th>
+                                            <th className="px-6 py-3 text-left text-xs font-bold">Class Teacher's Comment</th>
+                                            <th className="px-6 py-3 text-left text-xs font-bold">School Head's Comment</th>
+                                            <th className="px-4 py-3 text-center w-12"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                        {activeClassComments.rules.map(rule => (
+                                            <tr key={rule.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                                                {/* Grade Select Dropdown matching screenshot */}
+                                                <td className="px-4 py-3 align-top">
+                                                    <div className="relative">
+                                                        <select
+                                                            value={rule.grade}
+                                                            onChange={e => handleUpdateTeacherComment(rule.id, 'grade', e.target.value)}
+                                                            className="w-full h-10 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500"
+                                                        >
+                                                            {['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E'].map(g => (
+                                                                <option key={g} value={g}>{g}</option>
+                                                            ))}
+                                                        </select>
+                                                        <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
+                                                    </div>
+                                                </td>
+
+                                                {/* Class Teacher's Comment Input */}
+                                                <td className="px-6 py-3 align-top">
+                                                    <textarea
+                                                        rows={2}
+                                                        value={rule.classTeacherComment}
+                                                        onChange={e => handleUpdateTeacherComment(rule.id, 'classTeacherComment', e.target.value)}
+                                                        className="w-full p-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-y"
+                                                        placeholder="Class teacher remark..."
+                                                    />
+                                                </td>
+
+                                                {/* School Head's Comment Input */}
+                                                <td className="px-6 py-3 align-top">
+                                                    <textarea
+                                                        rows={2}
+                                                        value={rule.schoolHeadComment}
+                                                        onChange={e => handleUpdateTeacherComment(rule.id, 'schoolHeadComment', e.target.value)}
+                                                        className="w-full p-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-y"
+                                                        placeholder="School head remark..."
+                                                    />
+                                                </td>
+
+                                                {/* Delete Icon Button */}
+                                                <td className="px-4 py-3 text-center align-top pt-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteTeacherCommentRule(rule.id)}
+                                                        className="p-1.5 text-blue-600 hover:text-red-600 transition-colors"
+                                                        title="Delete remark rule"
+                                                    >
+                                                        <XIcon className="w-4 h-4 stroke-[2.5]" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+
+                                        {activeClassComments.rules.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="py-12 text-center text-slate-400 text-xs font-bold uppercase">
+                                                    No comments configured for {activeClassComments.className}
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Save Button */}
+                            <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={handleSaveAllExamConfigs}
+                                    disabled={saveStatus === 'saving'}
+                                    className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all disabled:opacity-50"
+                                >
+                                    {saveStatus === 'saving' ? 'Saving Comments...' : 'Save Teacher Comments Config'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
