@@ -21,6 +21,7 @@ import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
 import { GradingSystemManager } from './GradingSystemManager';
 import { SubjectGroupingManager } from './SubjectGroupingManager';
 import { KcpeScoresManager } from './KcpeScoresManager';
+import { ExamConfigManager } from './ExamConfigManager';
 import { SubscriptionManager } from './SubscriptionManager';
 import { supabase } from '../lib/supabase';
 import { apiService } from '../services/apiService';
@@ -281,7 +282,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     };
 
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
-    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing' | 'subject_grouping' | 'kcpe_scores'>('profile');
+    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing' | 'subject_grouping' | 'kcpe_scores' | 'exam_config'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage' | 'googledrive'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba' | 'kcb' | 'coop'>('mpesa');
     const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive' | 'itax'>('mpesa');
@@ -3795,7 +3796,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     }
                                     return filtered;
                                 }
-                                const subs = ['profile', 'grading', 'subject_grouping', 'kcpe_scores', 'security_policy', 'location', 'branding'];
+                                const subs = ['profile', 'exam_config', 'grading', 'subject_grouping', 'kcpe_scores', 'security_policy', 'location', 'branding'];
                                 if (props.currentUser.role === 'admin') { 
                                     subs.push('billing'); 
                                     subs.push('integrations');
@@ -3806,6 +3807,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 <button key={sub} onClick={() => setGeneralSubTab(sub as any)} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${generalSubTab === sub ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
                                     {sub === 'profile' && <InformationCircleIcon className="w-4 h-4" />}
                                     {sub === 'academic_settings' && <ChartBarIcon className="w-4 h-4 text-amber-500" />}
+                                    {sub === 'exam_config' && <AcademicCapIcon className="w-4 h-4 text-indigo-600" />}
                                     {sub === 'grading' && <AcademicCapIcon className="w-4 h-4 text-indigo-500" />}
                                     {sub === 'subject_grouping' && <BookOpenIcon className="w-4 h-4 text-emerald-500" />}
                                     {sub === 'kcpe_scores' && <AcademicCapIcon className="w-4 h-4 text-purple-500" />}
@@ -3816,7 +3818,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     {sub === 'integrations' && <ArrowsRightLeftIcon className="w-4 h-4 text-slate-500" />}
                                     {sub === 'sms' && <PaperAirplaneIcon className="w-4 h-4 text-sky-500" />}
 
-                                    {sub === 'grading' ? 'Grade Map' : sub === 'subject_grouping' ? 'Subject Grouping' : sub === 'kcpe_scores' ? 'KCPE Scores' : sub === 'integrations' ? 'Billing Map' : sub.replace('_', ' ')}
+                                    {sub === 'exam_config' ? 'Exam' : sub === 'grading' ? 'Grade Map' : sub === 'subject_grouping' ? 'Subject Grouping' : sub === 'kcpe_scores' ? 'KCPE Scores' : sub === 'integrations' ? 'Billing Map' : sub.replace('_', ' ')}
                                 </button>
                             ))}
                         </div>
@@ -4188,6 +4190,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         )}
                         {generalSubTab === 'location' && <LocationSettings institution={props.currentInstitution} onSave={(id: string, data: any) => props.onUpdateInstitution && props.onUpdateInstitution(id, data)} />}
                         {generalSubTab === 'branding' && ( /* ... branding UI ... */ <div className="space-y-6"><div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700"><div className="flex justify-between items-center mb-8"><h4 className="font-bold text-lg flex items-center gap-2"><SparklesIcon className="w-5 h-5 text-indigo-500" /> Visual Brand Identity</h4><button onClick={() => setShowPaperPreview(!showPaperPreview)} className="text-[10px] font-black uppercase text-indigo-600 hover:underline flex items-center gap-1"><EyeIcon className="w-4 h-4" /> {showPaperPreview ? 'Hide Paper' : 'Preview Documents'}</button></div><div className="grid grid-cols-1 md:grid-cols-2 gap-10"><div className="space-y-6"><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Accent Theme Color</label><div className="flex gap-4 items-center"><input type="color" value={props.themeColor} onChange={(e: React.ChangeEvent<HTMLInputElement>) => props.onUpdateThemeColor && props.onUpdateThemeColor(e.target.value)} className="h-12 w-24 p-1 rounded-xl border border-slate-200 bg-white cursor-pointer" /><span className="font-mono text-sm font-bold text-slate-500 uppercase">{props.themeColor}</span></div></div><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Corporate Seal / Logo</label><div className="flex items-center gap-6"><div className="h-20 w-20 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center overflow-hidden border border-slate-100 shadow-inner">{props.logoUrl ? <img loading="lazy" src={props.logoUrl} alt="Logo" className="h-full w-full object-contain" /> : <BuildingOfficeIcon className="w-8 h-8 text-slate-200" />}</div><label className="btn-secondary text-[10px] h-10 px-4 flex items-center justify-center cursor-pointer">Update Emblem<input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'logo')} /></label></div></div></div><div className="space-y-4"><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Document Header (LPO/Receipts)</label><label className="btn-secondary h-24 w-full flex flex-col items-center justify-center gap-2 cursor-pointer border-dashed"><ArrowUpTrayIcon className="w-6 h-6 text-slate-300" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Upload Header Banner</span><input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'letterhead')} /></label></div><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Official Report Footer</label><label className="btn-secondary h-16 w-full flex items-center justify-center gap-2 cursor-pointer border-dashed"><ArrowUpTrayIcon className="w-4 h-4 text-slate-300" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Upload Footer Strip</span><input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'footer')} /></label></div></div></div></div>{showPaperPreview && (<div className="mt-12 border-4 border-dashed border-slate-100 rounded-[3.5rem] p-6 bg-slate-50 animate-scale-in origin-top"><BrandedPaper institution={props.currentInstitution} letterheadConfig={props.letterheadConfig} footerImageUrl={props.footerImageUrl}><div className="h-96 flex flex-col items-center justify-center opacity-10 py-32"><ClipboardListIcon className="w-24 h-24 text-slate-900 mb-6" /><p className="text-2xl font-black text-slate-900 uppercase tracking-[0.2em]">Live Document Preview</p></div></BrandedPaper></div>)}</div>)}
+                        {generalSubTab === 'exam_config' && <div className="animate-fade-in"><ExamConfigManager currentInstitution={props.currentInstitution} onUpdateInstitution={props.onUpdateInstitution} subjects={props.subjects} academicLevels={props.academicLevels} courses={props.courses} /></div>}
                         {generalSubTab === 'grading' && <div className="animate-fade-in"><GradingSystemManager currentInstitution={props.currentInstitution} onUpdateInstitution={props.onUpdateInstitution} /></div>}
                         {generalSubTab === 'subject_grouping' && <div className="animate-fade-in"><SubjectGroupingManager currentInstitution={props.currentInstitution} onUpdateInstitution={props.onUpdateInstitution} academicLevels={props.academicLevels} courses={props.courses} subjects={props.subjects} /></div>}
                         {generalSubTab === 'kcpe_scores' && <div className="animate-fade-in"><KcpeScoresManager currentInstitution={props.currentInstitution} onUpdateInstitution={props.onUpdateInstitution} users={props.users} /></div>}
