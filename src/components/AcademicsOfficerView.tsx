@@ -22,6 +22,7 @@ import { ChartBarIcon } from './icons/ChartBarIcon';
 import { BarChart3Icon } from './icons/BarChart3Icon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
+import { HomeIcon } from './icons/HomeIcon';
 
 import { generateStandardExamTimetable } from '../utils/examUtils';
 import { TimetableWizard } from './TimetableWizard';
@@ -156,7 +157,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         onTimetableGenerated = async () => {}
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'exam_units' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'home' | 'exam_units' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
     const [isLoading, setIsLoading] = useState(false);
@@ -256,7 +257,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     const tabs = [
-        { id: 'dashboard', label: 'Dashboard', icon: ClipboardListIcon },
+        { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
         { id: 'exam_insights', label: 'Exam Insights', icon: BarChart3Icon },
         { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
@@ -270,13 +271,13 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
             {/* Sidebar (Vertical Menu) */}
             <div className={`${isSidebarOpen ? 'w-full lg:w-72' : 'w-full lg:w-24'} bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-[2.5rem] shadow-sm transition-all duration-500 flex flex-col p-6 shrink-0 no-print`}>
                 <div className="flex items-center gap-4 mb-8 px-2">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 shadow-xl shadow-indigo-500/20 flex items-center justify-center text-white shrink-0">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-indigo-600 shadow-xl shadow-indigo-500/20 flex items-center justify-center text-white shrink-0">
                         <BookOpenIcon className="w-7 h-7" />
                     </div>
                     {isSidebarOpen && (
                         <div className="animate-fade-in whitespace-nowrap">
                             <h2 className="text-[13px] font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none mb-1">
-                                Academics Hub
+                                ⚡ Cyber Academic HUD
                             </h2>
                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">
                                 AI Operations & Governance
@@ -292,7 +293,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             onClick={() => setActiveTab(item.id as any)}
                             className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 relative group cursor-pointer ${
                                 activeTab === item.id 
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 scale-105' 
+                                ? 'bg-gradient-to-r from-emerald-500 via-teal-600 to-indigo-600 text-white shadow-lg shadow-emerald-500/30 scale-105' 
                                 : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-750 dark:text-slate-400 dark:hover:text-white'
                             }`}
                         >
@@ -304,6 +305,9 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                     {item.label}
                                 </span>
                             )}
+                            {activeTab === item.id && isSidebarOpen && (
+                                <div className="absolute right-4 w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                            )}
                         </button>
                     ))}
                 </nav>
@@ -311,7 +315,27 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
             {/* Main Content Area */}
             <div className="flex-1 w-full min-w-0 space-y-6">
-                {activeTab === 'dashboard' && (
+                {/* Horizontal Navigation Sub-Bar */}
+                <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 p-4 rounded-[2.5rem] shadow-sm shrink-0 gap-4">
+                    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto custom-scrollbar-horizontal max-w-[70vw] md:max-w-full pb-1">
+                        {tabs.map(sub => (
+                            <button
+                                key={sub.id}
+                                onClick={() => setActiveTab(sub.id as any)}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap cursor-pointer ${
+                                    activeTab === sub.id
+                                    ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105 font-black'
+                                    : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 font-semibold'
+                                }`}
+                            >
+                                <sub.icon className={`w-4 h-4 ${activeTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
+                                <span className="text-[11px] uppercase tracking-widest">{sub.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {activeTab === 'home' && (
                 <div className="space-y-6">
                     <section className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                         <h3 className="text-xl font-black tracking-tighter uppercase mb-6 flex items-center gap-2 text-slate-900 dark:text-white">
