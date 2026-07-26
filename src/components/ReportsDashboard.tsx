@@ -340,8 +340,6 @@ const ClientStatementReport: React.FC<{
     );
 };
 
-import { apiService } from '../services/apiService';
-
 export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const {
         activeScope,

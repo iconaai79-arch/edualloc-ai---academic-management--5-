@@ -1802,6 +1802,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
         { id: 'student_invoices', label: 'Invoices', icon: ClipboardListIcon },
+        { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
         { id: 'gok_capitation', label: 'GoK Capitation', icon: BuildingLibraryIcon },
         { id: 'bursaries', label: 'NG-CDF Bursaries', icon: ScaleIcon },
@@ -3799,7 +3800,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const renderFeeBalancesContent = () => (
         <div className="space-y-8 animate-in fade-in duration-300">
             {/* Header & Quick Action Banner */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
                 <div>
                     <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
                         <BanknotesIcon className="w-6 h-6 text-indigo-600" />
@@ -3807,15 +3808,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </h3>
                     <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Manage student balances, filter status, and dispatch SMS reminders to parents</p>
                 </div>
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <div className="bg-rose-50 dark:bg-rose-950/40 px-4 py-2.5 rounded-2xl text-left border border-rose-100 dark:border-rose-900/40">
+                <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
+                    <div className="bg-rose-50 dark:bg-rose-950/40 px-4 py-2.5 rounded-2xl text-left border border-rose-100 dark:border-rose-900/40 shrink-0">
                         <p className="text-[8px] font-black text-rose-500 dark:text-rose-400 uppercase tracking-widest">Total Outstanding</p>
                         <p className="text-sm font-black text-rose-600 dark:text-rose-400">KSh {totalOutstandingAll.toLocaleString()}</p>
                     </div>
                     <button
                         type="button"
                         onClick={() => setIsPtpDashboardOpen(true)}
-                        className="flex-1 md:flex-none py-3 px-5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/25 active:scale-95 cursor-pointer relative"
+                        className="py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/25 active:scale-95 cursor-pointer relative shrink-0"
                     >
                         <ClockIcon className="w-4 h-4" />
                         <span>PTP Promises Tracker</span>
@@ -3831,7 +3832,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             setReminderSendSuccess(null);
                             setIsFeeReminderModalOpen(true);
                         }}
-                        className="flex-1 md:flex-none py-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-95 cursor-pointer"
+                        className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-95 cursor-pointer shrink-0"
                     >
                         <PaperAirplaneIcon className="w-4 h-4" />
                         <span>Send Fee Reminders</span>
@@ -3850,16 +3851,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             ]);
                             exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
                         }}
-                        className="flex-1 md:flex-none py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer"
+                        className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer shrink-0"
                     >
-                        📥 Export CSV
+                        <DownloadIcon className="w-4 h-4" />
+                        <span>Export CSV</span>
                     </button>
                     <button
                         type="button"
                         onClick={() => window.print()}
-                        className="flex-1 md:flex-none py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer"
+                        className="py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
                     >
-                        🖨️ Print
+                        <PrinterIcon className="w-4 h-4" />
+                        <span>Print</span>
                     </button>
                 </div>
             </div>
@@ -14614,7 +14617,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-6">
                                     <div>
                                         <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{props.institution.name}</h2>
-                                        <p className="text-xs font-bold text-slate-600">{props.institution.location || 'Finance & Accounting Division'}</p>
+                                        <p className="text-xs font-bold text-slate-600">{typeof props.institution.location === 'string' ? props.institution.location : (props.institution.location && typeof props.institution.location === 'object' ? `${props.institution.location.latitude}, ${props.institution.location.longitude}` : 'Finance & Accounting Division')}</p>
                                         <p className="text-[10px] text-slate-500 font-mono mt-0.5">Date: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                                     </div>
                                     <div className="text-right">

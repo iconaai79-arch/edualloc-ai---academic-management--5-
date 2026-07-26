@@ -187,7 +187,8 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                 return;
             }
             branchName = selectedExistingInstForBranch.name;
-            branchLoc = selectedExistingInstForBranch.location || selectedExistingInstForBranch.countyId || 'Main Location';
+            const locVal = selectedExistingInstForBranch.location;
+            branchLoc = (typeof locVal === 'string' ? locVal : (locVal && typeof locVal === 'object' ? `${locVal.latitude}, ${locVal.longitude}` : (selectedExistingInstForBranch.countyId || 'Main Location'))).trim();
             linkedInstId = selectedExistingInstForBranch.id;
         } else {
             if (!branchName) {
@@ -709,9 +710,11 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                                 const inst = institutions.find(i => i.id === e.target.value) || null;
                                                 setSelectedExistingInstForBranch(inst);
                                                 if (inst) {
+                                                    const locVal = inst.location;
+                                                    const locStr = typeof locVal === 'string' ? locVal : (locVal && typeof locVal === 'object' ? `${locVal.latitude}, ${locVal.longitude}` : (inst.countyId || 'Main Campus'));
                                                     setNewBranchData({
                                                         name: inst.name,
-                                                        location: inst.location || inst.countyId || 'Main Campus',
+                                                        location: locStr,
                                                         customId: `br_${inst.id}`
                                                     });
                                                 }

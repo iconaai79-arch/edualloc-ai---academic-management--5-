@@ -2,5 +2,10 @@
     "css.lint.unknownAtRules": "ignore",
     "tailwindCSS.includeLanguages": {
         "plaintext": "css"
-    }
+    },
+    "files.associations": {
+        "*.sql": "postgres"
+    },
+    "mssql.intelliSense.enableErrorChecking": false,
+    "sql.linter.run": "never"
 }
