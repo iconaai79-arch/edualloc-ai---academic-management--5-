@@ -47,10 +47,23 @@ export interface ClassTeacherCommentsConfig {
     rules: ClassTeacherCommentRule[];
 }
 
-export interface RankingConfig {
-    criteria: 'total_marks' | 'mean_score' | 'total_points';
-    subjectCountPerYearGroup: Record<string, number>;
-    tieBreaker: 'joint_rank' | 'sequential';
+export interface ClassRankingConfig {
+    classId: string;
+    className: string;
+    enabled: boolean;
+    criteria: 'Points' | 'Total Marks' | 'Mean Score';
+    rankingSubjectsCount: number;
+}
+
+export interface OthersExamSettings {
+    inviteCode: string;
+    meanPointsDecimal: number;
+    meanScoreDecimal: number;
+    meanMarksDecimal: number;
+    absentGrade: string;
+    irregularityGrade: string;
+    incompleteGrade: string;
+    includeNonRankingInAnalysis: boolean;
 }
 
 interface ExamConfigManagerProps {
@@ -96,7 +109,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     const [activeClassId, setActiveClassId] = useState<string>('form_3');
     const [activeCommentClassId, setActiveCommentClassId] = useState<string>('form_3');
 
-    // Default initial Per-Class Exam Papers state
+    // 1. Default initial Per-Class Exam Papers state
     const initialClassConfigs: ClassExamConfig[] = useMemo(() => [
         {
             classId: 'form_3',
@@ -320,19 +333,25 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
 
     const [classComments, setClassComments] = useState<ClassTeacherCommentsConfig[]>(initialClassComments);
 
-    // 3. Ranking State
-    const [rankingConfig, setRankingConfig] = useState<RankingConfig>({
-        criteria: 'total_marks',
-        subjectCountPerYearGroup: {
-            'form_1': 11,
-            'form_2': 11,
-            'form_3': 7,
-            'form_4': 7,
-            'grade_7': 9,
-            'grade_8': 9,
-            'grade_9': 9
-        },
-        tieBreaker: 'joint_rank'
+    // 3. Per-Class Students Ranking State matching screenshot
+    const initialClassRankingConfigs: ClassRankingConfig[] = useMemo(() => [
+        { classId: 'form_3', className: 'Form 3', enabled: true, criteria: 'Points', rankingSubjectsCount: 7 },
+        { classId: 'form_4', className: 'Form 4', enabled: true, criteria: 'Points', rankingSubjectsCount: 7 },
+        { classId: 'grade_10', className: 'Grade 10', enabled: true, criteria: 'Points', rankingSubjectsCount: 7 }
+    ], []);
+
+    const [classRankingConfigs, setClassRankingConfigs] = useState<ClassRankingConfig[]>(initialClassRankingConfigs);
+
+    // 4. Others Settings State matching screenshot
+    const [othersSettings, setOthersSettings] = useState<OthersExamSettings>({
+        inviteCode: '6ZH7L',
+        meanPointsDecimal: 4,
+        meanScoreDecimal: 2,
+        meanMarksDecimal: 2,
+        absentGrade: 'X',
+        irregularityGrade: 'Y',
+        incompleteGrade: 'Z',
+        includeNonRankingInAnalysis: false
     });
 
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -350,16 +369,41 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                 setClassComments(savedCommentsConfig);
             }
 
-            const savedRanking = (currentInstitution as any)?.examRankingConfig;
-            if (savedRanking) {
-                setRankingConfig({
-                    criteria: savedRanking.criteria || 'total_marks',
-                    subjectCountPerYearGroup: savedRanking.subjectCountPerYearGroup || rankingConfig.subjectCountPerYearGroup,
-                    tieBreaker: savedRanking.tieBreaker || 'joint_rank'
+            const savedClassRankingConfigs = (currentInstitution as any)?.classRankingConfigs;
+            if (savedClassRankingConfigs && Array.isArray(savedClassRankingConfigs) && savedClassRankingConfigs.length > 0) {
+                setClassRankingConfigs(savedClassRankingConfigs);
+            }
+
+            const savedOthersSettings = (currentInstitution as any)?.othersExamSettings;
+            if (savedOthersSettings) {
+                setOthersSettings({
+                    inviteCode: savedOthersSettings.inviteCode || '6ZH7L',
+                    meanPointsDecimal: savedOthersSettings.meanPointsDecimal ?? 4,
+                    meanScoreDecimal: savedOthersSettings.meanScoreDecimal ?? 2,
+                    meanMarksDecimal: savedOthersSettings.meanMarksDecimal ?? 2,
+                    absentGrade: savedOthersSettings.absentGrade || 'X',
+                    irregularityGrade: savedOthersSettings.irregularityGrade || 'Y',
+                    incompleteGrade: savedOthersSettings.incompleteGrade || 'Z',
+                    includeNonRankingInAnalysis: !!savedOthersSettings.includeNonRankingInAnalysis
                 });
             }
         }
     }, [currentInstitution]);
+
+    // Make sure all classes in classList have a ranking row
+    const rankingRows = useMemo(() => {
+        return classList.map(c => {
+            const existing = classRankingConfigs.find(r => r.classId === c.id);
+            if (existing) return existing;
+            return {
+                classId: c.id,
+                className: c.name,
+                enabled: true,
+                criteria: 'Points' as const,
+                rankingSubjectsCount: 7
+            };
+        });
+    }, [classList, classRankingConfigs]);
 
     // Active class configuration helper for Exam Papers
     const activeClassConfig = useMemo(() => {
@@ -411,7 +455,8 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
             await onUpdateInstitution(currentInstitution.id, {
                 classExamConfigs: classConfigs,
                 classTeacherCommentsConfig: classComments,
-                examRankingConfig: rankingConfig
+                classRankingConfigs: classRankingConfigs,
+                othersExamSettings: othersSettings
             } as any);
 
             setSaveStatus('saved');
@@ -595,6 +640,28 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                 }
                 return c;
             });
+        });
+    };
+
+    // Update Ranking Rule for a Class
+    const handleUpdateRankingRule = (cId: string, cName: string, field: keyof ClassRankingConfig, value: any) => {
+        setClassRankingConfigs(prev => {
+            const idx = prev.findIndex(r => r.classId === cId);
+            if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = { ...updated[idx], [field]: value };
+                return updated;
+            } else {
+                const newRow: ClassRankingConfig = {
+                    classId: cId,
+                    className: cName,
+                    enabled: true,
+                    criteria: 'Points',
+                    rankingSubjectsCount: 7,
+                    [field]: value
+                };
+                return [...prev, newRow];
+            }
         });
     };
 
@@ -951,81 +1018,240 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                 </div>
             )}
 
-            {/* TAB 4: STUDENTS RANKING */}
+            {/* TAB 4: STUDENTS RANKING (MATCHING SCREENSHOT EXACTLY) */}
             {activeSubTab === 'students_ranking' && (
                 <div className="bg-white dark:bg-slate-900 rounded-b-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 animate-fade-in shadow-sm">
+                    {/* Description matching screenshot */}
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                        Specify the criteria that the school uses to rank students by clicking the arrow below. We support ranking by total marks, mean score or points. Also choose the number of subjects used to rank for each year group.
+                        Specify the criteria that the school uses to rank students by clicking the <ChevronDownIcon className="w-3.5 h-3.5 inline text-slate-700 dark:text-slate-300 stroke-[2.5]" /> arrow below. We support ranking by total marks, mean score or points. Also choose the number of subjects used to rank for each year group.
                     </p>
 
-                    <div className="space-y-4">
-                        <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">Primary Ranking Criterion</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div
-                                onClick={() => setRankingConfig(prev => ({ ...prev, criteria: 'total_marks' }))}
-                                className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
-                                    rankingConfig.criteria === 'total_marks'
-                                        ? 'border-blue-600 bg-blue-50/40 dark:bg-blue-900/20 shadow-sm'
-                                        : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 opacity-70 hover:opacity-100'
-                                }`}
-                            >
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className="font-bold text-xs uppercase text-slate-900 dark:text-white">Total Marks</span>
-                                    {rankingConfig.criteria === 'total_marks' && <CheckIcon className="w-4 h-4 text-blue-600" />}
-                                </div>
-                                <p className="text-[10px] text-slate-500 uppercase">Rank students by aggregate raw marks sum achieved across subjects.</p>
-                            </div>
+                    {/* Table View matching screenshot */}
+                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm">
+                        <table className="min-w-full divide-y divide-slate-200 dark:border-slate-800">
+                            <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400">
+                                <tr>
+                                    <th className="px-6 py-3.5 text-left text-xs font-bold w-48">Year Group</th>
+                                    <th className="px-6 py-3.5 text-left text-xs font-bold w-44">Ranking Enabled</th>
+                                    <th className="px-6 py-3.5 text-left text-xs font-bold">Criteria</th>
+                                    <th className="px-6 py-3.5 text-left text-xs font-bold">Ranking Subjects</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                {rankingRows.map(row => (
+                                    <tr key={row.classId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                                        {/* Year Group Name */}
+                                        <td className="px-6 py-4 font-bold text-xs text-slate-900 dark:text-white">
+                                            {row.className}
+                                        </td>
 
-                            <div
-                                onClick={() => setRankingConfig(prev => ({ ...prev, criteria: 'mean_score' }))}
-                                className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
-                                    rankingConfig.criteria === 'mean_score'
-                                        ? 'border-blue-600 bg-blue-50/40 dark:bg-blue-900/20 shadow-sm'
-                                        : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 opacity-70 hover:opacity-100'
-                                }`}
-                            >
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className="font-bold text-xs uppercase text-slate-900 dark:text-white">Mean Score (%)</span>
-                                    {rankingConfig.criteria === 'mean_score' && <CheckIcon className="w-4 h-4 text-blue-600" />}
-                                </div>
-                                <p className="text-[10px] text-slate-500 uppercase">Rank students by overall average percentage score achieved across papers.</p>
-                            </div>
+                                        {/* Ranking Enabled Checkbox */}
+                                        <td className="px-6 py-4">
+                                            <input
+                                                type="checkbox"
+                                                checked={row.enabled}
+                                                onChange={e => handleUpdateRankingRule(row.classId, row.className, 'enabled', e.target.checked)}
+                                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                            />
+                                        </td>
 
-                            <div
-                                onClick={() => setRankingConfig(prev => ({ ...prev, criteria: 'total_points' }))}
-                                className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
-                                    rankingConfig.criteria === 'total_points'
-                                        ? 'border-blue-600 bg-blue-50/40 dark:bg-blue-900/20 shadow-sm'
-                                        : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 opacity-70 hover:opacity-100'
-                                }`}
-                            >
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className="font-bold text-xs uppercase text-slate-900 dark:text-white">Total Points (KNEC)</span>
-                                    {rankingConfig.criteria === 'total_points' && <CheckIcon className="w-4 h-4 text-blue-600" />}
-                                </div>
-                                <p className="text-[10px] text-slate-500 uppercase">Rank students using KNEC aggregate grade points (1 to 12 pts per subject).</p>
-                            </div>
-                        </div>
+                                        {/* Criteria Select Dropdown with Chevron */}
+                                        <td className="px-6 py-4">
+                                            <div className="relative max-w-xs">
+                                                <select
+                                                    value={row.criteria}
+                                                    onChange={e => handleUpdateRankingRule(row.classId, row.className, 'criteria', e.target.value as any)}
+                                                    className="w-full h-10 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500"
+                                                >
+                                                    <option value="Points">Points</option>
+                                                    <option value="Total Marks">Total Marks</option>
+                                                    <option value="Mean Score">Mean Score</option>
+                                                </select>
+                                                <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
+                                            </div>
+                                        </td>
+
+                                        {/* Ranking Subjects Count Select Dropdown with Chevron */}
+                                        <td className="px-6 py-4">
+                                            <div className="relative max-w-xs">
+                                                <select
+                                                    value={row.rankingSubjectsCount}
+                                                    onChange={e => handleUpdateRankingRule(row.classId, row.className, 'rankingSubjectsCount', parseInt(e.target.value) || 7)}
+                                                    className="w-full h-10 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500"
+                                                >
+                                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map(num => (
+                                                        <option key={num} value={num}>{num}</option>
+                                                    ))}
+                                                </select>
+                                                <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
 
-                    <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
+                    {/* Bottom Right Save Changes Button matching screenshot */}
+                    <div className="flex justify-end pt-4">
                         <button
                             type="button"
                             onClick={handleSaveAllExamConfigs}
                             disabled={saveStatus === 'saving'}
-                            className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all disabled:opacity-50"
+                            className="px-8 py-3 bg-blue-400 hover:bg-blue-600 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all disabled:opacity-50"
                         >
-                            Save Ranking Rules
+                            {saveStatus === 'saving' ? 'Saving...' : 'Save Changes'}
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* TAB 5: OTHERS */}
+            {/* TAB 5: OTHERS (MATCHING SCREENSHOT EXACTLY) */}
             {activeSubTab === 'others' && (
-                <div className="bg-white dark:bg-slate-900 rounded-b-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 animate-fade-in shadow-sm">
-                    <h3 className="text-sm font-bold uppercase text-slate-900 dark:text-white">Additional Examination Policies</h3>
-                    <p className="text-xs text-slate-500">Configure secondary exam rules, transcript headers, and report card disclaimers.</p>
+                <div className="bg-white dark:bg-slate-900 rounded-b-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-8 animate-fade-in shadow-sm">
+                    {/* SECTION 1: Inter-school invite code */}
+                    <div className="space-y-3 pb-6 border-b border-slate-200 dark:border-slate-800">
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">Inter-school invite code</h4>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-4xl">
+                            Inter-school exams allow multiple schools to test their students through one standardized exam. The system then generates exam analysis reports involving all participating students. Share the code below with schools you wish to conduct joint exams with.
+                        </p>
+                        <div className="pt-2 flex items-center gap-3">
+                            <span className="text-xs font-medium text-slate-500">Your code is:</span>
+                            <span className="font-mono text-sm font-bold text-slate-900 dark:text-white px-3 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md">
+                                {othersSettings.inviteCode}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* SECTION 2: Decimal Places */}
+                    <div className="space-y-4 pb-6 border-b border-slate-200 dark:border-slate-800">
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">Decimal Places</h4>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-4xl">
+                            Choose the number of decimal places used to round off figures in your exam analysis, broadsheet and other reports.
+                        </p>
+
+                        <div className="space-y-3 max-w-md">
+                            {/* Mean points */}
+                            <div className="flex justify-between items-center py-1">
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Mean points:</span>
+                                <div className="relative w-32">
+                                    <select
+                                        value={othersSettings.meanPointsDecimal}
+                                        onChange={e => setOthersSettings(prev => ({ ...prev, meanPointsDecimal: parseInt(e.target.value) || 4 }))}
+                                        className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        {[0, 1, 2, 3, 4].map(n => (
+                                            <option key={n} value={n}>{n}</option>
+                                        ))}
+                                    </select>
+                                    <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                </div>
+                            </div>
+
+                            {/* Mean score */}
+                            <div className="flex justify-between items-center py-1">
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Mean score:</span>
+                                <div className="relative w-32">
+                                    <select
+                                        value={othersSettings.meanScoreDecimal}
+                                        onChange={e => setOthersSettings(prev => ({ ...prev, meanScoreDecimal: parseInt(e.target.value) || 2 }))}
+                                        className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        {[0, 1, 2, 3, 4].map(n => (
+                                            <option key={n} value={n}>{n}</option>
+                                        ))}
+                                    </select>
+                                    <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                </div>
+                            </div>
+
+                            {/* Mean marks */}
+                            <div className="flex justify-between items-center py-1">
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Mean marks:</span>
+                                <div className="relative w-32">
+                                    <select
+                                        value={othersSettings.meanMarksDecimal}
+                                        onChange={e => setOthersSettings(prev => ({ ...prev, meanMarksDecimal: parseInt(e.target.value) || 2 }))}
+                                        className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        {[0, 1, 2, 3, 4].map(n => (
+                                            <option key={n} value={n}>{n}</option>
+                                        ))}
+                                    </select>
+                                    <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* SECTION 3: Non-ranking grades */}
+                    <div className="space-y-4">
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">Non-ranking grades</h4>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-4xl">
+                            Here you can indicate the grades to assign to students who do not take all papers in an exam, those who were absent during the exam or those who committed irregularities.
+                        </p>
+
+                        <div className="space-y-3 max-w-md">
+                            {/* Absent during exam */}
+                            <div className="flex justify-between items-center py-1">
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Absent during exam:</span>
+                                <input
+                                    type="text"
+                                    value={othersSettings.absentGrade}
+                                    onChange={e => setOthersSettings(prev => ({ ...prev, absentGrade: e.target.value }))}
+                                    className="w-32 h-9 px-3 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            {/* With exam irregularities */}
+                            <div className="flex justify-between items-center py-1">
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">With exam irregularities:</span>
+                                <input
+                                    type="text"
+                                    value={othersSettings.irregularityGrade}
+                                    onChange={e => setOthersSettings(prev => ({ ...prev, irregularityGrade: e.target.value }))}
+                                    className="w-32 h-9 px-3 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            {/* With incomplete papers */}
+                            <div className="flex justify-between items-center py-1">
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">With incomplete papers:</span>
+                                <input
+                                    type="text"
+                                    value={othersSettings.incompleteGrade}
+                                    onChange={e => setOthersSettings(prev => ({ ...prev, incompleteGrade: e.target.value }))}
+                                    className="w-32 h-9 px-3 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Checkbox: Include students with non-ranking grades in exam analysis */}
+                        <div className="pt-2 flex items-center gap-3">
+                            <input
+                                type="checkbox"
+                                id="chk_non_ranking"
+                                checked={othersSettings.includeNonRankingInAnalysis}
+                                onChange={e => setOthersSettings(prev => ({ ...prev, includeNonRankingInAnalysis: e.target.checked }))}
+                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                            />
+                            <label htmlFor="chk_non_ranking" className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                                Include students with non-ranking grades in exam analysis
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* Bottom Right Save Changes Button matching screenshot */}
+                    <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
+                        <button
+                            type="button"
+                            onClick={handleSaveAllExamConfigs}
+                            disabled={saveStatus === 'saving'}
+                            className="px-8 py-3 bg-blue-400 hover:bg-blue-600 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all disabled:opacity-50"
+                        >
+                            {saveStatus === 'saving' ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </div>
                 </div>
             )}
 
