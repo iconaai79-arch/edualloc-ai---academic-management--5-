@@ -21,6 +21,7 @@ import { BeakerIcon } from './icons/BeakerIcon';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { BarChart3Icon } from './icons/BarChart3Icon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
+import { UserPlusIcon } from './icons/UserPlusIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 import { HomeIcon } from './icons/HomeIcon';
 
@@ -30,6 +31,7 @@ import { ExamInsights } from './Academics/ExamInsights';
 import { AcademicReportsHub } from './Academics/AcademicReportsHub';
 import { BulkImportWizard } from './BulkImportWizard';
 import { DisciplineManager } from './Academics/DisciplineManager';
+import { StudentEnrollmentManager } from './common/StudentEnrollmentManager';
 
 interface AcademicsOfficerViewProps {
     currentUser?: User;
@@ -157,7 +159,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         onTimetableGenerated = async () => {}
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'home' | 'exam_units' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'exam_units' | 'students' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
     const [isLoading, setIsLoading] = useState(false);
@@ -256,15 +258,18 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-    const tabs = [
+    const horizontalTabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
+        { id: 'students', label: 'Students Registry', icon: UserPlusIcon },
         { id: 'exam_insights', label: 'Exam Insights', icon: BarChart3Icon },
         { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
         { id: 'people', label: 'People Governance', icon: UserGroupIcon },
         { id: 'discipline', label: 'Discipline', icon: ShieldExclamationIcon },
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
     ] as const;
+
+    const verticalTabs = horizontalTabs.filter(t => t.id !== 'students');
 
     return (
         <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[750px] w-full text-left">
@@ -287,7 +292,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 </div>
 
                 <nav className="space-y-1.5 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
-                    {tabs.map(item => (
+                    {verticalTabs.map(item => (
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id as any)}
@@ -318,7 +323,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 {/* Horizontal Navigation Sub-Bar */}
                 <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 p-4 rounded-[2.5rem] shadow-sm shrink-0 gap-4">
                     <div className="flex flex-nowrap items-center gap-2 overflow-x-auto custom-scrollbar-horizontal max-w-[70vw] md:max-w-full pb-1">
-                        {tabs.map(sub => (
+                        {horizontalTabs.map(sub => (
                             <button
                                 key={sub.id}
                                 onClick={() => setActiveTab(sub.id as any)}
@@ -509,6 +514,19 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             </table>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {activeTab === 'students' && (
+                <div className="animate-fade-in space-y-6">
+                    <StudentEnrollmentManager
+                        context="academic"
+                        currentInstitution={currentInstitution!}
+                        activeTab="students"
+                        companyDetails={companyDetails}
+                        currentUser={currentUser!}
+                        onLogAction={onLogAction}
+                    />
                 </div>
             )}
 
