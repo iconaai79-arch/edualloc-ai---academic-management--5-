@@ -642,7 +642,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 await apiService.sendEmail(student.email, subject, body).catch(e => console.error("Email to student failed", e));
             }
  
-            if (student.phone) {
+            const isDirectorPhone = inst.phoneNumber && student.phone && (student.phone.trim().replace(/\D/g, '') === inst.phoneNumber.trim().replace(/\D/g, ''));
+            if (student.phone && !isDirectorPhone) {
                 let sms = '';
                 if (isReminder) {
                     const customTemplate = settings?.schedulingRules?.smsReminderTemplate;
@@ -660,7 +661,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     sms = `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}. Manage here: ${actionLink}`;
                 }
                 
-                await apiService.sendSms(student.phone, sms, activeSmsConfig, 1, institutionId).catch(e => console.error("SMS to student failed", e));
+                await apiService.sendSms(student.phone, sms, activeSmsConfig, 1, institutionId, undefined, true).catch(e => console.error("SMS to student failed", e));
             }
 
             // 2. Notification for Instructor
@@ -683,7 +684,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     ? `Reminder: Your lesson with ${student.fullName} starts at ${lesson.startTime}. Vehicle: ${vehicle?.plateNumber || 'N/A'}.`
                     : `Hello ${instructor.name}, a new lesson with ${student.fullName} has been scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}.`;
                 
-                await apiService.sendSms(instructor.phone, sms, activeSmsConfig, 1, institutionId).catch(e => console.error("SMS to instructor failed", e));
+                await apiService.sendSms(instructor.phone, sms, activeSmsConfig, 1, institutionId, undefined, true).catch(e => console.error("SMS to instructor failed", e));
             }
 
             console.log(`[DS Automation] ${isReminder ? 'Reminder' : 'Initial'} notifications sent for lesson ${lesson.id}`);
@@ -694,7 +695,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const checkUpcomingLessons = useCallback(async () => {
         if (!lessons.length) return;
-        
+        if (!settings?.schedulingRules?.enableSmsReminders) return; // Only send reminders if enableSmsReminders setting is on
         const now = new Date();
         const today = now.toISOString().split('T')[0];
         
