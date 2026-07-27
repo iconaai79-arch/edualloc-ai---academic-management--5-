@@ -3506,6 +3506,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [leadPage, setLeadPage] = useState(1);
     const [studentSubTab, setStudentSubTab] = useState<'enrolled' | 'graduated' | 'dropped' | 'all' | 'preview'>('enrolled');
     const [fleetSubTab, setFleetSubTab] = useState<'directory' | 'maintenance' | 'fuel'>('directory');
+    const [lessonsSubTab, setLessonsSubTab] = useState<'schedule' | 'direct_checkin'>('schedule');
     const [studentSortBy, setStudentSortBy] = useState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc' | 'progress_desc' | 'progress_asc'>('name_asc');
     const [studentPage, setStudentPage] = useState(1);
     const [selectedPreviewStudent, setSelectedPreviewStudent] = useState<DSStudent | null>(null);
@@ -6614,6 +6615,171 @@ END $$;
 
                     {activeTab === 'lessons' && (
                         <div className="space-y-8 animate-fade-in">
+                            {/* Lessons Sub-tab Navigation */}
+                            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl max-w-md print:hidden">
+                                <button
+                                    type="button"
+                                    onClick={() => setLessonsSubTab('schedule')}
+                                    className={`flex-1 py-2.5 px-4 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${lessonsSubTab === 'schedule' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                >
+                                    <CalendarDaysIcon className="w-4 h-4" />
+                                    <span>Training Schedule</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setLessonsSubTab('direct_checkin')}
+                                    className={`flex-1 py-2.5 px-4 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${lessonsSubTab === 'direct_checkin' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                >
+                                    <SparklesIcon className="w-4 h-4" />
+                                    <span>⚡ Direct Student Login</span>
+                                </button>
+                            </div>
+
+                            {lessonsSubTab === 'direct_checkin' && (
+                                <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 p-8 md:p-10 shadow-sm space-y-8 animate-fade-in">
+                                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-[2.5rem] p-8 text-white shadow-xl relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
+                                        <div className="relative z-10 space-y-2">
+                                            <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-100">Receptionist & Instructor Desk</span>
+                                            <h3 className="text-2xl font-black tracking-tight mt-2">Direct Student Attendance Login</h3>
+                                            <p className="text-xs text-indigo-100 max-w-xl">
+                                                Log student attendance directly as an administrator or instructor without requiring student password entry or kiosk links.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Direct Login Panel */}
+                                    <div className="max-w-2xl mx-auto space-y-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                                                Search Candidate / Student
+                                            </label>
+                                            <div className="relative">
+                                                <SearchIcon className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                                <input
+                                                    type="text"
+                                                    value={adminCheckInSearch}
+                                                    onChange={(e) => setAdminCheckInSearch(e.target.value)}
+                                                    placeholder="Type candidate name, admission no, phone, ID..."
+                                                    className="w-full text-xs font-bold py-4 pl-11 pr-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {!selectedAdminStudent ? (
+                                            <div className="space-y-3">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Student from Enrolled Candidates:</p>
+                                                <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                                                    {(students || [])
+                                                        .filter(s => {
+                                                            if (!adminCheckInSearch.trim()) return true;
+                                                            const q = adminCheckInSearch.toLowerCase();
+                                                            return (
+                                                                (s.fullName || '').toLowerCase().includes(q) ||
+                                                                (s.admissionNumber || '').toLowerCase().includes(q) ||
+                                                                (s.phone || '').toLowerCase().includes(q) ||
+                                                                (s.idNumber || '').toLowerCase().includes(q)
+                                                            );
+                                                        })
+                                                        .map(s => {
+                                                            const ms = getStudentMilestoneStatus(s.id);
+                                                            return (
+                                                                <div
+                                                                    key={s.id}
+                                                                    onClick={() => setSelectedAdminStudent(s)}
+                                                                    className="p-4 bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between cursor-pointer transition-all active:scale-98"
+                                                                >
+                                                                    <div className="flex items-center gap-4">
+                                                                        <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-black text-xs shrink-0 overflow-hidden">
+                                                                            {(s as any).passportPhoto ? (
+                                                                                <img src={(s as any).passportPhoto} className="w-full h-full object-cover" alt="Avatar" />
+                                                                            ) : (
+                                                                                s.fullName.charAt(0)
+                                                                            )}
+                                                                        </div>
+                                                                        <div>
+                                                                            <h5 className="text-xs font-black text-slate-900 dark:text-white">{s.fullName}</h5>
+                                                                            <p className="text-[10px] font-bold text-slate-400 mt-0.5">{s.admissionNumber || 'No Adm No'} • {s.licenseTypeInterested || 'Driving Course'}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="shrink-0">
+                                                                        {ms && !ms.isCleared ? (
+                                                                            <span className="text-[9px] font-black uppercase px-3 py-1 bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 rounded-full">
+                                                                                Shortfall KES {ms.shortfall?.toLocaleString()}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-[9px] font-black uppercase px-3 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 rounded-full">
+                                                                                Cleared
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-6 bg-slate-50 dark:bg-slate-800/80 p-6 rounded-3xl border border-indigo-100 dark:border-indigo-900/40 animate-fade-in">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-lg overflow-hidden shadow-md">
+                                                            {(selectedAdminStudent as any).passportPhoto ? (
+                                                                <img src={(selectedAdminStudent as any).passportPhoto} className="w-full h-full object-cover" alt="Avatar" />
+                                                            ) : (
+                                                                selectedAdminStudent.fullName.charAt(0)
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-base font-black text-slate-900 dark:text-white">{selectedAdminStudent.fullName}</h4>
+                                                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Adm No: {selectedAdminStudent.admissionNumber} • Phone: {selectedAdminStudent.phone || 'N/A'}</p>
+                                                            <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mt-0.5">{selectedAdminStudent.licenseTypeInterested || 'Driving Course'}</p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedAdminStudent(null)}
+                                                        className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-300 transition-all"
+                                                    >
+                                                        Change Student
+                                                    </button>
+                                                </div>
+
+                                                {(() => {
+                                                    const ms = getStudentMilestoneStatus(selectedAdminStudent.id);
+                                                    const hasShortfall = ms && !ms.isCleared;
+                                                    return (
+                                                        <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => executeKioskCheckIn(selectedAdminStudent, false)}
+                                                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                            >
+                                                                <CheckCircleIcon className="w-4 h-4" />
+                                                                <span>⚡ Direct Admin Check-In</span>
+                                                            </button>
+
+                                                            {hasShortfall && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => executeKioskCheckIn(selectedAdminStudent, true)}
+                                                                    className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                                    title="Bypass fee shortfall block and check candidate in"
+                                                                >
+                                                                    <ExclamationTriangleIcon className="w-4 h-4" />
+                                                                    <span>🔓 Override Shortfall (KES {ms.shortfall?.toLocaleString()}) & Check In</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {lessonsSubTab === 'schedule' && (
+                                <>
                             {unassignedDueToVehicles.length > 0 && (
                                 <div className="p-6 md:p-8 bg-amber-50 dark:bg-amber-950/30 rounded-[2.5rem] border border-amber-200 dark:border-amber-900/50 shadow-sm animate-fade-in">
                                     <div className="flex items-center justify-between gap-4 mb-4">
@@ -6860,6 +7026,8 @@ END $$;
                                     )}
                                 </div>
                             </div>
+                            </>
+                            )}
                         </div>
                     )}
 
