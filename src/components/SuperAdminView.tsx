@@ -6780,6 +6780,19 @@ Please change it after login.`;
                                     </button>
                                 </div>
                             </div>
+                            <div className="p-4 bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl border border-purple-100 dark:border-purple-800/50 flex items-center justify-between gap-4">
+                                <div>
+                                    <h4 className="text-xs font-black uppercase text-purple-950 dark:text-purple-300 tracking-tight">Enable Low SMS Balance Alerts</h4>
+                                    <p className="text-[10px] text-slate-500 font-medium">Send automatic email/SMS alerts to tenant admins when SMS balance is low.</p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={tenantSmsConfig.enableLowSmsReminders === true}
+                                    onChange={e => setTenantSmsConfig({ ...tenantSmsConfig, enableLowSmsReminders: e.target.checked })}
+                                    className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0"
+                                />
+                            </div>
+
                             <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-2xl border border-purple-100 dark:border-purple-800">
                                 <p className="text-xs text-purple-700 dark:text-purple-300 font-medium">This gateway config is saved directly on the tenant's institution record and overrides the global system gateway for this tenant only.</p>
                             </div>
@@ -6792,7 +6805,10 @@ Please change it after login.`;
                                     if (!managingGatewayFor || !props.onUpdateInstitution) return;
                                     setIsSavingTenantConfig(true);
                                     try {
-                                        await props.onUpdateInstitution(managingGatewayFor.id, { smsConfig: tenantSmsConfig });
+                                        await props.onUpdateInstitution(managingGatewayFor.id, { 
+                                            smsConfig: tenantSmsConfig,
+                                            enableLowSmsReminders: tenantSmsConfig.enableLowSmsReminders 
+                                        });
                                         setManagingGatewayFor(null);
                                     } finally {
                                         setIsSavingTenantConfig(false);

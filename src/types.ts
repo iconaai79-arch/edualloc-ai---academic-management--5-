@@ -547,6 +547,8 @@ export interface Institution {
     sessionExpiryMinutes?: number;
     smsBalance?: number;
     customSmsPrice?: number | null;
+    enableLowSmsReminders?: boolean;
+    lowSmsThreshold?: number;
     smsConfig?: SmsConfig;
     mpesaConfig?: MpesaConfig;
     emailConfig?: EmailConfig;
@@ -917,6 +919,8 @@ export interface SmsConfig {
     params?: { name: string; value: string }[];
     smsUnitPrice?: number;
     minSmsUnits?: number;
+    enableLowSmsReminders?: boolean;
+    lowSmsThreshold?: number;
     accountId?: string;
     authToken?: string;
 }

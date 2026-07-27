@@ -2025,9 +2025,16 @@ export const apiService = {
                         });
                         const inst = instList?.[0];
                         if (inst) {
+                            // LOW SMS REMINDERS SHOULD ONLY GO TO TENANTS THAT HAVE ENABLED LOW SMS REMINDERS
+                            const isLowSmsEnabled = inst.enableLowSmsReminders === true || inst.smsConfig?.enableLowSmsReminders === true;
+                            if (!isLowSmsEnabled) {
+                                return; // Tenant has not enabled low SMS reminders, skip sending alerts
+                            }
+
+                            const lowThreshold = inst.lowSmsThreshold || inst.smsConfig?.lowSmsThreshold || 15;
                             const smsBalance = inst.smsBalance || 0;
-                            // Trigger warning if balance is below 15 units, or if dispatch failed due to low units
-                            if (smsBalance < 15 || isLowSmsError) {
+                            // Trigger warning if balance is below threshold, or if dispatch failed due to low units
+                            if (smsBalance < lowThreshold || isLowSmsError) {
                                 const adminEmails: string[] = [];
                                 const adminPhones: string[] = [];
                                 if (inst.email) adminEmails.push(inst.email);

@@ -1785,6 +1785,7 @@ CREATE TABLE IF NOT EXISTS ds_lessons (
     lesson_type TEXT NOT NULL,
     topic TEXT,
     status TEXT DEFAULT 'Scheduled',
+    notes TEXT,
     instructor_notes TEXT,
     route_tracked_data JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
