@@ -3562,6 +3562,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [isEnteringKioskPassword, setIsEnteringKioskPassword] = useState(false);
     const [matchedStudentForCheckIn, setMatchedStudentForCheckIn] = useState<DSStudent | null>(null);
     const [kioskMessage, setKioskMessage] = useState<{ status: 'success' | 'error'; text: string; details?: string } | null>(null);
+    const [checkInMode, setCheckInMode] = useState<'self' | 'admin'>('self');
+    const [adminCheckInSearch, setAdminCheckInSearch] = useState('');
+    const [selectedAdminStudent, setSelectedAdminStudent] = useState<DSStudent | null>(null);
     const [isKioskScanning, setIsKioskScanning] = useState(true);
     const [isScanningKioskFace, setIsScanningKioskFace] = useState(false);
     const [kioskFaceVerificationStatus, setKioskFaceVerificationStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
@@ -4823,7 +4826,7 @@ END $$;
     }
 
 
-    async function executeKioskCheckIn(student: DSStudent) {
+    async function executeKioskCheckIn(student: DSStudent, isAdminOverride: boolean = false) {
         // Get milestone status
         const milestone = getStudentMilestoneStatus(student.id);
         const todayStr = new Date().toISOString().split('T')[0];
@@ -4835,7 +4838,7 @@ END $$;
             l.status !== 'Cancelled'
         );
 
-        if (milestone && !milestone.isCleared) {
+        if (milestone && !milestone.isCleared && !isAdminOverride) {
             // Red block
             setKioskMessage({
                 status: 'error',
@@ -8432,9 +8435,161 @@ END $$;
                                         )}
                                     </div>
 
-                                    {/* Right side: Keypad Input Area */}
+                                    {/* Right side: Keypad or Admin Direct Input Area */}
                                     <div className="md:col-span-2 bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-lg flex flex-col justify-between">
-                                        {isScanningKioskFace ? (
+                                        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl mb-6 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => setCheckInMode('self')}
+                                                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${checkInMode === 'self' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                            >
+                                                👤 Student Self Check-In
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCheckInMode('admin')}
+                                                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${checkInMode === 'admin' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                            >
+                                                ⚡ Admin Direct Check-In
+                                            </button>
+                                        </div>
+
+                                        {checkInMode === 'admin' ? (
+                                            <div className="space-y-5 animate-fade-in">
+                                                <div className="bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 p-4 rounded-2xl">
+                                                    <h4 className="text-xs font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-tight flex items-center gap-2">
+                                                        <SparklesIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                                        <span>Admin Direct Check-In Desk</span>
+                                                    </h4>
+                                                    <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-1">
+                                                        Log student attendance directly as an admin without candidate password authentication.
+                                                    </p>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                                                        Search Candidate
+                                                    </label>
+                                                    <div className="relative">
+                                                        <SearchIcon className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                                        <input
+                                                            type="text"
+                                                            value={adminCheckInSearch}
+                                                            onChange={(e) => setAdminCheckInSearch(e.target.value)}
+                                                            placeholder="Type name, adm no, phone, ID..."
+                                                            className="w-full text-xs font-bold py-3.5 pl-11 pr-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Student selection cards */}
+                                                {!selectedAdminStudent ? (
+                                                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                                        {(students || [])
+                                                            .filter(s => {
+                                                                if (!adminCheckInSearch.trim()) return true;
+                                                                const q = adminCheckInSearch.toLowerCase();
+                                                                return (
+                                                                    (s.fullName || '').toLowerCase().includes(q) ||
+                                                                    (s.admissionNumber || '').toLowerCase().includes(q) ||
+                                                                    (s.phone || '').toLowerCase().includes(q) ||
+                                                                    (s.idNumber || '').toLowerCase().includes(q)
+                                                                );
+                                                            })
+                                                            .slice(0, 6)
+                                                            .map(s => {
+                                                                const ms = getStudentMilestoneStatus(s.id);
+                                                                return (
+                                                                    <div
+                                                                        key={s.id}
+                                                                        onClick={() => setSelectedAdminStudent(s)}
+                                                                        className="p-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between cursor-pointer transition-all active:scale-98"
+                                                                    >
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-black text-xs shrink-0 overflow-hidden">
+                                                                                {(s as any).passportPhoto ? (
+                                                                                    <img src={(s as any).passportPhoto} className="w-full h-full object-cover" alt="Avatar" />
+                                                                                ) : (
+                                                                                    s.fullName.charAt(0)
+                                                                                )}
+                                                                            </div>
+                                                                            <div>
+                                                                                <h5 className="text-xs font-black text-slate-900 dark:text-white">{s.fullName}</h5>
+                                                                                <p className="text-[9px] font-bold text-slate-400">{s.admissionNumber || 'No Adm No'} • {s.licenseTypeInterested || 'Driving'}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="shrink-0">
+                                                                            {ms && !ms.isCleared ? (
+                                                                                <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 rounded-full">
+                                                                                    Shortfall KES {ms.shortfall?.toLocaleString()}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 rounded-full">
+                                                                                    Cleared
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-4 bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 animate-fade-in">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-sm overflow-hidden">
+                                                                    {(selectedAdminStudent as any).passportPhoto ? (
+                                                                        <img src={(selectedAdminStudent as any).passportPhoto} className="w-full h-full object-cover" alt="Avatar" />
+                                                                    ) : (
+                                                                        selectedAdminStudent.fullName.charAt(0)
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <h5 className="text-xs font-black text-slate-900 dark:text-white">{selectedAdminStudent.fullName}</h5>
+                                                                    <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Adm: {selectedAdminStudent.admissionNumber} • {selectedAdminStudent.phone || 'No Phone'}</p>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setSelectedAdminStudent(null)}
+                                                                className="text-[10px] font-black text-rose-500 uppercase tracking-widest hover:underline"
+                                                            >
+                                                                Change
+                                                            </button>
+                                                        </div>
+
+                                                        {(() => {
+                                                            const ms = getStudentMilestoneStatus(selectedAdminStudent.id);
+                                                            const hasShortfall = ms && !ms.isCleared;
+                                                            return (
+                                                                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => executeKioskCheckIn(selectedAdminStudent, false)}
+                                                                        className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                                    >
+                                                                        <CheckCircleIcon className="w-4 h-4" />
+                                                                        <span>⚡ Direct Admin Check-In</span>
+                                                                    </button>
+
+                                                                    {hasShortfall && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => executeKioskCheckIn(selectedAdminStudent, true)}
+                                                                            className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                                            title="Bypass fee shortfall block and check candidate in"
+                                                                        >
+                                                                            <ExclamationTriangleIcon className="w-4 h-4" />
+                                                                            <span>🔓 Override Shortfall & Check In</span>
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : isScanningKioskFace ? (
                                             <div className="space-y-6 flex flex-col justify-center items-center py-6 h-full my-auto animate-fade-in">
                                                 <div className="flex items-center gap-6">
                                                     {/* Live Webcam Feed */}
