@@ -1090,6 +1090,10 @@ export const apiService = {
             }
             if (module === 'ds_lessons') {
                 delete item.confirmation_status;
+                if (item.notes) {
+                    item.instructor_notes = item.instructor_notes || item.notes;
+                    delete item.notes;
+                }
             }
             if (module === 'ds_students') {
                 delete item.preferred_lesson_hours;

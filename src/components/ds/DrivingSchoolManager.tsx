@@ -4493,51 +4493,97 @@ END $$;
         if (!currentInstitution) return;
         const interval = setInterval(async () => {
             const todayStr = new Date().toISOString().split('T')[0];
+            let assignedAny = false;
+
             const pendingQueue = (lessons || [])
                 .filter(l => l.lessonDate === todayStr && l.lessonType === 'Practical' && l.status === 'Scheduled' && !l.vehicleId)
                 .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
-            if (pendingQueue.length === 0) return; // Queue empty
+            if (pendingQueue.length > 0) {
+                const operationalVehicles = (vehicles || []).filter(v => v.status === 'Operational');
+                const activeLessons = lessons || [];
 
-            const operationalVehicles = (vehicles || []).filter(v => v.status === 'Operational');
-            const activeLessons = lessons || [];
+                for (const lesson of pendingQueue) {
+                    const nowTime = new Date();
+                    const pStartHr = String(nowTime.getHours()).padStart(2, '0');
+                    const pStartMin = String(nowTime.getMinutes()).padStart(2, '0');
+                    const pStartStr = `${pStartHr}:${pStartMin}`;
+                    
+                    const pracDurMins = (settings?.schedulingRules?.practicalDurationMinutes || 60);
+                    const pEndTime = new Date(nowTime.getTime() + pracDurMins * 60000);
+                    const pEndHr = String(pEndTime.getHours()).padStart(2, '0');
+                    const pEndMin = String(pEndTime.getMinutes()).padStart(2, '0');
+                    const pEndStr = `${pEndHr}:${pEndMin}`;
 
-            let assignedAny = false;
+                    let pVehicle = operationalVehicles.find(v => isCarAvailableAt(v.id, activeLessons, pStartStr, pEndStr, todayStr)) || null;
 
-            for (const lesson of pendingQueue) {
-                const nowTime = new Date();
-                const pStartHr = String(nowTime.getHours()).padStart(2, '0');
-                const pStartMin = String(nowTime.getMinutes()).padStart(2, '0');
-                const pStartStr = `${pStartHr}:${pStartMin}`;
-                
-                const pracDurMins = (settings?.schedulingRules?.practicalDurationMinutes || 60);
-                const pEndTime = new Date(nowTime.getTime() + pracDurMins * 60000);
-                const pEndHr = String(pEndTime.getHours()).padStart(2, '0');
-                const pEndMin = String(pEndTime.getMinutes()).padStart(2, '0');
-                const pEndStr = `${pEndHr}:${pEndMin}`;
+                    if (pVehicle) {
+                        await apiService.saveModuleRecord('ds_lessons', {
+                            ...lesson,
+                            vehicleId: pVehicle.id,
+                            startTime: pStartStr,
+                            endTime: pEndStr,
+                            instructorNotes: `[Auto-dispatched from Queue]`
+                        });
 
-                let pVehicle = operationalVehicles.find(v => isCarAvailableAt(v.id, activeLessons, pStartStr, pEndStr, todayStr)) || null;
+                        assignedAny = true;
+                        
+                        const student = (students || []).find(s => s.id === lesson.studentId);
+                        const instructor = (instructors || []).find(i => i.id === lesson.instructorId);
+                        
+                        if (student?.phone && currentInstitution?.smsConfig) {
+                            const msg = `Hi ${student.fullName}, your vehicle is ready! A Practical session is starting now at ${pStartStr} with ${instructor?.name || 'TBD'} in car ${pVehicle.plateNumber || pVehicle.registrationNumber}. Please proceed to the vehicle.`;
+                            await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
+                        }
+                    }
+                }
+            }
 
-                if (pVehicle) {
-                    await apiService.saveModuleRecord('ds_lessons', {
-                        ...lesson,
-                        vehicleId: pVehicle.id,
-                        startTime: pStartStr,
-                        endTime: pEndStr,
-                        notes: `[Auto-dispatched from Queue]`
+            // Auto-complete Practical session after the 1st hour (when current time >= Practical startTime)
+            const nowTime = new Date();
+            const curHr = String(nowTime.getHours()).padStart(2, '0');
+            const curMin = String(nowTime.getMinutes()).padStart(2, '0');
+            const curTimeStr = `${curHr}:${curMin}`;
+
+            const readyPracticalToComplete = (lessons || []).filter(l =>
+                l.lessonDate === todayStr &&
+                l.lessonType === 'Practical' &&
+                l.status === 'Scheduled' &&
+                l.startTime &&
+                l.startTime <= curTimeStr
+            );
+
+            for (const pLesson of readyPracticalToComplete) {
+                await apiService.saveModuleRecord('ds_lessons', {
+                    ...pLesson,
+                    status: 'Completed',
+                    instructorNotes: ((pLesson as any).instructorNotes || (pLesson as any).notes || '') + ' [Auto-completed after 1 hour Theory completion]'
+                });
+
+                assignedAny = true;
+
+                const student = (students || []).find(s => s.id === pLesson.studentId);
+                if (student) {
+                    const practicalPct = student.practicalProgressPercent || 0;
+                    const durationDays = student.courseDurationDays || 21;
+                    const increment = Math.max(5, Math.round(100 / durationDays));
+                    const nextPractical = Math.min(100, practicalPct + increment);
+                    const currentRemaining = student.remainingDays ?? student.courseDurationDays ?? 0;
+
+                    await apiService.saveModuleRecord('ds_students', {
+                        ...student,
+                        remainingDays: Math.max(0, currentRemaining - 1),
+                        practicalProgressPercent: nextPractical,
+                        updatedAt: new Date().toISOString()
                     });
 
-                    assignedAny = true;
-                    
-                    const student = (students || []).find(s => s.id === lesson.studentId);
-                    const instructor = (instructors || []).find(i => i.id === lesson.instructorId);
-                    
-                    if (student?.phone && currentInstitution?.smsConfig) {
-                        const msg = `Hi ${student.fullName}, your vehicle is ready! A Practical session is starting now at ${pStartStr} with ${instructor?.name || 'TBD'} in car ${pVehicle.plateNumber || pVehicle.registrationNumber}. Please proceed to the vehicle.`;
+                    if (student.phone && currentInstitution?.smsConfig) {
+                        const msg = `Hi ${student.fullName}, your 1-hour Theory session is completed! Your Practical session has now been automatically marked as Completed. Progress: ${nextPractical}%.`;
                         await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
                     }
                 }
             }
+
             if (assignedAny) {
                 if (onRefreshDataProp) onRefreshDataProp();
                 refreshData();
@@ -5052,6 +5098,9 @@ END $$;
                             pVehicle = operationalVehicles.find(v => isCarAvailableAt(v.id, lessons || [], pStartStr, pEndStr, todayStr)) || null;
                         }
 
+                        const isAlreadyPastOneHour = new Date() >= nowTimeForTheoryEnd;
+                        const pStatus = isAlreadyPastOneHour ? 'Completed' : 'Scheduled';
+
                         const newPLesson = {
                             id: `less_${Date.now()}_P`,
                             institutionId: currentInstitution?.id,
@@ -5062,25 +5111,44 @@ END $$;
                             startTime: pStartStr,
                             endTime: pEndStr,
                             lessonType: 'Practical',
-                            status: 'Scheduled',
+                            status: pStatus,
                             confirmationStatus: 'Confirmed',
-                            instructorNotes: pVehicle ? `[Auto-scheduled after Theory Check-in]` : `[Queued for Dispatch after Theory]`,
+                            instructorNotes: pVehicle 
+                                ? (isAlreadyPastOneHour ? `[Auto-completed Practical after 1 hour Theory]` : `[Auto-scheduled Practical after 1 hour Theory]`) 
+                                : `[Queued for Dispatch after Theory]`,
                             createdAt: new Date().toISOString()
                         };
                         
                         await apiService.saveModuleRecord('ds_lessons', newPLesson);
+
+                        if (isAlreadyPastOneHour) {
+                            const practicalPct = student.practicalProgressPercent || 0;
+                            const durationDays = student.courseDurationDays || 21;
+                            const increment = Math.max(5, Math.round(100 / durationDays));
+                            const nextPractical = Math.min(100, practicalPct + increment);
+                            const currentRemaining = student.remainingDays ?? student.courseDurationDays ?? 0;
+
+                            await apiService.saveModuleRecord('ds_students', {
+                                ...student,
+                                remainingDays: Math.max(0, currentRemaining - 1),
+                                practicalProgressPercent: nextPractical,
+                                updatedAt: new Date().toISOString()
+                            });
+                        }
                         
                         if (pVehicle) {
                             const pPlate = pVehicle.plateNumber || pVehicle.registrationNumber;
-                            updatedInfo += ` A Practical session has been auto-scheduled for ${pStartStr} with ${pInstructor?.name || 'an available instructor'} (${pPlate}).`;
+                            updatedInfo += isAlreadyPastOneHour 
+                                ? ` Theory and Practical sessions auto-marked Completed!` 
+                                : ` Practical session auto-scheduled for ${pStartStr} (auto-completes after 1 hour) with ${pInstructor?.name || 'instructor'} (${pPlate}).`;
                             if (student.phone && currentInstitution?.smsConfig) {
-                                const msg = `Hi ${student.fullName}, your Theory session has started. A Practical session is auto-scheduled at ${pStartStr} with ${pInstructor?.name || 'TBD'} in car ${pPlate}. Please be ready!`;
+                                const msg = `Hi ${student.fullName}, your Theory session has started. A Practical session is auto-scheduled at ${pStartStr} with ${pInstructor?.name || 'TBD'} in car ${pPlate} (auto-updates after 1 hour).`;
                                 await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
                             }
                         } else {
-                            updatedInfo += ` You have been placed in the Practical Dispatch Queue. A car will be assigned when available.`;
+                            updatedInfo += ` You have been placed in the Practical Dispatch Queue.`;
                             if (student.phone && currentInstitution?.smsConfig) {
-                                const msg = `Hi ${student.fullName}, your Theory session has started. You are currently in the queue for a Practical car. We will notify you via SMS once a vehicle is assigned.`;
+                                const msg = `Hi ${student.fullName}, your Theory session has started. You are in the queue for a Practical car.`;
                                 await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
                             }
                         }
