@@ -2088,6 +2088,20 @@ export const apiService = {
                 };
             }
 
+            if (response.ok && institutionId && !isSystemAlert) {
+                const recipientsList = Array.isArray(formattedRecipient) ? formattedRecipient.join(', ') : String(formattedRecipient || '');
+                apiService.saveModuleRecord('sms_logs', {
+                    id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                    institutionId: institutionId,
+                    recipient: recipientsList,
+                    recipients: recipientsList,
+                    message: message,
+                    status: 'Sent',
+                    sentAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString()
+                }).catch(() => {});
+            }
+
             return resData;
         } catch (e: any) {
             console.error("SMS Gateway Request Failed:", e);
