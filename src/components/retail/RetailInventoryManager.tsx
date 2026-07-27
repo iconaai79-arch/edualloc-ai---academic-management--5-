@@ -160,6 +160,15 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 .catch(e => console.warn('Could not load pharmacy inventory:', e))
                 .finally(() => setIsPharmacyLoading(false));
         }
+
+        const handleInventoryUpdated = () => {
+            fetchInventory();
+        };
+        window.addEventListener('inventory_updated', handleInventoryUpdated);
+
+        return () => {
+            window.removeEventListener('inventory_updated', handleInventoryUpdated);
+        };
     }, [institutionId]);
 
     // Barcode Scanner Listener

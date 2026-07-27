@@ -9846,8 +9846,74 @@ END $$;
                                 {settingsSubTab === 'rules' && (
                                     <div className="space-y-12 animate-fade-in">
                                         <div>
-                                            <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Scheduling Rules</h4>
-                                            <p className="text-xs font-medium text-slate-400">Configure how your driving school automates lesson scheduling and student progression.</p>
+                                            <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Scheduling Rules & Automated SMS Reminders</h4>
+                                            <p className="text-xs font-medium text-slate-400">Configure how your driving school automates lesson scheduling, student progression, and SMS reminders.</p>
+                                        </div>
+
+                                        {/* SMS Notification & Reminder Rules Section */}
+                                        <div className="p-8 bg-indigo-50/40 dark:bg-indigo-950/20 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/40 space-y-6">
+                                            <div className="flex items-center justify-between">
+                                                <div className="max-w-md">
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                                                        <span>📲 Lesson SMS Reminders</span>
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-500 font-medium mt-1">Automatically send SMS alerts to students and instructors for scheduled lessons.</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer scale-125">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="sr-only peer"
+                                                        checked={activeSettings?.schedulingRules?.enableSmsReminders || false}
+                                                        onChange={e => setSettingsDraft({ 
+                                                            ...activeSettings, 
+                                                            schedulingRules: { 
+                                                                ...(activeSettings?.schedulingRules || {}), 
+                                                                enableSmsReminders: e.target.checked 
+                                                            } 
+                                                        })}
+                                                    />
+                                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                                                </label>
+                                            </div>
+
+                                            {activeSettings?.schedulingRules?.enableSmsReminders && (
+                                                <div className="grid grid-cols-1 gap-6 pt-4 border-t border-indigo-100 dark:border-indigo-900/40 animate-fade-in">
+                                                    <div className="space-y-3">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Send Reminder Hours Before</label>
+                                                        <input 
+                                                            type="number" 
+                                                            value={activeSettings?.schedulingRules?.smsReminderHours || 2} 
+                                                            onChange={e => setSettingsDraft({ 
+                                                                ...activeSettings, 
+                                                                schedulingRules: { 
+                                                                    ...(activeSettings?.schedulingRules || {}), 
+                                                                    smsReminderHours: parseInt(e.target.value) || 0 
+                                                                } 
+                                                            })}
+                                                            className="w-full px-8 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100"
+                                                            placeholder="e.g. 2"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-center ml-1">
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lesson Reminder Template</label>
+                                                            <span className="text-[8px] text-indigo-500 font-bold uppercase">Supported tags: {"{student}"}, {"{school}"}, {"{instructor}"}, {"{time}"}, {"{date}"}</span>
+                                                        </div>
+                                                        <textarea 
+                                                            value={activeSettings?.schedulingRules?.smsReminderTemplate || ''} 
+                                                            onChange={e => setSettingsDraft({ 
+                                                                ...activeSettings, 
+                                                                schedulingRules: { 
+                                                                    ...(activeSettings?.schedulingRules || {}), 
+                                                                    smsReminderTemplate: e.target.value 
+                                                                } 
+                                                            })}
+                                                            className="w-full px-8 py-4 min-h-[100px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100 text-xs"
+                                                            placeholder="Reminder: Your {school} lesson with {instructor} starts at {time}. Be ready!"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="p-8 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-[2.5rem] border border-indigo-100/50 dark:border-indigo-900/20">
@@ -9972,78 +10038,10 @@ END $$;
                                             </label>
                                         </div>
 
-                                        {/* SMS Notification & Reminder Rules Section */}
+
+
+                                           {/* PDL Expiry Warnings & Test Alerts */}
                                         <div className="border-t border-slate-100 dark:border-slate-800 pt-10 space-y-8">
-                                            <div>
-                                                <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">SMS Notification & Reminder Rules</h4>
-                                                <p className="text-xs font-medium text-slate-400">Configure automated messaging rules for lesson alerts, NTSA PDL expiries, and assessment schedules.</p>
-                                            </div>
-
-                                            {/* Lesson Reminders */}
-                                            <div className="p-8 bg-slate-50 dark:bg-slate-800/40 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="max-w-md">
-                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">Lesson SMS Reminders</p>
-                                                        <p className="text-[10px] text-slate-500 font-medium mt-1">Automatically send SMS alerts to students and instructors for scheduled lessons.</p>
-                                                    </div>
-                                                    <label className="relative inline-flex items-center cursor-pointer scale-125">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            className="sr-only peer"
-                                                            checked={activeSettings?.schedulingRules?.enableSmsReminders || false}
-                                                            onChange={e => setSettingsDraft({ 
-                                                                ...activeSettings, 
-                                                                schedulingRules: { 
-                                                                    ...(activeSettings?.schedulingRules || {}), 
-                                                                    enableSmsReminders: e.target.checked 
-                                                                } 
-                                                            })}
-                                                        />
-                                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
-                                                    </label>
-                                                </div>
-
-                                                {activeSettings?.schedulingRules?.enableSmsReminders && (
-                                                    <div className="grid grid-cols-1 gap-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 animate-fade-in">
-                                                        <div className="space-y-3">
-                                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Send Reminder Hours Before</label>
-                                                            <input 
-                                                                type="number" 
-                                                                value={activeSettings?.schedulingRules?.smsReminderHours || 2} 
-                                                                onChange={e => setSettingsDraft({ 
-                                                                    ...activeSettings, 
-                                                                    schedulingRules: { 
-                                                                        ...(activeSettings?.schedulingRules || {}), 
-                                                                        smsReminderHours: parseInt(e.target.value) || 0 
-                                                                    } 
-                                                                })}
-                                                                className="w-full px-8 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100"
-                                                                placeholder="e.g. 2"
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-3">
-                                                            <div className="flex justify-between items-center ml-1">
-                                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lesson Reminder Template</label>
-                                                                <span className="text-[8px] text-indigo-500 font-bold uppercase">Supported tags: {"{student}"}, {"{school}"}, {"{instructor}"}, {"{time}"}, {"{date}"}</span>
-                                                            </div>
-                                                            <textarea 
-                                                                value={activeSettings?.schedulingRules?.smsReminderTemplate || ''} 
-                                                                onChange={e => setSettingsDraft({ 
-                                                                    ...activeSettings, 
-                                                                    schedulingRules: { 
-                                                                        ...(activeSettings?.schedulingRules || {}), 
-                                                                        smsReminderTemplate: e.target.value 
-                                                                    } 
-                                                                })}
-                                                                className="w-full px-8 py-4 min-h-[100px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100 text-xs"
-                                                                placeholder="Reminder: Your {school} lesson with {instructor} starts at {time}. Be ready!"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* PDL Expiry Warnings */}
                                             <div className="p-8 bg-slate-50 dark:bg-slate-800/40 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
                                                 <div className="flex items-center justify-between">
                                                     <div className="max-w-md">

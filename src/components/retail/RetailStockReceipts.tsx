@@ -164,19 +164,30 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
         }
 
         try {
-            // 1. Revert stock
-            for (const receiptItem of receipt.items) {
-                const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
+            // 1. Fetch fresh inventory items once
+            const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId) || [];
+            
+            // 2. Revert stock sequentially and update local memory item
+            for (const receiptItem of (receipt.items || [])) {
                 const item = inventoryItemArr.find(i => i.id === receiptItem.itemId);
                 
                 if (item) {
-                    item.quantity = Math.max(0, item.quantity - receiptItem.quantity);
-                    item.lastUpdated = new Date().toISOString();
-                    await apiService.saveModuleRecord('retail_inventory_items', item);
+                    const currentQty = Number(item.quantity || 0);
+                    const receivedQty = Number(receiptItem.quantity || 0);
+                    const revertedQty = Math.max(0, currentQty - receivedQty);
+
+                    const updatedItem: RetailInventoryItem = {
+                        ...item,
+                        quantity: revertedQty,
+                        lastUpdated: new Date().toISOString()
+                    };
+
+                    await apiService.saveModuleRecord('retail_inventory_items', updatedItem);
+                    item.quantity = revertedQty;
                 }
             }
 
-            // 2. Delete record
+            // 3. Delete stock receipt record
             try {
                 await apiService.deleteModuleRecord('retail_stock_receipts', receipt.id);
             } catch (err) {
@@ -192,8 +203,11 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                 console.error("Failed to remove receipt from local storage:", lsErr);
             }
 
-            fetchData();
-            alert('Receipt deleted and stock reverted successfully!');
+            await fetchData();
+            if (typeof window !== 'undefined' && window.dispatchEvent) {
+                window.dispatchEvent(new CustomEvent('inventory_updated'));
+            }
+            alert('Receipt deleted and stock balance reverted successfully!');
         } catch (error) {
             console.error('Failed to delete receipt:', error);
             alert('Failed to delete receipt. Please try again.');
@@ -220,11 +234,14 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
             // Revert old inventory stock if editing
             const oldReceipt = editingReceiptId ? receipts.find(r => r.id === editingReceiptId) : null;
             if (oldReceipt) {
+                const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId) || [];
                 for (const oldItem of oldReceipt.items) {
-                    const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
                     const item = inventoryItemArr.find(i => i.id === oldItem.itemId);
                     if (item) {
-                        item.quantity = Math.max(0, item.quantity - oldItem.quantity);
+                        const cur = Number(item.quantity || 0);
+                        const oldQty = Number(oldItem.quantity || 0);
+                        const rev = Math.max(0, cur - oldQty);
+                        item.quantity = rev;
                         item.lastUpdated = new Date().toISOString();
                         await apiService.saveModuleRecord('retail_inventory_items', item);
                     }
@@ -276,19 +293,19 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
             // Update inventory quantities with new receipt values
             try {
                 const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId) || [];
-                const stockUpdatePromises = receipt.items.map(receiptItem => {
+                for (const receiptItem of (receipt.items || [])) {
                     const item = inventoryItemArr.find(i => i.id === receiptItem.itemId);
                     if (item) {
+                        const currentQty = Number(item.quantity || 0);
+                        const addedQty = Number(receiptItem.quantity || 0);
                         const updatedItem = {
                             ...item,
-                            quantity: (item.quantity || 0) + receiptItem.quantity,
+                            quantity: currentQty + addedQty,
                             lastUpdated: new Date().toISOString()
                         };
-                        return apiService.saveModuleRecord('retail_inventory_items', updatedItem);
+                        await apiService.saveModuleRecord('retail_inventory_items', updatedItem);
                     }
-                    return Promise.resolve(null);
-                });
-                await Promise.all(stockUpdatePromises);
+                }
             } catch (stockUpdateErr) {
                 console.error("Failed to update inventory stock levels:", stockUpdateErr);
             }
@@ -303,6 +320,9 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                 items: []
             });
             fetchData();
+            if (typeof window !== 'undefined' && window.dispatchEvent) {
+                window.dispatchEvent(new CustomEvent('inventory_updated'));
+            }
             alert(editingReceiptId ? 'Stock receipt updated successfully!' : 'Stock receipt saved and inventory updated successfully!');
         } catch (error) {
             console.error('Failed to save/update receipt:', error);
