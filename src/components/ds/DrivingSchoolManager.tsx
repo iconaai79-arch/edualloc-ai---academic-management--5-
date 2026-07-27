@@ -4889,11 +4889,13 @@ END $$;
 
         if (milestone && !milestone.isCleared && !isAdminOverride) {
             // Red block
+            const errDetails = `Candidate: ${student.fullName}. Pro-rata shortfall of KES ${milestone.shortfall?.toLocaleString()} detected. Click 'Override Shortfall & Check In' to bypass.`;
             setKioskMessage({
                 status: 'error',
                 text: 'Clearance Denied!',
-                details: `Candidate: ${student.fullName}. Pro-rata shortfall of KES ${milestone.shortfall?.toLocaleString()} detected. Please visit the reception desk or settle via M-Pesa to resume training.`
+                details: errDetails
             });
+            if (toastError) toastError(errDetails);
             // Auto-reset after 12 seconds
             setTimeout(() => {
                 setKioskMessage(null);
@@ -4955,6 +4957,7 @@ END $$;
                         text: 'Session Sequence Check',
                         details: `Candidate: ${student.fullName}. ${blockReason}`
                     });
+                    if (toastError) toastError(`Candidate: ${student.fullName}. ${blockReason}`);
                     setTimeout(() => {
                         setKioskMessage(null);
                         setKioskAdmissionNo('');
@@ -4966,11 +4969,13 @@ END $$;
                 }
 
                 if (!lessonTypeToAssign) {
+                    const limitMsg = `Candidate: ${student.fullName}. You have already completed all allowed sessions for today (${sequence.join(' and ')}).`;
                     setKioskMessage({
                         status: 'error',
                         text: 'Daily Session Limit Reached',
-                        details: `Candidate: ${student.fullName}. You have already completed all allowed sessions for today (${sequence.join(' and ')}). Daily limit strictly enforced.`
+                        details: limitMsg
                     });
+                    if (toastError) toastError(limitMsg);
                     setTimeout(() => {
                         setKioskMessage(null);
                         setKioskAdmissionNo('');
@@ -5155,11 +5160,14 @@ END $$;
                     }
                 }
 
+                const successText = `${isAdminOverride ? '[Shortfall Overridden] ' : ''}Clearance Approved! Welcome, ${student.fullName}. ${updatedInfo}`;
                 setKioskMessage({
                     status: 'success',
                     text: 'Clearance Approved!',
-                    details: `Welcome, ${student.fullName}. ${updatedInfo}`
+                    details: successText
                 });
+
+                if (success) success(successText);
 
                 // Clear fields
                 setKioskAdmissionNo('');
@@ -5169,13 +5177,15 @@ END $$;
 
                 if (onRefreshDataProp) await onRefreshDataProp();
                 refreshData();
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Kiosk check-in execution failure:", err);
+                const errText = err?.message || 'System Error during check-in processing.';
                 setKioskMessage({
                     status: 'error',
                     text: 'System Error during check-in processing.',
-                    details: 'Please contact the system administrator.'
+                    details: errText
                 });
+                if (toastError) toastError(errText);
             }
 
             // Auto-reset after 6 seconds
@@ -6821,22 +6831,43 @@ END $$;
                                                         <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                                                             <button
                                                                 type="button"
-                                                                onClick={() => executeKioskCheckIn(selectedAdminStudent, false)}
-                                                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                                disabled={isActionLoading}
+                                                                onClick={async () => {
+                                                                    setIsActionLoading(true);
+                                                                    try {
+                                                                        await executeKioskCheckIn(selectedAdminStudent, false);
+                                                                    } catch (err: any) {
+                                                                        if (toastError) toastError(err?.message || 'Check-In failed');
+                                                                    } finally {
+                                                                        setIsActionLoading(false);
+                                                                    }
+                                                                }}
+                                                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                                                             >
                                                                 <CheckCircleIcon className="w-4 h-4" />
-                                                                <span>⚡ Direct Admin Check-In</span>
+                                                                <span>{isActionLoading ? 'Processing Check-In...' : '⚡ Direct Admin Check-In'}</span>
                                                             </button>
 
                                                             {hasShortfall && (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => executeKioskCheckIn(selectedAdminStudent, true)}
-                                                                    className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                                    disabled={isActionLoading}
+                                                                    onClick={async () => {
+                                                                        setIsActionLoading(true);
+                                                                        try {
+                                                                            await executeKioskCheckIn(selectedAdminStudent, true);
+                                                                            success?.(`Shortfall overridden for ${selectedAdminStudent.fullName}. Candidate checked in!`);
+                                                                        } catch (err: any) {
+                                                                            if (toastError) toastError(err?.message || 'Shortfall override failed');
+                                                                        } finally {
+                                                                            setIsActionLoading(false);
+                                                                        }
+                                                                    }}
+                                                                    className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
                                                                     title="Bypass fee shortfall block and check candidate in"
                                                                 >
                                                                     <ExclamationTriangleIcon className="w-4 h-4" />
-                                                                    <span>🔓 Override Shortfall (KES {ms.shortfall?.toLocaleString()}) & Check In</span>
+                                                                    <span>{isActionLoading ? 'Overriding Shortfall...' : `🔓 Override Shortfall (KES ${ms.shortfall?.toLocaleString()}) & Check In`}</span>
                                                                 </button>
                                                             )}
                                                         </div>
