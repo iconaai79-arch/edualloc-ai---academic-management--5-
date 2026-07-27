@@ -453,9 +453,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const secondaryPhoneFields = useMemo(() => [
         { key: 'admissionNumber', label: 'Admission Number' },
         { key: 'name', label: 'Student Full Name' },
-        { key: 'parentPhone', label: 'Primary Phone Number (Parent / Guardian)' },
+        { key: 'parentPhone', label: 'Parent / Guardian Phone Number' },
         { key: 'secondaryPhone', label: 'Secondary / Alternative Phone Number' },
         { key: 'parentName', label: 'Parent / Guardian Full Name' },
+        { key: 'studentPhone', label: 'Student Personal Phone Number' },
         { key: 'gradeLevel', label: 'Grade / Class Level (e.g., Form 3, Grade 10)' },
         { key: 'stream', label: 'Class Stream / Allocation (e.g., Central, East, West)' },
     ], []);
@@ -1328,7 +1329,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 await Promise.all(batch.map(async (item) => {
                     const admNo = item.admissionNumber ? String(item.admissionNumber).trim() : '';
                     const nameRaw = item.name ? String(item.name).trim().toLowerCase() : '';
-                    const primaryPhoneVal = item.parentPhone ? String(item.parentPhone).trim() : (item.phoneNumber ? String(item.phoneNumber).trim() : '');
+                    const parentPhoneVal = item.parentPhone ? String(item.parentPhone).trim() : '';
+                    const studentPhoneVal = item.studentPhone ? String(item.studentPhone).trim() : '';
                     const secPhoneVal = item.secondaryPhone ? String(item.secondaryPhone).trim() : '';
                     const parentNameVal = item.parentName ? String(item.parentName).trim() : (item.guardianName ? String(item.guardianName).trim() : '');
                     const gradeLevelVal = item.gradeLevel ? String(item.gradeLevel).trim() : (item.grade ? String(item.grade).trim() : (item.class ? String(item.class).trim() : ''));
@@ -1336,7 +1338,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                     const displayName = item.name || admNo || 'Unknown';
 
-                    if (!primaryPhoneVal && !secPhoneVal && !parentNameVal && !gradeLevelVal && !streamVal) {
+                    if (!parentPhoneVal && !studentPhoneVal && !secPhoneVal && !parentNameVal && !gradeLevelVal && !streamVal) {
                         results.push({ name: displayName, status: 'skipped' });
                         return;
                     }
@@ -1361,9 +1363,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const currentMeta = matchedEnrollment.metadata || {};
                         const updatedMeta = { ...currentMeta };
 
-                        if (primaryPhoneVal) {
-                            updatedMeta.parentPhone = primaryPhoneVal;
-                            updatedMeta.phoneNumber = primaryPhoneVal;
+                        if (parentPhoneVal) {
+                            updatedMeta.parentPhone = parentPhoneVal;
+                            updatedMeta.parentPhoneNumber = parentPhoneVal;
                         }
                         if (secPhoneVal) {
                             updatedMeta.secondaryPhone = secPhoneVal;
@@ -1378,6 +1380,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         if (streamVal) {
                             updatedMeta.stream = streamVal;
                         }
+                        if (studentPhoneVal) {
+                            updatedMeta.studentPhone = studentPhoneVal;
+                            updatedMeta.phoneNumber = studentPhoneVal;
+                        }
 
                         const updatedEnrollment = {
                             ...matchedEnrollment,
@@ -1385,10 +1391,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             updatedAt: new Date().toISOString()
                         };
 
-                        // Also update User record if primary phone is updated
-                        const matchedUser = users.find(u => u.id === matchedEnrollment.userId);
-                        if (matchedUser && primaryPhoneVal) {
-                            await apiService.updateModuleRecord('users', matchedUser.id, { ...matchedUser, phoneNumber: primaryPhoneVal }).catch(() => {});
+                        // ONLY update student user account phone if studentPersonalPhone is explicitly mapped
+                        if (studentPhoneVal) {
+                            const matchedUser = users.find(u => u.id === matchedEnrollment.userId);
+                            if (matchedUser) {
+                                await apiService.updateModuleRecord('users', matchedUser.id, { ...matchedUser, phoneNumber: studentPhoneVal }).catch(() => {});
+                            }
                         }
 
                         await apiService.updateModuleRecord('student_enrollments', matchedEnrollment.id, updatedEnrollment);
