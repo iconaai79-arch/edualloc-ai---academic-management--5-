@@ -39,7 +39,8 @@ import {
     X,
     Star,
     ExternalLink,
-    Printer
+    Printer,
+    FlaskConical
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course, CompanyDetails } from '../../types';
@@ -317,6 +318,128 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
     const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
     const [pdfFileName, setPdfFileName] = useState('');
+
+    // Test Event Modal & Verification Studio State
+    const [testEventModalEvent, setTestEventModalEvent] = useState<any | null>(null);
+    const [testShortUrl, setTestShortUrl] = useState<string>('');
+    const [isGeneratingTestShortUrl, setIsGeneratingTestShortUrl] = useState<boolean>(false);
+    const [testUrlCheckResult, setTestUrlCheckResult] = useState<any | null>(null);
+    const [isCheckingTestUrl, setIsCheckingTestUrl] = useState<boolean>(false);
+    const [testRecipientPhone, setTestRecipientPhone] = useState<string>('');
+    const [testRecipientName, setTestRecipientName] = useState<string>('Test Admin');
+    const [isSendingTestSms, setIsSendingTestSms] = useState<boolean>(false);
+    const [testSmsReport, setTestSmsReport] = useState<{ success: boolean; phone: string; pin?: string; shortUrl?: string; message: string } | null>(null);
+
+    useEffect(() => {
+        if (!testEventModalEvent) {
+            setTestShortUrl('');
+            setTestUrlCheckResult(null);
+            setTestSmsReport(null);
+            return;
+        }
+
+        const initTestStudio = async () => {
+            setIsGeneratingTestShortUrl(true);
+            try {
+                const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                    ? 'https://portal.eduai.co.ke'
+                    : window.location.origin;
+                const longUrl = `${origin}/?view=event-confirm&eventId=${testEventModalEvent.id}&mode=rsvp`;
+                const short = await apiService.shortenUrl(longUrl);
+                setTestShortUrl(short);
+
+                if (short && short.startsWith('http')) {
+                    try {
+                        const res = await fetch('/api/integrations', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'checkUrl', url: short })
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            setTestUrlCheckResult(data);
+                        }
+                    } catch (_) {}
+                }
+            } catch (e) {
+                console.error("Failed to generate test short URL:", e);
+            } finally {
+                setIsGeneratingTestShortUrl(false);
+            }
+        };
+
+        initTestStudio();
+    }, [testEventModalEvent]);
+
+    const handleCheckTestUrl = async () => {
+        if (!testShortUrl) return;
+        setIsCheckingTestUrl(true);
+        setTestUrlCheckResult(null);
+        try {
+            const res = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'checkUrl', url: testShortUrl })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setTestUrlCheckResult(data);
+            } else {
+                setTestUrlCheckResult({ success: false, message: `HTTP status ${res.status}` });
+            }
+        } catch (e: any) {
+            setTestUrlCheckResult({ success: false, message: e.message || 'Verification failed' });
+        } finally {
+            setIsCheckingTestUrl(false);
+        }
+    };
+
+    const handleSendTestPinSms = async () => {
+        if (!testEventModalEvent) return;
+        if (!testRecipientPhone.trim()) {
+            alert("Please enter a test recipient phone number.");
+            return;
+        }
+        setIsSendingTestSms(true);
+        setTestSmsReport(null);
+        try {
+            const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                ? 'https://portal.eduai.co.ke'
+                : window.location.origin;
+
+            const mockPinCode = Math.floor(100000 + Math.random() * 900000).toString();
+            const testPinId = `test_pin_${Date.now()}`;
+            const rawLink = `${origin}/?view=event-confirm&pinId=${testPinId}`;
+            const confirmedShortUrl = await apiService.shortenUrl(rawLink);
+
+            const smsText = `[TEST PIN] Hello ${testRecipientName || 'Tester'}, your PIN for "${testEventModalEvent.title}" on ${testEventModalEvent.eventDate} is ${mockPinCode}. Confirm RSVP: ${confirmedShortUrl}`;
+
+            const res = await apiService.sendSms(
+                testRecipientPhone.trim(),
+                smsText,
+                currentInstitution.smsConfig,
+                1,
+                currentInstitution.id
+            );
+
+            const success = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
+            setTestSmsReport({
+                success,
+                phone: testRecipientPhone,
+                pin: mockPinCode,
+                shortUrl: confirmedShortUrl,
+                message: success ? 'Test SMS delivered successfully with confirmed shortened URL!' : (res?.message || 'Gateway rejected SMS')
+            });
+        } catch (err: any) {
+            setTestSmsReport({
+                success: false,
+                phone: testRecipientPhone,
+                message: err.message || 'Failed to dispatch test SMS'
+            });
+        } finally {
+            setIsSendingTestSms(false);
+        }
+    };
 
     useEffect(() => {
         if (!bulkFeedbackModalEvent) {
@@ -1691,7 +1814,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             };
 
             await apiService.saveModuleRecord('institution_events', newEvent);
-            setStatusMsg({ type: 'success', message: 'Institution event scheduled successfully.' });
+            
+            // Confirm shortened RSVP URL for new event
+            const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                ? 'https://portal.eduai.co.ke'
+                : window.location.origin;
+            const regUrl = `${origin}/?view=event-confirm&eventId=${eventId}&mode=rsvp`;
+            let confirmNotice = '';
+            try {
+                const shortUrl = await apiService.shortenUrl(regUrl);
+                if (shortUrl && shortUrl.startsWith('http')) {
+                    confirmNotice = ` (Shortened RSVP Link Confirmed: ${shortUrl})`;
+                }
+            } catch (_) {}
+
+            setStatusMsg({ type: 'success', message: `Institution event scheduled successfully.${confirmNotice}` });
             
             setEventTitle('');
             setEventDescription('');
@@ -2113,14 +2250,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
                 const confirmationLink = rawLink;
                 const shortLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
+                let shortenedLink = shortLink;
+                try {
+                    shortenedLink = await apiService.shortenUrl(shortLink);
+                } catch (_) {}
 
                 const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
 
                 // Send notification with RSVP details
                 const studentName = associatedUser.name || 'your child';
                 const smsMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortLink}`
-                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortLink}`;
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortenedLink}`
+                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortenedLink}`;
                 
                 const emailMessage = primaryParent
                     ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${confirmationLink}`
@@ -2460,13 +2601,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
                 const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
                 const shortLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
+                let shortenedLink = shortLink;
+                try {
+                    shortenedLink = await apiService.shortenUrl(shortLink);
+                } catch (_) {}
 
                 const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
                 const studentName = associatedUser.name || 'your child';
                 
                 const smsMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortLink}`
-                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortLink}`;
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortenedLink}`
+                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortenedLink}`;
                 
                 const emailMessage = primaryParent
                     ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${rawLink}`
@@ -2727,12 +2872,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
             const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
             const shortLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
+            let shortenedLink = shortLink;
+            try {
+                shortenedLink = await apiService.shortenUrl(shortLink);
+            } catch (_) {}
 
             const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
             const studentName = associatedUser.name || 'your child';
             const smsMessage = primaryParent
-                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortLink}`
-                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortLink}`;
+                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortenedLink}`
+                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortenedLink}`;
 
             const emailMessage = primaryParent
                 ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${rawLink}`
@@ -2850,6 +2999,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
             const rawLink = `${origin}/?view=event-confirm&pinId=${pinRecord.id}&data=${base64Data}`;
             const shortLink = `${origin}/?view=event-confirm&pinId=${pinRecord.id}`;
+            let shortenedLink = shortLink;
+            try {
+                shortenedLink = await apiService.shortenUrl(shortLink);
+            } catch (_) {}
 
             const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
             
@@ -2862,8 +3015,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
 
             const smsMessage = targetUser.role === 'parent'
-                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortLink}`
-                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortLink}`;
+                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortenedLink}`
+                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortenedLink}`;
 
             const emailMessage = targetUser.role === 'parent'
                 ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${rawLink}`
@@ -3077,9 +3230,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const targetEmail = targetUser.email || '';
                 const targetName = targetUser.name || 'Guest';
                 const shortLink = `${origin}/?view=event-confirm&pinId=${pinRecord.id}`;
+                let shortenedLink = shortLink;
+                try {
+                    shortenedLink = await apiService.shortenUrl(shortLink);
+                } catch (_) {}
+
                 const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
 
-                const smsMessage = `REMINDER: You are invited to "${event.title}" on ${event.eventDate}${event.eventTime ? ' at ' + event.eventTime : ''}${event.venue ? ', ' + event.venue : ''}.${suffix} Please confirm your attendance: ${shortLink}`;
+                const smsMessage = `REMINDER: You are invited to "${event.title}" on ${event.eventDate}${event.eventTime ? ' at ' + event.eventTime : ''}${event.venue ? ', ' + event.venue : ''}.${suffix} Please confirm your attendance: ${shortenedLink}`;
                 const emailMessage = smsMessage;
 
                 let smsSuccess = false;
@@ -5697,19 +5855,27 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                             />
                                                         </label>
                                                     </div>
-                                                    {/* Edit & Delete event row */}
+                                                    {/* Edit, Test & Delete event row */}
                                                     <div className="flex gap-2 pt-1">
                                                         <button
-                                                            onClick={() => handleOpenEditEvent(event)}
-                                                            className="flex-1 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                                                            onClick={() => setTestEventModalEvent(event)}
+                                                            className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm shadow-purple-500/20 flex items-center justify-center gap-1.5"
+                                                            title="Test Event RSVP Link, Short URL & PIN Verification"
                                                         >
-                                                            <Edit2 className="w-3 h-3" /> Edit Event
+                                                            <FlaskConical className="w-3 h-3 text-purple-200" /> Test Event
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleOpenEditEvent(event)}
+                                                            className="px-3 py-2 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                                                        >
+                                                            <Edit2 className="w-3 h-3" /> Edit
                                                         </button>
                                                         <button
                                                             onClick={() => handleDeleteEvent(event)}
-                                                            className="flex-1 px-3 py-2 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                                                            className="px-3 py-2 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shrink-0"
+                                                            title="Delete Event"
                                                         >
-                                                            <Trash2 className="w-3 h-3" /> Delete
+                                                            <Trash2 className="w-3 h-3" />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -8848,6 +9014,198 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* Test Event Studio Modal */}
+        {testEventModalEvent && createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
+                <div className="bg-slate-900 border border-purple-500/30 rounded-3xl p-6 sm:p-8 w-full max-w-2xl text-white shadow-2xl space-y-6 relative my-8">
+                    {/* Header */}
+                    <div className="flex items-start justify-between border-b border-white/10 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                                <FlaskConical className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black text-white uppercase tracking-tight flex items-center gap-2">
+                                    Event Test Studio
+                                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                        Live Verification
+                                    </span>
+                                </h3>
+                                <p className="text-xs text-slate-400 font-bold mt-0.5">
+                                    {testEventModalEvent.title}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setTestEventModalEvent(null)}
+                            className="p-1.5 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-all"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Event Details */}
+                    <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-300 bg-white/5 p-3 rounded-2xl border border-white/5">
+                        <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-purple-400" /> {testEventModalEvent.eventDate}</span>
+                        {testEventModalEvent.eventTime && <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-purple-400" /> {testEventModalEvent.eventTime}</span>}
+                        <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-purple-400" /> {testEventModalEvent.venue}</span>
+                    </div>
+
+                    {/* Section 1: Shortened URL Health & Confirmation */}
+                    <div className="space-y-3 bg-slate-950/60 border border-white/5 rounded-2xl p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="text-xs font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Link className="w-3.5 h-3.5" /> Shortened URL Health &amp; Confirmation
+                                </h4>
+                                <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                                    Verify that the shortened link redirects accurately to the public RSVP page.
+                                </p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    disabled={isGeneratingTestShortUrl || !testShortUrl}
+                                    onClick={() => window.open(testShortUrl, '_blank')}
+                                    className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                                >
+                                    <ExternalLink className="w-3 h-3" /> Test Link
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={isCheckingTestUrl || !testShortUrl}
+                                    onClick={handleCheckTestUrl}
+                                    className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                                >
+                                    {isCheckingTestUrl ? (
+                                        <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                        <CheckCircle className="w-3 h-3" />
+                                    )}
+                                    {isCheckingTestUrl ? 'Verifying...' : 'Check Redirection'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-900 border border-white/5 rounded-xl p-3 text-[10px] space-y-1.5 font-mono">
+                            <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                                <span className="text-slate-400 font-sans font-bold">Target URL:</span>
+                                <span className="text-slate-300 break-all select-all">{`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=event-confirm&eventId=${testEventModalEvent.id}&mode=rsvp`}</span>
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t border-white/5 pt-1.5">
+                                <span className="text-slate-400 font-sans font-bold">Confirmed Short URL:</span>
+                                <span className="text-purple-300 font-bold break-all select-all">{isGeneratingTestShortUrl ? 'Generating...' : (testShortUrl || 'Failed to generate')}</span>
+                            </div>
+                        </div>
+
+                        {testUrlCheckResult && (
+                            <div className={`p-3 rounded-xl border text-[10px] space-y-1 ${
+                                testUrlCheckResult.success && testUrlCheckResult.status === 200
+                                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                                    : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
+                            }`}>
+                                <p className="font-black uppercase tracking-wider flex items-center gap-1.5">
+                                    {testUrlCheckResult.success && testUrlCheckResult.status === 200 ? (
+                                        <span className="text-emerald-400 font-black">✓ Shortened URL Confirmed &amp; Reachable (HTTP 200)</span>
+                                    ) : (
+                                        <span className="text-rose-400 font-black">✗ Redirection Check Failed</span>
+                                    )}
+                                </p>
+                                <div className="space-y-0.5 text-slate-300 font-sans">
+                                    <p>Final Redirect Target: <span className="font-mono text-white">{testUrlCheckResult.finalUrl || 'Unknown'}</span></p>
+                                    {testUrlCheckResult.finalUrl && (
+                                        <p>Target Verification: <span className={testUrlCheckResult.finalUrl.includes('view=event-confirm') ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+                                            {testUrlCheckResult.finalUrl.includes('view=event-confirm') ? 'Resolves to RSVP Portal ✓' : 'Unexpected Target ⚠️'}
+                                        </span></p>
+                                    )}
+                                    {testUrlCheckResult.message && <p className="text-rose-400">Error Details: {testUrlCheckResult.message}</p>}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Section 2: Dispatch Test PIN SMS */}
+                    <div className="space-y-3 bg-slate-950/60 border border-white/5 rounded-2xl p-4">
+                        <h4 className="text-xs font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Send className="w-3.5 h-3.5" /> Dispatch Test PIN &amp; SMS
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-medium">
+                            Send a test invitation SMS containing a generated PIN and confirmed shortened URL to test SMS gateway delivery.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label className="block text-[9px] font-black uppercase text-slate-400 mb-1">Recipient Name</label>
+                                <input
+                                    type="text"
+                                    value={testRecipientName}
+                                    onChange={e => setTestRecipientName(e.target.value)}
+                                    placeholder="Test Recipient"
+                                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-purple-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-black uppercase text-slate-400 mb-1">Test Phone Number</label>
+                                <input
+                                    type="text"
+                                    value={testRecipientPhone}
+                                    onChange={e => setTestRecipientPhone(e.target.value)}
+                                    placeholder="e.g. 0712345678"
+                                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-purple-500"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            disabled={isSendingTestSms || !testRecipientPhone.trim()}
+                            onClick={handleSendTestPinSms}
+                            className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2"
+                        >
+                            {isSendingTestSms ? (
+                                <>
+                                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    Sending Test SMS...
+                                </>
+                            ) : (
+                                <>
+                                    <Send className="w-3.5 h-3.5" /> Send Test PIN SMS
+                                </>
+                            )}
+                        </button>
+
+                        {testSmsReport && (
+                            <div className={`p-3 rounded-xl border text-[10px] space-y-1 ${
+                                testSmsReport.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
+                            }`}>
+                                <p className="font-black uppercase tracking-wider flex items-center gap-1.5">
+                                    {testSmsReport.success ? '✓ Test SMS Sent Successfully' : '✗ Test SMS Dispatch Failed'}
+                                </p>
+                                <div className="space-y-0.5 font-mono text-slate-300">
+                                    {testSmsReport.pin && <p>Generated Test PIN: <span className="text-amber-300 font-bold">{testSmsReport.pin}</span></p>}
+                                    {testSmsReport.shortUrl && <p>Shortened Link: <span className="text-purple-300 font-bold">{testSmsReport.shortUrl}</span></p>}
+                                    <p>Status: {testSmsReport.message}</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex justify-end pt-2 border-t border-white/10">
+                        <button
+                            type="button"
+                            onClick={() => setTestEventModalEvent(null)}
+                            className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                        >
+                            Close Studio
+                        </button>
+                    </div>
                 </div>
             </div>,
             document.body
