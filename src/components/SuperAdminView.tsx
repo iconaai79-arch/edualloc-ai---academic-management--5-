@@ -4114,7 +4114,7 @@ Please change it after login.`;
                                             setIsAddCarPaymentModalOpen(true);
                                         }}
                                         onAddLead={() => {}}
-                                        onSwitchPerspective={() => {}}
+                                        onSwitchPerspective={() => { if (props.onSwitchPerspective) props.onSwitchPerspective(null as any); }}
                                     />
                                 </Suspense>
                             )}

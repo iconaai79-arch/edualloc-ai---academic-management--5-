@@ -4514,10 +4514,39 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         themeColor: activeBranding.primaryColor,
         invoices,
         onManualInvoice: async (institutionId: string, items: any[], totalAmount: number, dueDate: string, isQuote?: boolean) => {
-            const prefix = isQuote ? 'QT-' : (companyDetails?.globalInvoicePrefix || 'INV-').trim();
-            const invoiceNumber = `${prefix}${Date.now()}`;
+            let invoiceNumber = '';
+            const rawPrefix = isQuote 
+                ? 'QT-' 
+                : (companyDetails?.globalInvoicePrefix || 'INV-').trim();
+            const cleanPrefix = rawPrefix.endsWith('-') || rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}-`;
+
+            try {
+                const existingInvoices = await apiService.fetchModuleRecords<any>('invoices', institutionId) || [];
+                let maxSeq = 0;
+                
+                existingInvoices.forEach((inv: any) => {
+                    const numStr = String(inv.invoiceNumber || inv.invoice_number || '').trim();
+                    if (numStr) {
+                        const digitsOnly = numStr.replace(/\D/g, '');
+                        if (digitsOnly) {
+                            const parsed = parseInt(digitsOnly, 10);
+                            if (!isNaN(parsed) && parsed > maxSeq && parsed < 1000000) {
+                                maxSeq = parsed;
+                            }
+                        }
+                    }
+                });
+
+                const nextSeq = maxSeq + 1;
+                const paddedSeq = String(nextSeq).padStart(4, '0');
+                invoiceNumber = `${cleanPrefix}${paddedSeq}`;
+            } catch (e) {
+                console.warn("Failed to calculate sequential invoice number, falling back:", e);
+                invoiceNumber = `${cleanPrefix}${Date.now().toString().slice(-6)}`;
+            }
+
             const newInvoice = {
-                id: `inv_${Date.now()}`,
+                id: `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
                 invoiceNumber,
                 institutionId,
                 items,
