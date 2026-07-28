@@ -279,23 +279,6 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [inviteLoading, setInviteLoading] = useState(false);
     const [inviteMsg, setInviteMsg] = useState<{ type: 'success' | 'error' | 'info' | 'idle'; message: string }>({ type: 'idle', message: '' });
     
-    // Dynamic Cohort / Class Levels List
-    const cohortsList = useMemo(() => {
-        const listFromLevels = (academicLevels || []).map(l => l.name || l.code).filter(Boolean);
-        const listFromEnrollments = (enrollments || []).map(e => e.metadata?.gradeLevel).filter(Boolean);
-        const listFromCourses = (courses || []).flatMap(c => (c.levels || []).map(l => l.name || l.code)).filter(Boolean);
-
-        const defaultGrades = context === 'driving_school'
-            ? ['Class A', 'Class B', 'Class C', 'Class D', 'Class E']
-            : [
-                'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-                'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4',
-                'PP1', 'PP2', 'Playgroup'
-              ];
-
-        return Array.from(new Set([...listFromLevels, ...listFromEnrollments, ...listFromCourses, ...defaultGrades])).sort();
-    }, [academicLevels, enrollments, courses, context]);
-
     // Bulk invitation configuration state
     const [bulkInviteModalEvent, setBulkInviteModalEvent] = useState<any | null>(null);
     const [bulkInviteAddMsg, setBulkInviteAddMsg] = useState<string>('');
@@ -2202,7 +2185,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     return studentIds.includes(enr.userId);
                 }
                 if (event.target.startsWith('grades:')) {
-                    const grades = event.target.replace('grades:', '').split(',').map(g => g.trim().toLowerCase());
+                    const grades = event.target.replace('grades:', '').split(',').map((g: string) => g.trim().toLowerCase());
                     return grades.includes((enr.metadata?.gradeLevel || '').trim().toLowerCase());
                 }
                 if (context === 'driving_school') {
@@ -2634,7 +2617,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     return studentIds.includes(enr.userId);
                 }
                 if (event.target.startsWith('grades:')) {
-                    const grades = event.target.replace('grades:', '').split(',').map(g => g.trim().toLowerCase());
+                    const grades = event.target.replace('grades:', '').split(',').map((g: string) => g.trim().toLowerCase());
                     return grades.includes((enr.metadata?.gradeLevel || '').trim().toLowerCase());
                 }
                 if (context === 'driving_school') {
@@ -4076,18 +4059,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 'Class C (Heavy Commercial)'
             ];
         } else {
-            if (courses && courses.length > 0) {
-                return courses.map(c => c.name);
-            }
-            if (academicLevels && academicLevels.length > 0) {
-                return academicLevels.map(al => al.name);
-            }
-            return [
+            const listFromLevels = (academicLevels || []).map(al => al.name).filter(Boolean);
+            const listFromEnrollments = (enrollments || []).map(e => e.metadata?.gradeLevel).filter(Boolean);
+            const listFromCourses = (courses || []).map(c => c.name).filter(Boolean);
+
+            const defaultGrades = [
                 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-                'Grade 7', 'Grade 8', 'Form 1', 'Form 2', 'Form 3', 'Form 4'
+                'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4',
+                'PP1', 'PP2', 'Playgroup'
             ];
+
+            return Array.from(new Set([...listFromLevels, ...listFromEnrollments, ...listFromCourses, ...defaultGrades])).sort();
         }
-    }, [context, courses, academicLevels]);
+    }, [context, courses, academicLevels, enrollments]);
 
     // Available Streams fallback
     const streamsList = useMemo(() => {
@@ -8783,7 +8767,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         return studentIds.includes(enr.userId);
                     }
                     if (event.target.startsWith('grades:')) {
-                        const grades = event.target.replace('grades:', '').split(',').map(g => g.trim().toLowerCase());
+                        const grades = event.target.replace('grades:', '').split(',').map((g: string) => g.trim().toLowerCase());
                         return grades.includes((enr.metadata?.gradeLevel || '').trim().toLowerCase());
                     }
                     if (context === 'driving_school') {
