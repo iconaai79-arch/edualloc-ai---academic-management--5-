@@ -368,46 +368,149 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     return (
         <div className="space-y-8 animate-fade-in mt-4">
             
-            {/* Context Tab Bar */}
-            <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-3xl p-2 shadow-sm">
-                <div className="flex gap-2">
-                    <button 
-                        onClick={() => setActiveTab('sessions')}
-                        className={`px-5 py-3 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'sessions' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
-                    >
-                        <Clock className="w-4 h-4" /> Remedial Hours
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('payouts')}
-                        className={`px-5 py-3 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'payouts' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
-                    >
-                        <DollarSign className="w-4 h-4" /> Teacher Payouts
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('billing')}
-                        className={`px-5 py-3 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'billing' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
-                    >
-                        <CreditCard className="w-4 h-4" /> Parent Billing
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('rates')}
-                        className={`px-5 py-3 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'rates' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
-                    >
-                        <Shield className="w-4 h-4" /> Rates & Configuration
-                    </button>
+            {/* Futuristic Top Banner */}
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl border border-indigo-500/20 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                <div className="relative z-10 space-y-2">
+                    <div className="flex items-center gap-2">
+                        <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                            Academic Intervention Control
+                        </span>
+                    </div>
+                    <h2 className="text-3xl font-black tracking-tight text-white uppercase">Remedial Manager</h2>
+                    <p className="text-xs text-slate-300 max-w-xl font-medium">
+                        Oversee extra lesson verification, automated QR prefect signatures, teacher disbursement calculations, and parent remedial billing.
+                    </p>
                 </div>
-
-                <div className="flex gap-2">
-                    {activeTab === 'sessions' && (
-                        <button 
-                            onClick={() => setShowLogModal(true)}
-                            className="px-5 py-3 bg-indigo-650 hover:bg-indigo-700 text-white rounded-full text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5"
-                        >
-                            <Plus className="w-4 h-4" /> Log Extra Hours
-                        </button>
-                    )}
+                
+                {/* Quick Launcher Action */}
+                <div className="relative z-10 flex items-center gap-3 shrink-0">
+                    <button 
+                        onClick={() => setShowLogModal(true)}
+                        className="px-6 py-3.5 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/25 transition-all transform active:scale-95 flex items-center gap-2 border border-indigo-400/30"
+                    >
+                        <Plus className="w-4 h-4" /> Log Extra Hours
+                    </button>
                 </div>
             </div>
+
+            {/* Main Workspace Layout with Futuristic Vertical Menu */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                
+                {/* Left Futuristic Vertical Menu Sidebar */}
+                <div className="lg:col-span-3 space-y-4">
+                    <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-[2.5rem] p-4 shadow-xl shadow-slate-200/50 dark:shadow-none space-y-2.5 sticky top-6">
+                        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800/80 mb-2 flex items-center justify-between">
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Navigation Hub</p>
+                                <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase mt-0.5">Control Center</h4>
+                            </div>
+                            <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/50"></span>
+                        </div>
+
+                        <button 
+                            onClick={() => setActiveTab('sessions')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'sessions' 
+                                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'sessions' ? 'bg-white/20 text-white' : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <Clock className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Remedial Hours</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'sessions' ? 'text-indigo-100' : 'text-slate-400'}`}>Session logs & QR verify</p>
+                                </div>
+                            </div>
+                            {sessions.filter(s => s.status === 'Prefect Confirmed').length > 0 && (
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                    activeTab === 'sessions' ? 'bg-white text-indigo-700' : 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
+                                }`}>
+                                    {sessions.filter(s => s.status === 'Prefect Confirmed').length}
+                                </span>
+                            )}
+                        </button>
+
+                        <button 
+                            onClick={() => setActiveTab('payouts')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'payouts' 
+                                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'payouts' ? 'bg-white/20 text-white' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <DollarSign className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Teacher Payouts</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'payouts' ? 'text-indigo-100' : 'text-slate-400'}`}>Accrued pay & sign off</p>
+                                </div>
+                            </div>
+                            {accruedPayouts.length > 0 && (
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                    activeTab === 'payouts' ? 'bg-white text-indigo-700' : 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400'
+                                }`}>
+                                    {accruedPayouts.length}
+                                </span>
+                            )}
+                        </button>
+
+                        <button 
+                            onClick={() => setActiveTab('billing')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'billing' 
+                                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'billing' ? 'bg-white/20 text-white' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <CreditCard className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Parent Billing</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'billing' ? 'text-indigo-100' : 'text-slate-400'}`}>Invoicing & term billing</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button 
+                            onClick={() => setActiveTab('rates')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'rates' 
+                                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'rates' ? 'bg-white/20 text-white' : 'bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <Shield className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Rates & Rules</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'rates' ? 'text-indigo-100' : 'text-slate-400'}`}>Tariffs & configs</p>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Right Main Content Workspace */}
+                <div className="lg:col-span-9 min-w-0">
 
             {/* TAB: SESSIONS */}
             {activeTab === 'sessions' && (
@@ -772,6 +875,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     </div>
                 </div>
             )}
+            </div>
+            </div>
 
             {/* Print Layout (Hidden on Screen, Visible on Print) */}
             {printingPrefect && (

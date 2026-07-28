@@ -1049,6 +1049,15 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const filteredUsers = useMemo(() => {
         let list = [];
 
+        // Determine target institution when Super Admin selects institution filter
+        const targetInst = isSuperAdmin && institutionFilter !== 'all'
+            ? (institutions || []).find(i => i.id === institutionFilter)
+            : currentInstitution;
+
+        const targetIsPm = targetInst ? ((targetInst.institutionType as string) === 'Property Management' || targetInst.businessSubType?.toLowerCase().includes('property management')) : isPm;
+        const targetIsRetail = targetInst ? ((targetInst.institutionType as string) === 'Retail Agency' || targetInst.businessSubType?.toLowerCase().includes('retail')) : isRetailAgency;
+        const targetIsAuto = targetInst ? ((targetInst.institutionType as string) === 'Car Showroom' || (targetInst as any).category === 'Automotive Marketplace' || targetInst.businessSubType?.toLowerCase().includes('showroom')) : isAutoMarket;
+
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             list = (users || []).filter(u => {
@@ -1074,8 +1083,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             list = (users || []).filter(u => {
                 if (!u) return false;
                 if (activeTab === 'staff') {
-                    const baseFilter = u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead';
-                    if (isPm) {
+                    const baseFilter = u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead' && u.role !== 'visitor';
+                    if (targetIsPm && !isSuperAdmin) {
                         const pmStaffRoles = ['property_admin', 'admin', 'finance', 'finance_officer', 'security', 'reception', 'caretaker', 'driver'];
                         const instId = currentInstitution?.id || currentUser?.institutionId;
                         return pmStaffRoles.includes(u.role)
@@ -1107,9 +1116,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             });
         }
 
-        // For Retail Agency and Auto Market, we only show specific roles in Staff tab
-        if ((isRetailAgency || isAutoMarket) && activeTab === 'staff' && !searchQuery.trim()) {
-            const retailRoles: Role[] = isAutoMarket 
+        // For Retail Agency and Auto Market, only restrict roles if not SuperAdmin viewing an institution
+        if ((targetIsRetail || targetIsAuto) && activeTab === 'staff' && !searchQuery.trim() && !isSuperAdmin) {
+            const retailRoles: Role[] = targetIsAuto 
                 ? ['admin', 'director', 'finance', 'finance_officer', 'sales', 'reception'] 
                 : ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'];
             list = list.filter(u => retailRoles.includes(u.role));
@@ -1121,7 +1130,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         }
 
         return list;
-    }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId, isRetailAgency, isPm, currentInstitution?.id, currentUser?.institutionId, institutionMap]);
+    }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId, isRetailAgency, isAutoMarket, isPm, currentInstitution, currentUser?.institutionId, institutionMap, institutions]);
 
 
     const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
