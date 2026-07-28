@@ -348,6 +348,9 @@ export interface User {
     branch_id?: string;
     permissions?: string[];
     customPermissions?: Record<string, boolean>;
+    secondaryPhone?: string;
+    parentPhone2?: string;
+    guardianPhone2?: string;
 }
 
 export interface StudentEnrollment {
