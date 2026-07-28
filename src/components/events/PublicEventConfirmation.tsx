@@ -78,7 +78,8 @@ export const PublicEventConfirmation: React.FC = () => {
 
     // Public/Generic Event RSVP & Feedback States
     const [eventId, setEventId] = useState<string | null>(null);
-    const [publicFormMode, setPublicFormMode] = useState<'feedback' | 'rsvp' | 'lookup'>('feedback');
+    const [publicFormMode, setPublicFormMode] = useState<'lookup' | 'rsvp' | 'feedback'>('lookup');
+    const [hideFeedbackTab, setHideFeedbackTab] = useState(false);
     const [publicName, setPublicName] = useState('');
     const [publicPhone, setPublicPhone] = useState('');
     const [publicEmail, setPublicEmail] = useState('');
@@ -90,10 +91,15 @@ export const PublicEventConfirmation: React.FC = () => {
             const urlEventId = params.get('eventId');
             const view = params.get('view');
             const mode = params.get('mode') || params.get('tab');
+            const hideFb = params.get('hideFeedback') === 'true' || params.get('noFeedback') === 'true';
+            if (hideFb) setHideFeedbackTab(true);
+
             if (mode === 'rsvp' || mode === 'feedback' || mode === 'lookup') {
                 setPublicFormMode(mode as any);
             } else if (view === 'event-register' || view === 'event-registration') {
                 setPublicFormMode('rsvp');
+            } else {
+                setPublicFormMode('lookup');
             }
             if (id) {
                 setPinId(id);
@@ -1515,14 +1521,14 @@ export const PublicEventConfirmation: React.FC = () => {
                             <div className="flex gap-1 p-1 bg-slate-950/60 border border-slate-850 rounded-2xl">
                                 <button
                                     type="button"
-                                    onClick={() => { setPublicFormMode('feedback'); setStatusMsg({ type: 'idle', text: '' }); }}
+                                    onClick={() => { setPublicFormMode('lookup'); setStatusMsg({ type: 'idle', text: '' }); }}
                                     className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                                        publicFormMode === 'feedback'
-                                            ? 'bg-amber-600 text-white shadow-lg'
+                                        publicFormMode === 'lookup'
+                                            ? 'bg-purple-650 text-white shadow-lg'
                                             : 'text-slate-500 hover:text-slate-300'
                                     }`}
                                 >
-                                    ⭐ Submit Feedback
+                                    🔍 Locate Invitation
                                 </button>
                                 <button
                                     type="button"
@@ -1535,17 +1541,19 @@ export const PublicEventConfirmation: React.FC = () => {
                                 >
                                     ✍️ Register / RSVP
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => { setPublicFormMode('lookup'); setStatusMsg({ type: 'idle', text: '' }); }}
-                                    className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                                        publicFormMode === 'lookup'
-                                            ? 'bg-purple-650 text-white shadow-lg'
-                                            : 'text-slate-500 hover:text-slate-300'
-                                    }`}
-                                >
-                                    🔍 Locate Invitation
-                                </button>
+                                {!hideFeedbackTab && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setPublicFormMode('feedback'); setStatusMsg({ type: 'idle', text: '' }); }}
+                                        className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                            publicFormMode === 'feedback'
+                                                ? 'bg-amber-600 text-white shadow-lg'
+                                                : 'text-slate-500 hover:text-slate-300'
+                                        }`}
+                                    >
+                                        ⭐ Submit Feedback
+                                    </button>
+                                )}
                             </div>
 
                             {/* FEEDBACK SUBMISSION MODE */}
