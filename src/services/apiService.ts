@@ -1134,6 +1134,31 @@ export const apiService = {
             if (module === 'ds_vehicles') {
                 delete item.assigned_instructor_id;
             }
+
+            // Safety net for users table to strip non-existent top-level columns (e.g. parent_phone2) that cause PGRST204 PostgREST errors
+            if (module === 'users') {
+                const parentPhone2Val = item.parent_phone2 || item.parentPhone2 || item.secondary_phone || item.secondaryPhone || item.guardian_phone2 || item.guardianPhone2;
+                if (parentPhone2Val) {
+                    item.metadata = {
+                        ...(item.metadata || {}),
+                        parentPhone2: parentPhone2Val,
+                        secondaryPhone: parentPhone2Val
+                    };
+                }
+                delete item.parent_phone2;
+                delete item.parentPhone2;
+                delete item.secondary_phone;
+                delete item.secondaryPhone;
+                delete item.guardian_phone2;
+                delete item.guardianPhone2;
+                delete item.parent_phone_number2;
+                delete item.secondary_parent_phone;
+                delete item.student_phone;
+                delete item.parent_name;
+                delete item.guardian_name;
+                delete item.parent_phone;
+                delete item.parentPhone;
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {

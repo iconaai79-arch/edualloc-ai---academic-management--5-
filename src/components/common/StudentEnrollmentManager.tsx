@@ -279,9 +279,27 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [inviteLoading, setInviteLoading] = useState(false);
     const [inviteMsg, setInviteMsg] = useState<{ type: 'success' | 'error' | 'info' | 'idle'; message: string }>({ type: 'idle', message: '' });
     
+    // Dynamic Cohort / Class Levels List
+    const cohortsList = useMemo(() => {
+        const listFromLevels = (academicLevels || []).map(l => l.name || l.code).filter(Boolean);
+        const listFromEnrollments = (enrollments || []).map(e => e.metadata?.gradeLevel).filter(Boolean);
+        const listFromCourses = (courses || []).flatMap(c => (c.levels || []).map(l => l.name || l.code)).filter(Boolean);
+
+        const defaultGrades = context === 'driving_school'
+            ? ['Class A', 'Class B', 'Class C', 'Class D', 'Class E']
+            : [
+                'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+                'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4',
+                'PP1', 'PP2', 'Playgroup'
+              ];
+
+        return Array.from(new Set([...listFromLevels, ...listFromEnrollments, ...listFromCourses, ...defaultGrades])).sort();
+    }, [academicLevels, enrollments, courses, context]);
+
     // Bulk invitation configuration state
     const [bulkInviteModalEvent, setBulkInviteModalEvent] = useState<any | null>(null);
     const [bulkInviteAddMsg, setBulkInviteAddMsg] = useState<string>('');
+    const [bulkInviteSelectedClass, setBulkInviteSelectedClass] = useState<string>('All');
     
     // Bulk feedback configuration state
     const [bulkFeedbackModalEvent, setBulkFeedbackModalEvent] = useState<any | null>(null);
@@ -2163,7 +2181,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     };
 
     // Send Attendance Pin
-    const handleSendAttendancePin = async (event: any, additionalMessage: string = '') => {
+    const handleSendAttendancePin = async (event: any, additionalMessage: string = '', selectedClass: string = 'All') => {
         setStatusMsg({ type: 'info', message: 'Generating and dispatching attendance PINs...' });
         setIsLoading(true);
 
@@ -2171,15 +2189,26 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
         try {
             const targetEnrollments = enrollments.filter(enr => {
+                if (selectedClass && selectedClass !== 'All') {
+                    const allowedGrades = selectedClass.startsWith('grades:')
+                        ? selectedClass.replace('grades:', '').split(',').map(c => c.trim().toLowerCase())
+                        : [selectedClass.trim().toLowerCase()];
+                    const studentGrade = (enr.metadata?.gradeLevel || enr.metadata?.licenseCategory || '').trim().toLowerCase();
+                    if (!allowedGrades.includes(studentGrade)) return false;
+                }
                 if (event.target === 'All') return true;
                 if (event.target.startsWith('students:')) {
                     const studentIds = event.target.replace('students:', '').split(',');
                     return studentIds.includes(enr.userId);
                 }
+                if (event.target.startsWith('grades:')) {
+                    const grades = event.target.replace('grades:', '').split(',').map(g => g.trim().toLowerCase());
+                    return grades.includes((enr.metadata?.gradeLevel || '').trim().toLowerCase());
+                }
                 if (context === 'driving_school') {
                     return enr.metadata?.licenseCategory === event.target;
                 } else {
-                    return enr.metadata?.gradeLevel === event.target;
+                    return (enr.metadata?.gradeLevel || '').trim().toLowerCase() === (event.target || '').trim().toLowerCase();
                 }
             });
 
@@ -2583,24 +2612,35 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     };
 
     // Resend/Generate PINs to missing recipients (audit check resolver)
-    const handleSendPinsToMissingRecipients = async (event: any, additionalMessage: string = '') => {
+    const handleSendPinsToMissingRecipients = async (event: any, additionalMessage: string = '', selectedClass: string = 'All') => {
         setStatusMsg({ type: 'info', message: 'Analyzing missing recipients and generating PINs...' });
         setIsLoading(true);
 
         const results: { recipientName: string; phone: string; success: boolean; errorMsg?: string }[] = [];
 
         try {
-            // 1. Identify all target enrollments for this cohort
+            // 1. Identify all target enrollments for this cohort & class filter
             const targetEnrollments = enrollments.filter(enr => {
+                if (selectedClass && selectedClass !== 'All') {
+                    const allowedGrades = selectedClass.startsWith('grades:')
+                        ? selectedClass.replace('grades:', '').split(',').map(c => c.trim().toLowerCase())
+                        : [selectedClass.trim().toLowerCase()];
+                    const studentGrade = (enr.metadata?.gradeLevel || enr.metadata?.licenseCategory || '').trim().toLowerCase();
+                    if (!allowedGrades.includes(studentGrade)) return false;
+                }
                 if (event.target === 'All') return true;
                 if (event.target.startsWith('students:')) {
                     const studentIds = event.target.replace('students:', '').split(',');
                     return studentIds.includes(enr.userId);
                 }
+                if (event.target.startsWith('grades:')) {
+                    const grades = event.target.replace('grades:', '').split(',').map(g => g.trim().toLowerCase());
+                    return grades.includes((enr.metadata?.gradeLevel || '').trim().toLowerCase());
+                }
                 if (context === 'driving_school') {
                     return enr.metadata?.licenseCategory === event.target;
                 } else {
-                    return enr.metadata?.gradeLevel === event.target;
+                    return (enr.metadata?.gradeLevel || '').trim().toLowerCase() === (event.target || '').trim().toLowerCase();
                 }
             });
 
@@ -8730,15 +8770,26 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             (() => {
                 const event = bulkInviteModalEvent;
                 const targetEnrollments = enrollments.filter(enr => {
+                    if (bulkInviteSelectedClass && bulkInviteSelectedClass !== 'All') {
+                        const allowedGrades = bulkInviteSelectedClass.startsWith('grades:')
+                            ? bulkInviteSelectedClass.replace('grades:', '').split(',').map(c => c.trim().toLowerCase())
+                            : [bulkInviteSelectedClass.trim().toLowerCase()];
+                        const studentGrade = (enr.metadata?.gradeLevel || enr.metadata?.licenseCategory || '').trim().toLowerCase();
+                        if (!allowedGrades.includes(studentGrade)) return false;
+                    }
                     if (event.target === 'All') return true;
                     if (event.target.startsWith('students:')) {
                         const studentIds = event.target.replace('students:', '').split(',');
                         return studentIds.includes(enr.userId);
                     }
+                    if (event.target.startsWith('grades:')) {
+                        const grades = event.target.replace('grades:', '').split(',').map(g => g.trim().toLowerCase());
+                        return grades.includes((enr.metadata?.gradeLevel || '').trim().toLowerCase());
+                    }
                     if (context === 'driving_school') {
                         return enr.metadata?.licenseCategory === event.target;
                     } else {
-                        return enr.metadata?.gradeLevel === event.target;
+                        return (enr.metadata?.gradeLevel || '').trim().toLowerCase() === (event.target || '').trim().toLowerCase();
                     }
                 });
 
@@ -8761,9 +8812,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <Send className="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-black text-white uppercase tracking-tight">Bulk Invitation Setup</h3>
+                                        <h3 className="text-base font-black text-white uppercase tracking-tight">Bulk Invitation &amp; PIN Setup</h3>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                            Event: {event.title} • Cohort: {event.target} ({recipientCount} {recipientCount === 1 ? 'recipient' : 'recipients'})
+                                            Event: {event.title} • Cohort: {bulkInviteSelectedClass !== 'All' ? bulkInviteSelectedClass : event.target} ({recipientCount} {recipientCount === 1 ? 'recipient' : 'recipients'})
                                         </p>
                                     </div>
                                 </div>
@@ -8773,6 +8824,29 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 >
                                     <XCircle className="w-5 h-5" />
                                 </button>
+                            </div>
+
+                            {/* Class Selection Filter Dropdown */}
+                            <div className="space-y-2 mb-4 bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                                <label className="block text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center justify-between">
+                                    <span>Target Class / Grade Filter</span>
+                                    <span className="text-[9px] text-indigo-400 font-bold">
+                                        {bulkInviteSelectedClass === 'All' ? 'All Classes Selected' : `Class Filter: ${bulkInviteSelectedClass}`}
+                                    </span>
+                                </label>
+                                <select
+                                    value={bulkInviteSelectedClass}
+                                    onChange={e => setBulkInviteSelectedClass(e.target.value)}
+                                    className="w-full bg-slate-950/80 border border-white/15 rounded-xl px-4 py-2.5 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all font-sans cursor-pointer"
+                                >
+                                    <option value="All">All Classes / Cohorts (Default)</option>
+                                    {cohortsList.map(cohort => (
+                                        <option key={cohort} value={cohort}>{cohort}</option>
+                                    ))}
+                                </select>
+                                <p className="text-[9px] text-slate-400 font-medium leading-relaxed">
+                                    Filter which class or grade (e.g. Grade 1, Grade 2, Form 1, Form 2, etc.) will receive the secret PIN and event invitation.
+                                </p>
                             </div>
 
                             {/* Additional Message Input */}
@@ -8955,7 +9029,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        handleSendAttendancePin(event, bulkInviteAddMsg);
+                                        handleSendAttendancePin(event, bulkInviteAddMsg, bulkInviteSelectedClass);
                                         setBulkInviteModalEvent(null);
                                     }}
                                     className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/15 flex items-center justify-center gap-2"
