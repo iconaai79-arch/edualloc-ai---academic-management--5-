@@ -273,6 +273,37 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
         return 'Unknown Student';
     };
+
+    const isEventTargetMatch = (eventTarget: string | undefined | null, enr: StudentEnrollment) => {
+        if (!eventTarget) return true;
+        const targetClean = eventTarget.trim().toLowerCase();
+        if (
+            targetClean === 'all' || 
+            targetClean === 'all students' || 
+            targetClean === 'all_students' || 
+            targetClean === 'all cohorts' || 
+            targetClean === 'all_cohorts' || 
+            targetClean === ''
+        ) {
+            return true;
+        }
+
+        if (targetClean.startsWith('students:')) {
+            const studentIds = targetClean.replace('students:', '').split(',').map(s => s.trim());
+            return studentIds.includes(enr.userId);
+        }
+
+        if (targetClean.startsWith('grades:')) {
+            const grades = targetClean.replace('grades:', '').split(',').map((g: string) => g.trim().toLowerCase());
+            const studentGrade = (enr.metadata?.gradeLevel || '').trim().toLowerCase();
+            return grades.includes(studentGrade);
+        }
+
+        const studentGrade = (enr.metadata?.gradeLevel || '').trim().toLowerCase();
+        const studentLicense = (enr.metadata?.licenseCategory || '').trim().toLowerCase();
+
+        return studentGrade === targetClean || studentLicense === targetClean;
+    };
     
     // Sub-tab Navigation
     const activeTab = passedActiveTab || 'students';
@@ -2204,20 +2235,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     const studentGrade = (enr.metadata?.gradeLevel || enr.metadata?.licenseCategory || '').trim().toLowerCase();
                     if (!allowedGrades.includes(studentGrade)) return false;
                 }
-                if (event.target === 'All') return true;
-                if (event.target.startsWith('students:')) {
-                    const studentIds = event.target.replace('students:', '').split(',');
-                    return studentIds.includes(enr.userId);
-                }
-                if (event.target.startsWith('grades:')) {
-                    const grades = event.target.replace('grades:', '').split(',').map((g: string) => g.trim().toLowerCase());
-                    return grades.includes((enr.metadata?.gradeLevel || '').trim().toLowerCase());
-                }
-                if (context === 'driving_school') {
-                    return enr.metadata?.licenseCategory === event.target;
-                } else {
-                    return (enr.metadata?.gradeLevel || '').trim().toLowerCase() === (event.target || '').trim().toLowerCase();
-                }
+                return isEventTargetMatch(event.target, enr);
             });
 
             if (targetEnrollments.length === 0) {
@@ -2636,20 +2654,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     const studentGrade = (enr.metadata?.gradeLevel || enr.metadata?.licenseCategory || '').trim().toLowerCase();
                     if (!allowedGrades.includes(studentGrade)) return false;
                 }
-                if (event.target === 'All') return true;
-                if (event.target.startsWith('students:')) {
-                    const studentIds = event.target.replace('students:', '').split(',');
-                    return studentIds.includes(enr.userId);
-                }
-                if (event.target.startsWith('grades:')) {
-                    const grades = event.target.replace('grades:', '').split(',').map((g: string) => g.trim().toLowerCase());
-                    return grades.includes((enr.metadata?.gradeLevel || '').trim().toLowerCase());
-                }
-                if (context === 'driving_school') {
-                    return enr.metadata?.licenseCategory === event.target;
-                } else {
-                    return (enr.metadata?.gradeLevel || '').trim().toLowerCase() === (event.target || '').trim().toLowerCase();
-                }
+                return isEventTargetMatch(event.target, enr);
             });
 
             // 2. Filter to only those that do not have a pin record
@@ -8769,20 +8774,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const studentGrade = (enr.metadata?.gradeLevel || enr.metadata?.licenseCategory || '').trim().toLowerCase();
                         if (!allowedGrades.includes(studentGrade)) return false;
                     }
-                    if (event.target === 'All') return true;
-                    if (event.target.startsWith('students:')) {
-                        const studentIds = event.target.replace('students:', '').split(',');
-                        return studentIds.includes(enr.userId);
-                    }
-                    if (event.target.startsWith('grades:')) {
-                        const grades = event.target.replace('grades:', '').split(',').map((g: string) => g.trim().toLowerCase());
-                        return grades.includes((enr.metadata?.gradeLevel || '').trim().toLowerCase());
-                    }
-                    if (context === 'driving_school') {
-                        return enr.metadata?.licenseCategory === event.target;
-                    } else {
-                        return (enr.metadata?.gradeLevel || '').trim().toLowerCase() === (event.target || '').trim().toLowerCase();
-                    }
+                    return isEventTargetMatch(event.target, enr);
                 });
 
                 const previewEnrollments = targetEnrollments.slice(0, 3);
