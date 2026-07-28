@@ -379,8 +379,8 @@ export const apiService = {
             normalizedUrl = normalizedUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
         }
 
-        // Cache key — per unique normalized URL, using v5 prefix to clear legacy cleanuri / broken entries
-        const cacheKey = `eduai_short_v5_${encodeURIComponent(normalizedUrl)}`;
+        // Cache key — per unique normalized URL, using v6 prefix to clear legacy entries
+        const cacheKey = `eduai_short_v6_${encodeURIComponent(normalizedUrl)}`;
 
         const isGenericOrStale = (url: string) => {
             if (!url) return true;
@@ -416,7 +416,7 @@ export const apiService = {
                 if (res.ok) {
                     const data = await res.json();
                     const short = data?.shortUrl;
-                    // Accept any valid HTTP short URL returned by proxy (TinyURL, Ulvis, is.gd, or normalized longUrl)
+                    // Accept any valid HTTP short URL returned by proxy (da.gd, TinyURL, Ulvis, is.gd, or normalized longUrl)
                     if (short && short.startsWith('http') && !short.includes('localhost') && !isGenericOrStale(short)) {
                         try { sessionStorage.setItem(cacheKey, short); } catch (_) {}
                         return short;
@@ -445,7 +445,17 @@ export const apiService = {
             return null;
         };
 
-        // 2. Client-side TinyURL fallback (100% reliable direct redirect)
+        // 2. Client-side da.gd fallback (ultra-short: https://da.gd/XXXX)
+        const dagdShort = await tryShorten(
+            `https://da.gd/s?url=${encodeURIComponent(normalizedUrl)}`,
+            (_, text) => (text.startsWith('https://da.gd/') && !text.includes('error') ? text : null)
+        );
+        if (dagdShort) {
+            try { sessionStorage.setItem(cacheKey, dagdShort); } catch (_) {}
+            return dagdShort;
+        }
+
+        // 3. Client-side TinyURL fallback (100% reliable direct redirect)
         const tinyShort = await tryShorten(
             `https://tinyurl.com/api-create.php?url=${encodeURIComponent(normalizedUrl)}`,
             (_, text) => (text.startsWith('https://tinyurl.com/') && !text.includes('error') ? text : null)
@@ -455,7 +465,7 @@ export const apiService = {
             return tinyShort;
         }
 
-        // 3. Client-side Ulvis fallback
+        // 4. Client-side Ulvis fallback
         const ulvisShort = await tryShorten(
             `https://ulvis.net/api.php?url=${encodeURIComponent(normalizedUrl)}`,
             (_, text) => (text.startsWith('https://ulvis.net/') && !text.includes('error') ? text : null)
@@ -465,7 +475,7 @@ export const apiService = {
             return ulvisShort;
         }
 
-        // 4. Client-side is.gd fallback
+        // 5. Client-side is.gd fallback
         const isgdShort = await tryShorten(
             `https://is.gd/create.php?format=simple&url=${encodeURIComponent(normalizedUrl)}`,
             (_, text) => (text.startsWith('https://is.gd/') && !text.toLowerCase().includes('error') ? text : null)
@@ -475,7 +485,7 @@ export const apiService = {
             return isgdShort;
         }
 
-        // 5. Final fallback: return the original normalized URL unchanged
+        // 6. Final fallback: return the original normalized URL unchanged
         return normalizedUrl;
     },
     async checkUrl(url: string): Promise<{ success: boolean; status?: number; finalUrl?: string; ok?: boolean; message?: string }> {
