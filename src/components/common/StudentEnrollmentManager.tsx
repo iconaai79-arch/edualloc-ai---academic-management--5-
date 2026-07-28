@@ -248,6 +248,31 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         const cat = (currentInstitution?.category || '').toLowerCase();
         return ['primary', 'secondary'].includes(type) || ['primary', 'secondary'].includes(cat);
     }, [currentInstitution]);
+
+    const isNameUnknown = (name: string | undefined | null): boolean => {
+        if (!name) return true;
+        const clean = name.trim().toLowerCase();
+        return clean === '' || clean === 'unknown student' || clean === 'unknown' || clean === 'student' || clean === 'null' || clean === 'undefined';
+    };
+
+    const getStudentDisplayName = (enr: StudentEnrollment, user?: User): string => {
+        if (user && user.name && !isNameUnknown(user.name)) {
+            return user.name.trim();
+        }
+        if (enr.metadata?.studentName && !isNameUnknown(enr.metadata.studentName)) {
+            return enr.metadata.studentName.trim();
+        }
+        if (enr.metadata?.name && !isNameUnknown(enr.metadata.name)) {
+            return enr.metadata.name.trim();
+        }
+        if (enr.metadata?.parentName && enr.metadata.parentName.trim()) {
+            return enr.metadata.parentName.trim();
+        }
+        if (enr.metadata?.parents?.[0]?.name && enr.metadata.parents[0].name.trim()) {
+            return enr.metadata.parents[0].name.trim();
+        }
+        return 'Unknown Student';
+    };
     
     // Sub-tab Navigation
     const activeTab = passedActiveTab || 'students';
@@ -4469,14 +4494,78 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
+    const handleFixSingleUnknownName = async (enrollmentId: string) => {
+        const enr = enrollments.find(e => e.id === enrollmentId);
+        if (!enr) return;
+        const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
+        if (!parentName || !parentName.trim()) {
+            setStatusMsg({ type: 'error', message: 'No parent name available for this student.' });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+            return;
+        }
+
+        const newName = parentName.trim();
+        setStatusMsg({ type: 'info', message: `Updating student name to "${newName}"...` });
+        setIsLoading(true);
+
+        try {
+            let associatedUser = users.find(u => u.id === enr.userId);
+            if (!associatedUser && enr.userId) {
+                try {
+                    const dbUser = await apiService.fetchModuleRecord<User>('users', enr.userId);
+                    if (dbUser) associatedUser = dbUser;
+                } catch (_) {}
+            }
+
+            const userIdToUpdate = enr.userId;
+            if (userIdToUpdate) {
+                const userToSave = {
+                    ...(associatedUser || { id: userIdToUpdate, role: 'student', institutionId: currentInstitution.id }),
+                    id: userIdToUpdate,
+                    name: newName,
+                    institutionId: currentInstitution.id
+                };
+                await apiService.updateModuleRecord('users', userIdToUpdate, userToSave);
+                setUsers(prev => {
+                    const idx = prev.findIndex(u => u.id === userIdToUpdate);
+                    if (idx !== -1) {
+                        const copy = [...prev];
+                        copy[idx] = { ...copy[idx], name: newName };
+                        return copy;
+                    }
+                    return [...prev, userToSave as User];
+                });
+            }
+
+            const updatedMeta = {
+                ...(enr.metadata || {}),
+                studentName: newName,
+                name: newName
+            };
+            const updatedEnrollment = {
+                ...enr,
+                metadata: updatedMeta,
+                updatedAt: new Date().toISOString()
+            };
+
+            await apiService.updateModuleRecord('student_enrollments', enr.id, updatedEnrollment);
+            setEnrollments(prev => prev.map(e => e.id === enr.id ? updatedEnrollment : e));
+
+            setStatusMsg({ type: 'success', message: `✓ Student name updated to "${newName}".` });
+        } catch (err: any) {
+            console.error('Failed to fix student name:', err);
+            setStatusMsg({ type: 'error', message: `Failed to update name: ${err.message || err}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
     const handleBulkFixUnknownNames = async () => {
         const targets = enrollments.filter(enr => {
             const user = users.find(u => u.id === enr.userId);
             const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
-            const isUnknown = !user?.name || 
-                user.name.trim() === '' || 
-                user.name.toLowerCase() === 'unknown student' || 
-                user.name.toLowerCase() === 'unknown';
+            const isUnknown = isNameUnknown(user?.name);
             return isUnknown && !!parentName.trim();
         });
 
@@ -4526,17 +4615,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         }
                         if (!associatedUser) return;
 
-                        const dbNameUnknown = isNameUnknown(associatedUser.name);
-                        let newName = associatedUser.name || '';
-
-                        if (dbNameUnknown) {
-                            const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
-                            if (parentName && parentName.trim()) {
-                                newName = parentName.trim();
-                            } else {
-                                newName = 'Unknown Student';
-                            }
-                        }
+                        const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
+                        const newName = parentName && parentName.trim() ? parentName.trim() : 'Student';
 
                         // Send full user object with updated name and ensure correct institutionId
                         const updatedUser = { 
@@ -4547,6 +4627,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         console.log('[BulkFixName] Updating user:', associatedUser.id, '->', newName);
                         await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
                         updatedUsersMap[associatedUser.id] = { name: newName, user: updatedUser };
+
+                        // Also update student_enrollments metadata
+                        const updatedMeta = {
+                            ...(enr.metadata || {}),
+                            studentName: newName,
+                            name: newName
+                        };
+                        const updatedEnrollment = {
+                            ...enr,
+                            metadata: updatedMeta,
+                            updatedAt: new Date().toISOString()
+                        };
+                        await apiService.updateModuleRecord('student_enrollments', enr.id, updatedEnrollment).catch(() => {});
+
                         updatedCount++;
                     } catch (singleErr: any) {
                         console.error(`[BulkFixName] Error processing student user ${enr.userId}:`, singleErr);
@@ -4567,6 +4661,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 });
                 return newUsers;
             });
+
+            // Re-fetch all data to synchronize with DB
+            loadAllData();
 
             setStatusMsg({ type: 'success', message: `✓ Successfully updated ${updatedCount} student name(s).` });
         } catch (err: any) {
@@ -4969,18 +5066,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             >
                                                 {/* ── Avatar ── */}
                                                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-base uppercase shrink-0 ${avatarCls}`}>
-                                                    {(user?.name || 'U').charAt(0)}
+                                                    {getStudentDisplayName(enr, user).charAt(0)}
                                                 </div>
 
                                                 {/* ── Student Info ── */}
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight flex items-center gap-2">
-                                                        {user?.name || 'Unknown Student'}
-                                                        {(!user?.name || 
-                                                          user.name.trim() === '' || 
-                                                          user.name.toLowerCase() === 'unknown student' || 
-                                                          user.name.toLowerCase() === 'unknown') && 
-                                                         (enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name) && (
+                                                        {getStudentDisplayName(enr, user)}
+                                                        {isNameUnknown(user?.name) && (enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name) && (
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
