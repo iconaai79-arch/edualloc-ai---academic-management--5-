@@ -772,6 +772,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         }
     }, [props.activeRole, isEdu, isSchool, hasSetDefaultTab]);
 
+    useEffect(() => {
+        const handleNavConsole = () => {
+            setActiveScope('console_hub');
+        };
+        window.addEventListener('nav_to_console_hub', handleNavConsole);
+        return () => {
+            window.removeEventListener('nav_to_console_hub', handleNavConsole);
+        };
+    }, []);
+
 
     const isModuleActive = useCallback((moduleId: string) => {
         if (props.currentInstitution?.institutionType === 'Reseller') return true;

@@ -5271,6 +5271,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         onSwitchPerspective: (role: Role | null) => {
             setImpersonatedRole(role);
             setSelectedRole(role);
+            if (!role && typeof window !== 'undefined' && window.dispatchEvent) {
+                window.dispatchEvent(new CustomEvent('nav_to_console_hub'));
+            }
         },
         onAddUser: async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); },
         onEditUser,
