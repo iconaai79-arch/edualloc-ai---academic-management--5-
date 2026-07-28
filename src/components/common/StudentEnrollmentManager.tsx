@@ -1064,10 +1064,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         const associatedUser = users.find(u => u.id === enr.userId);
         setEditingEnrollment(enr);
 
-        let parentsList = enr.metadata?.parents || [];
-        if (!Array.isArray(parentsList)) {
-            parentsList = [];
-        }
+        let parentsList = Array.isArray(enr.metadata?.parents) ? [...enr.metadata.parents] : [];
         if (parentsList.length === 0 && (enr.metadata?.parentName || enr.metadata?.parentPhone)) {
             parentsList = [{
                 name: enr.metadata.parentName || '',
@@ -1078,6 +1075,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
         if (parentsList.length === 0) {
             parentsList = [{ name: '', phone: '', email: '', relation: 'Father' }];
+        }
+
+        const secPhone = enr.metadata?.secondaryPhone || enr.metadata?.parentPhone2 || enr.metadata?.guardianPhone2 || associatedUser?.secondaryPhone || associatedUser?.parentPhone2 || '';
+        if (secPhone && parentsList.length === 1) {
+            parentsList.push({
+                name: enr.metadata?.guardian2Name || 'Secondary Guardian',
+                phone: secPhone,
+                email: '',
+                relation: 'Mother'
+            });
         }
 
         setFormData({
@@ -1492,6 +1499,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         }
                         if (secPhoneVal) {
                             updatedMeta.secondaryPhone = secPhoneVal;
+                            updatedMeta.parentPhone2 = secPhoneVal;
+                            updatedMeta.guardianPhone2 = secPhoneVal;
+                            updatedMeta.parentPhoneNumber2 = secPhoneVal;
+                            updatedMeta.secondaryParentPhone = secPhoneVal;
                         }
                         if (parentNameVal) {
                             updatedMeta.parentName = parentNameVal;
@@ -1508,21 +1519,76 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             updatedMeta.phoneNumber = studentPhoneVal;
                         }
 
+                        // Update metadata.parents array
+                        let parentsArr = Array.isArray(updatedMeta.parents) ? [...updatedMeta.parents] : [];
+                        if (parentsArr.length === 0) {
+                            parentsArr.push({
+                                name: parentNameVal || 'Primary Guardian',
+                                phone: parentPhoneVal || '',
+                                email: '',
+                                relation: 'Father'
+                            });
+                        } else {
+                            parentsArr[0] = {
+                                ...parentsArr[0],
+                                name: parentNameVal || parentsArr[0].name || 'Primary Guardian',
+                                phone: parentPhoneVal || parentsArr[0].phone || ''
+                            };
+                        }
+
+                        if (secPhoneVal) {
+                            if (parentsArr.length > 1) {
+                                parentsArr[1] = {
+                                    ...parentsArr[1],
+                                    phone: secPhoneVal
+                                };
+                            } else {
+                                parentsArr.push({
+                                    name: 'Secondary Guardian',
+                                    phone: secPhoneVal,
+                                    email: '',
+                                    relation: 'Mother'
+                                });
+                            }
+                        }
+                        updatedMeta.parents = parentsArr;
+
                         const updatedEnrollment = {
                             ...matchedEnrollment,
                             metadata: updatedMeta,
                             updatedAt: new Date().toISOString()
                         };
 
-                        // ONLY update student user account phone if studentPersonalPhone is explicitly mapped
-                        if (studentPhoneVal) {
-                            const matchedUser = users.find(u => u.id === matchedEnrollment.userId);
-                            if (matchedUser) {
-                                await apiService.updateModuleRecord('users', matchedUser.id, { ...matchedUser, phoneNumber: studentPhoneVal }).catch(() => {});
+                        // Update student user account phone & secondary phone
+                        const matchedUser = users.find(u => u.id === matchedEnrollment.userId);
+                        if (matchedUser) {
+                            const updatedUserObj: any = {
+                                ...matchedUser,
+                                metadata: {
+                                    ...(matchedUser.metadata || {}),
+                                    secondaryPhone: secPhoneVal || matchedUser.metadata?.secondaryPhone || '',
+                                    parentPhone2: secPhoneVal || matchedUser.metadata?.parentPhone2 || '',
+                                    parentPhone: parentPhoneVal || matchedUser.metadata?.parentPhone || ''
+                                }
+                            };
+                            if (studentPhoneVal) {
+                                updatedUserObj.phoneNumber = studentPhoneVal;
                             }
+                            if (secPhoneVal) {
+                                updatedUserObj.secondaryPhone = secPhoneVal;
+                                updatedUserObj.parentPhone2 = secPhoneVal;
+                            }
+                            await apiService.updateModuleRecord('users', matchedUser.id, updatedUserObj).catch(() => {});
+                            
+                            // Update local users state immediately
+                            setUsers(prev => prev.map(u => u.id === matchedUser.id ? updatedUserObj : u));
                         }
 
                         await apiService.updateModuleRecord('student_enrollments', matchedEnrollment.id, updatedEnrollment);
+                        
+                        // Update local enrollments state immediately
+                        setEnrollments(prev => prev.map(e => e.id === matchedEnrollment.id ? updatedEnrollment : e));
+                        
                         results.push({ name: displayName, status: 'updated' });
                     } catch (err: any) {
                         console.error(`Failed to update contacts for ${displayName}:`, err);
@@ -4846,18 +4912,28 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                             </button>
                                                         )}
                                                     </p>
-                                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                                                        {user?.email && (
-                                                            <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
-                                                                <Mail className="w-3 h-3" /> {user.email}
-                                                            </span>
-                                                        )}
-                                                        {user?.phoneNumber && (
-                                                            <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
-                                                                <Phone className="w-3 h-3" /> {user.phoneNumber}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 font-sans">
+                                                         {user?.email && !user.email.endsWith('@eduai.local') && (
+                                                             <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                                                 <Mail className="w-3 h-3 text-indigo-400" /> {user.email}
+                                                             </span>
+                                                         )}
+                                                         {user?.phoneNumber && (
+                                                             <span className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400 font-semibold" title="Student Personal Phone">
+                                                                 <Phone className="w-3 h-3 text-indigo-500" /> Student: {user.phoneNumber}
+                                                             </span>
+                                                         )}
+                                                         {(enr.metadata?.parentPhone || enr.metadata?.parents?.[0]?.phone || user?.metadata?.parentPhone) && (
+                                                             <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200/80 dark:border-emerald-800/40" title="Primary Parent / Guardian Phone">
+                                                                 <Phone className="w-3 h-3 text-emerald-500 shrink-0" /> Parent 1: {enr.metadata?.parentPhone || enr.metadata?.parents?.[0]?.phone || user?.metadata?.parentPhone}
+                                                             </span>
+                                                         )}
+                                                         {(enr.metadata?.secondaryPhone || enr.metadata?.parentPhone2 || enr.metadata?.parents?.[1]?.phone || user?.secondaryPhone || user?.parentPhone2 || user?.metadata?.secondaryPhone) && (
+                                                             <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 dark:text-purple-300 font-bold bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-md border border-purple-200/80 dark:border-purple-800/40 shadow-sm" title="Secondary / Alternative Parent Phone">
+                                                                 <Phone className="w-3 h-3 text-purple-500 shrink-0" /> Parent 2 (Sec): {enr.metadata?.secondaryPhone || enr.metadata?.parentPhone2 || enr.metadata?.parents?.[1]?.phone || user?.secondaryPhone || user?.parentPhone2 || user?.metadata?.secondaryPhone}
+                                                             </span>
+                                                         )}
+                                                     </div>
                                                 </div>
 
                                                 {/* ── Admission # ── */}

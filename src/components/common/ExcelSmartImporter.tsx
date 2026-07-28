@@ -70,7 +70,7 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                         if (hLow.includes(fLabelLow) || hLow.includes(fKeyLow) || fLabelLow.includes(hLow)) return true;
 
                         if (f.key === 'secondaryPhone') {
-                            return hLow.includes('secondary') || hLow.includes('alt') || hLow.includes('phone 2') || hLow.includes('phone2') || hLow.includes('mobile 2') || hLow.includes('contact 2') || hLow.includes('other phone');
+                            return hLow.includes('secondary') || hLow.includes('alt') || hLow.includes('phone 2') || hLow.includes('phone2') || hLow.includes('mobile 2') || hLow.includes('contact 2') || hLow.includes('other phone') || hLow.includes('guardian 2') || hLow.includes('parent 2') || hLow.includes('parent2') || hLow.includes('guardian2');
                         }
                         if (f.key === 'admissionNumber') {
                             return hLow.includes('adm') || hLow.includes('reg') || hLow.includes('student id') || hLow.includes('index');
