@@ -379,8 +379,8 @@ export const apiService = {
             normalizedUrl = normalizedUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
         }
 
-        // Cache key — per unique normalized URL, using v4 prefix to clear legacy 24borchc / broken entries
-        const cacheKey = `eduai_short_v4_${encodeURIComponent(normalizedUrl)}`;
+        // Cache key — per unique normalized URL, using v5 prefix to clear legacy cleanuri / broken entries
+        const cacheKey = `eduai_short_v5_${encodeURIComponent(normalizedUrl)}`;
 
         const isGenericOrStale = (url: string) => {
             if (!url) return true;
@@ -391,6 +391,7 @@ export const apiService = {
                    lower.includes('90rfdn') || 
                    lower.includes('392vwj8s') || 
                    lower.includes('28xapexb') ||
+                   lower.includes('cleanuri.com') ||
                    lower.includes('error');
         };
 
@@ -415,7 +416,7 @@ export const apiService = {
                 if (res.ok) {
                     const data = await res.json();
                     const short = data?.shortUrl;
-                    // Accept any valid HTTP short URL returned by proxy (CleanURI, Ulvis, is.gd, TinyURL, or normalized longUrl)
+                    // Accept any valid HTTP short URL returned by proxy (TinyURL, Ulvis, is.gd, or normalized longUrl)
                     if (short && short.startsWith('http') && !short.includes('localhost') && !isGenericOrStale(short)) {
                         try { sessionStorage.setItem(cacheKey, short); } catch (_) {}
                         return short;
@@ -444,22 +445,15 @@ export const apiService = {
             return null;
         };
 
-        // 2. Client-side CleanURI POST fallback
-        try {
-            const cleanuriRes = await fetch('https://cleanuri.com/api/v1/shorten', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `url=${encodeURIComponent(normalizedUrl)}`,
-                signal: AbortSignal.timeout(6000)
-            });
-            if (cleanuriRes.ok) {
-                const data = await cleanuriRes.json();
-                if (data?.result_url && typeof data.result_url === 'string' && data.result_url.startsWith('https://cleanuri.com/')) {
-                    try { sessionStorage.setItem(cacheKey, data.result_url); } catch (_) {}
-                    return data.result_url;
-                }
-            }
-        } catch (_) {}
+        // 2. Client-side TinyURL fallback (100% reliable direct redirect)
+        const tinyShort = await tryShorten(
+            `https://tinyurl.com/api-create.php?url=${encodeURIComponent(normalizedUrl)}`,
+            (_, text) => (text.startsWith('https://tinyurl.com/') && !text.includes('error') ? text : null)
+        );
+        if (tinyShort) {
+            try { sessionStorage.setItem(cacheKey, tinyShort); } catch (_) {}
+            return tinyShort;
+        }
 
         // 3. Client-side Ulvis fallback
         const ulvisShort = await tryShorten(
@@ -481,17 +475,7 @@ export const apiService = {
             return isgdShort;
         }
 
-        // 5. Client-side TinyURL fallback
-        const tinyShort = await tryShorten(
-            `https://tinyurl.com/api-create.php?url=${encodeURIComponent(normalizedUrl)}`,
-            (_, text) => (text.startsWith('https://tinyurl.com/') ? text : null)
-        );
-        if (tinyShort) {
-            try { sessionStorage.setItem(cacheKey, tinyShort); } catch (_) {}
-            return tinyShort;
-        }
-
-        // 6. Final fallback: return the original normalized URL unchanged
+        // 5. Final fallback: return the original normalized URL unchanged
         return normalizedUrl;
     },
     async checkUrl(url: string): Promise<{ success: boolean; status?: number; finalUrl?: string; ok?: boolean; message?: string }> {

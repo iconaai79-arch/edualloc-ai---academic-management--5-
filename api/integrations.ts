@@ -393,25 +393,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 longUrl = longUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
             }
 
-            // Provider 1: CleanURI API (POST) - highly reliable, returns JSON { result_url: "..." }
+            // Provider 1: TinyURL (GET) - globally accessible, direct 301 redirect without Cloudflare/interstitial issues
             try {
-                const cleanuriRes = await fetchWithTimeout(
-                    'https://cleanuri.com/api/v1/shorten',
-                    {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: `url=${encodeURIComponent(longUrl)}`
+                const tinyRes = await fetchWithTimeout(
+                    `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`,
+                    { 
+                        method: 'GET', 
+                        headers: { 
+                            'Accept': 'text/plain',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        } 
                     },
                     6000
                 );
-                if (cleanuriRes.ok) {
-                    const data = await cleanuriRes.json();
-                    if (data?.result_url && typeof data.result_url === 'string' && data.result_url.startsWith('https://cleanuri.com/')) {
-                        return res.status(200).json({ success: true, shortUrl: data.result_url });
+                if (tinyRes.ok) {
+                    const shortUrl = (await tinyRes.text()).trim();
+                    if (shortUrl && shortUrl.startsWith('https://tinyurl.com/') && !shortUrl.includes('error')) {
+                        return res.status(200).json({ success: true, shortUrl });
                     }
                 }
             } catch (e: any) {
-                console.warn('[shortenUrl] CleanURI call failed:', e.message);
+                console.warn('[shortenUrl] TinyURL call failed:', e.message);
             }
 
             // Provider 2: Ulvis API (GET) - fast & reliable fallback, returns text "https://ulvis.net/..."
@@ -458,29 +460,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             } catch (e: any) {
                 console.warn('[shortenUrl] is.gd call failed:', e.message);
-            }
-
-            // Provider 4: TinyURL (GET)
-            try {
-                const tinyRes = await fetchWithTimeout(
-                    `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`,
-                    { 
-                        method: 'GET', 
-                        headers: { 
-                            'Accept': 'text/plain',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                        } 
-                    },
-                    6000
-                );
-                if (tinyRes.ok) {
-                    const shortUrl = (await tinyRes.text()).trim();
-                    if (shortUrl && shortUrl.startsWith('https://tinyurl.com/')) {
-                        return res.status(200).json({ success: true, shortUrl });
-                    }
-                }
-            } catch (e: any) {
-                console.warn('[shortenUrl] TinyURL call failed:', e.message);
             }
 
             // Final fallback: return original normalized URL
