@@ -1458,7 +1458,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const batch = data.slice(i, i + batchSize);
                 await Promise.all(batch.map(async (item) => {
                     const admNo = item.admissionNumber ? String(item.admissionNumber).trim() : '';
-                    const nameRaw = item.name ? String(item.name).trim().toLowerCase() : '';
+                    const studentNameVal = item.name ? String(item.name).trim() : '';
+                    const nameRaw = studentNameVal ? studentNameVal.toLowerCase() : '';
                     const parentPhoneVal = item.parentPhone ? String(item.parentPhone).trim() : '';
                     const studentPhoneVal = item.studentPhone ? String(item.studentPhone).trim() : '';
                     const secPhoneVal = item.secondaryPhone ? String(item.secondaryPhone).trim() : '';
@@ -1466,9 +1467,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     const gradeLevelVal = item.gradeLevel ? String(item.gradeLevel).trim() : (item.grade ? String(item.grade).trim() : (item.class ? String(item.class).trim() : ''));
                     const streamVal = item.stream ? String(item.stream).trim() : (item.classStream ? String(item.classStream).trim() : '');
 
-                    const displayName = item.name || admNo || 'Unknown';
+                    const displayName = studentNameVal || admNo || 'Unknown';
 
-                    if (!parentPhoneVal && !studentPhoneVal && !secPhoneVal && !parentNameVal && !gradeLevelVal && !streamVal) {
+                    if (!parentPhoneVal && !studentPhoneVal && !secPhoneVal && !parentNameVal && !gradeLevelVal && !streamVal && !studentNameVal) {
                         results.push({ name: displayName, status: 'skipped' });
                         return;
                     }
@@ -1559,7 +1560,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             updatedAt: new Date().toISOString()
                         };
 
-                        // Update student user account phone & secondary phone
+                        // Update student user account (name, phone, secondary phone)
                         const matchedUser = users.find(u => u.id === matchedEnrollment.userId);
                         if (matchedUser) {
                             const updatedUserObj: any = {
@@ -1571,6 +1572,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     parentPhone: parentPhoneVal || matchedUser.metadata?.parentPhone || ''
                                 }
                             };
+                            if (studentNameVal && studentNameVal.trim() && studentNameVal.toLowerCase() !== 'unknown student') {
+                                updatedUserObj.name = studentNameVal.trim();
+                            }
                             if (studentPhoneVal) {
                                 updatedUserObj.phoneNumber = studentPhoneVal;
                             }
