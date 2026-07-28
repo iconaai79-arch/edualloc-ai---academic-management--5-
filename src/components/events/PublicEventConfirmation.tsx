@@ -489,6 +489,23 @@ export const PublicEventConfirmation: React.FC = () => {
         }
     };
 
+    const isPhoneMatchForUserOrParent = (user: any, phone: string): boolean => {
+        if (!user || !phone) return false;
+        const primary = user.phoneNumber || user.phone_number || '';
+        const secondary = user.secondaryPhone || user.parentPhone2 || user.guardianPhone2 || 
+                          user.metadata?.parentPhone2 || user.metadata?.secondaryPhone || 
+                          user.metadata?.guardianPhone2 || user.metadata?.parentPhoneNumber2 || 
+                          user.metadata?.secondaryParentPhone || '';
+        return (!!primary && phonesMatch(primary, phone)) || (!!secondary && phonesMatch(secondary, phone));
+    };
+
+    const isPhoneMatchForEnrollment = (enr: any, phone: string): boolean => {
+        if (!enr || !phone) return false;
+        const p1 = enr.metadata?.parentPhone || enr.metadata?.parent_phone || enr.metadata?.parentPhoneNumber || '';
+        const p2 = enr.metadata?.parentPhone2 || enr.metadata?.secondaryPhone || enr.metadata?.guardianPhone2 || enr.metadata?.parentPhoneNumber2 || enr.metadata?.secondaryParentPhone || '';
+        return (!!p1 && phonesMatch(p1, phone)) || (!!p2 && phonesMatch(p2, phone));
+    };
+
     const findParentUser = async (phone: string, email?: string): Promise<any | null> => {
         // 1. If email is provided, search by email first (exact case-insensitive match)
         if (email && email.trim()) {
@@ -500,37 +517,63 @@ export const PublicEventConfirmation: React.FC = () => {
             }
         }
 
-        // 2. Search by phone number formats in DB
-        if (phone && phone.trim()) {
-            const normalized = phone.trim();
-            const formatted = formatPhoneNumber(normalized);
-            const phonesToTry = Array.from(new Set([
-                normalized,
-                formatted,
-                normalizePhone(normalized),
-                normalized.startsWith('+') ? normalized : `+${normalized}`,
-                normalized.startsWith('+') ? normalized.substring(1) : normalized,
-                formatted.startsWith('+') ? formatted : `+${formatted}`
-            ])).filter(Boolean);
+        if (!phone || !phone.trim()) return null;
+        const enteredPhone = phone.trim();
 
-            for (const p of phonesToTry) {
-                const byPhone = await apiService.fetchModuleRecords('users', undefined, undefined, {
-                    filter: { phoneNumber: p }
-                });
-                if (byPhone && byPhone.length > 0) return byPhone[0];
-
-                const byPhoneSn = await apiService.fetchModuleRecords('users', undefined, undefined, {
-                    filter: { phone_number: p }
-                });
-                if (byPhoneSn && byPhoneSn.length > 0) return byPhoneSn[0];
-            }
+        // 2. Direct search in 'users' table by role: 'parent' for primary or secondary phone match
+        try {
+            const allParents = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
+            const matchedParent = allParents.find((u: any) => isPhoneMatchForUserOrParent(u, enteredPhone));
+            if (matchedParent) return matchedParent;
+        } catch (e) {
+            console.error("Parent search failed:", e);
         }
 
-        // 3. Fallback: retrieve limited set of parents as final memory-match backup
+        // 3. Search 'student_enrollments' for primary or secondary parent phone match
         try {
-            const allUsers = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
-            const matched = allUsers.find((u: any) => phonesMatch(u.phoneNumber || u.phone_number || '', phone));
-            if (matched) return matched;
+            const enrollments = await apiService.fetchModuleRecords('student_enrollments');
+            const matchedEnr = enrollments.find((enr: any) => isPhoneMatchForEnrollment(enr, enteredPhone));
+            if (matchedEnr) {
+                const studentId = matchedEnr.userId;
+                const students = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'student' } });
+                const student = students.find((s: any) => s.id === studentId);
+                const parentIds: string[] = student?.parentIds || student?.parent_ids || (matchedEnr.parentId ? [matchedEnr.parentId] : []);
+                
+                if (parentIds.length > 0) {
+                    const parentsList = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
+                    const found = parentsList.find((p: any) => parentIds.includes(p.id));
+                    if (found) return found;
+                }
+            }
+        } catch (e) {
+            console.error("Enrollment phone search failed:", e);
+        }
+
+        // 4. Search student user records for parentPhone or secondaryPhone matching enteredPhone
+        try {
+            const students = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'student' } });
+            const matchedStu = students.find((stu: any) => {
+                const s1 = stu.parentPhone || stu.parent_phone || '';
+                const s2 = stu.parentPhone2 || stu.secondaryPhone || stu.guardianPhone2 || stu.metadata?.parentPhone2 || stu.metadata?.secondaryPhone || '';
+                return (!!s1 && phonesMatch(s1, enteredPhone)) || (!!s2 && phonesMatch(s2, enteredPhone));
+            });
+            if (matchedStu) {
+                const parentIds: string[] = matchedStu.parentIds || matchedStu.parent_ids || [];
+                if (parentIds.length > 0) {
+                    const parentsList = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
+                    const found = parentsList.find((p: any) => parentIds.includes(p.id));
+                    if (found) return found;
+                }
+            }
+        } catch (e) {
+            console.error("Student phone search failed:", e);
+        }
+
+        // 5. Fallback: search all users for any user matching primary or secondary phone
+        try {
+            const allUsers = await apiService.fetchModuleRecords('users');
+            const matchedUser = allUsers.find((u: any) => isPhoneMatchForUserOrParent(u, enteredPhone));
+            if (matchedUser) return matchedUser;
         } catch (e) {
             console.error("Fallback search failed:", e);
         }
@@ -546,11 +589,11 @@ export const PublicEventConfirmation: React.FC = () => {
             const entered = lookupPhone.trim();
             if (!entered) { setLookupError('Please enter your phone number.'); setIsLookingUp(false); return; }
 
-            // Find matching user by phone variations
+            // Find matching user by primary or secondary phone variations
             const matchedUser = await findParentUser(entered);
 
             if (!matchedUser) {
-                setLookupError('No account found with that phone number. Please contact the school.');
+                setLookupError('No account found with that phone number (primary or secondary). Please contact the school.');
                 setIsLookingUp(false);
                 return;
             }
@@ -561,11 +604,32 @@ export const PublicEventConfirmation: React.FC = () => {
                 pins = pins.filter((p: any) => p.eventId === eventId || p.event_id === eventId);
             }
 
+            // If no PINs found directly for matchedUser.id, search event_pins linked to student's other parents
+            if (!pins || pins.length === 0) {
+                const students = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'student' } });
+                const linkedStudent = students.find((s: any) => {
+                    const pIds = s.parentIds || s.parent_ids || [];
+                    return pIds.includes(matchedUser.id);
+                });
+                if (linkedStudent) {
+                    const siblingParentIds: string[] = linkedStudent.parentIds || linkedStudent.parent_ids || [];
+                    for (const pid of siblingParentIds) {
+                        let candidatePins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, { filter: { userId: pid } });
+                        if (eventId) candidatePins = candidatePins.filter((p: any) => p.eventId === eventId || p.event_id === eventId);
+                        if (candidatePins && candidatePins.length > 0) {
+                            pins = candidatePins;
+                            break;
+                        }
+                    }
+                }
+            }
+
             // Auto-generate if no PIN exists
             if (!pins || pins.length === 0) {
-                const newPin = await autoGeneratePin(matchedUser.id, matchedUser.institutionId || matchedUser.institution_id || '', eventId);
+                const instId = matchedUser.institutionId || matchedUser.institution_id || '';
+                const newPin = await autoGeneratePin(matchedUser.id, instId, eventId);
                 if (!newPin) {
-                    setLookupError('No upcoming events found. Please contact the school for your invitation.');
+                    setLookupError('No upcoming events found for this phone number. Please contact the school for your invitation.');
                     setIsLookingUp(false);
                     return;
                 }
@@ -583,7 +647,7 @@ export const PublicEventConfirmation: React.FC = () => {
             setPinId(pin.id);
             await loadInvitationData(pin);
         } catch (err: any) {
-            setLookupError('An error occurred. Please try again.');
+            setLookupError('An error occurred while looking up your invitation. Please try again.');
             console.error('Lookup error:', err);
         } finally {
             setIsLookingUp(false);
@@ -855,49 +919,44 @@ export const PublicEventConfirmation: React.FC = () => {
                 return;
             }
 
-            // 1. First try matching against the record attached to this PIN
-            const rawDbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
-            if (rawDbPhone && phonesMatch(rawDbPhone, enteredPhone)) {
-                await handleVerifySuccess(rawDbPhone, userRecord);
+            // 1. First try matching against the record attached to this PIN (primary or secondary)
+            if (userRecord && isPhoneMatchForUserOrParent(userRecord, enteredPhone)) {
+                await handleVerifySuccess(enteredPhone, userRecord);
                 return;
             }
 
-            // 2. Fallback: search ALL parents in the institution by phone
-            // (covers auto-generated PINs where userRecord may have no phone saved yet)
+            // 2. Fallback: search ALL parents in the institution by primary or secondary phone
             const institutionId = pinRecord?.institutionId;
             if (institutionId) {
                 const allParents = await apiService.fetchModuleRecords('users', institutionId, undefined, {
                     filter: { role: 'parent' }
                 });
-                const matched = allParents.find((u: any) => {
-                    const uPhone = u.phoneNumber || u.phone_number || '';
-                    return phonesMatch(uPhone, enteredPhone);
-                });
+                const matched = allParents.find((u: any) => isPhoneMatchForUserOrParent(u, enteredPhone));
                 if (matched) {
-                    await handleVerifySuccess(matched.phoneNumber || matched.phone_number || enteredPhone, matched);
+                    await handleVerifySuccess(enteredPhone, matched);
                     return;
                 }
             }
 
-            // 3. Also check students registry — if parent phone is stored on student record
+            // 3. Also check students registry & enrollments for primary or secondary phone match
             const students = await apiService.fetchModuleRecords('users', institutionId, undefined, { filter: { role: 'student' } });
             const enrollments = await apiService.fetchModuleRecords('student_enrollments', institutionId);
             const studentMatch = students.find((stu: any) => {
-                const sPhone = stu.parentPhone || stu.parent_phone || '';
+                const s1 = stu.parentPhone || stu.parent_phone || '';
+                const s2 = stu.parentPhone2 || stu.secondaryPhone || stu.guardianPhone2 || stu.metadata?.parentPhone2 || '';
                 const enr = enrollments.find((e: any) => e.userId === stu.id);
-                const ePhone = enr?.metadata?.parentPhone || enr?.metadata?.parent_phone || '';
-                return phonesMatch(sPhone, enteredPhone) || phonesMatch(ePhone, enteredPhone);
+                return (!!s1 && phonesMatch(s1, enteredPhone)) || 
+                       (!!s2 && phonesMatch(s2, enteredPhone)) || 
+                       isPhoneMatchForEnrollment(enr, enteredPhone);
             });
             if (studentMatch) {
                 const allParents = await apiService.fetchModuleRecords('users', institutionId, undefined, {
                     filter: { role: 'parent' }
                 });
-                const matched = allParents.find((u: any) => {
-                    const uPhone = u.phoneNumber || u.phone_number || '';
-                    return phonesMatch(uPhone, enteredPhone);
-                });
+                const parentIds = studentMatch.parentIds || studentMatch.parent_ids || [];
+                const matched = allParents.find((u: any) => parentIds.includes(u.id) || isPhoneMatchForUserOrParent(u, enteredPhone));
                 if (matched) {
-                    await handleVerifySuccess(matched.phoneNumber || matched.phone_number || enteredPhone, matched);
+                    await handleVerifySuccess(enteredPhone, matched);
                 } else {
                     const updatedUser = {
                         ...userRecord,
@@ -908,7 +967,7 @@ export const PublicEventConfirmation: React.FC = () => {
                 return;
             }
 
-            setVerificationError('Verification failed. The phone number does not match any records. Please contact the school.');
+            setVerificationError('Verification failed. The phone number (primary or secondary) does not match any records for this invitation. Please contact the school.');
         } catch (error: any) {
             console.error('Verification processing error:', error);
             setVerificationError('An error occurred during verification. Please try again.');
