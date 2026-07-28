@@ -2511,13 +2511,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     studentLabel = `${studentNames.slice(0, -1).join(', ')} & ${studentNames[studentNames.length - 1]}`;
                 }
 
-                const smsMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentLabel}.${suffix} Confirm attendance: ${shortenedLink}`
-                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortenedLink}`;
+                const greetingName = targetName && targetName !== 'Parent / Guardian' ? targetName : 'Guardian';
+                const smsMessage = `Dear ${greetingName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue}${studentLabel && studentLabel !== 'your child' ? ` — regarding ${studentLabel}` : ''}.${suffix} Confirm attendance: ${shortenedLink}`;
 
-                const emailMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentLabel}.${suffix} Confirm attendance: ${confirmationLink}`
-                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${confirmationLink}`;
+                const emailMessage = `Dear ${greetingName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue}${studentLabel && studentLabel !== 'your child' ? ` — regarding ${studentLabel}` : ''}.${suffix} Confirm attendance: ${confirmationLink}`;
 
                 // Queue SMS to Primary Phone
                 if (primaryPhone) {
@@ -2959,13 +2956,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     studentLabel = `${studentNames.slice(0, -1).join(', ')} & ${studentNames[studentNames.length - 1]}`;
                 }
 
-                const smsMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentLabel}.${suffix} Confirm attendance: ${shortenedLink}`
-                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortenedLink}`;
+                const greetingName2 = targetName && targetName !== 'Parent / Guardian' ? targetName : 'Guardian';
+                const smsMessage = `Dear ${greetingName2}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue}${studentLabel && studentLabel !== 'your child' ? ` — regarding ${studentLabel}` : ''}.${suffix} Confirm attendance: ${shortenedLink}`;
 
-                const emailMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentLabel}.${suffix} Confirm attendance: ${rawLink}`
-                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${rawLink}`;
+                const emailMessage = `Dear ${greetingName2}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue}${studentLabel && studentLabel !== 'your child' ? ` — regarding ${studentLabel}` : ''}.${suffix} Confirm attendance: ${rawLink}`;
 
                 // Queue SMS to Primary Phone
                 if (primaryPhone) {
@@ -3243,13 +3237,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
             const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
             const studentName = associatedUser.name || 'your child';
-            const smsMessage = primaryParent
-                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortenedLink}`
-                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortenedLink}`;
+            const greetingName3 = targetName && targetName !== 'Parent / Guardian' ? targetName : 'Guardian';
+            const smsMessage = `Dear ${greetingName3}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortenedLink}`;
 
-            const emailMessage = primaryParent
-                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${rawLink}`
-                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${rawLink}`;
+            const emailMessage = `Dear ${greetingName3}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${rawLink}`;
 
             let smsSuccess = false;
             let errorMsg: string | undefined = undefined;
@@ -3378,13 +3369,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }
             }
 
-            const smsMessage = targetUser.role === 'parent'
-                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortenedLink}`
-                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortenedLink}`;
+            const greetingName4 = targetName && targetName !== 'Parent / Guardian' ? targetName : 'Guardian';
+            const smsMessage = `Dear ${greetingName4}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue}${studentName && studentName !== 'your child' ? ` — regarding ${studentName}` : ''}.${suffix} Confirm attendance: ${shortenedLink}`;
 
-            const emailMessage = targetUser.role === 'parent'
-                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${rawLink}`
-                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${rawLink}`;
+            const emailMessage = `Dear ${greetingName4}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue}${studentName && studentName !== 'your child' ? ` — regarding ${studentName}` : ''}.${suffix} Confirm attendance: ${rawLink}`;
 
             let smsSuccess = false;
             let errorMsg: string | undefined = undefined;
@@ -3601,7 +3589,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
 
-                const smsMessage = `REMINDER: You are invited to "${event.title}" on ${event.eventDate}${event.eventTime ? ' at ' + event.eventTime : ''}${event.venue ? ', ' + event.venue : ''}.${suffix} Please confirm your attendance: ${shortenedLink}`;
+                const greetingName5 = targetName && targetName !== 'Guest' ? targetName : 'Guardian';
+                const smsMessage = `Dear ${greetingName5}, REMINDER: you are invited to "${event.title}" on ${event.eventDate}${event.eventTime ? ' at ' + event.eventTime : ''}${event.venue ? ', ' + event.venue : ''}.${suffix} Please confirm your attendance: ${shortenedLink}`;
                 const emailMessage = smsMessage;
 
                 let smsSuccess = false;
@@ -3745,7 +3734,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
                         const confirmationLink = rawLink;
                         
-                        const message = `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${confirmationLink}`;
+                        const greetingName6 = parentName && parentName.trim() ? parentName.trim() : 'Guardian';
+                        const message = `Dear ${greetingName6}, you are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${confirmationLink}`;
 
                         // 4. Send Stage 1 Notifications
                         if (parentPhone) {
