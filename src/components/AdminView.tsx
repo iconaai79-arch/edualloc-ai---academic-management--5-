@@ -491,7 +491,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
-    const [enrollmentSubTab, setEnrollmentSubTab] = useState<'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests'>('students');
+    const [enrollmentSubTab, setEnrollmentSubTab] = useState<'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests' | 'portal_hub'>('students');
     const [timetablePreselectedViewMode, setTimetablePreselectedViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test' | null>(null);
     const [timetablePreselectedLecturerId, setTimetablePreselectedLecturerId] = useState<string>('');
     const [timetablePreselectedCourseId, setTimetablePreselectedCourseId] = useState<string>('all');
@@ -2937,6 +2937,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             <button onClick={() => setEnrollmentSubTab('broadcaster')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'broadcaster' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Broadcaster Service</button>
                             <button onClick={() => setEnrollmentSubTab('calendar')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'calendar' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Events & PINs</button>
                             <button onClick={() => setEnrollmentSubTab('guests')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'guests' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Cleared Guests</button>
+                            <button onClick={() => setEnrollmentSubTab('portal_hub')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'portal_hub' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Portal Hub</button>
                         </div>
                         <div className="animate-fade-in-up">
                             <StudentEnrollmentManager
@@ -2951,7 +2952,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                 )}
 
-                {['enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(activeTab) && (
+                {['enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests', 'enrollment_portal_hub'].includes(activeTab) && (
                     <div className="animate-fade-in-up">
                         <StudentEnrollmentManager
                             context={isDS ? 'driving_school' : 'academic'}
@@ -2962,6 +2963,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 activeTab === 'enrollment_support_staff' ? 'support_staff' :
                                 activeTab === 'enrollment_broadcaster' ? 'broadcaster' :
                                 activeTab === 'enrollment_calendar' ? 'calendar' :
+                                activeTab === 'enrollment_portal_hub' ? 'portal_hub' :
                                 'guests'
                             }
                             companyDetails={props.companyDetails}

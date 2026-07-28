@@ -206,7 +206,7 @@ const ShortenedUrlField: React.FC<{
 interface StudentEnrollmentManagerProps {
     context: 'academic' | 'driving_school';
     currentInstitution: Institution;
-    activeTab?: 'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests';
+    activeTab?: 'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests' | 'portal_hub';
     companyDetails?: CompanyDetails;
     currentUser?: User;
     onLogAction?: (message: string) => Promise<void>;
@@ -6234,6 +6234,163 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     })}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Tab: Portal Hub */}
+            {activeTab === 'portal_hub' && (
+                <div className="space-y-6 animate-fade-in">
+                    {/* Portal Header Banner */}
+                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/20 rounded-[2.5rem] p-6 sm:p-8 text-white space-y-4 shadow-xl relative overflow-hidden">
+                        <div className="absolute -top-12 -right-12 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                        <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
+                            <div className="space-y-1">
+                                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded-full text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-1.5">
+                                    <Sparkles className="w-3 h-3 text-indigo-400" /> Enrollment & Event Gateway
+                                </span>
+                                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Enrollment Portal Hub</h3>
+                                <p className="text-xs text-slate-300 max-w-lg">
+                                    Public self-service portal links for student admission, parent RSVP event passes, visitor gate-passes, and student ID card verifications.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href={`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=event-confirm`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2"
+                                >
+                                    <ExternalLink className="w-4 h-4" /> Open RSVP Portal
+                                </a>
+                            </div>
+                        </div>
+
+                        {/* Portal Link Copy Bar */}
+                        <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                            <div className="flex-1 bg-slate-950/60 border border-white/10 rounded-2xl px-4 py-3 flex items-center justify-between gap-2">
+                                <span className="text-xs font-mono text-indigo-300 truncate">
+                                    {`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=event-confirm`}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        const link = `${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=event-confirm`;
+                                        try { await navigator.clipboard.writeText(link); alert('Public Event RSVP Portal link copied!'); } catch (_) {}
+                                    }}
+                                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
+                                >
+                                    <Copy className="w-3.5 h-3.5" /> Copy Link
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Portal Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Card 1: Event RSVP & Invitation Portal */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                    <Key className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Parent Event RSVP & PIN Portal</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                        Parents can locate invitations using primary or secondary phone numbers, enter secret PINs, confirm attendance, and download digital admission passes.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono text-slate-400">Target: Parents & Guests</span>
+                                <a
+                                    href={`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=event-confirm`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-4 py-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                                >
+                                    Launch Portal <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                            </div>
+                        </div>
+
+                        {/* Card 2: Student Online Self-Enrollment */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                    <UserPlus className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Self-Enrollment Portal</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                        Allows prospective students or parents to submit online admission forms, upload passport photos, and register contact information remotely.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono text-slate-400">Target: New Applicants</span>
+                                <a
+                                    href={`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=event-register`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-4 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                                >
+                                    Launch Registration <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                            </div>
+                        </div>
+
+                        {/* Card 3: Visitor & Gatepass Terminal */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                                    <Fingerprint className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Visitor Gate-Pass Verification</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                        Security gate staff scan attendee QR codes, verify biometric credentials, and record visitor check-ins during campus events.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono text-slate-400">Target: Campus Security</span>
+                                <a
+                                    href={`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=visitor-gate`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-4 py-2 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                                >
+                                    Gatepass Terminal <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                            </div>
+                        </div>
+
+                        {/* Card 4: Parent Broadcaster & SMS Notification Studio */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                                    <Send className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Broadcaster & SMS Studio</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                        Send automated PIN invitations, class broadcast announcements, and short URL event links directly to parents' mobile phones.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono text-slate-400">Target: Admin & Broadcasters</span>
+                                <a
+                                    href={`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=broadcaster`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-4 py-2 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                                >
+                                    Open Studio <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -3,7 +3,8 @@ import type { User, Course, Subject, RemedialSession, RemedialRateSetting, Remed
 import { apiService } from '../services/apiService';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
-    DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck
+    DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
+    Globe, Copy, ExternalLink
 } from 'lucide-react';
 
 interface RemedialLessonsManagerProps {
@@ -31,7 +32,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [rateSetting, setRateSetting] = useState<RemedialRateSetting | null>(null);
     const [payouts, setPayouts] = useState<RemedialPayout[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'sessions' | 'rates' | 'payouts' | 'billing'>('sessions');
+    const [activeTab, setActiveTab] = useState<'sessions' | 'rates' | 'payouts' | 'billing' | 'portal_hub'>('sessions');
     
     // Filters & Search
     const [searchQuery, setSearchQuery] = useState('');
@@ -506,6 +507,27 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </div>
                             </div>
                         </button>
+
+                        <button 
+                            onClick={() => setActiveTab('portal_hub')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'portal_hub' 
+                                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'portal_hub' ? 'bg-white/20 text-white' : 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <Globe className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Portal Hub</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'portal_hub' ? 'text-indigo-100' : 'text-slate-400'}`}>Public link & QR share</p>
+                                </div>
+                            </div>
+                        </button>
                     </div>
                 </div>
 
@@ -871,6 +893,159 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     </div>
                                 );
                             })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB: PORTAL HUB */}
+            {activeTab === 'portal_hub' && (
+                <div className="space-y-6 animate-fade-in">
+                    {/* Header Banner */}
+                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/20 rounded-[2.5rem] p-6 sm:p-8 text-white space-y-4 shadow-xl relative overflow-hidden">
+                        <div className="absolute -top-12 -right-12 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                        <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
+                            <div className="space-y-1">
+                                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded-full text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-1.5">
+                                    <Globe className="w-3 h-3 text-indigo-400" /> Public Remedial Gateway
+                                </span>
+                                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Remedial Portal Hub</h3>
+                                <p className="text-xs text-slate-300 max-w-lg">
+                                    Share live portal access for students, parents, teachers, and prefects to verify remedial sessions, track attendance, and process payments.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href={`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=remedial-portal`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2"
+                                >
+                                    <ExternalLink className="w-4 h-4" /> Open Live Portal
+                                </a>
+                            </div>
+                        </div>
+
+                        {/* Portal Link Box */}
+                        <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                            <div className="flex-1 bg-slate-950/60 border border-white/10 rounded-2xl px-4 py-3 flex items-center justify-between gap-2">
+                                <span className="text-xs font-mono text-indigo-300 truncate">
+                                    {`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=remedial-portal`}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        const link = `${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=remedial-portal`;
+                                        try { await navigator.clipboard.writeText(link); alert('Remedial Portal link copied to clipboard!'); } catch (_) {}
+                                    }}
+                                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
+                                >
+                                    <Copy className="w-3.5 h-3.5" /> Copy Link
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Portal Hub Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Card 1: Student & Parent Gateway */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                    <UserCheck className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Student & Parent Portal</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                        Allows parents and students to check scheduled remedial classes, view prefect verification status, and settle remedial fee invoices online.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono text-slate-400">Role: Parent / Student</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('billing')}
+                                    className="px-4 py-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                                >
+                                    Manage Billing <CreditCard className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Card 2: Teacher Self-Service Portal */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                    <BookOpen className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Teacher & Lecturer Portal</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                        Teachers log remedial sessions, track accrued teaching hours, view payout vouchers, and present QR codes to class prefects for verification.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono text-slate-400">Role: Teacher / Lecturer</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('payouts')}
+                                    className="px-4 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                                >
+                                    Manage Payouts <DollarSign className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Card 3: Prefect Verification Terminal */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                                    <QrCode className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Prefect Verification Terminal</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                        Class prefects scan teacher QR codes or enter digital tokens to confirm extra lesson attendance and validate taught hours.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono text-slate-400">Role: Class Prefect</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('sessions')}
+                                    className="px-4 py-2 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                                >
+                                    Verify Sessions <Clock className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Card 4: Remedial Rates & Settings */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                                    <Award className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Remedial Rate Configuration</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                        Configure hourly teacher pay rates, per-student fees, and fixed term remedial billing parameters.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono text-slate-400">Config & Rates</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('rates')}
+                                    className="px-4 py-2 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                                >
+                                    Configure Rates <Layers className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
