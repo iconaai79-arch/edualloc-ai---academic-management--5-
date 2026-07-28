@@ -1301,35 +1301,63 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 await Promise.all(batch.map(async (item) => {
                     try {
                         let userId = '';
+                        const cleanAdm = (s: any) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const inputName = item.name ? String(item.name).trim() : '';
+                        const inputAdmNo = item.admissionNumber ? String(item.admissionNumber).trim() : '';
                         
-                        // 1. Check if user already exists locally
-                        let existingUser = currentUsersList.find(u => 
-                            (item.email && u.email && u.email.toLowerCase() === String(item.email).trim().toLowerCase()) || 
-                            (item.phoneNumber && u.phoneNumber && String(u.phoneNumber).replace(/\D/g, '') === String(item.phoneNumber).replace(/\D/g, ''))
-                        );
+                        // 1. First check if an enrollment already exists for this admission number
+                        let existingEnrollment = inputAdmNo ? currentEnrollmentsList.find(e => 
+                            e.admissionNumber && cleanAdm(e.admissionNumber) === cleanAdm(inputAdmNo)
+                        ) : undefined;
 
-                        // Query globally to avoid unique email constraint violation (Error 23505)
-                        if (!existingUser && item.email) {
-                            const globalRecords = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
-                                filter: { email: String(item.email).trim().toLowerCase() }
-                            });
-                            if (globalRecords && globalRecords.length > 0) {
-                                existingUser = globalRecords[0];
+                        let existingUser: User | undefined = undefined;
+
+                        if (existingEnrollment) {
+                            userId = existingEnrollment.userId;
+                            existingUser = currentUsersList.find(u => u.id === userId);
+                            if (!existingUser && userId) {
+                                try {
+                                    const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                                        filter: { id: userId }
+                                    });
+                                    if (dbUsers && dbUsers.length > 0) {
+                                        existingUser = dbUsers[0];
+                                    }
+                                } catch (_) {}
+                            }
+                        }
+
+                        // If no enrollment matched, search user by email, phone, or name
+                        if (!existingUser) {
+                            existingUser = currentUsersList.find(u => 
+                                (item.email && u.email && u.email.toLowerCase() === String(item.email).trim().toLowerCase()) || 
+                                (item.phoneNumber && u.phoneNumber && String(u.phoneNumber).replace(/\D/g, '') === String(item.phoneNumber).replace(/\D/g, '')) ||
+                                (inputName && u.name && u.name.trim().toLowerCase() === inputName.toLowerCase())
+                            );
+
+                            if (!existingUser && item.email) {
+                                const globalRecords = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                                    filter: { email: String(item.email).trim().toLowerCase() }
+                                });
+                                if (globalRecords && globalRecords.length > 0) {
+                                    existingUser = globalRecords[0];
+                                }
                             }
                         }
 
                         if (existingUser) {
                             userId = existingUser.id;
-                            // Optionally update user properties if they changed
-                            const updatedUser = {
+                            const updatedUser: User = {
                                 ...existingUser,
-                                name: item.name || existingUser.name,
+                                name: (inputName && inputName.toLowerCase() !== 'unknown student') ? inputName : existingUser.name,
                                 gender: (item.gender || existingUser.gender) as any,
                             };
                             if (updatedUser.institutionId !== currentInstitution.id) {
                                 updatedUser.institutionId = currentInstitution.id;
                             }
                             await apiService.updateModuleRecord('users', existingUser.id, updatedUser);
+                            const userIdx = currentUsersList.findIndex(u => u.id === existingUser!.id);
+                            if (userIdx !== -1) currentUsersList[userIdx] = updatedUser;
                         } else {
                             // Create new user profile
                             const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -1339,7 +1367,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             
                             const newUser: User = {
                                 id: newUserId,
-                                name: String(item.name).trim(),
+                                name: inputName || 'Student',
                                 email: generatedEmail,
                                 phoneNumber: item.phoneNumber ? String(item.phoneNumber).trim() : '',
                                 role: 'student',
@@ -1355,11 +1383,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             currentUsersList.push(newUser);
                         }
 
-                        // 2. Check if enrollment record exists
-                        let existingEnrollment = currentEnrollmentsList.find(e => 
-                            e.userId === userId || 
-                            (item.admissionNumber && e.admissionNumber && String(e.admissionNumber).trim().toLowerCase() === String(item.admissionNumber).trim().toLowerCase())
-                        );
+                        if (!existingEnrollment) {
+                            existingEnrollment = currentEnrollmentsList.find(e => e.userId === userId);
+                        }
 
                         const admissionNumberValue = item.admissionNumber 
                             ? String(item.admissionNumber).trim() 
@@ -1474,14 +1500,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         return;
                     }
 
+                    const cleanAdm = (s: any) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const cleanStr = (s: any) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
                     // Match enrollment by admission number or student name
                     let matchedEnrollment = enrollments.find(e =>
-                        (admNo && e.admissionNumber && String(e.admissionNumber).trim().toLowerCase() === admNo.toLowerCase())
+                        (admNo && e.admissionNumber && cleanAdm(e.admissionNumber) === cleanAdm(admNo))
                     );
                     if (!matchedEnrollment && nameRaw) {
                         matchedEnrollment = enrollments.find(e => {
                             const user = users.find(u => u.id === e.userId);
-                            return user && (user.name || '').trim().toLowerCase() === nameRaw;
+                            return user && cleanStr(user.name) === cleanStr(studentNameVal);
                         });
                     }
 
@@ -1554,38 +1583,63 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         }
                         updatedMeta.parents = parentsArr;
 
+                        // Retrieve matched user account
+                        let matchedUser = users.find(u => u.id === matchedEnrollment.userId);
+                        if (!matchedUser && matchedEnrollment.userId) {
+                            try {
+                                const dbUser = await apiService.fetchModuleRecord<User>('users', matchedEnrollment.userId);
+                                if (dbUser) matchedUser = dbUser;
+                            } catch (_) {}
+                        }
+
+                        const finalStudentName = studentNameVal && studentNameVal.trim() && studentNameVal.toLowerCase() !== 'unknown student' && studentNameVal.toLowerCase() !== 'unknown'
+                            ? studentNameVal.trim()
+                            : (matchedUser?.name || '');
+
+                        if (finalStudentName) {
+                            updatedMeta.studentName = finalStudentName;
+                            updatedMeta.name = finalStudentName;
+                        }
+
                         const updatedEnrollment = {
                             ...matchedEnrollment,
                             metadata: updatedMeta,
                             updatedAt: new Date().toISOString()
                         };
 
-                        // Update student user account (name, phone, secondary phone)
-                        const matchedUser = users.find(u => u.id === matchedEnrollment.userId);
-                        if (matchedUser) {
-                            const updatedUserObj: any = {
-                                ...matchedUser,
+                        if (matchedEnrollment.userId) {
+                            const userToSave: any = {
+                                ...(matchedUser || { id: matchedEnrollment.userId, role: 'student', institutionId: currentInstitution.id }),
+                                id: matchedEnrollment.userId,
+                                name: finalStudentName || matchedUser?.name || 'Student',
+                                institutionId: currentInstitution.id,
                                 metadata: {
-                                    ...(matchedUser.metadata || {}),
-                                    secondaryPhone: secPhoneVal || matchedUser.metadata?.secondaryPhone || '',
-                                    parentPhone2: secPhoneVal || matchedUser.metadata?.parentPhone2 || '',
-                                    parentPhone: parentPhoneVal || matchedUser.metadata?.parentPhone || ''
+                                    ...(matchedUser?.metadata || {}),
+                                    secondaryPhone: secPhoneVal || matchedUser?.metadata?.secondaryPhone || '',
+                                    parentPhone2: secPhoneVal || matchedUser?.metadata?.parentPhone2 || '',
+                                    parentPhone: parentPhoneVal || matchedUser?.metadata?.parentPhone || ''
                                 }
                             };
-                            if (studentNameVal && studentNameVal.trim() && studentNameVal.toLowerCase() !== 'unknown student') {
-                                updatedUserObj.name = studentNameVal.trim();
-                            }
                             if (studentPhoneVal) {
-                                updatedUserObj.phoneNumber = studentPhoneVal;
+                                userToSave.phoneNumber = studentPhoneVal;
                             }
                             if (secPhoneVal) {
-                                updatedUserObj.secondaryPhone = secPhoneVal;
-                                updatedUserObj.parentPhone2 = secPhoneVal;
+                                userToSave.secondaryPhone = secPhoneVal;
+                                userToSave.parentPhone2 = secPhoneVal;
                             }
-                            await apiService.updateModuleRecord('users', matchedUser.id, updatedUserObj).catch(() => {});
+                            await apiService.updateModuleRecord('users', matchedEnrollment.userId, userToSave).catch(() => {});
                             
                             // Update local users state immediately
-                            setUsers(prev => prev.map(u => u.id === matchedUser.id ? updatedUserObj : u));
+                            setUsers(prev => {
+                                const idx = prev.findIndex(u => u.id === matchedEnrollment.userId);
+                                if (idx !== -1) {
+                                    const copy = [...prev];
+                                    copy[idx] = { ...copy[idx], ...userToSave };
+                                    return copy;
+                                } else {
+                                    return [...prev, userToSave as User];
+                                }
+                            });
                         }
 
                         await apiService.updateModuleRecord('student_enrollments', matchedEnrollment.id, updatedEnrollment);
