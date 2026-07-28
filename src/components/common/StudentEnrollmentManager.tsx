@@ -8500,7 +8500,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         const targetName = isMock ? 'John Doe (Sample Attendee)' : (targetUser?.name || 'Parent/Guardian');
                                         const targetPhone = isMock ? '+254 700 000 000' : (targetUser?.phoneNumber || (targetUser as any)?.phone_number || 'No Phone');
                                         
-                                        const shortLinkPreview = previewShortUrl || `https://is.gd/KmF6f2`;
+                                        const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin;
+                                        const shortLinkPreview = previewShortUrl || `${origin}/?view=event-confirm&pinId=${pinRecord.id}`;
                                         const suffix = bulkFeedbackAddMsg.trim() ? ` ${bulkFeedbackAddMsg.trim()}` : '';
                                         const smsMessage = `Thank you for attending "${event.title}". Please take a moment to share your rating and feedback with us:${suffix} ${shortLinkPreview}`;
 

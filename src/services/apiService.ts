@@ -379,14 +379,18 @@ export const apiService = {
             normalizedUrl = normalizedUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
         }
 
-        // Cache key — per unique normalized URL, using v2 prefix to prevent collision and clear legacy entries
-        const cacheKey = `eduai_short_v2_${encodeURIComponent(normalizedUrl)}`;
+        // Cache key — per unique normalized URL, using v3 prefix to clear legacy 24borchc entries
+        const cacheKey = `eduai_short_v3_${encodeURIComponent(normalizedUrl)}`;
 
-        // Validate cached entry: discard if it doesn't look like a legit short URL
-        // or if the cache might be stale from a previous wrong session
+        const isGenericOrStale = (url: string) => {
+            if (!url) return true;
+            return url.includes('24borchc') || url.includes('KmF6f2');
+        };
+
+        // Validate cached entry: discard if it doesn't look like a legit short URL or is a generic fallback
         try {
             const cached = sessionStorage.getItem(cacheKey);
-            if (cached && cached.startsWith('http') && !cached.includes('localhost')) {
+            if (cached && cached.startsWith('http') && !cached.includes('localhost') && !isGenericOrStale(cached)) {
                 return cached;
             } else if (cached) {
                 sessionStorage.removeItem(cacheKey); // clear bad cache
@@ -404,8 +408,8 @@ export const apiService = {
                 if (res.ok) {
                     const data = await res.json();
                     const short = data?.shortUrl;
-                    // Ensure the returned shortUrl is not the original longUrl fallback
-                    if (short && short.startsWith('http') && !short.includes('localhost') && (short.includes('is.gd') || short.includes('tinyurl.com'))) {
+                    // Ensure the returned shortUrl is not generic or original longUrl fallback
+                    if (short && short.startsWith('http') && !short.includes('localhost') && !isGenericOrStale(short) && (short.includes('is.gd') || short.includes('tinyurl.com'))) {
                         try { sessionStorage.setItem(cacheKey, short); } catch (_) {}
                         return short;
                     }
@@ -426,7 +430,8 @@ export const apiService = {
                 });
                 if (res.ok) {
                     const text = (await res.text()).trim();
-                    return extractFn(text);
+                    const extracted = extractFn(text);
+                    if (extracted && !isGenericOrStale(extracted)) return extracted;
                 }
             } catch (_) {}
             return null;
