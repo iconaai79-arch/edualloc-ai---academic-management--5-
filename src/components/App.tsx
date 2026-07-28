@@ -207,10 +207,12 @@ export const App: React.FC = () => {
     useEffect(() => {
         if (currentUser) {
             setSessionUser({ branchId: (currentUser as any).branchId, branch_id: (currentUser as any).branch_id, role: currentUser.role as string });
+            setImpersonatedRole(null);
+            setSelectedRole(null);
         } else {
             setSessionUser(null);
         }
-    }, [currentUser]);
+    }, [currentUser?.id]);
 
     // Handle 401 session-expiry events fired by apiService when token refresh fails
     useEffect(() => {
