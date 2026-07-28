@@ -392,7 +392,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if ((longUrl.includes('localhost') || longUrl.includes('127.0.0.1')) && !longUrl.includes('/storage/v1/')) {
                 longUrl = longUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
             }
-            // Try is.gd first (generates unique slugs — no collision risk)
+
+            // Provider 1: CleanURI API (POST) - highly reliable, returns JSON { result_url: "..." }
+            try {
+                const cleanuriRes = await fetchWithTimeout(
+                    'https://cleanuri.com/api/v1/shorten',
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `url=${encodeURIComponent(longUrl)}`
+                    },
+                    6000
+                );
+                if (cleanuriRes.ok) {
+                    const data = await cleanuriRes.json();
+                    if (data?.result_url && typeof data.result_url === 'string' && data.result_url.startsWith('https://cleanuri.com/')) {
+                        return res.status(200).json({ success: true, shortUrl: data.result_url });
+                    }
+                }
+            } catch (e: any) {
+                console.warn('[shortenUrl] CleanURI call failed:', e.message);
+            }
+
+            // Provider 2: Ulvis API (GET) - fast & reliable fallback, returns text "https://ulvis.net/..."
+            try {
+                const ulvisRes = await fetchWithTimeout(
+                    `https://ulvis.net/api.php?url=${encodeURIComponent(longUrl)}`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'text/plain',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        }
+                    },
+                    6000
+                );
+                if (ulvisRes.ok) {
+                    const shortUrl = (await ulvisRes.text()).trim();
+                    if (shortUrl && shortUrl.startsWith('https://ulvis.net/') && !shortUrl.includes('error')) {
+                        return res.status(200).json({ success: true, shortUrl });
+                    }
+                }
+            } catch (e: any) {
+                console.warn('[shortenUrl] Ulvis call failed:', e.message);
+            }
+
+            // Provider 3: is.gd (GET)
             try {
                 const isgdRes = await fetchWithTimeout(
                     `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`,
@@ -403,18 +448,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                         } 
                     },
-                    7000
+                    6000
                 );
                 if (isgdRes.ok) {
                     const shortUrl = (await isgdRes.text()).trim();
-                    if (shortUrl && shortUrl.startsWith('https://is.gd/')) {
+                    if (shortUrl && shortUrl.startsWith('https://is.gd/') && !shortUrl.toLowerCase().includes('error')) {
                         return res.status(200).json({ success: true, shortUrl });
                     }
                 }
             } catch (e: any) {
                 console.warn('[shortenUrl] is.gd call failed:', e.message);
             }
-            // Fallback: TinyURL
+
+            // Provider 4: TinyURL (GET)
             try {
                 const tinyRes = await fetchWithTimeout(
                     `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`,
@@ -425,7 +471,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                         } 
                     },
-                    7000
+                    6000
                 );
                 if (tinyRes.ok) {
                     const shortUrl = (await tinyRes.text()).trim();
@@ -436,7 +482,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } catch (e: any) {
                 console.warn('[shortenUrl] TinyURL call failed:', e.message);
             }
-            // Final fallback: return original URL
+
+            // Final fallback: return original normalized URL
             return res.status(200).json({ success: true, shortUrl: longUrl });
         }
         

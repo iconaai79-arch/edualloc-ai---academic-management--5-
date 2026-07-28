@@ -379,12 +379,19 @@ export const apiService = {
             normalizedUrl = normalizedUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
         }
 
-        // Cache key — per unique normalized URL, using v3 prefix to clear legacy 24borchc entries
-        const cacheKey = `eduai_short_v3_${encodeURIComponent(normalizedUrl)}`;
+        // Cache key — per unique normalized URL, using v4 prefix to clear legacy 24borchc / broken entries
+        const cacheKey = `eduai_short_v4_${encodeURIComponent(normalizedUrl)}`;
 
         const isGenericOrStale = (url: string) => {
             if (!url) return true;
-            return url.includes('24borchc') || url.includes('KmF6f2');
+            const lower = url.toLowerCase();
+            return lower.includes('24borchc') || 
+                   lower.includes('kmf6f2') || 
+                   lower.includes('fox2detroit') || 
+                   lower.includes('90rfdn') || 
+                   lower.includes('392vwj8s') || 
+                   lower.includes('28xapexb') ||
+                   lower.includes('error');
         };
 
         // Validate cached entry: discard if it doesn't look like a legit short URL or is a generic fallback
@@ -408,8 +415,8 @@ export const apiService = {
                 if (res.ok) {
                     const data = await res.json();
                     const short = data?.shortUrl;
-                    // Ensure the returned shortUrl is not generic or original longUrl fallback
-                    if (short && short.startsWith('http') && !short.includes('localhost') && !isGenericOrStale(short) && (short.includes('is.gd') || short.includes('tinyurl.com'))) {
+                    // Accept any valid HTTP short URL returned by proxy (CleanURI, Ulvis, is.gd, TinyURL, or normalized longUrl)
+                    if (short && short.startsWith('http') && !short.includes('localhost') && !isGenericOrStale(short)) {
                         try { sessionStorage.setItem(cacheKey, short); } catch (_) {}
                         return short;
                     }
@@ -418,7 +425,7 @@ export const apiService = {
         } catch (_) {}
 
         // Helper: attempt a shortener service and return the result or null
-        const tryShorten = async (shortenerUrl: string, extractFn: (text: string) => string | null): Promise<string | null> => {
+        const tryShorten = async (shortenerUrl: string, extractFn: (res: Response, text: string) => string | null): Promise<string | null> => {
             try {
                 const res = await fetch(shortenerUrl, { 
                     method: 'GET', 
@@ -426,38 +433,65 @@ export const apiService = {
                         'Accept': 'text/plain',
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                     },
-                    signal: AbortSignal.timeout(7000) 
+                    signal: AbortSignal.timeout(6000) 
                 });
                 if (res.ok) {
                     const text = (await res.text()).trim();
-                    const extracted = extractFn(text);
+                    const extracted = extractFn(res, text);
                     if (extracted && !isGenericOrStale(extracted)) return extracted;
                 }
             } catch (_) {}
             return null;
         };
 
-        // 2. Client-side is.gd fallback
+        // 2. Client-side CleanURI POST fallback
+        try {
+            const cleanuriRes = await fetch('https://cleanuri.com/api/v1/shorten', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `url=${encodeURIComponent(normalizedUrl)}`,
+                signal: AbortSignal.timeout(6000)
+            });
+            if (cleanuriRes.ok) {
+                const data = await cleanuriRes.json();
+                if (data?.result_url && typeof data.result_url === 'string' && data.result_url.startsWith('https://cleanuri.com/')) {
+                    try { sessionStorage.setItem(cacheKey, data.result_url); } catch (_) {}
+                    return data.result_url;
+                }
+            }
+        } catch (_) {}
+
+        // 3. Client-side Ulvis fallback
+        const ulvisShort = await tryShorten(
+            `https://ulvis.net/api.php?url=${encodeURIComponent(normalizedUrl)}`,
+            (_, text) => (text.startsWith('https://ulvis.net/') && !text.includes('error') ? text : null)
+        );
+        if (ulvisShort) {
+            try { sessionStorage.setItem(cacheKey, ulvisShort); } catch (_) {}
+            return ulvisShort;
+        }
+
+        // 4. Client-side is.gd fallback
         const isgdShort = await tryShorten(
             `https://is.gd/create.php?format=simple&url=${encodeURIComponent(normalizedUrl)}`,
-            (text) => (text.startsWith('https://is.gd/') ? text : null)
+            (_, text) => (text.startsWith('https://is.gd/') && !text.toLowerCase().includes('error') ? text : null)
         );
         if (isgdShort) {
             try { sessionStorage.setItem(cacheKey, isgdShort); } catch (_) {}
             return isgdShort;
         }
 
-        // 3. Client-side TinyURL fallback
+        // 5. Client-side TinyURL fallback
         const tinyShort = await tryShorten(
             `https://tinyurl.com/api-create.php?url=${encodeURIComponent(normalizedUrl)}`,
-            (text) => (text.startsWith('https://tinyurl.com/') ? text : null)
+            (_, text) => (text.startsWith('https://tinyurl.com/') ? text : null)
         );
         if (tinyShort) {
             try { sessionStorage.setItem(cacheKey, tinyShort); } catch (_) {}
             return tinyShort;
         }
 
-        // 4. Final fallback: return the original normalized URL unchanged
+        // 6. Final fallback: return the original normalized URL unchanged
         return normalizedUrl;
     },
     async checkUrl(url: string): Promise<{ success: boolean; status?: number; finalUrl?: string; ok?: boolean; message?: string }> {

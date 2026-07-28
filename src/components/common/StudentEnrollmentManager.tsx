@@ -2078,6 +2078,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 targetName: string;
             }[] = [];
 
+            // Sibling Grouping: Map enrollments to Parent Groups to avoid duplicate SMS per family
+            interface SiblingParentGroup {
+                key: string;
+                parentName: string;
+                primaryPhone: string;
+                secondaryPhone: string;
+                parentEmail: string;
+                primaryParent: any;
+                secondaryParent: any;
+                students: { user: any; enrollment: any }[];
+            }
+
+            const parentGroupsMap = new Map<string, SiblingParentGroup>();
+
             for (const enr of targetEnrollments) {
                 let associatedUser = currentUsersList.find(u => u.id === enr.userId);
                 if (!associatedUser) {
@@ -2108,25 +2122,80 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     continue;
                 }
 
-                // Resolve Parent(s) from enrollment metadata/fallback
+                // Resolve Primary & Secondary Parent Contacts
                 const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
                 const fallbackParent = {
                     name: enr.metadata?.parentName || '',
-                    phone: enr.metadata?.parentPhone || (enr as any).parentPhone || '',
+                    phone: enr.metadata?.parentPhone || enr.metadata?.parentPhoneNumber || (enr as any).parentPhone || '',
                     email: enr.metadata?.parentEmail || '',
                     relation: enr.metadata?.parentRelation || 'Guardian'
                 };
-                const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
-                const primaryParent = resolvedParents[0];
+                const fallbackSecondary = {
+                    name: enr.metadata?.parentName2 || enr.metadata?.secondaryParentName || '',
+                    phone: enr.metadata?.parentPhone2 || enr.metadata?.secondaryPhone || enr.metadata?.parentPhoneNumber2 || enr.metadata?.secondaryParentPhone || enr.metadata?.guardianPhone2 || '',
+                    email: enr.metadata?.parentEmail2 || enr.metadata?.secondaryParentEmail || '',
+                    relation: enr.metadata?.parentRelation2 || 'Secondary Guardian'
+                };
 
-                let targetUserId = associatedUser.id;
-                let targetName = associatedUser.name;
-                let targetPhone = isPrimaryOrSecondary ? '' : (associatedUser.phoneNumber || '');
-                let targetEmail = isPrimaryOrSecondary ? '' : (associatedUser.email || '');
+                let resolvedParents = parentsList.length > 0 ? [...parentsList] : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+                if (resolvedParents.length < 2 && (fallbackSecondary.name || fallbackSecondary.phone || fallbackSecondary.email)) {
+                    if (!resolvedParents.some(p => p.phone && phonesMatch(p.phone, fallbackSecondary.phone))) {
+                        resolvedParents.push(fallbackSecondary);
+                    }
+                }
+
+                const primaryParent = resolvedParents[0];
+                const secondaryParent = resolvedParents[1] || (fallbackSecondary.phone && (!primaryParent || !phonesMatch(primaryParent.phone, fallbackSecondary.phone)) ? fallbackSecondary : null);
+
+                const p1PhoneFormatted = primaryParent?.phone ? formatPhoneNumber(primaryParent.phone) : '';
+                const p2PhoneFormatted = secondaryParent?.phone ? formatPhoneNumber(secondaryParent.phone) : '';
+
+                // Generate Parent Unique Group Key
+                let groupKey = '';
+                if (p1PhoneFormatted) {
+                    groupKey = `phone_${p1PhoneFormatted}`;
+                } else if (primaryParent?.email) {
+                    groupKey = `email_${primaryParent.email.toLowerCase()}`;
+                } else if (primaryParent?.name) {
+                    groupKey = `name_${primaryParent.name.toLowerCase()}`;
+                } else {
+                    groupKey = `student_${associatedUser.id}`;
+                }
+
+                if (!parentGroupsMap.has(groupKey)) {
+                    parentGroupsMap.set(groupKey, {
+                        key: groupKey,
+                        parentName: primaryParent?.name || associatedUser.name || 'Parent / Guardian',
+                        primaryPhone: primaryParent?.phone || (isPrimaryOrSecondary ? '' : (associatedUser.phoneNumber || '')),
+                        secondaryPhone: p2PhoneFormatted && (!p1PhoneFormatted || !phonesMatch(p1PhoneFormatted, p2PhoneFormatted)) ? secondaryParent?.phone || '' : '',
+                        parentEmail: primaryParent?.email || (isPrimaryOrSecondary ? '' : (associatedUser.email || '')),
+                        primaryParent: primaryParent || null,
+                        secondaryParent: secondaryParent || null,
+                        students: []
+                    });
+                }
+
+                const group = parentGroupsMap.get(groupKey)!;
+                if (!group.students.some(s => s.user.id === associatedUser.id)) {
+                    group.students.push({ user: associatedUser, enrollment: enr });
+                }
+            }
+
+            // Process Each Parent Group (Single Consolidated Invite per Sibling Family)
+            for (const group of Array.from(parentGroupsMap.values())) {
+                const primaryParent = group.primaryParent;
+                const secondaryParent = group.secondaryParent;
+                const allStudentIds = group.students.map(s => s.user.id);
+                const firstStudent = group.students[0].user;
+
+                let targetUserId = firstStudent.id;
+                let targetName = group.parentName;
+                let primaryPhone = group.primaryPhone;
+                let secondaryPhone = group.secondaryPhone;
+                let targetEmail = group.parentEmail;
 
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
                     const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
-                    // Try to find if this parent user already exists in the local copy, usersToUpsert, or system database
                     let parentUser = Array.from(usersToUpsert.values()).find((u: any) =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
                         (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
@@ -2158,7 +2227,6 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     }
 
                     if (!parentUser) {
-                        // Create temporary parent user profile
                         const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                         parentUser = {
                             id: newId,
@@ -2167,48 +2235,44 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
                             phoneNumber: primaryParent.phone ? formattedParentPhone : null,
                             role: 'parent',
-                            studentIds: [associatedUser.id],
+                            studentIds: allStudentIds,
                             metadata: {},
                             createdAt: new Date().toISOString()
                         } as any;
                         usersToUpsert.set(newId, parentUser);
-                        
-                        // Update local copy and main list so subsequent loops don't recreate them
                         currentUsersList.push(parentUser);
                     } else {
-                        // Ensure student ID is linked
                         const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
-                        if (!currentStudentIds.includes(associatedUser.id)) {
+                        const mergedStudentIds = Array.from(new Set([...currentStudentIds, ...allStudentIds]));
+                        if (mergedStudentIds.length !== currentStudentIds.length) {
                             parentUser = {
                                 ...parentUser,
-                                studentIds: [...currentStudentIds, associatedUser.id]
+                                studentIds: mergedStudentIds
                             };
                             usersToUpsert.set(parentUser.id, parentUser);
                         }
                     }
 
-                    // Update student's parentIds as well
-                    const currentParentIds = Array.isArray(associatedUser.parentIds) ? associatedUser.parentIds : [];
-                    if (!currentParentIds.includes(parentUser.id)) {
-                        const updatedStudent = {
-                            ...associatedUser,
-                            parentIds: [...currentParentIds, parentUser.id]
-                        };
-                        usersToUpsert.set(associatedUser.id, updatedStudent);
-                        
-                        const idx = currentUsersList.findIndex(u => u.id === associatedUser.id);
-                        if (idx !== -1) {
-                            currentUsersList[idx] = updatedStudent;
+                    for (const s of group.students) {
+                        const currentParentIds = Array.isArray(s.user.parentIds) ? s.user.parentIds : [];
+                        if (!currentParentIds.includes(parentUser.id)) {
+                            const updatedStudent = {
+                                ...s.user,
+                                parentIds: [...currentParentIds, parentUser.id]
+                            };
+                            usersToUpsert.set(s.user.id, updatedStudent);
+                            const idx = currentUsersList.findIndex(u => u.id === s.user.id);
+                            if (idx !== -1) currentUsersList[idx] = updatedStudent;
                         }
                     }
 
                     targetUserId = parentUser.id;
                     targetName = primaryParent.name || 'Parent / Guardian';
-                    targetPhone = primaryParent.phone;
+                    primaryPhone = primaryParent.phone;
                     targetEmail = primaryParent.email;
                 }
 
-                // Check if a PIN already exists
+                // Check or create PIN record
                 const existingPin = eventPins.find(p => p.eventId === event.id && p.userId === targetUserId) ||
                                     eventPinsToCreate.find(p => p.eventId === event.id && p.userId === targetUserId);
                 const pinCode = existingPin ? existingPin.pin : Math.floor(100000 + Math.random() * 900000).toString();
@@ -2227,7 +2291,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     eventPinsToCreate.push(newPinRecord);
                 }
 
-                // Construct Confirmation Link — use full URL (shortening causes collisions)
+                // Construct Confirmation Link
                 const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
                     ? 'https://portal.eduai.co.ke'
                     : window.location.origin;
@@ -2239,7 +2303,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     event.eventTime,                                      // 3
                     event.venue,                                          // 4
                     targetName || 'Parent / Guardian',                    // 5
-                    targetPhone || '',                                    // 6
+                    primaryPhone || '',                                   // 6
                     currentInstitution.name || '',                        // 7
                     currentInstitution.id,                                // 8
                     event.description || '',                              // 9
@@ -2257,23 +2321,55 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
 
-                // Send notification with RSVP details
-                const studentName = associatedUser.name || 'your child';
+                // Combine Sibling Student Names for Consolidated Message
+                const studentNames = group.students.map(s => s.user.name || 'your child').filter(Boolean);
+                let studentLabel = 'your child';
+                if (studentNames.length === 1) {
+                    studentLabel = studentNames[0];
+                } else if (studentNames.length === 2) {
+                    studentLabel = `${studentNames[0]} & ${studentNames[1]}`;
+                } else if (studentNames.length > 2) {
+                    studentLabel = `${studentNames.slice(0, -1).join(', ')} & ${studentNames[studentNames.length - 1]}`;
+                }
+
                 const smsMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortenedLink}`
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentLabel}.${suffix} Confirm attendance: ${shortenedLink}`
                     : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortenedLink}`;
-                
+
                 const emailMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${confirmationLink}`
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentLabel}.${suffix} Confirm attendance: ${confirmationLink}`
                     : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${confirmationLink}`;
-                
-                notificationsToDispatch.push({
-                    targetPhone,
-                    targetEmail,
-                    smsMessage,
-                    emailMessage,
-                    targetName
-                });
+
+                // Queue SMS to Primary Phone
+                if (primaryPhone) {
+                    notificationsToDispatch.push({
+                        targetPhone: primaryPhone,
+                        targetEmail: targetEmail,
+                        smsMessage,
+                        emailMessage,
+                        targetName: secondaryPhone ? `${targetName} (Primary)` : targetName
+                    });
+                }
+
+                // Queue SMS to Secondary Phone (if configured and distinct from Primary)
+                if (secondaryPhone && (!primaryPhone || !phonesMatch(primaryPhone, secondaryPhone))) {
+                    notificationsToDispatch.push({
+                        targetPhone: secondaryPhone,
+                        targetEmail: '',
+                        smsMessage,
+                        emailMessage: '',
+                        targetName: `${targetName} (Secondary)`
+                    });
+                }
+
+                if (!primaryPhone && !secondaryPhone) {
+                    results.push({
+                        recipientName: targetName,
+                        phone: 'No phone number',
+                        success: false,
+                        errorMsg: isPrimaryOrSecondary ? 'No parent phone number configured' : 'No phone number configured'
+                    });
+                }
 
                 pinCount++;
             }
@@ -2436,7 +2532,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 targetName: string;
             }[] = [];
 
-            // 3. Process each missing enrollment
+            // Sibling Grouping: Map missing enrollments to Parent Groups
+            interface SiblingResendParentGroup {
+                key: string;
+                parentName: string;
+                primaryPhone: string;
+                secondaryPhone: string;
+                parentEmail: string;
+                primaryParent: any;
+                secondaryParent: any;
+                students: { user: any; enrollment: any }[];
+            }
+
+            const parentGroupsMap = new Map<string, SiblingResendParentGroup>();
+
             for (const enr of missingEnrollments) {
                 let associatedUser = currentUsersList.find(u => u.id === enr.userId);
                 if (!associatedUser) {
@@ -2476,17 +2585,72 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
                 const fallbackParent = {
                     name: enr.metadata?.parentName || '',
-                    phone: enr.metadata?.parentPhone || (enr as any).parentPhone || '',
+                    phone: enr.metadata?.parentPhone || enr.metadata?.parentPhoneNumber || (enr as any).parentPhone || '',
                     email: enr.metadata?.parentEmail || '',
                     relation: enr.metadata?.parentRelation || 'Guardian'
                 };
-                const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
-                const primaryParent = resolvedParents[0];
+                const fallbackSecondary = {
+                    name: enr.metadata?.parentName2 || enr.metadata?.secondaryParentName || '',
+                    phone: enr.metadata?.parentPhone2 || enr.metadata?.secondaryPhone || enr.metadata?.parentPhoneNumber2 || enr.metadata?.secondaryParentPhone || enr.metadata?.guardianPhone2 || '',
+                    email: enr.metadata?.parentEmail2 || enr.metadata?.secondaryParentEmail || '',
+                    relation: enr.metadata?.parentRelation2 || 'Secondary Guardian'
+                };
 
-                let targetUserId = associatedUser.id;
-                let targetName = associatedUser.name;
-                let targetPhone = isPrimaryOrSecondary ? '' : (associatedUser.phoneNumber || '');
-                let targetEmail = isPrimaryOrSecondary ? '' : (associatedUser.email || '');
+                let resolvedParents = parentsList.length > 0 ? [...parentsList] : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+                if (resolvedParents.length < 2 && (fallbackSecondary.name || fallbackSecondary.phone || fallbackSecondary.email)) {
+                    if (!resolvedParents.some(p => p.phone && phonesMatch(p.phone, fallbackSecondary.phone))) {
+                        resolvedParents.push(fallbackSecondary);
+                    }
+                }
+
+                const primaryParent = resolvedParents[0];
+                const secondaryParent = resolvedParents[1] || (fallbackSecondary.phone && (!primaryParent || !phonesMatch(primaryParent.phone, fallbackSecondary.phone)) ? fallbackSecondary : null);
+
+                const p1PhoneFormatted = primaryParent?.phone ? formatPhoneNumber(primaryParent.phone) : '';
+                const p2PhoneFormatted = secondaryParent?.phone ? formatPhoneNumber(secondaryParent.phone) : '';
+
+                let groupKey = '';
+                if (p1PhoneFormatted) {
+                    groupKey = `phone_${p1PhoneFormatted}`;
+                } else if (primaryParent?.email) {
+                    groupKey = `email_${primaryParent.email.toLowerCase()}`;
+                } else if (primaryParent?.name) {
+                    groupKey = `name_${primaryParent.name.toLowerCase()}`;
+                } else {
+                    groupKey = `student_${associatedUser.id}`;
+                }
+
+                if (!parentGroupsMap.has(groupKey)) {
+                    parentGroupsMap.set(groupKey, {
+                        key: groupKey,
+                        parentName: primaryParent?.name || associatedUser.name || 'Parent / Guardian',
+                        primaryPhone: primaryParent?.phone || (isPrimaryOrSecondary ? '' : (associatedUser.phoneNumber || '')),
+                        secondaryPhone: p2PhoneFormatted && (!p1PhoneFormatted || !phonesMatch(p1PhoneFormatted, p2PhoneFormatted)) ? secondaryParent?.phone || '' : '',
+                        parentEmail: primaryParent?.email || (isPrimaryOrSecondary ? '' : (associatedUser.email || '')),
+                        primaryParent: primaryParent || null,
+                        secondaryParent: secondaryParent || null,
+                        students: []
+                    });
+                }
+
+                const group = parentGroupsMap.get(groupKey)!;
+                if (!group.students.some(s => s.user.id === associatedUser.id)) {
+                    group.students.push({ user: associatedUser, enrollment: enr });
+                }
+            }
+
+            // Process Each Parent Group
+            for (const group of Array.from(parentGroupsMap.values())) {
+                const primaryParent = group.primaryParent;
+                const secondaryParent = group.secondaryParent;
+                const allStudentIds = group.students.map(s => s.user.id);
+                const firstStudent = group.students[0].user;
+
+                let targetUserId = firstStudent.id;
+                let targetName = group.parentName;
+                let primaryPhone = group.primaryPhone;
+                let secondaryPhone = group.secondaryPhone;
+                let targetEmail = group.parentEmail;
 
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
                     const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
@@ -2529,7 +2693,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
                             phoneNumber: primaryParent.phone ? formattedParentPhone : null,
                             role: 'parent',
-                            studentIds: [associatedUser.id],
+                            studentIds: allStudentIds,
                             metadata: {},
                             createdAt: new Date().toISOString()
                         } as any;
@@ -2537,32 +2701,32 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         currentUsersList.push(parentUser);
                     } else {
                         const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
-                        if (!currentStudentIds.includes(associatedUser.id)) {
+                        const mergedStudentIds = Array.from(new Set([...currentStudentIds, ...allStudentIds]));
+                        if (mergedStudentIds.length !== currentStudentIds.length) {
                             parentUser = {
                                 ...parentUser,
-                                studentIds: [...currentStudentIds, associatedUser.id]
+                                studentIds: mergedStudentIds
                             };
                             usersToUpsert.set(parentUser.id, parentUser);
                         }
                     }
 
-                    const currentParentIds = Array.isArray(associatedUser.parentIds) ? associatedUser.parentIds : [];
-                    if (!currentParentIds.includes(parentUser.id)) {
-                        const updatedStudent = {
-                            ...associatedUser,
-                            parentIds: [...currentParentIds, parentUser.id]
-                        };
-                        usersToUpsert.set(associatedUser.id, updatedStudent);
-                        
-                        const idx = currentUsersList.findIndex(u => u.id === associatedUser.id);
-                        if (idx !== -1) {
-                            currentUsersList[idx] = updatedStudent;
+                    for (const s of group.students) {
+                        const currentParentIds = Array.isArray(s.user.parentIds) ? s.user.parentIds : [];
+                        if (!currentParentIds.includes(parentUser.id)) {
+                            const updatedStudent = {
+                                ...s.user,
+                                parentIds: [...currentParentIds, parentUser.id]
+                            };
+                            usersToUpsert.set(s.user.id, updatedStudent);
+                            const idx = currentUsersList.findIndex(u => u.id === s.user.id);
+                            if (idx !== -1) currentUsersList[idx] = updatedStudent;
                         }
                     }
 
                     targetUserId = parentUser.id;
                     targetName = primaryParent.name || 'Parent / Guardian';
-                    targetPhone = primaryParent.phone;
+                    primaryPhone = primaryParent.phone;
                     targetEmail = primaryParent.email;
                 }
 
@@ -2591,7 +2755,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     event.eventTime,                                      // 3
                     event.venue,                                          // 4
                     targetName || 'Parent / Guardian',                    // 5
-                    targetPhone || '',                                    // 6
+                    primaryPhone || '',                                   // 6
                     currentInstitution.name || '',                        // 7
                     currentInstitution.id,                                // 8
                     event.description || '',                              // 9
@@ -2607,23 +2771,46 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 } catch (_) {}
 
                 const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
-                const studentName = associatedUser.name || 'your child';
-                
+
+                const studentNames = group.students.map(s => s.user.name || 'your child').filter(Boolean);
+                let studentLabel = 'your child';
+                if (studentNames.length === 1) {
+                    studentLabel = studentNames[0];
+                } else if (studentNames.length === 2) {
+                    studentLabel = `${studentNames[0]} & ${studentNames[1]}`;
+                } else if (studentNames.length > 2) {
+                    studentLabel = `${studentNames.slice(0, -1).join(', ')} & ${studentNames[studentNames.length - 1]}`;
+                }
+
                 const smsMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortenedLink}`
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentLabel}.${suffix} Confirm attendance: ${shortenedLink}`
                     : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortenedLink}`;
-                
+
                 const emailMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${rawLink}`
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentLabel}.${suffix} Confirm attendance: ${rawLink}`
                     : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${rawLink}`;
-                
-                notificationsToDispatch.push({
-                    targetPhone,
-                    targetEmail,
-                    smsMessage,
-                    emailMessage,
-                    targetName
-                });
+
+                // Queue SMS to Primary Phone
+                if (primaryPhone) {
+                    notificationsToDispatch.push({
+                        targetPhone: primaryPhone,
+                        targetEmail: targetEmail,
+                        smsMessage,
+                        emailMessage,
+                        targetName: secondaryPhone ? `${targetName} (Primary)` : targetName
+                    });
+                }
+
+                // Queue SMS to Secondary Phone (if configured and distinct from Primary)
+                if (secondaryPhone && (!primaryPhone || !phonesMatch(primaryPhone, secondaryPhone))) {
+                    notificationsToDispatch.push({
+                        targetPhone: secondaryPhone,
+                        targetEmail: '',
+                        smsMessage,
+                        emailMessage: '',
+                        targetName: `${targetName} (Secondary)`
+                    });
+                }
 
                 pinCount++;
             }
@@ -8326,97 +8513,142 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 </div>
 
                                 <div className="space-y-4 max-h-[280px] overflow-y-auto pr-1 custom-scrollbar">
-                                    {previewEnrollments.map((enr, index) => {
-                                        const associatedUser = users.find(u => u.id === enr.userId);
-                                        const parentsList = enr.metadata?.parents || [];
-                                        const fallbackParent = {
-                                            name: enr.metadata?.parentName || '',
-                                            phone: enr.metadata?.parentPhone || (enr as any).parentPhone || '',
-                                            email: enr.metadata?.parentEmail || '',
-                                            relation: enr.metadata?.parentRelation || 'Guardian'
-                                        };
-                                        const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
-                                        const primaryParent = resolvedParents[0];
+                                    {(() => {
+                                        // Group target enrollments by parent for preview
+                                        const previewParentGroups = new Map<string, {
+                                            parentName: string;
+                                            primaryPhone: string;
+                                            secondaryPhone: string;
+                                            parentEmail: string;
+                                            relation: string;
+                                            studentNames: string[];
+                                        }>();
 
-                                        const targetName = primaryParent ? (primaryParent.name || 'Parent / Guardian') : (associatedUser?.name || 'Student');
-                                        const studentName = associatedUser?.name || 'Student';
-                                        
-                                        const targetPhone = isPrimaryOrSecondary ? '' : (associatedUser?.phoneNumber || '');
-                                        const targetEmail = isPrimaryOrSecondary ? '' : (associatedUser?.email || '');
-                                        
-                                        const displayPhone = primaryParent ? primaryParent.phone : targetPhone;
-                                        const displayEmail = primaryParent ? primaryParent.email : targetEmail;
+                                        for (const enr of targetEnrollments) {
+                                            const associatedUser = users.find(u => u.id === enr.userId);
+                                            const studentName = associatedUser?.name || 'Student';
+                                            const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
+                                            const fallbackParent = {
+                                                name: enr.metadata?.parentName || '',
+                                                phone: enr.metadata?.parentPhone || enr.metadata?.parentPhoneNumber || (enr as any).parentPhone || '',
+                                                email: enr.metadata?.parentEmail || '',
+                                                relation: enr.metadata?.parentRelation || 'Guardian'
+                                            };
+                                            const fallbackSecondary = {
+                                                name: enr.metadata?.parentName2 || enr.metadata?.secondaryParentName || '',
+                                                phone: enr.metadata?.parentPhone2 || enr.metadata?.secondaryPhone || enr.metadata?.parentPhoneNumber2 || enr.metadata?.secondaryParentPhone || enr.metadata?.guardianPhone2 || '',
+                                                email: enr.metadata?.parentEmail2 || enr.metadata?.secondaryParentEmail || '',
+                                                relation: enr.metadata?.parentRelation2 || 'Secondary Guardian'
+                                            };
 
-                                        // Preview Links
-                                        const shortLink = `https://portal.eduai.co.ke/?view=event-confirm&pinId=pin_preview_${index}`;
-                                        const confirmationLink = `https://portal.eduai.co.ke/?view=event-confirm&pinId=pin_preview_${index}&data=eyJwaW5Db2RlIjoiMTIzNDU2IiwiZXZlbnRUZXh0IjoiLi4uIn0=`;
+                                            let resolvedParents = parentsList.length > 0 ? [...parentsList] : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+                                            if (resolvedParents.length < 2 && (fallbackSecondary.name || fallbackSecondary.phone || fallbackSecondary.email)) {
+                                                if (!resolvedParents.some(p => p.phone && phonesMatch(p.phone, fallbackSecondary.phone))) {
+                                                    resolvedParents.push(fallbackSecondary);
+                                                }
+                                            }
 
-                                        const suffix = bulkInviteAddMsg.trim() ? ` ${bulkInviteAddMsg.trim()}` : '';
+                                            const primaryParent = resolvedParents[0];
+                                            const secondaryParent = resolvedParents[1] || (fallbackSecondary.phone && (!primaryParent || !phonesMatch(primaryParent.phone, fallbackSecondary.phone)) ? fallbackSecondary : null);
 
-                                        const smsPreview = primaryParent
-                                            ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortLink}`
-                                            : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortLink}`;
+                                            const p1Phone = primaryParent?.phone || (isPrimaryOrSecondary ? '' : (associatedUser?.phoneNumber || ''));
+                                            const p2Phone = secondaryParent?.phone && (!p1Phone || !phonesMatch(p1Phone, secondaryParent.phone)) ? secondaryParent.phone : '';
+                                            const pEmail = primaryParent?.email || (isPrimaryOrSecondary ? '' : (associatedUser?.email || ''));
 
-                                        const emailPreview = primaryParent
-                                            ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${confirmationLink}`
-                                            : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${confirmationLink}`;
+                                            const key = p1Phone ? `phone_${formatPhoneNumber(p1Phone)}` : (pEmail ? `email_${pEmail.toLowerCase()}` : `student_${enr.userId}`);
 
-                                        return (
-                                            <div key={enr.id} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-3">
-                                                <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                                                    <div>
-                                                        <span className="text-[10px] font-black text-white">{targetName}</span>
-                                                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider ml-2 bg-white/5 px-2 py-0.5 rounded">
-                                                            {primaryParent ? `${primaryParent.relation || 'Parent'} of ${studentName}` : 'Student'}
-                                                        </span>
+                                            if (!previewParentGroups.has(key)) {
+                                                previewParentGroups.set(key, {
+                                                    parentName: primaryParent?.name || associatedUser?.name || 'Parent / Guardian',
+                                                    primaryPhone: p1Phone,
+                                                    secondaryPhone: p2Phone,
+                                                    parentEmail: pEmail,
+                                                    relation: primaryParent?.relation || 'Parent',
+                                                    studentNames: []
+                                                });
+                                            }
+                                            const grp = previewParentGroups.get(key)!;
+                                            if (!grp.studentNames.includes(studentName)) {
+                                                grp.studentNames.push(studentName);
+                                            }
+                                        }
+
+                                        const groupsList = Array.from(previewParentGroups.values()).slice(0, 3);
+
+                                        return groupsList.map((grp, index) => {
+                                            const studentLabel = grp.studentNames.length === 1
+                                                ? grp.studentNames[0]
+                                                : (grp.studentNames.length === 2
+                                                    ? `${grp.studentNames[0]} & ${grp.studentNames[1]}`
+                                                    : `${grp.studentNames.slice(0, -1).join(', ')} & ${grp.studentNames[grp.studentNames.length - 1]}`);
+
+                                            const shortLink = `https://portal.eduai.co.ke/?view=event-confirm&pinId=pin_preview_${index}`;
+                                            const confirmationLink = `https://portal.eduai.co.ke/?view=event-confirm&pinId=pin_preview_${index}&data=eyJwaW5Db2RlIjoiMTIzNDU2IiwiZXZlbnRUZXh0IjoiLi4uIn0=`;
+
+                                            const suffix = bulkInviteAddMsg.trim() ? ` ${bulkInviteAddMsg.trim()}` : '';
+
+                                            const smsPreview = `Dear ${grp.parentName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentLabel}.${suffix} Confirm attendance: ${shortLink}`;
+
+                                            const emailPreview = `Dear ${grp.parentName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentLabel}.${suffix} Confirm attendance: ${confirmationLink}`;
+
+                                            return (
+                                                <div key={index} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-3">
+                                                    <div className="flex flex-wrap items-center justify-between border-b border-white/5 pb-2 gap-2">
+                                                        <div>
+                                                            <span className="text-[10px] font-black text-white">{grp.parentName}</span>
+                                                            <span className="text-[9px] text-indigo-400 font-bold uppercase tracking-wider ml-2 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                                                {grp.relation} of {studentLabel} {grp.studentNames.length > 1 ? `(${grp.studentNames.length} Siblings)` : ''}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-[9px] text-slate-400 font-semibold flex flex-wrap items-center gap-1.5">
+                                                            {grp.primaryPhone && <span className="bg-white/5 px-2 py-0.5 rounded">Primary: {grp.primaryPhone}</span>}
+                                                            {grp.secondaryPhone && <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">Secondary: {grp.secondaryPhone}</span>}
+                                                            {grp.parentEmail && <span className="bg-white/5 px-2 py-0.5 rounded">Email: {grp.parentEmail}</span>}
+                                                        </div>
                                                     </div>
-                                                    <div className="text-[9px] text-slate-500 font-semibold">
-                                                        {displayPhone && `Phone: ${displayPhone}`}
-                                                        {displayPhone && displayEmail && ' | '}
-                                                        {displayEmail && `Email: ${displayEmail}`}
-                                                    </div>
-                                                </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {/* SMS Preview Bubble */}
-                                                    {displayPhone ? (
-                                                        <div className="space-y-1.5">
-                                                            <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-wider text-slate-400">
-                                                                <MessageSquare className="w-2.5 h-2.5 text-indigo-400" /> SMS Message Preview
-                                                            </div>
-                                                            <div className="bg-slate-900 border border-white/5 rounded-2xl p-3 relative text-[10px] text-slate-350 leading-relaxed font-sans select-none">
-                                                                {smsPreview}
-                                                                <div className="absolute right-3 bottom-1 text-[7px] font-bold text-slate-500 uppercase tracking-widest">
-                                                                    ~{Math.ceil(smsPreview.length / 160)} SMS
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        {/* SMS Preview Bubble */}
+                                                        {grp.primaryPhone || grp.secondaryPhone ? (
+                                                            <div className="space-y-1.5">
+                                                                <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-slate-400">
+                                                                    <span className="flex items-center gap-1.5"><MessageSquare className="w-2.5 h-2.5 text-indigo-400" /> SMS Message Preview</span>
+                                                                    {grp.secondaryPhone && <span className="text-emerald-400 font-bold">2 SMS Targets (Primary + Secondary)</span>}
+                                                                </div>
+                                                                <div className="bg-slate-900 border border-white/5 rounded-2xl p-3 relative text-[10px] text-slate-350 leading-relaxed font-sans select-none">
+                                                                    {smsPreview}
+                                                                    <div className="absolute right-3 bottom-1 text-[7px] font-bold text-slate-500 uppercase tracking-widest">
+                                                                        ~{Math.ceil(smsPreview.length / 160)} SMS
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-[10px] text-slate-600 font-semibold italic flex items-center justify-center border border-dashed border-white/5 rounded-2xl p-4 bg-white/[0.01]">
-                                                            No Phone Registered (SMS will be skipped)
-                                                        </div>
-                                                    )}
+                                                        ) : (
+                                                            <div className="text-[10px] text-slate-600 font-semibold italic flex items-center justify-center border border-dashed border-white/5 rounded-2xl p-4 bg-white/[0.01]">
+                                                                No Phone Registered (SMS will be skipped)
+                                                            </div>
+                                                        )}
 
-                                                    {/* Email Preview Card */}
-                                                    {displayEmail ? (
-                                                        <div className="space-y-1.5">
-                                                            <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-wider text-slate-400">
-                                                                <Mail className="w-2.5 h-2.5 text-emerald-400" /> Email Preview
+                                                        {/* Email Preview Card */}
+                                                        {grp.parentEmail ? (
+                                                            <div className="space-y-1.5">
+                                                                <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-wider text-slate-400">
+                                                                    <Mail className="w-2.5 h-2.5 text-emerald-400" /> Email Preview
+                                                                </div>
+                                                                <div className="bg-slate-900 border border-white/5 rounded-2xl p-3 text-[10px] text-slate-350 space-y-1 leading-relaxed font-sans select-none">
+                                                                    <p className="font-bold border-b border-white/5 pb-1 text-slate-400">Subject: Event Attendance Invitation - {event.title}</p>
+                                                                    <p className="pt-1">{emailPreview}</p>
+                                                                </div>
                                                             </div>
-                                                            <div className="bg-slate-900 border border-white/5 rounded-2xl p-3 text-[10px] text-slate-350 space-y-1 leading-relaxed font-sans select-none">
-                                                                <p className="font-bold border-b border-white/5 pb-1 text-slate-400">Subject: Event Attendance Invitation - {event.title}</p>
-                                                                <p className="pt-1">{emailPreview}</p>
+                                                        ) : (
+                                                            <div className="text-[10px] text-slate-600 font-semibold italic flex items-center justify-center border border-dashed border-white/5 rounded-2xl p-4 bg-white/[0.01]">
+                                                                No Email Registered (Email will be skipped)
                                                             </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-[10px] text-slate-600 font-semibold italic flex items-center justify-center border border-dashed border-white/5 rounded-2xl p-4 bg-white/[0.01]">
-                                                            No Email Registered (Email will be skipped)
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        });
+                                    })()}
                                 </div>
                             </div>
 
