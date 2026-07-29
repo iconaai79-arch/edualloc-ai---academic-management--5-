@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Institution, Subject, User, Assessment, AssessmentMark, AcademicYear, Course } from '../../types';
+import { apiService } from '../../services/apiService';
 import { PlusIcon } from '../icons/PlusIcon';
 import { ChevronDownIcon } from '../icons/ChevronDownIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
@@ -121,16 +122,86 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         'Form 3 West': { criteria: 'Points', subjectsCount: 7, enabled: true },
         'Grade 10 Central': { criteria: 'Points', subjectsCount: 7, enabled: true },
     });
-    // Broadsheet Spreadsheet State
-    const [marksDisplayMode, setMarksDisplayMode] = useState<'raw' | 'converted' | 'dual'>('raw');
-    const [broadsheetStudentRows, setBroadsheetStudentRows] = useState([
+    // Preset sample rows for default demo exams
+    const defaultSampleRows = [
         { admNo: '1001', name: 'Amina Kiprop', class: 'Form 3 Central', mathP1: 24, mathP2: 56, engP1: 48, engP2: 64, kiswP1: 32, bioP1: 62 },
         { admNo: '1002', name: 'Brian Omondi', class: 'Form 3 Central', mathP1: 28, mathP2: 63, engP1: 52, engP2: 70, kiswP1: 36, bioP1: 68 },
         { admNo: '1003', name: 'Cynthia Wambui', class: 'Form 3 Central', mathP1: 18, mathP2: 42, engP1: 38, engP2: 50, kiswP1: 26, bioP1: 45 },
         { admNo: '1004', name: 'David Cheruiyot', class: 'Form 3 Central', mathP1: 21, mathP2: 49, engP1: 44, engP2: 58, kiswP1: 30, bioP1: 54 },
         { admNo: '1005', name: 'Emmanuel Kamau', class: 'Form 3 Central', mathP1: 27, mathP2: 61, engP1: 54, engP2: 72, kiswP1: 35, bioP1: 71 }
-    ]);
+    ];
+
+    // Per-exam broadsheet store
+    const [examMarksStore, setExamMarksStore] = useState<Record<string, any[]>>({
+        'exam_1': defaultSampleRows,
+        'exam_2': defaultSampleRows,
+        'exam_3': defaultSampleRows
+    });
+
+    // Broadsheet Spreadsheet State
+    const [marksDisplayMode, setMarksDisplayMode] = useState<'raw' | 'converted' | 'dual'>('raw');
+    const [broadsheetStudentRows, setBroadsheetStudentRows] = useState(defaultSampleRows);
     const [searchStudentQuery, setSearchStudentQuery] = useState('');
+
+    // Fetch saved exams from DB on mount
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<ExamUnitRecord>('exam_units', currentInstitution.id)
+                .then(records => {
+                    if (records && records.length > 0) {
+                        setExams(prev => {
+                            const existingIds = new Set(prev.map(e => e.id));
+                            const newOnes = records.filter(r => !existingIds.has(r.id));
+                            return [...newOnes, ...prev];
+                        });
+                    }
+                })
+                .catch(err => console.log('Using default exam units:', err));
+        }
+    }, [currentInstitution]);
+
+    // Update broadsheet rows whenever selectedExamId changes
+    useEffect(() => {
+        if (!selectedExamId) return;
+
+        if (examMarksStore[selectedExamId]) {
+            setBroadsheetStudentRows(examMarksStore[selectedExamId]);
+            return;
+        }
+
+        // Fetch custom broadsheet for selected exam if exists
+        if (currentInstitution?.id && selectedExamId.startsWith('exam_')) {
+            apiService.fetchModuleRecords<any>(`exam_broadsheet_${selectedExamId}`, currentInstitution.id)
+                .then(records => {
+                    if (records && records.length > 0 && records[0].rows) {
+                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: records[0].rows }));
+                        setBroadsheetStudentRows(records[0].rows);
+                        return;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // Default clean rows for any new exam
+        const realStudents = users.filter(u => u.role === 'student');
+        const cleanRows = realStudents.length > 0
+            ? realStudents.map((st, idx) => ({
+                admNo: st.admissionNumber || st.id || `100${idx + 1}`,
+                name: st.name || `Student ${idx + 1}`,
+                class: st.studentClass || 'Form 3 Central',
+                mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+            }))
+            : [
+                { admNo: '1001', name: 'Amina Kiprop', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                { admNo: '1002', name: 'Brian Omondi', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                { admNo: '1003', name: 'Cynthia Wambui', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                { admNo: '1004', name: 'David Cheruiyot', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                { admNo: '1005', name: 'Emmanuel Kamau', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 }
+            ];
+
+        setBroadsheetStudentRows(cleanRows);
+        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
+    }, [selectedExamId, currentInstitution, users]);
 
     const filteredStudentRows = useMemo(() => {
         if (!searchStudentQuery.trim()) return broadsheetStudentRows;
@@ -141,16 +212,24 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     }, [broadsheetStudentRows, searchStudentQuery]);
 
     const handleUpdateStudentMark = (admNo: string, fieldKey: string, newValue: number) => {
-        setBroadsheetStudentRows(prev => prev.map(row => {
+        const updated = broadsheetStudentRows.map(row => {
             if (row.admNo === admNo) {
                 return { ...row, [fieldKey]: newValue };
             }
             return row;
-        }));
+        });
+        setBroadsheetStudentRows(updated);
+        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: updated }));
     };
 
-    const handleSaveSubjectMarks = (subjectName: string) => {
+    const handleSaveSubjectMarks = async (subjectName: string) => {
         setIsSavingMarks(true);
+        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: broadsheetStudentRows }));
+        
+        if (currentInstitution?.id) {
+            await apiService.saveModuleRecord(`exam_broadsheet_${selectedExamId}`, { id: selectedExamId, rows: broadsheetStudentRows }).catch(() => {});
+        }
+
         setTimeout(() => {
             setIsSavingMarks(false);
             setSaveToastMessage(`✅ Marks for ${subjectName} updated and saved successfully!`);
@@ -227,26 +306,59 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
     ];
 
-    const handleCreateExam = () => {
+    const handleCreateExam = async () => {
         if (!newExamName.trim()) {
             alert('Please enter an exam title.');
             return;
         }
+
+        const realStudents = users.filter(u => u.role === 'student');
+        const studentCount = realStudents.length > 0 ? realStudents.length : 60;
+        const newExamId = `exam_${Date.now()}`;
+
         const newExam: ExamUnitRecord = {
-            id: `exam_${Date.now()}`,
+            id: newExamId,
             name: newExamName.trim(),
             term: newTerm.toUpperCase(),
             type: newExamTypeRadio.toUpperCase(),
             year: parseInt(newAcademicYear) || 2026,
             status: 'in_progress',
             submittedPercent: 0,
-            studentsEnrolled: 360,
-            missingMarks: 3600
+            studentsEnrolled: studentCount,
+            missingMarks: studentCount * 7
         };
+
+        // Construct clean zeroed marks rows for the new exam
+        const freshRows = realStudents.length > 0
+            ? realStudents.map((st, idx) => ({
+                admNo: st.admissionNumber || st.id || `100${idx + 1}`,
+                name: st.name || `Student ${idx + 1}`,
+                class: st.studentClass || 'Form 3 Central',
+                mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+            }))
+            : [
+                { admNo: '1001', name: 'Amina Kiprop', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                { admNo: '1002', name: 'Brian Omondi', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                { admNo: '1003', name: 'Cynthia Wambui', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                { admNo: '1004', name: 'David Cheruiyot', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                { admNo: '1005', name: 'Emmanuel Kamau', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 }
+            ];
+
         setExams(prev => [newExam, ...prev]);
-        setSelectedExamId(newExam.id);
+        setExamMarksStore(prev => ({ ...prev, [newExamId]: freshRows }));
+        setBroadsheetStudentRows(freshRows);
+        setSelectedExamId(newExamId);
         setNewExamName('');
         setIsAddExamModalOpen(false);
+
+        // Save to Database
+        if (currentInstitution?.id) {
+            await apiService.saveModuleRecord('exam_units', newExam).catch(() => {});
+            await apiService.saveModuleRecord(`exam_broadsheet_${newExamId}`, { id: newExamId, rows: freshRows }).catch(() => {});
+        }
+
+        setSaveToastMessage(`✨ Created "${newExam.name}" cleanly! Ready for new marks entry.`);
+        setTimeout(() => setSaveToastMessage(null), 4000);
     };
 
     const handleTogglePublish = () => {
