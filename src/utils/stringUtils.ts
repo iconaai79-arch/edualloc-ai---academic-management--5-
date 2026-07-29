@@ -25,7 +25,7 @@ export const generateAlphanumericCode = (length: number = 6): string => {
  * if they start with '07' or '011'.
  */
 export const formatPhoneNumber = (phone: string): string => {
-    if (!phone) return phone;
+    if (!phone) return '';
 
     // Remove any spaces or non-numeric characters for check (except +)
     const sanitized = phone.replace(/\s/g, '');

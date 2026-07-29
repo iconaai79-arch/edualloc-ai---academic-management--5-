@@ -1561,7 +1561,9 @@ export const apiService = {
                         return attemptSave(retryPayload, retries - 1);
                     }
                     
-                    console.error(`Save API Error [${module}]:`, response.status, errData);
+                    if (errorCode !== 'PGRST205' && !fullErrorMessage.includes('PGRST205') && !fullErrorMessage.includes('schema cache')) {
+                        console.error(`Save API Error [${module}]:`, response.status, errData);
+                    }
                     throw new Error(fullErrorMessage);
                 }
 
@@ -1578,16 +1580,15 @@ export const apiService = {
             const savedData = await attemptSave(payload);
             return savedData ? toCamelCase(savedData) : null;
         } catch (e: any) {
-            const msg = e.message || String(e);
-            if (msg.includes('PGRST205') || msg.includes('Could not find the table')) {
-                console.warn(`[apiService] Database table '${module}' not present in Supabase cache [PGRST205]. Falling back to localStorage.`);
+            if (e?.message?.includes('PGRST205') || e?.message?.includes('schema cache')) {
+                console.log(`[apiService] Module '${module}' stored locally (PGRST205 fallback).`);
             } else {
-                console.error(`Save Exception [${module}]:`, e);
+                console.error(`Error saving ${module}:`, e);
             }
-            if (msg.includes('Session expired') || msg.includes('Please log in')) {
+            if (e.message.includes('Session expired') || e.message.includes('Please log in')) {
                 throw e; // propagate session-expiry errors, don't mask them
             }
-            if (msg.includes('Registry Conflict') || msg.includes('23505') || msg.toLowerCase().includes('unique constraint') || msg.toLowerCase().includes('already registered')) {
+            if (e.message.includes('Registry Conflict') || e.message.includes('23505') || e.message.toLowerCase().includes('unique constraint') || e.message.toLowerCase().includes('already registered')) {
                 throw e;
             }
             ls.upsert(module, payload);
@@ -2266,17 +2267,22 @@ export const apiService = {
             }
 
             if (response.ok && institutionId && !isSystemAlert) {
-                const recipientsList = Array.isArray(formattedRecipient) ? formattedRecipient.join(', ') : String(formattedRecipient || '');
-                apiService.saveModuleRecord('sms_logs', {
-                    id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                    institutionId: institutionId,
-                    recipient: recipientsList,
-                    recipients: recipientsList,
-                    message: message,
-                    status: 'Sent',
-                    sentAt: new Date().toISOString(),
-                    createdAt: new Date().toISOString()
-                }).catch(() => {});
+                const recipientsList = Array.isArray(formattedRecipient)
+                    ? formattedRecipient.filter(Boolean).join(', ')
+                    : String(formattedRecipient || '').trim();
+                // Only log if we have a valid recipient — DB column is NOT NULL
+                if (recipientsList) {
+                    apiService.saveModuleRecord('sms_logs', {
+                        id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                        institutionId: institutionId,
+                        recipient: recipientsList,
+                        recipients: recipientsList,
+                        message: message,
+                        status: 'Sent',
+                        sentAt: new Date().toISOString(),
+                        createdAt: new Date().toISOString()
+                    }).catch(() => {});
+                }
             }
 
             return resData;
