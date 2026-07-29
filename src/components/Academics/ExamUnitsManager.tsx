@@ -213,12 +213,34 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
     }, [currentInstitution]);
 
+    // Helper to resolve clean human-readable student admission numbers
+    const resolveCleanAdmNo = (st: any, idx: number) => {
+        const candidate = st.admissionNumber || st.admission_number || st.admNo || st.admissionNo || st.regNo || st.registrationNumber || st.studentId;
+        if (candidate && typeof candidate === 'string' && !candidate.startsWith('usr_') && !candidate.startsWith('user_') && candidate.trim().length > 0) {
+            return candidate.trim();
+        }
+        return `ADM-${1001 + idx}`;
+    };
+
+    // Helper to sanitize any loaded broadsheet rows that might contain raw user IDs (usr_...) as admNo
+    const sanitizeBroadsheetRows = (rows: any[]) => {
+        if (!Array.isArray(rows)) return rows;
+        return rows.map((row, idx) => {
+            if (!row.admNo || typeof row.admNo !== 'string' || row.admNo.startsWith('usr_') || row.admNo.startsWith('user_')) {
+                const matchedSt = users.find(u => u.name?.toLowerCase() === row.name?.toLowerCase() || u.id === row.admNo);
+                const cleanAdm = matchedSt ? resolveCleanAdmNo(matchedSt, idx) : `ADM-${1001 + idx}`;
+                return { ...row, admNo: cleanAdm };
+            }
+            return row;
+        });
+    };
+
     // Update broadsheet rows whenever selectedExamId changes
     useEffect(() => {
         if (!selectedExamId) return;
 
         if (examMarksStore[selectedExamId]) {
-            setBroadsheetStudentRows(examMarksStore[selectedExamId]);
+            setBroadsheetStudentRows(sanitizeBroadsheetRows(examMarksStore[selectedExamId]));
             return;
         }
 
@@ -228,8 +250,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             if (savedBroadsheet) {
                 const parsed = JSON.parse(savedBroadsheet);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    setExamMarksStore(prev => ({ ...prev, [selectedExamId]: parsed }));
-                    setBroadsheetStudentRows(parsed);
+                    const sanitized = sanitizeBroadsheetRows(parsed);
+                    setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
+                    setBroadsheetStudentRows(sanitized);
                     return;
                 }
             }
@@ -241,8 +264,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 .then(records => {
                     const match = (records || []).find(r => r.id === selectedExamId || r.examId === selectedExamId);
                     if (match && match.rows) {
-                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: match.rows }));
-                        setBroadsheetStudentRows(match.rows);
+                        const sanitized = sanitizeBroadsheetRows(match.rows);
+                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
+                        setBroadsheetStudentRows(sanitized);
                         return;
                     }
                 })
@@ -253,7 +277,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const realStudents = users.filter(u => u.role === 'student');
         const cleanRows = realStudents.length > 0
             ? realStudents.map((st, idx) => ({
-                admNo: st.admissionNumber || st.id || `100${idx + 1}`,
+                admNo: resolveCleanAdmNo(st, idx),
                 name: st.name || `Student ${idx + 1}`,
                 class: (st as any).studentClass || (st as any).classLevel || 'Form 3 Central',
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
@@ -477,7 +501,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         // Construct clean zeroed marks rows for the new exam
         const freshRows = realStudents.length > 0
             ? realStudents.map((st, idx) => ({
-                admNo: st.admissionNumber || st.id || `100${idx + 1}`,
+                admNo: resolveCleanAdmNo(st, idx),
                 name: st.name || `Student ${idx + 1}`,
                 class: (st as any).studentClass || (st as any).classLevel || 'Form 3 Central',
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
