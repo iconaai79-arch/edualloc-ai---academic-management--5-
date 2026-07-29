@@ -3625,6 +3625,35 @@ export const apiService = {
                 headers['Authorization'] = `Bearer ${config.key}`;
             }
 
+            // 1. Try KCB STK Push endpoint first (/api/payments/kcb-stk-push)
+            try {
+                const kcbResponse = await fetch('/api/payments/kcb-stk-push', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        customerMobileNumber: params.phoneNumber,
+                        phoneNumber: params.phoneNumber,
+                        transactionAmount: params.amount,
+                        amount: params.amount,
+                        customerReference: params.reference,
+                        customerName: params.description || 'Candidate Client',
+                        narration: params.description || 'Driving School Payment',
+                        creditAccountIdentifier: params.institutionId,
+                        institutionId: params.institutionId
+                    })
+                });
+
+                if (kcbResponse.ok) {
+                    const kcbData = await kcbResponse.json();
+                    if (kcbData.success || kcbData.ResponseCode === '0') {
+                        return kcbData;
+                    }
+                }
+            } catch (kcbErr) {
+                console.warn('[apiService] KCB STK Push attempt skipped, falling back to Safaricom Daraja:', kcbErr);
+            }
+
+            // 2. Fallback to Safaricom Daraja (/api/integrations)
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
@@ -3641,7 +3670,7 @@ export const apiService = {
             }
             return response.json();
         } catch (error) {
-            console.error('M-Pesa STK Push error:', error);
+            console.error('STK Push error:', error);
             throw error;
         }
     },
