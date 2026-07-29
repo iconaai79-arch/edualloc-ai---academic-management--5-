@@ -3648,6 +3648,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [kioskPassword, setKioskPassword] = useState('');
     const [isEnteringKioskPassword, setIsEnteringKioskPassword] = useState(false);
     const [matchedStudentForCheckIn, setMatchedStudentForCheckIn] = useState<DSStudent | null>(null);
+    const [navLayoutMode, setNavLayoutMode] = useState<'vertical' | 'horizontal'>(() => {
+        try { return (localStorage.getItem('ds_nav_layout') as any) || 'vertical'; } catch (e) { return 'vertical'; }
+    });
+    const [isNavSidebarCollapsed, setIsNavSidebarCollapsed] = useState(false);
+    const [isMobileNavDrawerOpen, setIsMobileNavDrawerOpen] = useState(false);
+
+    const toggleNavLayoutMode = (mode: 'vertical' | 'horizontal') => {
+        setNavLayoutMode(mode);
+        try { localStorage.setItem('ds_nav_layout', mode); } catch (e) {}
+    };
     const [kioskMessage, setKioskMessage] = useState<{ status: 'success' | 'error'; text: string; details?: string } | null>(null);
     const [checkInMode, setCheckInMode] = useState<'self' | 'admin'>('self');
     const [adminCheckInSearch, setAdminCheckInSearch] = useState('');
@@ -5523,22 +5533,191 @@ END $$;
         pendingLessons: (lessons || []).filter(l => l.status === 'Scheduled').length,
     }), [students, instructors, vehicles, lessons]);
 
-    return (
-        <AppErrorBoundary>
-            <div className="space-y-10 animate-fade-in pb-20">
-                {/* Header Section */}
-                {activeTab !== 'portal' && (
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+    const navSections = useMemo(() => [
+        {
+            title: 'COMMAND CENTER',
+            items: [
+                { id: 'dashboard', label: 'Dashboard', icon: ClipboardListIcon, desc: 'Overview & metrics' },
+                { id: 'portal', label: 'Student Portal', icon: SparklesIcon, desc: 'Self-service access', highlight: true },
+            ]
+        },
+        {
+            title: 'CADETS & PIPELINE',
+            items: [
+                { id: 'students', label: 'Students Roster', icon: UsersIcon, badge: stats.totalStudents, desc: 'Enrolled candidates' },
+                { id: 'leads', label: 'Enquiries', icon: SparklesIcon, badge: (leads || []).length, desc: 'Lead pipeline' },
+            ]
+        },
+        {
+            title: 'OPERATIONS & FLEET',
+            items: [
+                { id: 'lessons', label: 'Lessons Schedule', icon: CalendarDaysIcon, badge: stats.pendingLessons, desc: 'Timetables & Auto-gen' },
+                { id: 'dispatch', label: 'Live Dispatch', icon: TruckIcon, desc: 'Realtime vehicle queue' },
+                { id: 'fleet', label: 'Fleet Assets', icon: TruckIcon, badge: stats.operationalVehicles, desc: 'Vehicles & Maintenance' },
+                { id: 'instructors', label: 'Instructors', icon: AcademicCapIcon, badge: stats.activeInstructors, desc: 'Trainer roster' },
+            ]
+        },
+        {
+            title: 'MANAGEMENT & COMMS',
+            items: [
+                { id: 'finance', label: 'Finance Ledger', icon: CurrencyIcon, desc: 'Invoices & Receipts' },
+                { id: 'broadcaster', label: 'SMS Engine', icon: SparklesIcon, desc: 'Bulk SMS & Reminders' },
+                { id: 'reports', label: 'Reports & PDF', icon: ClipboardListIcon, desc: 'Export PDF logbooks' },
+                { id: 'settings', label: 'System Config', icon: SettingsIcon, desc: 'Fee rules & categories' },
+            ]
+        }
+    ], [stats, leads]);
+
+    const renderFuturisticSidebar = () => (
+        <aside className={`transition-all duration-300 ${isNavSidebarCollapsed ? 'w-20' : 'w-full lg:w-64 xl:w-72'} shrink-0`}>
+            <div className="bg-slate-900/95 dark:bg-slate-950/95 text-slate-100 border border-slate-800/90 rounded-[2.5rem] p-5 shadow-2xl shadow-indigo-950/40 backdrop-blur-2xl sticky top-6 z-30 space-y-6">
+                
+                {/* Sidebar Branding & Control Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
+                    {!isNavSidebarCollapsed && (
+                        <div className="flex items-center gap-3">
+                            <div className="relative">
+                                <div className="w-10 h-10 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                                    <SparklesIcon className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-slate-900 shadow-[0_0_8px_#34d399] animate-pulse" />
+                            </div>
+                            <div>
+                                <h3 className="font-black text-sm text-white tracking-tight uppercase flex items-center gap-1.5">
+                                    DS CYBER<span className="text-cyan-400">HUB</span>
+                                </h3>
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Futuristic Command</p>
+                            </div>
+                        </div>
+                    )}
+                    {isNavSidebarCollapsed && (
+                        <div className="w-10 h-10 mx-auto bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                            <SparklesIcon className="w-5 h-5 text-white" />
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => toggleNavLayoutMode(navLayoutMode === 'vertical' ? 'horizontal' : 'vertical')}
+                            title="Switch Layout Mode"
+                            className="p-2 rounded-xl bg-slate-800/80 hover:bg-indigo-600/30 text-slate-400 hover:text-cyan-300 transition-all border border-slate-700/50"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                        </button>
+                        <button
+                            onClick={() => setIsNavSidebarCollapsed(!isNavSidebarCollapsed)}
+                            title={isNavSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                            className="hidden lg:flex p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-400 hover:text-white transition-all border border-slate-700/50"
+                        >
+                            <svg className={`w-3.5 h-3.5 transition-transform duration-300 ${isNavSidebarCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Navigation Group Sections */}
+                <div className="space-y-5 max-h-[calc(100vh-250px)] overflow-y-auto pr-1 custom-scrollbar-horizontal">
+                    {navSections.map((sec, sIdx) => (
+                        <div key={sIdx} className="space-y-2">
+                            {!isNavSidebarCollapsed && (
+                                <h4 className="text-[9px] font-black text-cyan-400/80 uppercase tracking-[0.2em] px-2">
+                                    {sec.title}
+                                </h4>
+                            )}
+                            <div className="space-y-1">
+                                {sec.items.map(tab => {
+                                    const isActive = activeTab === tab.id;
+                                    const Icon = tab.icon;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => {
+                                                setActiveTab(tab.id as any);
+                                                setIsMobileNavDrawerOpen(false);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all duration-200 group text-left ${
+                                                isActive
+                                                    ? 'bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-600/30 border-l-4 border-cyan-400 translate-x-1'
+                                                    : tab.highlight
+                                                        ? 'bg-indigo-950/40 text-indigo-300 border border-indigo-800/40 hover:bg-indigo-900/60 hover:text-white'
+                                                        : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-100 hover:translate-x-1'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3.5 min-w-0">
+                                                <div className={`p-2 rounded-xl transition-colors ${
+                                                    isActive ? 'bg-white/20 text-white' : 'bg-slate-800/60 text-slate-400 group-hover:text-cyan-400 group-hover:bg-slate-800'
+                                                }`}>
+                                                    <Icon className="w-4 h-4" />
+                                                </div>
+                                                {!isNavSidebarCollapsed && (
+                                                    <div className="truncate">
+                                                        <span className={`text-xs uppercase tracking-wider block truncate ${isActive ? 'font-black text-white' : 'font-bold'}`}>
+                                                            {tab.label}
+                                                        </span>
+                                                        <span className="text-[8px] text-slate-500 group-hover:text-slate-400 block truncate font-medium">
+                                                            {tab.desc}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {!isNavSidebarCollapsed && tab.badge !== undefined && (
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                    isActive 
+                                                        ? 'bg-white/25 text-white' 
+                                                        : 'bg-indigo-950 text-cyan-400 border border-cyan-500/30'
+                                                }`}>
+                                                    {tab.badge}
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Sidebar Footer Widget */}
+                {!isNavSidebarCollapsed && (
+                    <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                        <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/40 flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
+                                <div>
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">SMS Balance</p>
+                                    <p className="text-xs font-black text-white">{(currentInstitution?.smsBalance || 0).toLocaleString()} Units</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsBuySMSModalOpen(true)} className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-sm">
+                                Top Up
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </aside>
+    );
+
+    const renderMainBodyContent = () => (
+        <>
+            {/* Header Section */}
+            {activeTab !== 'portal' && (
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
                         <div>
                             {activeTab === 'dashboard' && (
                                 <>
                                     <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-4">
                                         Driving <span className="text-indigo-600">School</span>
-                                        <div className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-full">
-                                            <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">Enterprise</span>
+                                        <div className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-full flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                            <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">Cyber Command</span>
                                         </div>
                                     </h1>
-                                    <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] mt-2 ml-1">Fleet Management & Student Success</p>
+                                    <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] mt-2 ml-1">Fleet Management & Student Success Matrix</p>
                                 </>
                             )}
                             {activeTab !== 'dashboard' && (
@@ -5672,8 +5851,8 @@ END $$;
                     </div>
                 )}
 
-                {/* Main Navigation - Hidden if controlled externally */}
-                {!externalTab && activeTab !== 'portal' && (
+                {/* Main Navigation - Render Horizontal ONLY if navLayoutMode === 'horizontal' */}
+                {navLayoutMode === 'horizontal' && !externalTab && activeTab !== 'portal' && (
                     <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl md:rounded-3xl w-full overflow-x-auto custom-scrollbar-horizontal pb-3 md:pb-2">
                         <div className="flex items-center gap-2 min-w-max">
                         {[
@@ -11425,6 +11604,77 @@ END $$;
                                 <p className="text-xs font-black uppercase tracking-widest text-indigo-200">Joined by 45+ Driving Schools this month</p>
                             </div>
                         </div>
+                    </div>
+                )}
+        </>
+    );
+
+    return (
+        <AppErrorBoundary>
+            <div className="space-y-10 animate-fade-in pb-20">
+                {/* Mode Layout Controls Bar (If Horizontal) */}
+                {navLayoutMode === 'horizontal' && activeTab !== 'portal' && (
+                    <div className="flex justify-end mb-2">
+                        <button
+                            onClick={() => toggleNavLayoutMode('vertical')}
+                            className="px-4 py-2 bg-slate-900 text-cyan-400 border border-slate-800 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg hover:bg-slate-800 transition-all"
+                        >
+                            <SparklesIcon className="w-3.5 h-3.5 text-cyan-400" />
+                            Switch to Futuristic Vertical Menu
+                        </button>
+                    </div>
+                )}
+
+                {/* Futuristic Vertical Navigation Layout Container */}
+                {navLayoutMode === 'vertical' && !externalTab && activeTab !== 'portal' ? (
+                    <div className="flex flex-col lg:flex-row gap-6 min-h-screen">
+                        {/* Desktop Sidebar */}
+                        <div className="hidden lg:block">
+                            {renderFuturisticSidebar()}
+                        </div>
+
+                        {/* Mobile Header Bar */}
+                        <div className="lg:hidden flex items-center justify-between p-4 bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-xl mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                                    <SparklesIcon className="w-4 h-4 text-white" />
+                                </div>
+                                <div>
+                                    <span className="font-black text-xs uppercase tracking-wider text-cyan-400 block">DS CYBER-HUB</span>
+                                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest block">Futuristic Command</span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsMobileNavDrawerOpen(true)}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-600/30 active:scale-95 transition-all"
+                            >
+                                <SparklesIcon className="w-3.5 h-3.5 text-cyan-300" />
+                                <span>Nav Menu</span>
+                            </button>
+                        </div>
+
+                        {/* Mobile Futuristic Drawer Overlay */}
+                        {isMobileNavDrawerOpen && (
+                            <div className="fixed inset-0 z-[999] bg-slate-950/80 backdrop-blur-md flex justify-start animate-fade-in p-4">
+                                <div className="w-80 max-w-[85vw] h-full overflow-y-auto">
+                                    <div className="flex justify-end mb-2">
+                                        <button onClick={() => setIsMobileNavDrawerOpen(false)} className="p-2 bg-slate-800 text-slate-300 rounded-full hover:bg-slate-700">
+                                            <XIcon className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                    {renderFuturisticSidebar()}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Main Content Pane */}
+                        <div className="flex-1 min-w-0 space-y-8">
+                            {renderMainBodyContent()}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-8">
+                        {renderMainBodyContent()}
                     </div>
                 )}
             </div>
