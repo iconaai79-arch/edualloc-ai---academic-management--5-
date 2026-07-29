@@ -1137,6 +1137,10 @@ export const apiService = {
                 delete item.assigned_instructor_id;
             }
 
+            if (module === 'event_pins') {
+                delete item.metadata;
+            }
+
             // Safety net for users table to strip non-existent top-level columns (e.g. parent_phone2) that cause PGRST204 PostgREST errors
             if (module === 'users') {
                 const parentPhone2Val = item.parent_phone2 || item.parentPhone2 || item.secondary_phone || item.secondaryPhone || item.guardian_phone2 || item.guardianPhone2;

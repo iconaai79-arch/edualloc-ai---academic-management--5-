@@ -3324,13 +3324,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         pin: pinCode,
                         status: 'pending',
                         createdAt: new Date().toISOString(),
-                        created_at: new Date().toISOString(),
-                        metadata: {
-                            studentId: enr.userId,
-                            enrollmentId: enr.id,
-                            parentPhone: primaryParent?.phone || '',
-                            parentEmail: primaryParent?.email || ''
-                        }
+                        created_at: new Date().toISOString()
                     });
                 }
             }
