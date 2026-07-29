@@ -106,9 +106,45 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [newExamStartDate, setNewExamStartDate] = useState('2026-07-26');
     const [newExamSubmissionDate, setNewExamSubmissionDate] = useState('2026-08-05');
 
+    // Dynamically compute current registered classes/grades from courses and registered students
+    const registeredClasses = useMemo(() => {
+        const classSet = new Set<string>();
+
+        // 1. From courses prop
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const name = c.name || (c as any).title || c.code;
+                if (name) classSet.add(name);
+            });
+        }
+
+        // 2. From registered student users
+        if (users && users.length > 0) {
+            users.forEach(u => {
+                const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    classSet.add(cl.trim());
+                }
+            });
+        }
+
+        // 3. Fallback defaults if no courses or users registered yet
+        if (classSet.size === 0) {
+            ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central', 'Grade 10 Central'].forEach(c => classSet.add(c));
+        }
+
+        return Array.from(classSet);
+    }, [courses, users]);
+
     // Step 2 Wizard States:
     const [targetStudentSearch, setTargetStudentSearch] = useState('');
-    const [selectedClasses, setSelectedClasses] = useState<string[]>(['Form 3 Central', 'Form 3 South', 'Form 3 East', 'Form 3 West', 'Grade 10']);
+    const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (registeredClasses.length > 0 && selectedClasses.length === 0) {
+            setSelectedClasses(registeredClasses);
+        }
+    }, [registeredClasses]);
     const [isPapersModalOpen, setIsPapersModalOpen] = useState(false);
     // Tested Papers Configuration State:
     const [testedPaperConfigs, setTestedPaperConfigs] = useState<TestedPaperConfig[]>([
@@ -1122,8 +1158,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     />
 
                                     {/* Target Classes Selector */}
-                                    <div className="flex flex-wrap gap-2 pt-1">
-                                        {['Form 3 Central', 'Form 3 South', 'Form 3 East', 'Form 3 West', 'Grade 10 Central'].map(cName => {
+                                    <div className="flex flex-wrap gap-2 pt-1 max-h-36 overflow-y-auto">
+                                        {registeredClasses.map(cName => {
                                             const isSelected = selectedClasses.includes(cName);
                                             return (
                                                 <button
@@ -1134,10 +1170,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                             isSelected ? prev.filter(c => c !== cName) : [...prev, cName]
                                                         );
                                                     }}
-                                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all border ${
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
                                                         isSelected
-                                                            ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-300 text-blue-600 dark:text-blue-300'
-                                                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 text-slate-500'
+                                                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                                                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
                                                     }`}
                                                 >
                                                     {isSelected ? '✓ ' : '+ '}{cName}
