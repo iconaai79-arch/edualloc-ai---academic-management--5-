@@ -254,6 +254,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [academicLevels, setAcademicLevels] = useState<AcademicLevel[]>([]);
     const [importGradeLevel, setImportGradeLevel] = useState('');
     const [importStream, setImportStream] = useState('');
+    const [pinExecutionReport, setPinExecutionReport] = useState<{
+        title: string;
+        items: {
+            studentName: string;
+            recipientName: string;
+            phoneOrEmail: string;
+            pinCode?: string;
+            status: 'success' | 'failed';
+            errorMsg?: string;
+            action: string;
+        }[];
+    } | null>(null);
+    const [pinReportFilter, setPinReportFilter] = useState<'all' | 'success' | 'failed'>('all');
     const isPrimaryOrSecondary = useMemo(() => {
         const type = (currentInstitution?.institutionType || '').toLowerCase();
         const cat = (currentInstitution?.category || '').toLowerCase();
@@ -3242,6 +3255,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setStatusMsg({ type: 'info', message: 'Generating PIN records silently...' });
         setIsLoading(true);
 
+        const executionResults: {
+            studentName: string;
+            recipientName: string;
+            phoneOrEmail: string;
+            pinCode?: string;
+            status: 'success' | 'failed';
+            errorMsg?: string;
+            action: string;
+        }[] = [];
+
         try {
             const targetEnrollments = enrollments.filter(enr => isEventTargetMatch(event.target, enr));
             const missingEnrollments: typeof targetEnrollments = [];
@@ -3260,9 +3283,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 let targetUserId = enr.userId;
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
-                    const parentUser = await resolveOrCreateParentUser(primaryParent, enr.userId, currentUsersList);
-                    if (parentUser) {
-                        targetUserId = parentUser.id;
+                    try {
+                        const parentUser = await resolveOrCreateParentUser(primaryParent, enr.userId, currentUsersList);
+                        if (parentUser) {
+                            targetUserId = parentUser.id;
+                        }
+                    } catch (err: any) {
+                        console.error('[handleGeneratePinsOnlyForMissing] Parent pre-resolution error:', err);
                     }
                 }
 
@@ -3282,12 +3309,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const eventPinsToCreate: any[] = [];
 
             for (const enr of missingEnrollments) {
+                const studentName = getStudentDisplayName(enr, users.find(u => u.id === enr.userId));
                 let associatedUser = currentUsersList.find(u => u.id === enr.userId);
                 if (!associatedUser) {
                     const newUserId = enr.userId || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                     associatedUser = {
                         id: newUserId,
-                        name: enr.metadata?.studentName || 'Student Name',
+                        name: studentName,
                         email: `student_${newUserId}@eduai.local`,
                         phoneNumber: '',
                         role: 'student',
@@ -3310,11 +3338,29 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const primaryParent = resolvedParents[0];
 
                 let targetUserId = associatedUser.id;
+                let recipientName = primaryParent?.name || studentName;
+                let contactInfo = primaryParent?.phone || primaryParent?.email || 'N/A';
 
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
-                    const parentUser = await resolveOrCreateParentUser(primaryParent, associatedUser.id, currentUsersList);
-                    if (parentUser) {
-                        targetUserId = parentUser.id;
+                    try {
+                        const parentUser = await resolveOrCreateParentUser(primaryParent, associatedUser.id, currentUsersList);
+                        if (parentUser) {
+                            targetUserId = parentUser.id;
+                            recipientName = parentUser.name || recipientName;
+                            contactInfo = parentUser.phoneNumber || parentUser.email || contactInfo;
+                        }
+                    } catch (err: any) {
+                        const errText = String(err?.message || err);
+                        console.warn('[handleGeneratePinsOnlyForMissing] Parent creation failed for', studentName, errText);
+                        executionResults.push({
+                            studentName,
+                            recipientName,
+                            phoneOrEmail: contactInfo,
+                            status: 'failed',
+                            errorMsg: `Parent User Account Error: ${errText}`,
+                            action: 'generated_only'
+                        });
+                        continue;
                     }
                 }
 
@@ -3336,6 +3382,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         status: 'pending',
                         createdAt: new Date().toISOString(),
                         created_at: new Date().toISOString()
+                    });
+
+                    executionResults.push({
+                        studentName,
+                        recipientName,
+                        phoneOrEmail: contactInfo,
+                        pinCode,
+                        status: 'success',
+                        action: 'generated_only'
                     });
                 }
             }
@@ -3365,18 +3420,41 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 });
             }
             if (eventPinsToCreate.length > 0) {
-                await apiService.saveModuleRecords('event_pins', eventPinsToCreate);
-                setEventPins(prev => [...prev, ...eventPinsToCreate]);
+                try {
+                    await apiService.saveModuleRecords('event_pins', eventPinsToCreate);
+                    setEventPins(prev => [...prev, ...eventPinsToCreate]);
+                } catch (saveErr: any) {
+                    const errMsg = String(saveErr?.message || saveErr);
+                    console.error('[handleGeneratePinsOnlyForMissing] event_pins save failed:', saveErr);
+                    executionResults.forEach(r => {
+                        if (r.status === 'success') {
+                            r.status = 'failed';
+                            r.errorMsg = `Database Save Rejected: ${errMsg}`;
+                        }
+                    });
+                }
             }
 
-            setStatusMsg({ type: 'success', message: `Successfully generated ${eventPinsToCreate.length} PIN records! (No SMS/Email sent). PINs are now active for portal access.` });
+            const succCount = executionResults.filter(r => r.status === 'success').length;
+            const failCount = executionResults.filter(r => r.status === 'failed').length;
+
+            setStatusMsg({
+                type: failCount > 0 ? 'warning' : 'success',
+                message: `Bulk PIN Generation Complete: ${succCount} generated, ${failCount} failed.`
+            });
+
+            // Open Detailed Audit Execution Report Modal
+            setPinExecutionReport({
+                title: `Silent PIN Generation Report — ${event.title}`,
+                items: executionResults
+            });
+
             loadAllData();
         } catch (err: any) {
             console.error("Silent PIN generation failed:", err);
             setStatusMsg({ type: 'error', message: `PIN generation failed: ${err.message}` });
         } finally {
             setIsLoading(false);
-            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
         }
     };
 
@@ -8048,31 +8126,44 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             document.body
         )}
 
-        {/* ── SMS Delivery Report Modal ── */}
+        {/* ── PIN Generation & Dispatch Execution Audit Report Modal ── */}
         {smsDeliveryReport && createPortal(
             (() => {
                 const totalCount = smsDeliveryReport.length;
                 const successCount = smsDeliveryReport.filter(r => r.success).length;
                 const failureCount = totalCount - successCount;
 
+                const copyErrorLogToClipboard = () => {
+                    const errorText = smsDeliveryReport
+                        .filter(r => !r.success)
+                        .map((r, i) => `${i + 1}. Recipient: ${r.recipientName} (${r.phone}) — Error: ${r.errorMsg || 'Unknown Error'}`)
+                        .join('\n');
+                    const fullLog = `PIN Generation Execution Log (${new Date().toLocaleString()})\nTotal Targets: ${totalCount} | Successful: ${successCount} | Failures: ${failureCount}\n\nFAILURE DETAILS:\n${errorText || 'None'}`;
+                    navigator.clipboard.writeText(fullLog);
+                    setStatusMsg({ type: 'success', message: 'Detailed error log copied to clipboard!' });
+                    setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+                };
+
                 return (
                     <div
-                        className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[110] flex items-center justify-center p-4"
+                        className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[120] flex items-center justify-center p-4"
                         onClick={() => setSmsDeliveryReport(null)}
                     >
                         <div
-                            className="bg-slate-900 border border-white/10 shadow-2xl rounded-3xl p-6 w-full max-w-lg"
+                            className="bg-slate-900 border border-white/10 shadow-2xl rounded-3xl p-6 w-full max-w-2xl flex flex-col max-h-[85vh] text-left"
                             onClick={e => e.stopPropagation()}
                         >
                             {/* Header */}
-                            <div className="flex items-center justify-between mb-5">
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10 shrink-0">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                                        <Bell className="w-5 h-5" />
+                                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                                        failureCount > 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                    }`}>
+                                        {failureCount > 0 ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-black text-white uppercase tracking-tight">SMS Delivery Report</h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">PIN Dispatch Status Summary</p>
+                                        <h3 className="text-base font-black text-white uppercase tracking-tight">PIN Generation &amp; Dispatch Report</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Per-Recipient Execution Audit Log</p>
                                     </div>
                                 </div>
                                 <button
@@ -8084,55 +8175,71 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             </div>
 
                             {/* Stats Section */}
-                            <div className="grid grid-cols-3 gap-3 mb-5">
+                            <div className="grid grid-cols-3 gap-3 mb-4 shrink-0">
                                 <div className="bg-white/5 border border-white/5 rounded-2xl p-3 text-center">
-                                    <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Total Targets</p>
-                                    <p className="text-xl font-black text-white mt-1">{totalCount}</p>
+                                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total Attempted</p>
+                                    <p className="text-xl font-black text-white mt-1 font-mono">{totalCount}</p>
                                 </div>
                                 <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3 text-center">
-                                    <p className="text-[9px] font-black uppercase text-emerald-500/60 tracking-wider">Successful</p>
-                                    <p className="text-xl font-black text-emerald-400 mt-1">{successCount}</p>
+                                    <p className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">Successful</p>
+                                    <p className="text-xl font-black text-emerald-400 mt-1 font-mono">{successCount}</p>
                                 </div>
-                                <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-3 text-center">
-                                    <p className="text-[9px] font-black uppercase text-red-500/6 tracking-wider">Failed</p>
-                                    <p className="text-xl font-black text-red-400 mt-1">{failureCount}</p>
+                                <div className="bg-rose-500/5 border border-rose-500/10 rounded-2xl p-3 text-center">
+                                    <p className="text-[9px] font-black uppercase text-rose-400 tracking-wider">Failures / Errors</p>
+                                    <p className={`text-xl font-black mt-1 font-mono ${failureCount > 0 ? 'text-rose-400' : 'text-slate-400'}`}>{failureCount}</p>
                                 </div>
                             </div>
 
+                            {failureCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={copyErrorLogToClipboard}
+                                    className="w-full py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 mb-3 shrink-0"
+                                >
+                                    <Copy className="w-3.5 h-3.5" /> Copy Detailed Error Log
+                                </button>
+                            )}
+
                             {/* List Section */}
-                            <div className="space-y-2.5 max-h-[300px] overflow-y-auto custom-scrollbar pr-1 mb-6">
+                            <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-1 mb-4">
                                 {smsDeliveryReport.map((report, idx) => (
                                     <div
                                         key={idx}
-                                        className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                                        className={`p-3.5 rounded-2xl border transition-all space-y-2 ${
                                             report.success
                                                 ? 'bg-emerald-500/5 border-emerald-500/10 text-slate-200'
-                                                : 'bg-red-500/5 border-red-500/10 text-slate-300'
+                                                : 'bg-rose-500/10 border-rose-500/20 text-slate-300'
                                         }`}
                                     >
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                                                report.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-                                            }`}>
-                                                {report.success ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                                        <div className="flex items-center justify-between min-w-0">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                                    report.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                                                }`}>
+                                                    {report.success ? <Check className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-black text-white">{report.recipientName}</p>
+                                                    <p className="text-[10px] text-slate-400 font-mono font-bold mt-0.5">{report.phone}</p>
+                                                </div>
                                             </div>
-                                            <div className="min-w-0">
-                                                <p className="text-xs font-black truncate">{report.recipientName}</p>
-                                                <p className="text-[10px] text-slate-500 font-bold mt-0.5 truncate">{report.phone}</p>
+                                            <div className="text-right shrink-0 ml-2">
+                                                <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                                                    report.success
+                                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                                }`}>
+                                                    {report.success ? 'Success' : 'Failed'}
+                                                </span>
                                             </div>
                                         </div>
-                                        <div className="text-right shrink-0 ml-2">
-                                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                                report.success
-                                                    ? 'bg-emerald-500/10 text-emerald-400'
-                                                    : 'bg-red-500/10 text-red-400'
-                                            }`}>
-                                                {report.success ? 'Sent' : 'Failed'}
-                                            </span>
-                                            {!report.success && report.errorMsg && (
-                                                <p className="text-[9px] text-red-400/85 font-black mt-1 max-w-[150px] truncate" title={report.errorMsg}>{report.errorMsg}</p>
-                                            )}
-                                        </div>
+
+                                        {!report.success && report.errorMsg && (
+                                            <div className="bg-slate-950/70 border border-rose-500/30 rounded-xl p-3 text-[11px] font-mono text-rose-300 leading-relaxed break-words font-semibold">
+                                                <span className="font-bold uppercase text-rose-400 block mb-1">Execution Error Details:</span>
+                                                {report.errorMsg}
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -8141,9 +8248,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             <button
                                 type="button"
                                 onClick={() => setSmsDeliveryReport(null)}
-                                className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all shrink-0"
                             >
-                                Dismiss Report
+                                Close Audit Report
                             </button>
                         </div>
                     </div>
