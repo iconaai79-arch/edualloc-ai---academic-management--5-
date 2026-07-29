@@ -201,11 +201,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         // Fetch custom broadsheet for selected exam if exists
         if (currentInstitution?.id && selectedExamId.startsWith('exam_')) {
-            apiService.fetchModuleRecords<any>(`exam_broadsheet_${selectedExamId}`, currentInstitution.id)
+            apiService.fetchModuleRecords<any>('exam_broadsheets', currentInstitution.id)
                 .then(records => {
-                    if (records && records.length > 0 && records[0].rows) {
-                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: records[0].rows }));
-                        setBroadsheetStudentRows(records[0].rows);
+                    const match = (records || []).find(r => r.id === selectedExamId || r.examId === selectedExamId);
+                    if (match && match.rows) {
+                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: match.rows }));
+                        setBroadsheetStudentRows(match.rows);
                         return;
                     }
                 })
@@ -257,7 +258,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: broadsheetStudentRows }));
         
         if (currentInstitution?.id) {
-            await apiService.saveModuleRecord(`exam_broadsheet_${selectedExamId}`, { id: selectedExamId, rows: broadsheetStudentRows }).catch(() => {});
+            await apiService.saveModuleRecord('exam_broadsheets', { id: selectedExamId, examId: selectedExamId, rows: broadsheetStudentRows, institutionId: currentInstitution.id }).catch(() => {});
         }
 
         setTimeout(() => {
@@ -286,55 +287,134 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     const [expandedYears, setExpandedYears] = useState<Record<number, boolean>>({ 2026: true, 2025: false });
 
-    // Mock progress data matching screenshot
-    const teacherProgressList = [
-        { name: 'Mr. Kipsang', progress: 88.64 },
-        { name: 'Md Kandie', progress: 84.21 },
-        { name: 'Mdm. Faith Kanguha', progress: 75.55 },
-        { name: 'Md Linet', progress: 75.40 },
-        { name: 'Mdm Sharon Jepchumba', progress: 74.29 }
-    ];
-
-    const classProgressList = [
-        { name: 'Form 3 Central 2026', progress: 42.58 },
-        { name: 'Form 3 South 2026', progress: 35.07 },
-        { name: 'Form 3 East 2026', progress: 32.95 },
-        { name: 'Form 3 West 2026', progress: 31.60 },
-        { name: 'Grade 10 Central 2026', progress: 27.56 }
-    ];
-
-    const subjectProgressList = [
-        { name: 'COMMUNITY SERVICE LEARNING', progress: 82.62 },
-        { name: 'English', progress: 70.21 },
-        { name: 'Kiswahili', progress: 64.32 },
-        { name: 'ESSENTIAL MATHS', progress: 62.15 },
-        { name: 'MATHS', progress: 59.39 }
-    ];
-
-    const classPaperRows = [
-        {
-            classKey: 'c_form_3_central',
-            className: 'Form 3 Central 2026',
-            enrollment: 60,
-            overallProgress: 42.69,
-            papers: [
-                { id: 'p1', subject: 'English', teacher: 'Mdm. Faith Kanguha', enrollment: 58, progress: 74.14 },
-                { id: 'p2', subject: 'Kiswahili', teacher: 'Mr Justus', enrollment: 58, progress: 74.14 },
-                { id: 'p3', subject: 'MATHS', teacher: 'Chome Ngala', enrollment: 58, progress: 67.24 },
-                { id: 'p4', subject: 'Biology', teacher: 'Mdm Romana', enrollment: 58, progress: 67.24 }
-            ]
-        },
-        {
-            classKey: 'c_form_3_south',
-            className: 'Form 3 South 2026',
-            enrollment: 55,
-            overallProgress: 35.07,
-            papers: [
-                { id: 'p5', subject: 'English', teacher: 'Mdm. Faith Kanguha', enrollment: 55, progress: 50.00 },
-                { id: 'p6', subject: 'Kiswahili', teacher: 'Mr Justus', enrollment: 55, progress: 48.20 }
-            ]
+    // Dynamic Class Paper Progress Rows based on active exam & broadsheet rows
+    const classPaperRows = useMemo(() => {
+        const totalSt = broadsheetStudentRows.length;
+        if (totalSt === 0 || activeExam.submittedPercent === 0) {
+            return [
+                {
+                    classKey: 'c_form_3_central',
+                    className: 'Form 3 Central 2026',
+                    enrollment: totalSt || 60,
+                    overallProgress: 0.00,
+                    papers: [
+                        { id: 'p1', subject: 'English', teacher: 'Mdm. Faith Kanguha', enrollment: totalSt || 58, progress: 0.00 },
+                        { id: 'p2', subject: 'Kiswahili', teacher: 'Mr Justus', enrollment: totalSt || 58, progress: 0.00 },
+                        { id: 'p3', subject: 'MATHS', teacher: 'Chome Ngala', enrollment: totalSt || 58, progress: 0.00 },
+                        { id: 'p4', subject: 'Biology', teacher: 'Mdm Romana', enrollment: totalSt || 58, progress: 0.00 }
+                    ]
+                },
+                {
+                    classKey: 'c_form_3_south',
+                    className: 'Form 3 South 2026',
+                    enrollment: 55,
+                    overallProgress: 0.00,
+                    papers: [
+                        { id: 'p5', subject: 'English', teacher: 'Mdm. Faith Kanguha', enrollment: 55, progress: 0.00 },
+                        { id: 'p6', subject: 'Kiswahili', teacher: 'Mr Justus', enrollment: 55, progress: 0.00 }
+                    ]
+                }
+            ];
         }
-    ];
+
+        const engP1Entered = broadsheetStudentRows.filter(st => (st.engP1 || 0) > 0).length;
+        const mathP1Entered = broadsheetStudentRows.filter(st => (st.mathP1 || 0) > 0).length;
+        const kiswP1Entered = broadsheetStudentRows.filter(st => (st.kiswP1 || 0) > 0).length;
+        const bioP1Entered = broadsheetStudentRows.filter(st => (st.bioP1 || 0) > 0).length;
+
+        const engPct = parseFloat(((engP1Entered / totalSt) * 100).toFixed(2));
+        const kiswPct = parseFloat(((kiswP1Entered / totalSt) * 100).toFixed(2));
+        const mathPct = parseFloat(((mathP1Entered / totalSt) * 100).toFixed(2));
+        const bioPct = parseFloat(((bioP1Entered / totalSt) * 100).toFixed(2));
+
+        const overallClassPct = parseFloat(((engPct + kiswPct + mathPct + bioPct) / 4).toFixed(2));
+
+        return [
+            {
+                classKey: 'c_form_3_central',
+                className: 'Form 3 Central 2026',
+                enrollment: totalSt,
+                overallProgress: overallClassPct,
+                papers: [
+                    { id: 'p1', subject: 'English', teacher: 'Mdm. Faith Kanguha', enrollment: totalSt, progress: engPct },
+                    { id: 'p2', subject: 'Kiswahili', teacher: 'Mr Justus', enrollment: totalSt, progress: kiswPct },
+                    { id: 'p3', subject: 'MATHS', teacher: 'Chome Ngala', enrollment: totalSt, progress: mathPct },
+                    { id: 'p4', subject: 'Biology', teacher: 'Mdm Romana', enrollment: totalSt, progress: bioPct }
+                ]
+            },
+            {
+                classKey: 'c_form_3_south',
+                className: 'Form 3 South 2026',
+                enrollment: 55,
+                overallProgress: 0.00,
+                papers: [
+                    { id: 'p5', subject: 'English', teacher: 'Mdm. Faith Kanguha', enrollment: 55, progress: 0.00 },
+                    { id: 'p6', subject: 'Kiswahili', teacher: 'Mr Justus', enrollment: 55, progress: 0.00 }
+                ]
+            }
+        ];
+    }, [broadsheetStudentRows, activeExam]);
+
+    // Dynamic Teacher Progress
+    const teacherProgressList = useMemo(() => {
+        if (activeExam.submittedPercent === 0) {
+            return [
+                { name: 'Mr. Kipsang', progress: 0 },
+                { name: 'Md Kandie', progress: 0 },
+                { name: 'Mdm. Faith Kanguha', progress: 0 },
+                { name: 'Md Linet', progress: 0 },
+                { name: 'Mdm Sharon Jepchumba', progress: 0 }
+            ];
+        }
+        return [
+            { name: 'Mr. Kipsang', progress: activeExam.submittedPercent },
+            { name: 'Md Kandie', progress: activeExam.submittedPercent },
+            { name: 'Mdm. Faith Kanguha', progress: activeExam.submittedPercent },
+            { name: 'Md Linet', progress: activeExam.submittedPercent },
+            { name: 'Mdm Sharon Jepchumba', progress: activeExam.submittedPercent }
+        ];
+    }, [activeExam]);
+
+    // Dynamic Class Progress
+    const classProgressList = useMemo(() => {
+        if (activeExam.submittedPercent === 0) {
+            return [
+                { name: 'Form 3 Central 2026', progress: 0 },
+                { name: 'Form 3 South 2026', progress: 0 },
+                { name: 'Form 3 East 2026', progress: 0 },
+                { name: 'Form 3 West 2026', progress: 0 },
+                { name: 'Grade 10 Central 2026', progress: 0 }
+            ];
+        }
+        return [
+            { name: 'Form 3 Central 2026', progress: classPaperRows[0]?.overallProgress || activeExam.submittedPercent },
+            { name: 'Form 3 South 2026', progress: 0 },
+            { name: 'Form 3 East 2026', progress: 0 },
+            { name: 'Form 3 West 2026', progress: 0 },
+            { name: 'Grade 10 Central 2026', progress: 0 }
+        ];
+    }, [activeExam, classPaperRows]);
+
+    // Dynamic Subject Progress
+    const subjectProgressList = useMemo(() => {
+        const papers = classPaperRows[0]?.papers || [];
+        if (activeExam.submittedPercent === 0 || papers.length === 0) {
+            return [
+                { name: 'COMMUNITY SERVICE LEARNING', progress: 0 },
+                { name: 'English', progress: 0 },
+                { name: 'Kiswahili', progress: 0 },
+                { name: 'ESSENTIAL MATHS', progress: 0 },
+                { name: 'MATHS', progress: 0 }
+            ];
+        }
+        return [
+            { name: 'COMMUNITY SERVICE LEARNING', progress: activeExam.submittedPercent },
+            { name: 'English', progress: papers.find(p => p.subject === 'English')?.progress || 0 },
+            { name: 'Kiswahili', progress: papers.find(p => p.subject === 'Kiswahili')?.progress || 0 },
+            { name: 'ESSENTIAL MATHS', progress: activeExam.submittedPercent },
+            { name: 'MATHS', progress: papers.find(p => p.subject === 'MATHS')?.progress || 0 }
+        ];
+    }, [activeExam, classPaperRows]);
 
     const handleCreateExam = async () => {
         if (!newExamName.trim()) {
@@ -398,7 +478,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         // Save to Database
         if (currentInstitution?.id) {
             await apiService.saveModuleRecord('exam_units', newExam).catch(() => {});
-            await apiService.saveModuleRecord(`exam_broadsheet_${newExamId}`, { id: newExamId, rows: freshRows }).catch(() => {});
+            await apiService.saveModuleRecord('exam_broadsheets', { id: newExamId, examId: newExamId, rows: freshRows, institutionId: currentInstitution.id }).catch(() => {});
         }
 
         setSaveToastMessage(`✨ Created "${newExam.name}" cleanly! Ready for new marks entry.`);
