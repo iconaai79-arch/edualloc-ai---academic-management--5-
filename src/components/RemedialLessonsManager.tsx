@@ -77,18 +77,27 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [sessList, rates, payList, invList, allocList] = await Promise.all([
+            const [sessList, rates, payList, invList] = await Promise.all([
                 apiService.fetchRemedialSessions(institutionId),
                 apiService.fetchRemedialRateSettings(institutionId),
                 apiService.fetchRemedialPayouts(institutionId),
                 apiService.fetchInvoices(institutionId),
-                apiService.fetchRemedialAllocations(institutionId)
             ]);
+
+            // Fetch allocations separately with fallback for older builds
+            let allocList: RemedialAllocation[] = [];
+            try {
+                if (typeof (apiService as any).fetchRemedialAllocations === 'function') {
+                    allocList = await (apiService as any).fetchRemedialAllocations(institutionId) || [];
+                }
+            } catch {
+                allocList = [];
+            }
 
             setSessions(sessList || []);
             setInvoices(invList || []);
             setPayouts(payList || []);
-            setAllocations(allocList || []);
+            setAllocations(allocList);
 
             if (rates && rates.length > 0) {
                 setRateSetting(rates[0]);
@@ -270,7 +279,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 institutionId
             };
 
-            await apiService.saveRemedialAllocation(newAlloc);
+            if (typeof (apiService as any).saveRemedialAllocation === 'function') {
+                await (apiService as any).saveRemedialAllocation(newAlloc);
+            } else {
+                await apiService.saveModuleRecord('school_remedial_allocations', newAlloc);
+            }
             onLogAction?.(`Allocated remedial ${subject?.name} for ${course?.name} to ${teacher?.name} on ${allocDay}`);
             alert('Remedial allocation saved successfully!');
             setShowAllocModal(false);
@@ -351,7 +364,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
 
             for (const alloc of newAllocations) {
-                await apiService.saveRemedialAllocation(alloc);
+                if (typeof (apiService as any).saveRemedialAllocation === 'function') {
+                    await (apiService as any).saveRemedialAllocation(alloc);
+                } else {
+                    await apiService.saveModuleRecord('school_remedial_allocations', alloc);
+                }
             }
 
             onLogAction?.(`Auto-generated ${newAllocations.length} remedial lesson allocations across ${courses.length} classes.`);
