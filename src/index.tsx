@@ -13,7 +13,8 @@ declare global {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('unhandledrejection', (event) => {
-    if (event.reason && typeof event.reason.message === 'string' && event.reason.message.includes('message channel closed before a response was received')) {
+    const msg = String(event.reason?.message || event.reason || '');
+    if (msg.includes('message channel closed') || msg.includes('asynchronous response') || msg.includes('listener indicated')) {
       event.preventDefault();
     }
   });
