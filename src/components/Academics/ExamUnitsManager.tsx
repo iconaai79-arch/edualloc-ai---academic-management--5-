@@ -11,6 +11,7 @@ import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
 import { TrashIcon } from '../icons/TrashIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
+import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 
 export interface ExamUnitRecord {
     id: string;
@@ -129,6 +130,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         { admNo: '1004', name: 'David Cheruiyot', class: 'Form 3 Central', mathP1: 21, mathP2: 49, engP1: 44, engP2: 58, kiswP1: 30, bioP1: 54 },
         { admNo: '1005', name: 'Emmanuel Kamau', class: 'Form 3 Central', mathP1: 27, mathP2: 61, engP1: 54, engP2: 72, kiswP1: 35, bioP1: 71 }
     ]);
+    const [searchStudentQuery, setSearchStudentQuery] = useState('');
+
+    const filteredStudentRows = useMemo(() => {
+        if (!searchStudentQuery.trim()) return broadsheetStudentRows;
+        const q = searchStudentQuery.toLowerCase().trim();
+        return broadsheetStudentRows.filter(st =>
+            st.name.toLowerCase().includes(q) || st.admNo.toLowerCase().includes(q)
+        );
+    }, [broadsheetStudentRows, searchStudentQuery]);
 
     const handleUpdateStudentMark = (admNo: string, fieldKey: string, newValue: number) => {
         setBroadsheetStudentRows(prev => prev.map(row => {
@@ -1239,6 +1249,27 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             </div>
 
                             <div className="flex items-center gap-3 flex-wrap">
+                                {/* Student Search Box */}
+                                <div className="relative flex items-center">
+                                    <MagnifyingGlassIcon className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={searchStudentQuery}
+                                        onChange={(e) => setSearchStudentQuery(e.target.value)}
+                                        placeholder="Search student by name or adm..."
+                                        className="pl-9 pr-7 py-1.5 w-60 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-xs"
+                                    />
+                                    {searchStudentQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchStudentQuery('')}
+                                            className="absolute right-2 text-slate-400 hover:text-slate-600 text-xs font-bold p-1"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+
                                 {/* Subject Selector Dropdown */}
                                 <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-xs">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Subject:</span>
@@ -1335,7 +1366,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
-                                                {broadsheetStudentRows.map((st, stIndex) => {
+                                                {filteredStudentRows.map((st, stIndex) => {
                                                     const papers = selectedSubjectFilter === 'English' ? [
                                                         { key: 'engP1', maxScore: 60 },
                                                         { key: 'engP2', maxScore: 80 }
@@ -1434,12 +1465,18 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                         </tr>
                                                     );
                                                 })}
+                                                {filteredStudentRows.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={8} className="px-6 py-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                                            🔍 No students match "{searchStudentQuery}"
+                                                        </td>
+                                                    </tr>
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
                                 </div>
                             ) : (
-                                /* MULTI-SUBJECT BROADSHEET OVERVIEW MODE */
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800 p-2 rounded-xl text-xs font-bold">
                                         <span className="text-slate-600 dark:text-slate-300 px-2">Display Format:</span>
@@ -1491,7 +1528,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
-                                                {broadsheetStudentRows.map((st) => {
+                                                {filteredStudentRows.map((st) => {
                                                     const rawTotal = st.mathP1 + st.mathP2 + st.engP1 + st.engP2 + st.kiswP1;
                                                     const maxTotal = 30 + 70 + 60 + 80 + 40;
                                                     const convertedPct = ((rawTotal / maxTotal) * 100).toFixed(1);
@@ -1514,6 +1551,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                         </tr>
                                                     );
                                                 })}
+                                                {filteredStudentRows.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={10} className="px-6 py-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                                            🔍 No students match "{searchStudentQuery}"
+                                                        </td>
+                                                    </tr>
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
@@ -1523,7 +1567,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
                         {/* Footer Controls */}
                         <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                            <span className="text-xs text-slate-400 font-medium">{broadsheetStudentRows.length} Students listed • Real-time database sync enabled</span>
+                            <span className="text-xs text-slate-400 font-medium">
+                                {filteredStudentRows.length} Students listed {searchStudentQuery ? `(Filtered from ${broadsheetStudentRows.length})` : ''} • Real-time database sync enabled
+                            </span>
                             <div className="flex items-center gap-3">
                                 {selectedSubjectFilter !== 'all' && (
                                     <button
