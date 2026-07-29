@@ -327,7 +327,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ? recordWithBranch.map(sanitizeUUIDs)
                 : sanitizeUUIDs(recordWithBranch);
 
-            const { data, error } = await supabase.from(moduleName).upsert(sanitizedRecords).select();
+            let currentPayload = sanitizedRecords;
+            let data: any = null;
+            let error: any = null;
+            let maxRetries = 5;
+
+            while (maxRetries >= 0) {
+                const res = await supabase.from(moduleName).upsert(currentPayload).select();
+                data = res.data;
+                error = res.error;
+
+                if (!error) break;
+
+                const colMatch = error.message ? error.message.match(/Could not find the '([^']+)' column/i) : null;
+                if (colMatch && colMatch[1] && maxRetries > 0) {
+                    const offendingCol = colMatch[1];
+                    console.warn(`[api/records] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${maxRetries} left)...`);
+                    const stripCol = (item: any) => {
+                        if (!item || typeof item !== 'object') return item;
+                        const copy = { ...item };
+                        delete copy[offendingCol];
+                        return copy;
+                    };
+                    currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripCol) : stripCol(currentPayload);
+                    maxRetries--;
+                } else {
+                    break;
+                }
+            }
+
             if (moduleName === 'ds_settings') {
                 console.log(`[API POST DEBUG] ds_settings upsert:`, { success: !error, count: data?.length, error, payload: JSON.stringify(recordWithTenancy) });
             }
@@ -394,34 +422,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 const idsArray = Array.isArray(ids) ? ids : [ids];
-                let q = supabase.from(moduleName).update(updateData);
-                
-                if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
-                else q = q.in('id', idsArray);
+                let currentUpdateData = updateData;
+                let data: any = null;
+                let error: any = null;
+                let patchRetries = 5;
 
-                // Security check
-                if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
-                    const instCol = (moduleName === 'institutions' ? 'id' : 'institution_id');
-                    const instId = user?.institutionId;
+                while (patchRetries >= 0) {
+                    let q = supabase.from(moduleName).update(currentUpdateData);
                     
-                    if (instId) {
-                        console.log(`[API PATCH DEBUG] Applying tenancy check: ${instCol} = ${instId}`);
-                        q = q.eq(instCol, instId);
-                    } else {
-                        console.warn(`[API PATCH DEBUG] Authorization warning: User has no institutionId. Skipping tenancy filter.`);
-                        if (user?.role !== 'super_admin') {
-                             return res.status(401).json({ success: false, error: 'Unauthorized: Academic institution identity required.' });
+                    if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
+                    else q = q.in('id', idsArray);
+
+                    // Security check
+                    if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
+                        const instCol = (moduleName === 'institutions' ? 'id' : 'institution_id');
+                        const instId = user?.institutionId;
+                        
+                        if (instId) {
+                            console.log(`[API PATCH DEBUG] Applying tenancy check: ${instCol} = ${instId}`);
+                            q = q.eq(instCol, instId);
+                        } else {
+                            console.warn(`[API PATCH DEBUG] Authorization warning: User has no institutionId. Skipping tenancy filter.`);
+                            if (user?.role !== 'super_admin') {
+                                 return res.status(401).json({ success: false, error: 'Unauthorized: Academic institution identity required.' });
+                            }
                         }
+                    }
+
+                    const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
+                    const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+                    if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
+                        q = q.eq(moduleName === 'branches' ? 'id' : 'branch_id', user.branchId);
+                    }
+
+                    const res = await q.select();
+                    data = res.data;
+                    error = res.error;
+
+                    if (!error) break;
+
+                    const colMatch = error.message ? error.message.match(/Could not find the '([^']+)' column/i) : null;
+                    if (colMatch && colMatch[1] && patchRetries > 0) {
+                        const offendingCol = colMatch[1];
+                        console.warn(`[api/records PATCH] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${patchRetries} left)...`);
+                        const copy = { ...currentUpdateData };
+                        delete copy[offendingCol];
+                        currentUpdateData = copy;
+                        patchRetries--;
+                    } else {
+                        break;
                     }
                 }
 
-                const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-                const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
-                if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
-                    q = q.eq(moduleName === 'branches' ? 'id' : 'branch_id', user.branchId);
-                }
-
-                const { data, error } = await q.select();
                 if (moduleName === 'ds_settings') {
                     console.log(`[API PATCH DEBUG] ds_settings update result:`, { success: !error, count: data?.length, error, ids: idsArray });
                 }
