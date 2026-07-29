@@ -19,6 +19,7 @@ import { PathwayUpdateModal } from './PathwayUpdateModal';
 import { SubjectConstraintsModal } from './SubjectConstraintsModal';
 import { BulkSubjectStructureModal } from './BulkSubjectStructureModal';
 import { isSchoolInstitution } from '../utils/roleUtils';
+import { apiService } from '../services/apiService';
 
 import * as XLSX from 'xlsx';
 
@@ -142,10 +143,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     }, [currentInstitution]);
 
     const handlePrepopulateKenyaCBESubjects = async () => {
-        if (!onImportSubjectsAndAssociate && !onAddSubject) {
-            alert('No subject handler is available. Please contact your administrator.');
-            return;
-        }
+        // All three paths are acceptable — use whichever is available
 
         const defaultDeptId = visibleDepartments[0]?.id || (departments.length > 0 ? departments[0].id : 'dept_primary');
 
@@ -177,9 +175,19 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             // Preferred: bulk import with course-level association
             await onImportSubjectsAndAssociate(primarySubjects as any);
         } else if (onAddSubject) {
-            // Fallback: add subjects one by one
+            // Fallback: add subjects one by one via parent handler
             for (const subj of primarySubjects) {
                 onAddSubject(subj);
+            }
+        } else {
+            // Last resort: save directly via apiService (works in any view)
+            const instId = currentInstitution?.id;
+            if (!instId) {
+                alert('Institution ID not found. Please ensure you are logged in correctly.');
+                return;
+            }
+            for (const subj of primarySubjects) {
+                await apiService.saveSubject({ ...subj, institutionId: instId });
             }
         }
 
