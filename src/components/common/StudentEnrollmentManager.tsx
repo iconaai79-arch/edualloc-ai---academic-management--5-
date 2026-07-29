@@ -802,13 +802,27 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             ]);
             
             setEnrollments(enrollmentsData.filter(e => e.enrollmentType === context));
-            setUsers(usersData);
+            setUsers(prev => {
+                const userMap = new Map();
+                (usersData || []).forEach(u => userMap.set(u.id, u));
+                prev.forEach(u => {
+                    if (!userMap.has(u.id)) userMap.set(u.id, u);
+                });
+                return Array.from(userMap.values());
+            });
             setInstructors(usersData.filter(u => u.role === 'driving_instructor' || u.role === 'teacher' || u.role === 'lecturer'));
             setCourses(coursesData);
             setSubjects(subjectsData);
             setBroadcasterMessages(broadcastsData || []);
             setEvents(eventsData || []);
-            setEventPins(pinsData || []);
+            setEventPins(prev => {
+                const pinMap = new Map();
+                (pinsData || []).forEach((p: any) => pinMap.set(p.id, p));
+                prev.forEach((p: any) => {
+                    if (!pinMap.has(p.id)) pinMap.set(p.id, p);
+                });
+                return Array.from(pinMap.values());
+            });
             setVisitors(visitorsData || []);
             setAcademicLevels(academicLevelsData || []);
         } catch (err) {
