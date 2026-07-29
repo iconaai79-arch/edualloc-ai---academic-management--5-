@@ -295,7 +295,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 </div>
 
                 <nav className="space-y-1.5 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
-                    {tabs.map(item => (
+                    {tabs.filter(item => item.id !== 'lessons').map(item => (
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id as any)}
