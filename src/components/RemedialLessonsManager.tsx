@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice } from '../types';
+import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation } from '../types';
 import { apiService } from '../services/apiService';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
-    Globe, Copy, ExternalLink
+    Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X
 } from 'lucide-react';
 
 interface RemedialLessonsManagerProps {
@@ -31,12 +31,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [rateSetting, setRateSetting] = useState<RemedialRateSetting | null>(null);
     const [payouts, setPayouts] = useState<RemedialPayout[]>([]);
+    const [allocations, setAllocations] = useState<RemedialAllocation[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'sessions' | 'rates' | 'payouts' | 'billing' | 'portal_hub'>('sessions');
+    const [activeTab, setActiveTab] = useState<'sessions' | 'allocations' | 'payouts' | 'billing' | 'rates' | 'portal_hub'>('sessions');
     
     // Filters & Search
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Approved' | 'Paid'>('all');
+    const [selectedTimetableClass, setSelectedTimetableClass] = useState<string>('All');
     
     // Rates Form State
     const [hourlyRate, setHourlyRate] = useState<number>(1000);
@@ -49,6 +51,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [maxLessonsPerDay, setMaxLessonsPerDay] = useState<number>(1);
     const [feePerStudent, setFeePerStudent] = useState<number>(200);
     const [termFee, setTermFee] = useState<number>(3000);
+
+    // Manual Allocation Modal State
+    const [showAllocModal, setShowAllocModal] = useState(false);
+    const [allocCourseId, setAllocCourseId] = useState('');
+    const [allocSubjectId, setAllocSubjectId] = useState('');
+    const [allocTeacherId, setAllocTeacherId] = useState('');
+    const [allocDay, setAllocDay] = useState<'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'>('Monday');
+    const [allocStartTime, setAllocStartTime] = useState('16:00');
+    const [allocEndTime, setAllocEndTime] = useState('18:00');
 
     // QR Print State
     const [printingPrefect, setPrintingPrefect] = useState<User | null>(null);
@@ -66,16 +77,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [sessList, rates, payList, invList] = await Promise.all([
+            const [sessList, rates, payList, invList, allocList] = await Promise.all([
                 apiService.fetchRemedialSessions(institutionId),
                 apiService.fetchRemedialRateSettings(institutionId),
                 apiService.fetchRemedialPayouts(institutionId),
-                apiService.fetchInvoices(institutionId)
+                apiService.fetchInvoices(institutionId),
+                apiService.fetchRemedialAllocations(institutionId)
             ]);
 
             setSessions(sessList || []);
             setInvoices(invList || []);
             setPayouts(payList || []);
+            setAllocations(allocList || []);
 
             if (rates && rates.length > 0) {
                 setRateSetting(rates[0]);
@@ -225,6 +238,142 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to approve session');
+        }
+    };
+
+    // Manual Allocation Handler
+    const handleCreateManualAllocation = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!allocCourseId || !allocSubjectId || !allocTeacherId) {
+            return alert('Please select class stream, subject, and teacher.');
+        }
+
+        try {
+            const course = courses.find(c => c.id === allocCourseId);
+            const subject = subjects.find(s => s.id === allocSubjectId);
+            const teacher = users.find(u => u.id === allocTeacherId);
+            const isWeekend = ['Saturday', 'Sunday'].includes(allocDay);
+
+            const newAlloc: RemedialAllocation = {
+                id: `rem_alloc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                courseId: allocCourseId,
+                className: course?.name || 'Class',
+                subjectId: allocSubjectId,
+                subjectName: subject?.name || 'Subject',
+                teacherId: allocTeacherId,
+                teacherName: teacher?.name || 'Teacher',
+                dayOfWeek: allocDay,
+                startTime: allocStartTime,
+                endTime: allocEndTime,
+                isWeekend,
+                createdAt: new Date().toISOString(),
+                institutionId
+            };
+
+            await apiService.saveRemedialAllocation(newAlloc);
+            onLogAction?.(`Allocated remedial ${subject?.name} for ${course?.name} to ${teacher?.name} on ${allocDay}`);
+            alert('Remedial allocation saved successfully!');
+            setShowAllocModal(false);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to save allocation');
+        }
+    };
+
+    // Auto-Generate Timetable Engine
+    const handleAutoGenerateTimetable = async () => {
+        if (courses.length === 0 || subjects.length === 0 || teachersList.length === 0) {
+            return alert('Insufficient data to auto-generate remedial timetable. Please ensure classes, subjects, and teachers are registered.');
+        }
+
+        if (!window.confirm(`Auto-generate balanced weekly remedial timetable for ${courses.length} class(es)? This will auto-assign subjects and teachers to weekday/weekend slots respecting configured rules.`)) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const newAllocations: RemedialAllocation[] = [];
+            const daysOfWeek: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[] = [
+                'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+            ];
+
+            const teacherDailyCount: Record<string, Record<string, number>> = {};
+            teachersList.forEach(t => {
+                teacherDailyCount[t.id] = {};
+                daysOfWeek.forEach(day => {
+                    teacherDailyCount[t.id][day] = 0;
+                });
+            });
+
+            let teacherIdx = 0;
+
+            for (const course of courses) {
+                for (let subIdx = 0; subIdx < Math.min(subjects.length, 7); subIdx++) {
+                    const subject = subjects[subIdx];
+                    const day = daysOfWeek[subIdx % daysOfWeek.length];
+                    const isWeekend = ['Saturday', 'Sunday'].includes(day);
+                    const startTime = isWeekend ? (weekendStartTime || '08:00') : (weekdayStartTime || '16:00');
+                    const endTime = isWeekend ? (weekendEndTime || '18:00') : (weekdayEndTime || '18:00');
+
+                    let assignedTeacher: User | null = null;
+                    for (let attempt = 0; attempt < teachersList.length; attempt++) {
+                        const candidate = teachersList[(teacherIdx + attempt) % teachersList.length];
+                        const currentCount = teacherDailyCount[candidate.id]?.[day] || 0;
+                        if (currentCount < maxLessonsPerDay) {
+                            assignedTeacher = candidate;
+                            teacherIdx = (teacherIdx + attempt + 1) % teachersList.length;
+                            break;
+                        }
+                    }
+
+                    if (!assignedTeacher) {
+                        assignedTeacher = teachersList[teacherIdx % teachersList.length];
+                    }
+
+                    teacherDailyCount[assignedTeacher.id][day] = (teacherDailyCount[assignedTeacher.id][day] || 0) + 1;
+
+                    newAllocations.push({
+                        id: `rem_alloc_${Date.now()}_${course.id.slice(-4)}_${subject.id.slice(-4)}_${day.slice(0, 3)}_${subIdx}`,
+                        courseId: course.id,
+                        className: course.name,
+                        subjectId: subject.id,
+                        subjectName: subject.name,
+                        teacherId: assignedTeacher.id,
+                        teacherName: assignedTeacher.name,
+                        dayOfWeek: day,
+                        startTime,
+                        endTime,
+                        isWeekend,
+                        createdAt: new Date().toISOString(),
+                        institutionId
+                    });
+                }
+            }
+
+            for (const alloc of newAllocations) {
+                await apiService.saveRemedialAllocation(alloc);
+            }
+
+            onLogAction?.(`Auto-generated ${newAllocations.length} remedial lesson allocations across ${courses.length} classes.`);
+            alert(`Successfully auto-generated and scheduled ${newAllocations.length} remedial lesson allocations!`);
+            loadData();
+        } catch (err: any) {
+            console.error('Failed to auto-generate timetable', err);
+            alert('Failed to auto-generate timetable: ' + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Delete Allocation
+    const handleDeleteAllocation = async (allocId: string) => {
+        if (!window.confirm('Delete this remedial session allocation?')) return;
+        try {
+            await apiService.deleteModuleRecord('school_remedial_allocations', allocId);
+            onLogAction?.(`Deleted remedial allocation #${allocId}`);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to delete allocation');
         }
     };
 
@@ -410,6 +559,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     };
 
     return (
+        <>
         <div className="space-y-8 animate-fade-in mt-4">
             
             {/* Futuristic Top Banner */}
@@ -477,6 +627,34 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     activeTab === 'sessions' ? 'bg-white text-indigo-700' : 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
                                 }`}>
                                     {sessions.filter(s => s.status === 'Prefect Confirmed').length}
+                                </span>
+                            )}
+                        </button>
+
+                        <button 
+                            onClick={() => setActiveTab('allocations')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'allocations' 
+                                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'allocations' ? 'bg-white/20 text-white' : 'bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <Calendar className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Subject Allocations</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'allocations' ? 'text-indigo-100' : 'text-slate-400'}`}>Teacher assignments &amp; timetable</p>
+                                </div>
+                            </div>
+                            {allocations.length > 0 && (
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                    activeTab === 'allocations' ? 'bg-white text-indigo-700' : 'bg-violet-100 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400'
+                                }`}>
+                                    {allocations.length}
                                 </span>
                             )}
                         </button>
@@ -576,6 +754,132 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                 {/* Right Main Content Workspace */}
                 <div className="lg:col-span-9 min-w-0">
+
+            {/* TAB: ALLOCATIONS & TIMETABLE */}
+            {activeTab === 'allocations' && (
+                <div className="space-y-6">
+                    {/* Header Controls */}
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-1 flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-violet-500" /> Remedial Subject Allocations &amp; Weekly Timetable
+                            </h4>
+                            <p className="text-xs text-slate-500">
+                                Assign subjects and teachers manually or auto-generate a weekly remedial timetable respecting weekday/weekend limits.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                            <button
+                                onClick={handleAutoGenerateTimetable}
+                                className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-violet-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <Sparkles className="w-4 h-4" /> Auto-Generate Timetable
+                            </button>
+                            <button
+                                onClick={() => setShowAllocModal(true)}
+                                className="flex-1 md:flex-none px-5 py-3 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <Plus className="w-4 h-4" /> Manual Allocation
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Filter & Print Bar */}
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-3">
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Filter Stream:</span>
+                            <select
+                                value={selectedTimetableClass}
+                                onChange={e => setSelectedTimetableClass(e.target.value)}
+                                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                            >
+                                <option value="All">All Classes &amp; Streams ({courses.length})</option>
+                                {courses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <button
+                            onClick={() => window.print()}
+                            className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2"
+                        >
+                            <Printer className="w-4 h-4" /> Print Timetable Grid
+                        </button>
+                    </div>
+
+                    {/* Weekly Timetable Grid View */}
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                            {(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const).map(day => {
+                                const isWeekend = ['Saturday', 'Sunday'].includes(day);
+                                const dayAllocations = allocations.filter(a => {
+                                    const matchDay = a.dayOfWeek === day;
+                                    const matchClass = selectedTimetableClass === 'All' || a.courseId === selectedTimetableClass;
+                                    return matchDay && matchClass;
+                                });
+
+                                return (
+                                    <div 
+                                        key={day} 
+                                        className={`rounded-2xl p-4 border transition-all ${
+                                            isWeekend 
+                                                ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30' 
+                                                : 'bg-slate-50/80 dark:bg-slate-900/60 border-slate-100 dark:border-slate-800'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2.5 mb-3">
+                                            <h5 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">{day}</h5>
+                                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
+                                                isWeekend ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                                            }`}>
+                                                {dayAllocations.length} session{dayAllocations.length === 1 ? '' : 's'}
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            {dayAllocations.length === 0 ? (
+                                                <p className="text-[10px] text-slate-400 font-medium italic text-center py-6">No lessons scheduled</p>
+                                            ) : (
+                                                dayAllocations.map(alloc => (
+                                                    <div 
+                                                        key={alloc.id}
+                                                        className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm relative group hover:border-indigo-500/50 transition-all space-y-1.5"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-1">
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-tight">{alloc.subjectName}</p>
+                                                            <button 
+                                                                onClick={() => handleDeleteAllocation(alloc.id)}
+                                                                className="text-slate-400 hover:text-red-500 p-1 rounded-md transition-colors opacity-80 group-hover:opacity-100"
+                                                                title="Delete allocation"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                        <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">{alloc.className}</p>
+                                                        <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                            <UserCheck className="w-3 h-3 text-slate-400" /> {alloc.teacherName}
+                                                        </p>
+                                                        <div className="pt-1 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+                                                            <span className="text-[9px] font-mono font-bold text-slate-400">
+                                                                {alloc.startTime} - {alloc.endTime}
+                                                            </span>
+                                                            <span className="text-[8px] font-black uppercase text-slate-400">
+                                                                {isWeekend ? 'Weekend Tariff' : 'Weekday Tariff'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* TAB: SESSIONS */}
             {activeTab === 'sessions' && (
@@ -1309,5 +1613,167 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 </div>
             )}
         </div>
+
+        {/* ===== MANUAL ALLOCATION MODAL ===== */}
+        {showAllocModal && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    {/* Modal Header */}
+                    <div className="flex items-center justify-between px-7 pt-7 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-violet-500" /> Manual Allocation
+                            </h3>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Assign a subject & teacher to a specific day slot</p>
+                        </div>
+                        <button
+                            onClick={() => setShowAllocModal(false)}
+                            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    {/* Modal Form */}
+                    <form onSubmit={handleCreateManualAllocation} className="p-7 space-y-5">
+                        {/* Class Stream */}
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Class / Stream</label>
+                            <select
+                                value={allocCourseId}
+                                onChange={e => setAllocCourseId(e.target.value)}
+                                required
+                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                            >
+                                <option value="">-- Select Class Stream --</option>
+                                {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
+
+                        {/* Subject */}
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Subject</label>
+                            <select
+                                value={allocSubjectId}
+                                onChange={e => setAllocSubjectId(e.target.value)}
+                                required
+                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                            >
+                                <option value="">-- Select Subject --</option>
+                                {subjects
+                                    .filter(s => !allocCourseId || s.courseId === allocCourseId)
+                                    .map(s => <option key={s.id} value={s.id}>{s.name}</option>)
+                                }
+                            </select>
+                        </div>
+
+                        {/* Teacher */}
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Teacher</label>
+                            <select
+                                value={allocTeacherId}
+                                onChange={e => setAllocTeacherId(e.target.value)}
+                                required
+                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                            >
+                                <option value="">-- Select Teacher --</option>
+                                {users
+                                    .filter(u => u.role === 'lecturer' || u.role === 'teacher')
+                                    .map(u => <option key={u.id} value={u.id}>{u.name}</option>)
+                                }
+                            </select>
+                        </div>
+
+                        {/* Day of Week */}
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Day of Week</label>
+                            <div className="grid grid-cols-7 gap-1">
+                                {(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const).map((short, i) => {
+                                    const fullDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+                                    const fullDay = fullDays[i];
+                                    const isWeekend = i >= 5;
+                                    const isSelected = allocDay === fullDay;
+                                    return (
+                                        <button
+                                            key={fullDay}
+                                            type="button"
+                                            onClick={() => {
+                                                setAllocDay(fullDay);
+                                                setAllocStartTime(isWeekend ? (weekendStartTime || '08:00') : (weekdayStartTime || '16:00'));
+                                                setAllocEndTime(isWeekend ? (weekendEndTime || '12:00') : (weekdayEndTime || '18:00'));
+                                            }}
+                                            className={`py-2 rounded-xl text-[9px] font-black uppercase transition-all ${
+                                                isSelected
+                                                    ? isWeekend
+                                                        ? 'bg-amber-500 text-white shadow-md'
+                                                        : 'bg-indigo-600 text-white shadow-md'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'
+                                            }`}
+                                        >
+                                            {short}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Time Window */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Start Time</label>
+                                <input
+                                    type="time"
+                                    value={allocStartTime}
+                                    onChange={e => setAllocStartTime(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">End Time</label>
+                                <input
+                                    type="time"
+                                    value={allocEndTime}
+                                    onChange={e => setAllocEndTime(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Tariff Badge */}
+                        <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${
+                            ['Saturday', 'Sunday'].includes(allocDay)
+                                ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40'
+                                : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/40'
+                        }`}>
+                            <DollarSign className="w-3.5 h-3.5" />
+                            <span>
+                                {['Saturday', 'Sunday'].includes(allocDay)
+                                    ? `Weekend Tariff — KES ${weekendHourlyRate?.toLocaleString()}/hr`
+                                    : `Weekday Tariff — KES ${weekdayHourlyRate?.toLocaleString()}/hr`
+                                }
+                            </span>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowAllocModal(false)}
+                                className="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="flex-1 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                            >
+                                Save Allocation
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )}
+        </>
     );
 };
