@@ -40,6 +40,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     
     // Rates Form State
     const [hourlyRate, setHourlyRate] = useState<number>(1000);
+    const [weekdayHourlyRate, setWeekdayHourlyRate] = useState<number>(1000);
+    const [weekendHourlyRate, setWeekendHourlyRate] = useState<number>(1500);
+    const [weekdayStartTime, setWeekdayStartTime] = useState<string>('16:00');
+    const [weekdayEndTime, setWeekdayEndTime] = useState<string>('18:00');
+    const [weekendStartTime, setWeekendStartTime] = useState<string>('08:00');
+    const [weekendEndTime, setWeekendEndTime] = useState<string>('12:00');
+    const [maxLessonsPerDay, setMaxLessonsPerDay] = useState<number>(1);
     const [feePerStudent, setFeePerStudent] = useState<number>(200);
     const [termFee, setTermFee] = useState<number>(3000);
 
@@ -72,8 +79,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
             if (rates && rates.length > 0) {
                 setRateSetting(rates[0]);
-                setHourlyRate(rates[0].hourlyRate);
-                setFeePerStudent(rates[0].feePerStudent);
+                setHourlyRate(rates[0].hourlyRate || 1000);
+                setWeekdayHourlyRate(rates[0].weekdayHourlyRate ?? rates[0].hourlyRate ?? 1000);
+                setWeekendHourlyRate(rates[0].weekendHourlyRate ?? 1500);
+                setWeekdayStartTime(rates[0].weekdayStartTime || '16:00');
+                setWeekdayEndTime(rates[0].weekdayEndTime || '18:00');
+                setWeekendStartTime(rates[0].weekendStartTime || '08:00');
+                setWeekendEndTime(rates[0].weekendEndTime || '12:00');
+                setMaxLessonsPerDay(rates[0].maxLessonsPerDay ?? 1);
+                setFeePerStudent(rates[0].feePerStudent || 200);
                 setTermFee(rates[0].termFee || 3000);
             }
         } catch (e) {
@@ -120,14 +134,21 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         try {
             const data: Partial<RemedialRateSetting> = {
                 id: rateSetting?.id || `rate_${Date.now()}`,
-                hourlyRate,
+                hourlyRate: weekdayHourlyRate,
+                weekdayHourlyRate,
+                weekendHourlyRate,
+                weekdayStartTime,
+                weekdayEndTime,
+                weekendStartTime,
+                weekendEndTime,
+                maxLessonsPerDay,
                 feePerStudent,
                 termFee,
                 institutionId
             };
             await apiService.saveRemedialRateSetting(data);
-            onLogAction?.(`Updated Remedial Rates: hourly pay KES ${hourlyRate}, fee per student KES ${feePerStudent}, term fee KES ${termFee}`);
-            alert('Remedial rates updated successfully!');
+            onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Max Lessons/Day ${maxLessonsPerDay}`);
+            alert('Remedial rates and rules updated successfully!');
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to update rates');
@@ -141,13 +162,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return alert('Please fill in all fields');
         }
 
+        // Daily Lesson Limit Check
+        const manualDateObj = new Date(manualDate);
+        const dayStr = manualDateObj.toDateString();
+        const existingTeacherSessionsOnDate = sessions.filter(s => {
+            return s.teacherId === manualTeacherId && new Date(s.startTime).toDateString() === dayStr;
+        });
+
+        if (existingTeacherSessionsOnDate.length >= maxLessonsPerDay) {
+            return alert(`Daily Quota Exceeded: Teacher has already reached the maximum limit of ${maxLessonsPerDay} remedial lesson(s) allowed per day on ${manualDate}.`);
+        }
+
         try {
             const teacher = users.find(u => u.id === manualTeacherId);
             const subject = subjects.find(s => s.id === manualSubjectId);
             const course = courses.find(c => c.id === manualCourseId);
             const prefect = users.find(u => u.id === manualPrefectId);
 
-            const startTime = new Date(`${manualDate}T16:00:00`).toISOString();
+            const isWeekend = [0, 6].includes(manualDateObj.getDay());
+            const defaultStart = isWeekend ? (weekendStartTime || '08:00') : (weekdayStartTime || '16:00');
+            const startTime = new Date(`${manualDate}T${defaultStart}:00`).toISOString();
             const endTime = new Date(new Date(startTime).getTime() + manualHours * 60 * 60 * 1000).toISOString();
 
             const newSession: RemedialSession = {
@@ -194,20 +228,29 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
-    // Calculate accrued unpaid earnings per teacher
+    // Calculate accrued unpaid earnings per teacher (distinguishing weekday vs weekend rates)
     const accruedPayouts = useMemo(() => {
         const unpaidApproved = sessions.filter(s => s.status === 'Approved');
-        const grouped: Record<string, { teacherName: string, totalHours: number, sessionIds: string[] }> = {};
+        const grouped: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[] }> = {};
 
         unpaidApproved.forEach(s => {
             if (!grouped[s.teacherId]) {
                 grouped[s.teacherId] = {
                     teacherName: s.teacherName || 'Unknown Teacher',
                     totalHours: 0,
+                    totalAmount: 0,
                     sessionIds: []
                 };
             }
-            grouped[s.teacherId].totalHours += s.hours || 0;
+            const sHours = s.hours || 1;
+            const dayOfWeek = new Date(s.startTime).getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const applicableRate = isWeekend
+                ? (weekendHourlyRate || 1500)
+                : (weekdayHourlyRate || hourlyRate || 1000);
+
+            grouped[s.teacherId].totalHours += sHours;
+            grouped[s.teacherId].totalAmount += sHours * applicableRate;
             grouped[s.teacherId].sessionIds.push(s.id);
         });
 
@@ -216,10 +259,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             teacherName: data.teacherName,
             totalHours: data.totalHours,
             sessionIds: data.sessionIds,
-            rate: hourlyRate,
-            totalAmount: data.totalHours * hourlyRate
+            rate: Math.round(data.totalAmount / (data.totalHours || 1)),
+            totalAmount: data.totalAmount
         }));
-    }, [sessions, hourlyRate]);
+    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate]);
 
     // Issue Payout Voucher
     const handleIssuePayout = async (accrued: any) => {
@@ -812,58 +855,155 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             {/* TAB: RATES & CONFIG */}
             {activeTab === 'rates' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Rates Form */}
+                    {/* Rates & Rules Form */}
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-xl space-y-6">
-                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-widest italic flex items-center gap-2">
-                            <Shield className="w-5 h-5 text-indigo-500" /> Remedial Financial Rates
-                        </h4>
+                        <div className="border-b border-slate-100 dark:border-slate-700 pb-4">
+                            <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-widest italic flex items-center gap-2">
+                                <Shield className="w-5 h-5 text-indigo-500" /> Remedial Rates, Timing & Rules
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-1">Configure teacher rates for weekdays vs weekends, session period windows, and daily lesson quotas.</p>
+                        </div>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Teacher Payout Rate (per hour)</label>
-                                <div className="relative group">
-                                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
-                                    <input 
-                                        type="number"
-                                        value={hourlyRate}
-                                        onChange={e => setHourlyRate(Number(e.target.value))}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-3.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
-                                    />
+                        <div className="space-y-5">
+                            {/* 1. Teacher Hourly Pay Rates (Weekdays vs Weekends) */}
+                            <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+                                <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                    <DollarSign className="w-3.5 h-3.5" /> Teacher Hourly Pay Tariffs
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekday Rate (Mon - Fri / hr)</label>
+                                        <div className="relative group">
+                                            <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
+                                            <input 
+                                                type="number"
+                                                value={weekdayHourlyRate}
+                                                onChange={e => setWeekdayHourlyRate(Number(e.target.value))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                                placeholder="1000"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekend Rate (Sat & Sun / hr)</label>
+                                        <div className="relative group">
+                                            <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
+                                            <input 
+                                                type="number"
+                                                value={weekendHourlyRate}
+                                                onChange={e => setWeekendHourlyRate(Number(e.target.value))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                                placeholder="1500"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Parent Remedial Fee (per session)</label>
-                                <div className="relative group">
-                                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
-                                    <input 
-                                        type="number"
-                                        value={feePerStudent}
-                                        onChange={e => setFeePerStudent(Number(e.target.value))}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-3.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
-                                    />
+                            {/* 2. Period Session Timing Windows */}
+                            <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+                                <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5" /> Session Period Timing Windows
+                                </p>
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekday Remedial Window (Start – End)</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input 
+                                                type="time"
+                                                value={weekdayStartTime}
+                                                onChange={e => setWeekdayStartTime(e.target.value)}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                            />
+                                            <input 
+                                                type="time"
+                                                value={weekdayEndTime}
+                                                onChange={e => setWeekdayEndTime(e.target.value)}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekend Remedial Window (Start – End)</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input 
+                                                type="time"
+                                                value={weekendStartTime}
+                                                onChange={e => setWeekendStartTime(e.target.value)}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                            />
+                                            <input 
+                                                type="time"
+                                                value={weekendEndTime}
+                                                onChange={e => setWeekendEndTime(e.target.value)}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Parent Remedial Term Fee (Flat fee billed at start of term)</label>
-                                <div className="relative group">
-                                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
-                                    <input 
-                                        type="number"
-                                        value={termFee}
-                                        onChange={e => setTermFee(Number(e.target.value))}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-3.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
-                                    />
+
+                            {/* 3. Daily Lessons Quotas & Limits */}
+                            <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+                                <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                    <Layers className="w-3.5 h-3.5" /> Daily Lesson Quota Limit
+                                </p>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Max Remedial Lessons Per Teacher Per Day</label>
+                                    <select 
+                                        value={maxLessonsPerDay}
+                                        onChange={e => setMaxLessonsPerDay(Number(e.target.value))}
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    >
+                                        <option value={1}>1 Lesson per Day (Default Limit)</option>
+                                        <option value={2}>2 Lessons per Day</option>
+                                        <option value={3}>3 Lessons per Day</option>
+                                        <option value={4}>4 Lessons per Day</option>
+                                        <option value={5}>Unlimited / No Restricting Cap</option>
+                                    </select>
+                                    <p className="text-[9px] text-slate-400 mt-1 font-medium">Prevents teachers or admins from exceeding the configured maximum remedial sessions per day.</p>
+                                </div>
+                            </div>
+
+                            {/* 4. Parent Fees */}
+                            <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+                                <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                    <CreditCard className="w-3.5 h-3.5" /> Student Parent Billing Fees
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Fee Per Student (per session)</label>
+                                        <div className="relative group">
+                                            <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
+                                            <input 
+                                                type="number"
+                                                value={feePerStudent}
+                                                onChange={e => setFeePerStudent(Number(e.target.value))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Flat Term Fee (Flat fee billed)</label>
+                                        <div className="relative group">
+                                            <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
+                                            <input 
+                                                type="number"
+                                                value={termFee}
+                                                onChange={e => setTermFee(Number(e.target.value))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         <button 
                             onClick={handleSaveRates}
-                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all flex items-center justify-center gap-2"
+                            className="w-full py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
                         >
-                            <CheckCircle2 className="w-4 h-4" /> Save Configuration Settings
+                            <CheckCircle2 className="w-4 h-4" /> Save Remedial Configuration &amp; Rates
                         </button>
                     </div>
 

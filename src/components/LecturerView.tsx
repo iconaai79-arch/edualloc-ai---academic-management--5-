@@ -726,7 +726,20 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 return alert('Please select subject, class stream, and prefect.');
                             }
 
+                            // Check daily max limit configuration
+                            const todayStr = new Date().toDateString();
+                            const existingTeacherSessionsToday = remedialSessions.filter(s =>
+                                s.teacherId === user.id && new Date(s.startTime).toDateString() === todayStr
+                            );
+
                             try {
+                                const ratesList = await apiService.fetchRemedialRateSettings(currentInstitution?.id || user.institutionId);
+                                const maxLimit = (ratesList && ratesList.length > 0 && ratesList[0].maxLessonsPerDay !== undefined) ? ratesList[0].maxLessonsPerDay : 1;
+
+                                if (existingTeacherSessionsToday.length >= maxLimit) {
+                                    return alert(`Daily Remedial Limit Reached: You have already conducted the maximum limit of ${maxLimit} remedial lesson(s) allowed per day.`);
+                                }
+
                                 const prefect = props.users?.find(u => u.id === selectedPrefectId);
                                 const course = courses?.find(c => c.id === selectedCourseId);
                                 const subject = subjects?.find(s => s.id === selectedSubjectId);

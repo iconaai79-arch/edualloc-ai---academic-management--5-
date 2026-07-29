@@ -5874,6 +5874,13 @@ export interface RemedialSession {
 export interface RemedialRateSetting {
     id: string;
     hourlyRate: number;
+    weekdayHourlyRate?: number;
+    weekendHourlyRate?: number;
+    weekdayStartTime?: string;
+    weekdayEndTime?: string;
+    weekendStartTime?: string;
+    weekendEndTime?: string;
+    maxLessonsPerDay?: number;
     feePerStudent: number;
     termFee: number;
     institutionId: string;
