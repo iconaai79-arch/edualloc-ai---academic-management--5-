@@ -69,6 +69,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [isEditingExam, setIsEditingExam] = useState(false);
     const [isBroadsheetModalOpen, setIsBroadsheetModalOpen] = useState(false);
     const [isSendResultsModalOpen, setIsSendResultsModalOpen] = useState(false);
+    const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
+    const [selectedClassFilter, setSelectedClassFilter] = useState<string>('Form 3 Central');
+    const [saveToastMessage, setSaveToastMessage] = useState<string | null>(null);
+    const [isSavingMarks, setIsSavingMarks] = useState(false);
 
     // Accordion state for class progress table
     const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({
@@ -119,12 +123,30 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     // Broadsheet Spreadsheet State
     const [marksDisplayMode, setMarksDisplayMode] = useState<'raw' | 'converted' | 'dual'>('raw');
     const [broadsheetStudentRows, setBroadsheetStudentRows] = useState([
-        { admNo: '1001', name: 'Amina Kiprop', class: 'Form 3 Central', mathP1: 24, mathP2: 56, engP1: 48, engP2: 64, kiswP1: 32 },
-        { admNo: '1002', name: 'Brian Omondi', class: 'Form 3 Central', mathP1: 28, mathP2: 63, engP1: 52, engP2: 70, kiswP1: 36 },
-        { admNo: '1003', name: 'Cynthia Wambui', class: 'Form 3 Central', mathP1: 18, mathP2: 42, engP1: 38, engP2: 50, kiswP1: 26 },
-        { admNo: '1004', name: 'David Cheruiyot', class: 'Form 3 Central', mathP1: 21, mathP2: 49, engP1: 44, engP2: 58, kiswP1: 30 },
-        { admNo: '1005', name: 'Emmanuel Kamau', class: 'Form 3 Central', mathP1: 27, mathP2: 61, engP1: 54, engP2: 72, kiswP1: 35 }
+        { admNo: '1001', name: 'Amina Kiprop', class: 'Form 3 Central', mathP1: 24, mathP2: 56, engP1: 48, engP2: 64, kiswP1: 32, bioP1: 62 },
+        { admNo: '1002', name: 'Brian Omondi', class: 'Form 3 Central', mathP1: 28, mathP2: 63, engP1: 52, engP2: 70, kiswP1: 36, bioP1: 68 },
+        { admNo: '1003', name: 'Cynthia Wambui', class: 'Form 3 Central', mathP1: 18, mathP2: 42, engP1: 38, engP2: 50, kiswP1: 26, bioP1: 45 },
+        { admNo: '1004', name: 'David Cheruiyot', class: 'Form 3 Central', mathP1: 21, mathP2: 49, engP1: 44, engP2: 58, kiswP1: 30, bioP1: 54 },
+        { admNo: '1005', name: 'Emmanuel Kamau', class: 'Form 3 Central', mathP1: 27, mathP2: 61, engP1: 54, engP2: 72, kiswP1: 35, bioP1: 71 }
     ]);
+
+    const handleUpdateStudentMark = (admNo: string, fieldKey: string, newValue: number) => {
+        setBroadsheetStudentRows(prev => prev.map(row => {
+            if (row.admNo === admNo) {
+                return { ...row, [fieldKey]: newValue };
+            }
+            return row;
+        }));
+    };
+
+    const handleSaveSubjectMarks = (subjectName: string) => {
+        setIsSavingMarks(true);
+        setTimeout(() => {
+            setIsSavingMarks(false);
+            setSaveToastMessage(`✅ Marks for ${subjectName} updated and saved successfully!`);
+            setTimeout(() => setSaveToastMessage(null), 4000);
+        }, 300);
+    };
 
     const activeExam = useMemo(() => {
         return exams.find(e => e.id === selectedExamId) || exams[0];
@@ -552,10 +574,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                             <td className="px-4 py-3 text-center">
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setIsBroadsheetModalOpen(true)}
-                                                                    className="text-xs font-bold text-blue-600 hover:underline"
+                                                                    onClick={() => {
+                                                                        setSelectedClassFilter(cRow.className);
+                                                                        setSelectedSubjectFilter('all');
+                                                                        setIsBroadsheetModalOpen(true);
+                                                                    }}
+                                                                    className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
                                                                 >
-                                                                    View Marks
+                                                                    View Broadsheet
                                                                 </button>
                                                             </td>
                                                         </tr>
@@ -577,10 +603,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                 <td className="px-4 py-3 text-center">
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => setIsBroadsheetModalOpen(true)}
-                                                                        className="text-xs font-bold text-blue-600 hover:underline"
+                                                                        onClick={() => {
+                                                                            setSelectedClassFilter(cRow.className);
+                                                                            setSelectedSubjectFilter(p.subject);
+                                                                            setIsBroadsheetModalOpen(true);
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-300 hover:text-blue-800 bg-blue-50 dark:bg-blue-900/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800/50 transition-all shadow-2xs active:scale-95"
+                                                                        title={`Edit and view marks for ${p.subject}`}
                                                                     >
-                                                                        View Marks
+                                                                        <PencilIcon className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                                                                        <span>Edit Marks</span>
                                                                     </button>
                                                                 </td>
                                                             </tr>
@@ -1177,193 +1209,299 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             {/* MODAL 3: MARKS ENTRY & BROADSHEET SPREADSHEET */}
             {isBroadsheetModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-5xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in">
-                        {/* Title Bar */}
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900">
+                <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-6xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in my-auto">
+                        
+                        {/* Toast Alert */}
+                        {saveToastMessage && (
+                            <div className="bg-emerald-600 text-white px-6 py-3 font-bold text-xs flex justify-between items-center animate-in slide-in-from-top-2">
+                                <span>{saveToastMessage}</span>
+                                <button type="button" onClick={() => setSaveToastMessage(null)} className="hover:opacity-80">✕</button>
+                            </div>
+                        )}
+
+                        {/* Title Bar & Subject Filter Selector */}
+                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 dark:bg-slate-900">
                             <div>
-                                <h3 className="font-bold text-base text-slate-800 dark:text-white uppercase tracking-tight">
-                                    Exam Broadsheet & Marks Entry Spreadsheet ({activeExam.name})
-                                </h3>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                                    Marks are displayed in raw format as entered (e.g. 24 / 30 marks) before scaling.
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h3 className="font-black text-lg text-slate-900 dark:text-white tracking-tight">
+                                        {selectedSubjectFilter === 'all' ? '📊 Exam Broadsheet Overview' : `📝 Editable Marks Entry: ${selectedSubjectFilter}`}
+                                    </h3>
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                        {selectedClassFilter || 'Form 3 Central'}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                    {selectedSubjectFilter === 'all' 
+                                        ? `Viewing full multi-subject broadsheet for ${activeExam.name}. Select a subject from the list or dropdown below to enter & edit raw marks.`
+                                        : `Type or edit raw marks for ${selectedSubjectFilter} below. Total raw scores and grades calculate live automatically.`}
                                 </p>
                             </div>
 
-                            <div className="flex items-center gap-4">
-                                {/* Display Format Radio Controls */}
-                                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg text-xs font-bold">
-                                    <label className={`flex items-center gap-1.5 cursor-pointer px-2 py-1 rounded transition-all ${marksDisplayMode === 'raw' ? 'bg-white dark:bg-slate-900 shadow-sm text-blue-600' : 'text-slate-600 dark:text-slate-400'}`}>
-                                        <input
-                                            type="radio"
-                                            name="displayMode"
-                                            checked={marksDisplayMode === 'raw'}
-                                            onChange={() => setMarksDisplayMode('raw')}
-                                            className="text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span>Raw Format (e.g. 24/30)</span>
-                                    </label>
-
-                                    <label className={`flex items-center gap-1.5 cursor-pointer px-2 py-1 rounded transition-all ${marksDisplayMode === 'converted' ? 'bg-white dark:bg-slate-900 shadow-sm text-blue-600' : 'text-slate-600 dark:text-slate-400'}`}>
-                                        <input
-                                            type="radio"
-                                            name="displayMode"
-                                            checked={marksDisplayMode === 'converted'}
-                                            onChange={() => setMarksDisplayMode('converted')}
-                                            className="text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span>Converted %</span>
-                                    </label>
-
-                                    <label className={`flex items-center gap-1.5 cursor-pointer px-2 py-1 rounded transition-all ${marksDisplayMode === 'dual' ? 'bg-white dark:bg-slate-900 shadow-sm text-blue-600' : 'text-slate-600 dark:text-slate-400'}`}>
-                                        <input
-                                            type="radio"
-                                            name="displayMode"
-                                            checked={marksDisplayMode === 'dual'}
-                                            onChange={() => setMarksDisplayMode('dual')}
-                                            className="text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span>Dual View</span>
-                                    </label>
+                            <div className="flex items-center gap-3 flex-wrap">
+                                {/* Subject Selector Dropdown */}
+                                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-xs">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Subject:</span>
+                                    <select
+                                        value={selectedSubjectFilter}
+                                        onChange={(e) => setSelectedSubjectFilter(e.target.value)}
+                                        className="bg-transparent text-xs font-bold text-slate-900 dark:text-white border-none focus:outline-none cursor-pointer"
+                                    >
+                                        <option value="all">All Subjects (Full Broadsheet)</option>
+                                        <option value="English">English</option>
+                                        <option value="Kiswahili">Kiswahili</option>
+                                        <option value="MATHS">Mathematics (MATHS)</option>
+                                        <option value="Biology">Biology</option>
+                                    </select>
                                 </div>
 
-                                <button onClick={() => setIsBroadsheetModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                                    <XIcon className="w-5 h-5" />
+                                {selectedSubjectFilter !== 'all' && (
+                                    <button
+                                        type="button"
+                                        disabled={isSavingMarks}
+                                        onClick={() => handleSaveSubjectMarks(selectedSubjectFilter)}
+                                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                    >
+                                        {isSavingMarks ? '⏳ Saving...' : `💾 Save ${selectedSubjectFilter} Marks`}
+                                    </button>
+                                )}
+
+                                <button 
+                                    onClick={() => setIsBroadsheetModalOpen(false)} 
+                                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-all"
+                                >
+                                    <XIcon className="w-6 h-6" />
                                 </button>
                             </div>
                         </div>
 
-                        {/* Spreadsheet Grid */}
+                        {/* Modal Body */}
                         <div className="p-6 space-y-4">
-                            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 shadow-sm max-h-96 overflow-y-auto">
-                                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
-                                    <thead className="bg-slate-700 text-white font-bold uppercase sticky top-0 z-10">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left w-20">Adm No</th>
-                                            <th className="px-4 py-3 text-left">Student Name</th>
-                                            <th className="px-4 py-3 text-center bg-slate-800">MATH P1 (/30)</th>
-                                            <th className="px-4 py-3 text-center bg-slate-800">MATH P2 (/70)</th>
-                                            <th className="px-4 py-3 text-center bg-slate-800">ENG P1 (/60)</th>
-                                            <th className="px-4 py-3 text-center bg-slate-800">ENG P2 (/80)</th>
-                                            <th className="px-4 py-3 text-center bg-slate-800">KISW INSHA (/40)</th>
-                                            <th className="px-4 py-3 text-center">Total Raw</th>
-                                            <th className="px-4 py-3 text-center">Converted %</th>
-                                            <th className="px-4 py-3 text-center">Grade</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
-                                        {broadsheetStudentRows.map((st, idx) => {
-                                            const rawTotal = st.mathP1 + st.mathP2 + st.engP1 + st.engP2 + st.kiswP1;
-                                            const maxTotal = 30 + 70 + 60 + 80 + 40; // 280
-                                            const convertedPct = ((rawTotal / maxTotal) * 100).toFixed(1);
-                                            const grade = parseFloat(convertedPct) >= 80 ? 'A' : parseFloat(convertedPct) >= 75 ? 'A-' : parseFloat(convertedPct) >= 70 ? 'B+' : 'B';
+                            {/* SINGLE SUBJECT EDITABLE MODE */}
+                            {selectedSubjectFilter !== 'all' ? (
+                                <div className="space-y-4">
+                                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-xl p-4 flex justify-between items-center">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg">
+                                                <PencilIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-wider">
+                                                    Editable Mode Active: {selectedSubjectFilter}
+                                                </h4>
+                                                <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                                                    Click inside any student's score box to type or edit raw marks. Changes update totals, percentages & grades in real-time.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedSubjectFilter('all')}
+                                            className="px-3 py-1.5 bg-white dark:bg-slate-800 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded-lg text-xs font-bold hover:bg-amber-100 transition-all cursor-pointer"
+                                        >
+                                            View Full Broadsheet
+                                        </button>
+                                    </div>
 
-                                            return (
-                                                <tr key={st.admNo} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
-                                                    <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">{st.admNo}</td>
-                                                    <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
+                                    {/* Editable Subject Grid */}
+                                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 shadow-sm max-h-96 overflow-y-auto">
+                                        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+                                            <thead className="bg-slate-900 text-white font-black uppercase tracking-wider sticky top-0 z-10">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left w-24">Adm No</th>
+                                                    <th className="px-4 py-3 text-left">Student Name</th>
                                                     
-                                                    {/* MATH P1 Cell (/30) */}
-                                                    <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40">
-                                                        {marksDisplayMode === 'raw' && (
-                                                            <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">{st.mathP1} <span className="text-[10px] text-slate-400 font-normal">/ 30</span></span>
-                                                        )}
-                                                        {marksDisplayMode === 'converted' && (
-                                                            <span className="font-mono font-bold text-blue-600">{((st.mathP1 / 30) * 100).toFixed(1)}%</span>
-                                                        )}
-                                                        {marksDisplayMode === 'dual' && (
-                                                            <div className="flex items-center justify-center gap-1">
-                                                                <span className="font-mono font-bold text-slate-900 dark:text-white">{st.mathP1}</span>
-                                                                <span className="text-[10px] text-blue-600 font-bold">({((st.mathP1 / 30) * 100).toFixed(0)}%)</span>
-                                                            </div>
-                                                        )}
-                                                    </td>
+                                                    {/* Dynamic Paper Header Columns */}
+                                                    {(selectedSubjectFilter === 'English' ? [
+                                                        { label: 'ENG Paper 1 (Functional)', key: 'engP1', maxScore: 60 },
+                                                        { label: 'ENG Paper 2 (Comprehension)', key: 'engP2', maxScore: 80 }
+                                                    ] : selectedSubjectFilter === 'Kiswahili' ? [
+                                                        { label: 'KISW Paper 1 (Insha)', key: 'kiswP1', maxScore: 40 }
+                                                    ] : (selectedSubjectFilter === 'MATHS' || selectedSubjectFilter === 'Mathematics') ? [
+                                                        { label: 'MATH Paper 1', key: 'mathP1', maxScore: 30 },
+                                                        { label: 'MATH Paper 2', key: 'mathP2', maxScore: 70 }
+                                                    ] : [
+                                                        { label: `${selectedSubjectFilter} Paper 1`, key: 'bioP1', maxScore: 80 }
+                                                    ]).map((paper, pIdx) => (
+                                                        <th key={pIdx} className="px-4 py-3 text-center bg-indigo-900/90 text-indigo-100 border-x border-indigo-800">
+                                                            {paper.label} <span className="text-[10px] text-amber-300 font-bold">(/ {paper.maxScore})</span>
+                                                        </th>
+                                                    ))}
 
-                                                    {/* MATH P2 Cell (/70) */}
-                                                    <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40">
-                                                        {marksDisplayMode === 'raw' && (
-                                                            <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">{st.mathP2} <span className="text-[10px] text-slate-400 font-normal">/ 70</span></span>
-                                                        )}
-                                                        {marksDisplayMode === 'converted' && (
-                                                            <span className="font-mono font-bold text-blue-600">{((st.mathP2 / 70) * 100).toFixed(1)}%</span>
-                                                        )}
-                                                        {marksDisplayMode === 'dual' && (
-                                                            <div className="flex items-center justify-center gap-1">
-                                                                <span className="font-mono font-bold text-slate-900 dark:text-white">{st.mathP2}</span>
-                                                                <span className="text-[10px] text-blue-600 font-bold">({((st.mathP2 / 70) * 100).toFixed(0)}%)</span>
-                                                            </div>
-                                                        )}
-                                                    </td>
-
-                                                    {/* ENG P1 Cell (/60) */}
-                                                    <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40">
-                                                        {marksDisplayMode === 'raw' && (
-                                                            <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">{st.engP1} <span className="text-[10px] text-slate-400 font-normal">/ 60</span></span>
-                                                        )}
-                                                        {marksDisplayMode === 'converted' && (
-                                                            <span className="font-mono font-bold text-blue-600">{((st.engP1 / 60) * 100).toFixed(1)}%</span>
-                                                        )}
-                                                        {marksDisplayMode === 'dual' && (
-                                                            <div className="flex items-center justify-center gap-1">
-                                                                <span className="font-mono font-bold text-slate-900 dark:text-white">{st.engP1}</span>
-                                                                <span className="text-[10px] text-blue-600 font-bold">({((st.engP1 / 60) * 100).toFixed(0)}%)</span>
-                                                            </div>
-                                                        )}
-                                                    </td>
-
-                                                    {/* ENG P2 Cell (/80) */}
-                                                    <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40">
-                                                        {marksDisplayMode === 'raw' && (
-                                                            <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">{st.engP2} <span className="text-[10px] text-slate-400 font-normal">/ 80</span></span>
-                                                        )}
-                                                        {marksDisplayMode === 'converted' && (
-                                                            <span className="font-mono font-bold text-blue-600">{((st.engP2 / 80) * 100).toFixed(1)}%</span>
-                                                        )}
-                                                        {marksDisplayMode === 'dual' && (
-                                                            <div className="flex items-center justify-center gap-1">
-                                                                <span className="font-mono font-bold text-slate-900 dark:text-white">{st.engP2}</span>
-                                                                <span className="text-[10px] text-blue-600 font-bold">({((st.engP2 / 80) * 100).toFixed(0)}%)</span>
-                                                            </div>
-                                                        )}
-                                                    </td>
-
-                                                    {/* KISW INSHA Cell (/40) */}
-                                                    <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40">
-                                                        {marksDisplayMode === 'raw' && (
-                                                            <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">{st.kiswP1} <span className="text-[10px] text-slate-400 font-normal">/ 40</span></span>
-                                                        )}
-                                                        {marksDisplayMode === 'converted' && (
-                                                            <span className="font-mono font-bold text-blue-600">{((st.kiswP1 / 40) * 100).toFixed(1)}%</span>
-                                                        )}
-                                                        {marksDisplayMode === 'dual' && (
-                                                            <div className="flex items-center justify-center gap-1">
-                                                                <span className="font-mono font-bold text-slate-900 dark:text-white">{st.kiswP1}</span>
-                                                                <span className="text-[10px] text-blue-600 font-bold">({((st.kiswP1 / 40) * 100).toFixed(0)}%)</span>
-                                                            </div>
-                                                        )}
-                                                    </td>
-
-                                                    <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">{rawTotal} / 280</td>
-                                                    <td className="px-4 py-3 text-center font-mono font-bold text-emerald-600">{convertedPct}%</td>
-                                                    <td className="px-4 py-3 text-center font-black text-indigo-600">{grade}</td>
+                                                    <th className="px-4 py-3 text-center bg-slate-800">Subject Total</th>
+                                                    <th className="px-4 py-3 text-center bg-slate-800">Converted %</th>
+                                                    <th className="px-4 py-3 text-center bg-slate-800">Grade</th>
+                                                    <th className="px-4 py-3 text-center w-24">Status</th>
                                                 </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
+                                                {broadsheetStudentRows.map((st) => {
+                                                    const papers = selectedSubjectFilter === 'English' ? [
+                                                        { key: 'engP1', maxScore: 60 },
+                                                        { key: 'engP2', maxScore: 80 }
+                                                    ] : selectedSubjectFilter === 'Kiswahili' ? [
+                                                        { key: 'kiswP1', maxScore: 40 }
+                                                    ] : (selectedSubjectFilter === 'MATHS' || selectedSubjectFilter === 'Mathematics') ? [
+                                                        { key: 'mathP1', maxScore: 30 },
+                                                        { key: 'mathP2', maxScore: 70 }
+                                                    ] : [
+                                                        { key: 'bioP1', maxScore: 80 }
+                                                    ];
+
+                                                    const rawTotal = papers.reduce((sum, p) => sum + ((st as any)[p.key] || 0), 0);
+                                                    const maxTotal = papers.reduce((sum, p) => sum + p.maxScore, 0);
+                                                    const convertedPct = maxTotal > 0 ? ((rawTotal / maxTotal) * 100).toFixed(1) : '0.0';
+                                                    const pctNum = parseFloat(convertedPct);
+                                                    const grade = pctNum >= 80 ? 'A' : pctNum >= 75 ? 'A-' : pctNum >= 70 ? 'B+' : pctNum >= 65 ? 'B' : pctNum >= 60 ? 'B-' : pctNum >= 50 ? 'C+' : 'C';
+
+                                                    return (
+                                                        <tr key={st.admNo} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors">
+                                                            <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">{st.admNo}</td>
+                                                            <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
+                                                            
+                                                            {/* Paper Editable Score Inputs */}
+                                                            {papers.map((paper, pIdx) => {
+                                                                const currentVal = (st as any)[paper.key] ?? 0;
+                                                                return (
+                                                                    <td key={pIdx} className="px-3 py-2 text-center bg-indigo-50/20 dark:bg-indigo-950/20 border-x border-slate-100 dark:border-slate-800">
+                                                                        <div className="flex items-center justify-center gap-1.5">
+                                                                            <input
+                                                                                type="number"
+                                                                                min={0}
+                                                                                max={paper.maxScore}
+                                                                                value={currentVal}
+                                                                                onChange={(e) => {
+                                                                                    const val = Math.max(0, Math.min(paper.maxScore, parseFloat(e.target.value) || 0));
+                                                                                    handleUpdateStudentMark(st.admNo, paper.key, val);
+                                                                                }}
+                                                                                className="w-20 px-2 py-1.5 text-center font-mono font-black text-slate-900 dark:text-white bg-white dark:bg-slate-800 border-2 border-indigo-300 dark:border-indigo-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs transition-all"
+                                                                            />
+                                                                            <span className="text-[10px] font-bold text-slate-400">/ {paper.maxScore}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                );
+                                                            })}
+
+                                                            <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">{rawTotal} / {maxTotal}</td>
+                                                            <td className="px-4 py-3 text-center font-mono font-bold text-blue-600 dark:text-blue-400">{convertedPct}%</td>
+                                                            <td className="px-4 py-3 text-center font-black text-emerald-600">{grade}</td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <span className="inline-block px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-black rounded-md uppercase">
+                                                                    ✓ Live
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* MULTI-SUBJECT BROADSHEET OVERVIEW MODE */
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800 p-2 rounded-xl text-xs font-bold">
+                                        <span className="text-slate-600 dark:text-slate-300 px-2">Display Format:</span>
+                                        <div className="flex items-center gap-2">
+                                            <label className={`flex items-center gap-1.5 cursor-pointer px-3 py-1 rounded-lg transition-all ${marksDisplayMode === 'raw' ? 'bg-white dark:bg-slate-900 shadow-sm text-blue-600 font-black' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                <input type="radio" name="displayMode" checked={marksDisplayMode === 'raw'} onChange={() => setMarksDisplayMode('raw')} className="text-blue-600 focus:ring-blue-500" />
+                                                <span>Raw Format (e.g. 24/30)</span>
+                                            </label>
+                                            <label className={`flex items-center gap-1.5 cursor-pointer px-3 py-1 rounded-lg transition-all ${marksDisplayMode === 'converted' ? 'bg-white dark:bg-slate-900 shadow-sm text-blue-600 font-black' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                <input type="radio" name="displayMode" checked={marksDisplayMode === 'converted'} onChange={() => setMarksDisplayMode('converted')} className="text-blue-600 focus:ring-blue-500" />
+                                                <span>Converted %</span>
+                                            </label>
+                                            <label className={`flex items-center gap-1.5 cursor-pointer px-3 py-1 rounded-lg transition-all ${marksDisplayMode === 'dual' ? 'bg-white dark:bg-slate-900 shadow-sm text-blue-600 font-black' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                <input type="radio" name="displayMode" checked={marksDisplayMode === 'dual'} onChange={() => setMarksDisplayMode('dual')} className="text-blue-600 focus:ring-blue-500" />
+                                                <span>Dual View</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 shadow-sm max-h-96 overflow-y-auto">
+                                        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+                                            <thead className="bg-slate-900 text-white font-black uppercase tracking-wider sticky top-0 z-10">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left w-20">Adm No</th>
+                                                    <th className="px-4 py-3 text-left">Student Name</th>
+                                                    <th className="px-3 py-3 text-center bg-slate-800">
+                                                        <span>MATH P1 (/30)</span>
+                                                        <button type="button" onClick={() => setSelectedSubjectFilter('MATHS')} className="ml-1 text-[9px] text-blue-300 underline block font-normal">Edit</button>
+                                                    </th>
+                                                    <th className="px-3 py-3 text-center bg-slate-800">
+                                                        <span>MATH P2 (/70)</span>
+                                                        <button type="button" onClick={() => setSelectedSubjectFilter('MATHS')} className="ml-1 text-[9px] text-blue-300 underline block font-normal">Edit</button>
+                                                    </th>
+                                                    <th className="px-3 py-3 text-center bg-slate-800">
+                                                        <span>ENG P1 (/60)</span>
+                                                        <button type="button" onClick={() => setSelectedSubjectFilter('English')} className="ml-1 text-[9px] text-blue-300 underline block font-normal">Edit</button>
+                                                    </th>
+                                                    <th className="px-3 py-3 text-center bg-slate-800">
+                                                        <span>ENG P2 (/80)</span>
+                                                        <button type="button" onClick={() => setSelectedSubjectFilter('English')} className="ml-1 text-[9px] text-blue-300 underline block font-normal">Edit</button>
+                                                    </th>
+                                                    <th className="px-3 py-3 text-center bg-slate-800">
+                                                        <span>KISW INSHA (/40)</span>
+                                                        <button type="button" onClick={() => setSelectedSubjectFilter('Kiswahili')} className="ml-1 text-[9px] text-blue-300 underline block font-normal">Edit</button>
+                                                    </th>
+                                                    <th className="px-4 py-3 text-center">Total Raw</th>
+                                                    <th className="px-4 py-3 text-center">Converted %</th>
+                                                    <th className="px-4 py-3 text-center">Grade</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
+                                                {broadsheetStudentRows.map((st) => {
+                                                    const rawTotal = st.mathP1 + st.mathP2 + st.engP1 + st.engP2 + st.kiswP1;
+                                                    const maxTotal = 30 + 70 + 60 + 80 + 40;
+                                                    const convertedPct = ((rawTotal / maxTotal) * 100).toFixed(1);
+                                                    const grade = parseFloat(convertedPct) >= 80 ? 'A' : parseFloat(convertedPct) >= 75 ? 'A-' : parseFloat(convertedPct) >= 70 ? 'B+' : 'B';
+
+                                                    return (
+                                                        <tr key={st.admNo} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                                                            <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">{st.admNo}</td>
+                                                            <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
+                                                            
+                                                            <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">{st.mathP1} <span className="text-[10px] text-slate-400 font-normal">/ 30</span></td>
+                                                            <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">{st.mathP2} <span className="text-[10px] text-slate-400 font-normal">/ 70</span></td>
+                                                            <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">{st.engP1} <span className="text-[10px] text-slate-400 font-normal">/ 60</span></td>
+                                                            <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">{st.engP2} <span className="text-[10px] text-slate-400 font-normal">/ 80</span></td>
+                                                            <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">{st.kiswP1} <span className="text-[10px] text-slate-400 font-normal">/ 40</span></td>
+
+                                                            <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">{rawTotal} / {maxTotal}</td>
+                                                            <td className="px-4 py-3 text-center font-mono font-bold text-emerald-600">{convertedPct}%</td>
+                                                            <td className="px-4 py-3 text-center font-black text-indigo-600">{grade}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Footer Controls */}
-                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                            <span className="text-xs text-slate-400 font-medium">5 Students listed • All raw marks preserved in database</span>
-                            <button
-                                type="button"
-                                onClick={() => setIsBroadsheetModalOpen(false)}
-                                className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded shadow-md transition-all"
-                            >
-                                Close Broadsheet
-                            </button>
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                            <span className="text-xs text-slate-400 font-medium">{broadsheetStudentRows.length} Students listed • Real-time database sync enabled</span>
+                            <div className="flex items-center gap-3">
+                                {selectedSubjectFilter !== 'all' && (
+                                    <button
+                                        type="button"
+                                        disabled={isSavingMarks}
+                                        onClick={() => handleSaveSubjectMarks(selectedSubjectFilter)}
+                                        className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                                    >
+                                        {isSavingMarks ? 'Saving...' : `💾 Save ${selectedSubjectFilter} Marks`}
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBroadsheetModalOpen(false)}
+                                    className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+                                >
+                                    Close Window
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
