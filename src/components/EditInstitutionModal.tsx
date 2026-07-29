@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import type { Institution, SubscriptionConfig, County } from '../types';
+import type { Institution, SubscriptionConfig, County, InstitutionModuleState } from '../types';
+import { apiService } from '../services/apiService';
 
 interface EditInstitutionModalProps {
   institution: Institution;
@@ -7,9 +8,36 @@ interface EditInstitutionModalProps {
   onSave: (institutionId: string, data: Partial<Omit<Institution, 'id'>>) => void;
   defaultPrices: SubscriptionConfig;
   counties: County[];
+  initialTab?: 'identity' | 'financials' | 'modules';
+  onRefreshData?: () => Promise<void> | void;
 }
 
-export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution, onClose, onSave, defaultPrices, counties }) => {
+const PLATFORM_MODULES = [
+  { id: 'academics', name: 'Academics & Exam Grading', category: 'Core Education', desc: 'Report cards, grading systems & marksheets' },
+  { id: 'finance', name: 'Finance, Fees & Ledger', category: 'Financial', desc: 'Fee billing, M-Pesa receipts & accounting' },
+  { id: 'hr_payroll', name: 'HR & Tax Payroll', category: 'HR & Admin', desc: 'Staff directory, PAYE/NHIF/NSSF payroll' },
+  { id: 'library', name: 'Library Management', category: 'Core Education', desc: 'Book issuing, cataloging & fines' },
+  { id: 'school_store', name: 'Inventory & Store', category: 'Operations', desc: 'Stationery, uniforms & supplier stock' },
+  { id: 'timetable', name: 'Smart Timetable', category: 'Core Education', desc: 'Auto class & exam timetable generator' },
+  { id: 'his', name: 'EduPulse Wellness (HIS)', category: 'Health', desc: 'School clinic triage, visits & health logs' },
+  { id: 'transport', name: 'Transport & Fleet', category: 'Operations', desc: 'Bus routes, student transit & fuel logs' },
+  { id: 'boarding', name: 'Hostel & Boarding', category: 'Operations', desc: 'Bed allocations & leave-out passes' },
+  { id: 'enrollment_manager', name: 'Student Enrollment', category: 'Core Education', desc: 'Admissions & biometric student registry' },
+  { id: 'events', name: 'Event & Marathon', category: 'Community', desc: 'Ticketing, race splits & event management' },
+  { id: 'ng_cdf', name: 'NG-CDF Bursaries', category: 'Financial', desc: 'Constituency student grants & bursary kit' },
+  { id: 'fiscal_guard', name: 'FiscalGuard AI Auditor', category: 'Financial', desc: 'Audit log monitoring & fraud detection' },
+  { id: 'driving_school', name: 'Driving School Portal', category: 'Specialized', desc: 'NTSA curriculum & instructor logs' },
+  { id: 'beauty_college', name: 'Beauty & Salon Studio', category: 'Specialized', desc: 'Salon appointments & client practicals' },
+  { id: 'law_firm', name: 'Legal & Law Firm', category: 'Specialized', desc: 'Client case matters & trust ledgers' },
+  { id: 'cooperative', name: 'Cooperative & Agrovet', category: 'Specialized', desc: 'Farmer milk sales, agrovet & payouts' },
+  { id: 'property', name: 'Property Management', category: 'Specialized', desc: 'Tenant leases & rent billing' },
+  { id: 'restaurant_pos', name: 'Restaurant POS', category: 'Specialized', desc: 'Table ordering & kitchen display' },
+  { id: 'church', name: 'Church & Ministry', category: 'Specialized', desc: 'Tithes, cell groups & attendance' },
+  { id: 'car_showroom', name: 'Car Showroom & Sales', category: 'Specialized', desc: 'Car inventory & test drive bookings' },
+  { id: 'fuel_station', name: 'Fuel Station IoT', category: 'Specialized', desc: 'Pump readings & tank dip logs' }
+];
+
+export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution, onClose, onSave, defaultPrices, counties, initialTab = 'identity', onRefreshData }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -28,6 +56,12 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     billingModel: 'fixed',
     ratePerStudent: '0',
   });
+
+  const [activeTab, setActiveTab] = useState<'identity' | 'financials' | 'modules'>(initialTab);
+  const [moduleStates, setModuleStates] = useState<InstitutionModuleState[]>(institution.moduleStates || []);
+  const [isExtendingModule, setIsExtendingModule] = useState(false);
+  const [customDaysMap, setCustomDaysMap] = useState<Record<string, number>>({});
+  const [moduleStatusMap, setModuleStatusMap] = useState<Record<string, 'active' | 'trial'>>({});
 
   useEffect(() => {
     if (institution) {
@@ -49,8 +83,32 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         billingModel: institution.billingModel || (institution as any).billing_model || 'fixed',
         ratePerStudent: (institution.ratePerStudent ?? (institution as any).rate_per_student ?? 0).toString(),
       });
+      fetchLatestModuleStates();
     }
   }, [institution]);
+
+  const fetchLatestModuleStates = async () => {
+    try {
+      const records = await apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', institution.id);
+      if (records) setModuleStates(records);
+    } catch (e) {
+      console.error("Failed to load module states:", e);
+    }
+  };
+
+  const handleExtendModuleSubscription = async (moduleId: string, days: number, targetStatus: 'active' | 'trial' = 'active') => {
+    try {
+      setIsExtendingModule(true);
+      await apiService.extendModuleSubscription(institution.id, moduleId, days, targetStatus);
+      await fetchLatestModuleStates();
+      if (onRefreshData) await onRefreshData();
+      alert(`Subscription extended successfully by ${days} days for ${moduleId === 'all' ? 'ALL modules' : moduleId}!`);
+    } catch (e: any) {
+      alert("Failed to extend module subscription: " + (e.message || e));
+    } finally {
+      setIsExtendingModule(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -96,19 +154,17 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     onSave(institution.id, saveData);
   };
 
-  const [activeTab, setActiveTab] = useState<'identity' | 'financials'>('identity');
-
   if (!institution) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
-        <div className="p-8 pb-4 flex justify-between items-center bg-white dark:bg-slate-900">
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800 max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="p-8 pb-4 flex justify-between items-center bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
-              Institution Registry
+              Institution Registry & Licensing
             </h3>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Editing: {institution.name}</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Tenant: {institution.name} ({institution.institutionCode || institution.id})</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-400">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -116,22 +172,22 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         </div>
 
         {/* Tabs Navigation */}
-        <div className="px-8 border-b border-slate-100 dark:border-slate-800 flex gap-8">
-          {(['identity', 'financials'] as const).map((tab) => (
+        <div className="px-8 border-b border-slate-100 dark:border-slate-800 flex gap-8 bg-slate-50/50 dark:bg-slate-900/50">
+          {(['identity', 'financials', 'modules'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
-              className={`pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`pb-4 pt-4 text-[11px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              {tab === 'identity' ? 'Identity Context' : 'Financial Strategy'}
+              {tab === 'identity' ? 'Identity Context' : tab === 'financials' ? 'Financial Strategy' : 'Module Subscriptions & Extensions'}
               {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-t-full shadow-[0_-2px_8px_rgba(79,70,229,0.4)]" />}
             </button>
           ))}
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="p-8 space-y-6 overflow-y-auto">
+          <div className="p-8 space-y-6 overflow-y-auto max-h-[60vh]">
             {activeTab === 'identity' && (
               <div className="space-y-6 animate-fade-in-up">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -444,6 +500,135 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         <p className="text-[10px] font-mono font-bold text-indigo-600 truncate">{institution.institutionCode || 'N/A'}</p>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'modules' && (
+              <div className="space-y-6 animate-fade-in-up">
+                {/* Global Bulk Extension Bar */}
+                <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white p-6 rounded-[2rem] shadow-xl border border-indigo-700/50">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300 bg-indigo-800/60 px-3 py-1 rounded-full border border-indigo-600/50">Super Admin Global Control</span>
+                      <h4 className="text-lg font-black uppercase tracking-tight mt-1 text-white">⚡ Extend All Platform Modules</h4>
+                      <p className="text-xs text-indigo-200 mt-0.5">Bulk extend active subscription end dates across every module for this institution.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={isExtendingModule}
+                        onClick={() => handleExtendModuleSubscription('all', 30, 'active')}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 disabled:opacity-50"
+                      >
+                        +30 Days (All)
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isExtendingModule}
+                        onClick={() => handleExtendModuleSubscription('all', 90, 'active')}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 disabled:opacity-50"
+                      >
+                        +90 Days (All)
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isExtendingModule}
+                        onClick={() => handleExtendModuleSubscription('all', 365, 'active')}
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 disabled:opacity-50"
+                      >
+                        +1 Year (All)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Per Module List */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center px-1">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Individual Module Subscriptions ({PLATFORM_MODULES.length} Modules)</h4>
+                    <span className="text-[10px] text-slate-400">Select custom days or quick presets to grant module access</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    {PLATFORM_MODULES.map((mod) => {
+                      const state = moduleStates.find(m => m.moduleId === mod.id);
+                      const isTrial = state?.status === 'trial';
+                      const isActive = state?.status === 'active';
+                      const isExpired = state?.status === 'expired' || (state?.status === 'trial' && state.trialEndsAt && new Date(state.trialEndsAt) < new Date());
+                      const endDate = state?.subscriptionEndsAt || state?.trialEndsAt;
+                      const customDays = customDaysMap[mod.id] || 30;
+                      const targetStatus = moduleStatusMap[mod.id] || 'active';
+
+                      return (
+                        <div key={mod.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:border-indigo-300 dark:hover:border-indigo-700">
+                          <div className="space-y-1 max-w-md">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-black text-slate-900 dark:text-white">{mod.name}</span>
+                              <span className="text-[9px] font-mono uppercase bg-slate-100 dark:bg-slate-700 text-slate-500 px-2 py-0.5 rounded font-bold">{mod.category}</span>
+                              {isActive && <span className="text-[9px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-md">✓ Active Pro</span>}
+                              {isTrial && !isExpired && <span className="text-[9px] font-black uppercase bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 px-2 py-0.5 rounded-md">Trial</span>}
+                              {isExpired && <span className="text-[9px] font-black uppercase bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 px-2 py-0.5 rounded-md">Expired</span>}
+                              {(!state || state.status === 'inactive') && <span className="text-[9px] font-black uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">Inactive</span>}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{mod.desc}</p>
+                            {endDate && (
+                              <p className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                                Current Expiry: {new Date(endDate).toLocaleDateString()} ({new Date(endDate) > new Date() ? `${Math.ceil((new Date(endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days left` : 'Expired'})
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center flex-wrap gap-2 w-full md:w-auto justify-end border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-700">
+                            {/* License Mode */}
+                            <select
+                              value={targetStatus}
+                              onChange={(e) => setModuleStatusMap(prev => ({ ...prev, [mod.id]: e.target.value as any }))}
+                              className="text-[11px] font-bold py-1.5 px-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200"
+                            >
+                              <option value="active">Pro Active License</option>
+                              <option value="trial">Trial Period</option>
+                            </select>
+
+                            {/* Preset Buttons */}
+                            <div className="flex gap-1">
+                              {[14, 30, 90, 365].map((d) => (
+                                <button
+                                  key={d}
+                                  type="button"
+                                  disabled={isExtendingModule}
+                                  onClick={() => handleExtendModuleSubscription(mod.id, d, targetStatus)}
+                                  className="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800 disabled:opacity-50"
+                                >
+                                  +{d === 365 ? '1Yr' : `${d}d`}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Custom Days Input */}
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={1}
+                                value={customDays}
+                                onChange={(e) => setCustomDaysMap(prev => ({ ...prev, [mod.id]: Math.max(1, parseInt(e.target.value) || 1) }))}
+                                className="w-14 py-1 px-1.5 text-center text-xs font-mono font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
+                                placeholder="30"
+                              />
+                              <button
+                                type="button"
+                                disabled={isExtendingModule}
+                                onClick={() => handleExtendModuleSubscription(mod.id, customDays, targetStatus)}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-xs disabled:opacity-50"
+                              >
+                                Grant
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

@@ -1816,6 +1816,71 @@ export const apiService = {
 
         await apiService.saveModuleRecord('institution_module_states', moduleState);
     },
+    async extendModuleSubscription(
+        institutionId: string,
+        moduleId: string,
+        daysToAdd: number = 30,
+        targetStatus: 'active' | 'trial' | 'expired' | 'suspended' = 'active'
+    ): Promise<void> {
+        const now = new Date();
+        const allModuleIds = ['academics', 'finance', 'hr_payroll', 'library', 'school_store', 'timetable', 'his', 'transport', 'boarding', 'enrollment_manager', 'events', 'ng_cdf', 'fiscal_guard', 'driving_school', 'beauty_college', 'law_firm', 'cooperative', 'property', 'restaurant_pos', 'church', 'car_showroom', 'fuel_station'];
+        const moduleIdsToUpdate = moduleId === 'all' ? allModuleIds : [moduleId];
+
+        if (moduleId === 'all' || moduleId === 'finance' || moduleId === 'academics') {
+            const instList = await apiService.fetchModuleRecords<Institution>('institutions', institutionId);
+            if (instList && instList.length > 0) {
+                const inst = instList[0];
+                let currentEnd = now;
+                if (inst.subscriptionEndsAt) {
+                    const parsed = new Date(inst.subscriptionEndsAt);
+                    if (!isNaN(parsed.getTime()) && parsed > now) {
+                        currentEnd = parsed;
+                    }
+                }
+                const newInstEndsAt = new Date(currentEnd.getTime() + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
+                await apiService.saveModuleRecord('institutions', {
+                    id: inst.id,
+                    status: targetStatus === 'trial' ? 'trial' : 'active',
+                    subscriptionEndsAt: newInstEndsAt,
+                    isSuspendedForBilling: false,
+                    updatedAt: now.toISOString()
+                });
+            }
+        }
+
+        for (const mId of moduleIdsToUpdate) {
+            const existing = await apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', institutionId, undefined, {
+                filter: { module_id: mId }
+            });
+
+            let currentEndDate = now;
+            if (existing.length > 0) {
+                const record = existing[0];
+                const existingEndStr = record.subscriptionEndsAt || record.trialEndsAt;
+                if (existingEndStr) {
+                    const parsed = new Date(existingEndStr);
+                    if (!isNaN(parsed.getTime()) && parsed > now) {
+                        currentEndDate = parsed;
+                    }
+                }
+            }
+
+            const newEndsAt = new Date(currentEndDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
+
+            const moduleState: Partial<InstitutionModuleState> = {
+                id: existing.length > 0 ? existing[0].id : `${institutionId}_${mId}_${Date.now()}`,
+                institutionId,
+                moduleId: mId,
+                status: targetStatus,
+                subscriptionEndsAt: targetStatus === 'active' ? newEndsAt : undefined,
+                trialEndsAt: targetStatus === 'trial' ? newEndsAt : undefined,
+                activatedAt: existing.length > 0 && existing[0].activatedAt ? existing[0].activatedAt : now.toISOString(),
+                updatedAt: now.toISOString()
+            } as any;
+
+            await apiService.saveModuleRecord('institution_module_states', moduleState);
+        }
+    },
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return apiService.fetchModuleRecords('institutions', institutionId); },
 
     async saveInstitution(inst: Institution): Promise<void> { 

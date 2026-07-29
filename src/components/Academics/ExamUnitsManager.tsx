@@ -1335,7 +1335,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
-                                                {broadsheetStudentRows.map((st) => {
+                                                {broadsheetStudentRows.map((st, stIndex) => {
                                                     const papers = selectedSubjectFilter === 'English' ? [
                                                         { key: 'engP1', maxScore: 60 },
                                                         { key: 'engP2', maxScore: 80 }
@@ -1362,14 +1362,55 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                             {/* Paper Editable Score Inputs */}
                                                             {papers.map((paper, pIdx) => {
                                                                 const currentVal = (st as any)[paper.key] ?? 0;
+                                                                const inputId = `mark-input-${stIndex}-${pIdx}`;
                                                                 return (
                                                                     <td key={pIdx} className="px-3 py-2 text-center bg-indigo-50/20 dark:bg-indigo-950/20 border-x border-slate-100 dark:border-slate-800">
                                                                         <div className="flex items-center justify-center gap-1.5">
                                                                             <input
+                                                                                id={inputId}
                                                                                 type="number"
                                                                                 min={0}
                                                                                 max={paper.maxScore}
                                                                                 value={currentVal}
+                                                                                onFocus={(e) => e.target.select()}
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                                                                                        e.preventDefault();
+                                                                                        const nextTarget = document.getElementById(`mark-input-${stIndex + 1}-${pIdx}`);
+                                                                                        if (nextTarget) {
+                                                                                            (nextTarget as HTMLInputElement).focus();
+                                                                                            (nextTarget as HTMLInputElement).select?.();
+                                                                                        }
+                                                                                    } else if (e.key === 'ArrowUp' || (e.shiftKey && e.key === 'Enter')) {
+                                                                                        e.preventDefault();
+                                                                                        const prevTarget = document.getElementById(`mark-input-${stIndex - 1}-${pIdx}`);
+                                                                                        if (prevTarget) {
+                                                                                            (prevTarget as HTMLInputElement).focus();
+                                                                                            (prevTarget as HTMLInputElement).select?.();
+                                                                                        }
+                                                                                    } else if (e.key === 'ArrowRight') {
+                                                                                        const nextCol = document.getElementById(`mark-input-${stIndex}-${pIdx + 1}`);
+                                                                                        if (nextCol) {
+                                                                                            e.preventDefault();
+                                                                                            (nextCol as HTMLInputElement).focus();
+                                                                                            (nextCol as HTMLInputElement).select?.();
+                                                                                        } else {
+                                                                                            const nextRowFirstCol = document.getElementById(`mark-input-${stIndex + 1}-0`);
+                                                                                            if (nextRowFirstCol) {
+                                                                                                e.preventDefault();
+                                                                                                (nextRowFirstCol as HTMLInputElement).focus();
+                                                                                                (nextRowFirstCol as HTMLInputElement).select?.();
+                                                                                            }
+                                                                                        }
+                                                                                    } else if (e.key === 'ArrowLeft') {
+                                                                                        const prevCol = document.getElementById(`mark-input-${stIndex}-${pIdx - 1}`);
+                                                                                        if (prevCol) {
+                                                                                            e.preventDefault();
+                                                                                            (prevCol as HTMLInputElement).focus();
+                                                                                            (prevCol as HTMLInputElement).select?.();
+                                                                                        }
+                                                                                    }
+                                                                                }}
                                                                                 onChange={(e) => {
                                                                                     const val = Math.max(0, Math.min(paper.maxScore, parseFloat(e.target.value) || 0));
                                                                                     handleUpdateStudentMark(st.admNo, paper.key, val);
