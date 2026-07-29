@@ -2956,7 +2956,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                                         const mpesaRef = matched.transaction_id || matched.transactionId || matched.receipt_number;
                                                                         if (mpesaRef && !mpesaRef.startsWith('STK_') && !mpesaRef.startsWith('KCB_CO_')) {
                                                                             clearInterval(pollInterval);
-                                                                            setFormData(prev => ({
+                                                                            setFormData((prev: any) => ({
                                                                                 ...prev,
                                                                                 transactionReference: mpesaRef.toUpperCase(),
                                                                                 status: 'Completed'
@@ -3407,7 +3407,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         return (rawRooms || []).filter(r => r && r.institutionId === currentInstitution?.id);
     }, [rawRooms, currentInstitution]);
 
-    const { success, error: toastError } = useToast();
+    const { success, error: toastError, info: toastInfo } = useToast();
     const {
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         addInstructor: onAddInstructor,
@@ -3446,6 +3446,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         } catch (e) {}
         return 'dashboard';
     });
+    
+    const [overrideTab, setOverrideTab] = useState<string | null>(null);
+    const activeTab = overrideTab || externalTab || internalTab;
+    const setActiveTab = (tab: any) => {
+        setOverrideTab(tab);
+        setInternalTab(tab);
+    };
     
     const rolesList = useMemo(() => [
         (currentUser?.role || '').toLowerCase(),
@@ -4565,9 +4572,6 @@ END $$;
         document.body.removeChild(link);
     };
 
-    const activeTab = externalTab || internalTab;
-    const setActiveTab = (tab: any) => setInternalTab(tab);
-
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
@@ -5533,7 +5537,17 @@ END $$;
         pendingLessons: (lessons || []).filter(l => l.status === 'Scheduled').length,
     }), [students, instructors, vehicles, lessons]);
 
-    const navSections = useMemo(() => [
+    const navSections: Array<{
+        title: string;
+        items: Array<{
+            id: string;
+            label: string;
+            icon: any;
+            desc: string;
+            highlight?: boolean;
+            badge?: number;
+        }>;
+    }> = useMemo(() => [
         {
             title: 'COMMAND CENTER',
             items: [
@@ -11626,7 +11640,7 @@ END $$;
                 )}
 
                 {/* Futuristic Vertical Navigation Layout Container */}
-                {navLayoutMode === 'vertical' && !externalTab && activeTab !== 'portal' ? (
+                {navLayoutMode === 'vertical' && activeTab !== 'portal' ? (
                     <div className="flex flex-col lg:flex-row gap-6 min-h-screen">
                         {/* Desktop Sidebar */}
                         <div className="hidden lg:block">
