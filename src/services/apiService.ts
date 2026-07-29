@@ -1105,9 +1105,19 @@ export const apiService = {
             const UUID_PK_MODULES = [
                 'biometric_devices', 'biometric_enrollments', 'biometric_logs',
                 'staff_attendance_daily', 'student_attendance',
-                'zkteco_commands', 'zkteco_attendance_raw'
+                'zkteco_commands', 'zkteco_attendance_raw',
+                'sms_logs', 'sms_outbox', 'sms_gateway_logs', 'integration_logs',
+                'audit_logs', 'activity_logs'
             ];
-            if (!isUpdate && !item.id && !UUID_PK_MODULES.includes(module)) {
+
+            const isValidUuid = (val: any) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+            // Strip non-UUID string IDs for UUID PK tables so PostgreSQL can auto-generate valid UUIDs
+            if (UUID_PK_MODULES.includes(module)) {
+                if (item.id && !isValidUuid(item.id)) {
+                    delete item.id;
+                }
+            } else if (!isUpdate && !item.id) {
                 const prefixMap: Record<string, string> = {
                     books: 'bk_',
                     activity_log: 'log_',
@@ -1119,6 +1129,14 @@ export const apiService = {
                 };
                 const prefix = prefixMap[module] || `${module.slice(0, 3)}_`;
                 item.id = `${prefix}${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            }
+
+            if (module === 'sms_logs') {
+                delete item.recipients;
+                delete item.sent_at;
+                delete item.sentAt;
+                delete item.recipient;
+                delete item.logs;
             }
 
             // Safety net for Driving School modules to prevent schema mismatch errors
