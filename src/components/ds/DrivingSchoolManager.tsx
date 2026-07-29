@@ -3470,6 +3470,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         setOverrideTab(tab);
         setInternalTab(tab);
     };
+
+    useEffect(() => {
+        if (externalTab) {
+            setOverrideTab(null);
+        }
+    }, [externalTab]);
     
     const rolesList = useMemo(() => [
         (currentUser?.role || '').toLowerCase(),
@@ -5902,7 +5908,12 @@ END $$;
                         ].map(tab => (
                             <button
                                 key={tab.id}
-                                onClick={() => setActiveTab(tab.id as any)}
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setActiveTab(tab.id as any);
+                                }}
                                 className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
                                     activeTab === tab.id
                                         ? (tab as any).highlight
