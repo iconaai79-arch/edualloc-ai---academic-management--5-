@@ -9073,7 +9073,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                  title="Creates PIN records silently so parents can see their PIN on the portal, without sending SMS/Email"
                                              >
                                                  <Sparkles className="w-4 h-4" />
-                                                 {isLoading ? 'Processing...' : auditMissing === 0 ? 'All PINs Issued ✓' : `Generate PINs Only (${auditMissing})`}
+                                                 {isLoading ? 'Processing...' : auditMissing === 0 ? 'All PINs Issued ✓' : `Generate PINs Only (No SMS/Email) (${auditMissing})`}
                                              </button>
 
                                              {/* Bulk Generate & Send SMS / Email */}
