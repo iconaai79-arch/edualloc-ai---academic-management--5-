@@ -2932,28 +2932,31 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                             });
                                                             
                                                             const checkoutId = res?.CheckoutRequestID || res?.checkoutRequestId || res?.data?.CheckoutRequestID || res?.data?.checkoutRequestId || res?.data?.CheckoutRequestId;
-                                                            toastSuccess("STK Push sent to student's phone! Waiting for PIN input...");
-
-                                                            // Auto-poll mpesa_transactions for up to 50 seconds to auto-fill receipt number
+                                                                                                                       // Auto-poll mpesa_transactions for up to 50 seconds to auto-fill receipt number
                                                             let attempts = 0;
                                                             const maxAttempts = 20;
                                                             const phoneDigits = student.phone.replace(/[^\d]/g, '').slice(-9);
                                                             const pollInterval = setInterval(async () => {
                                                                 attempts++;
                                                                 try {
-                                                                    const txns = await apiService.fetchModuleRecords<any>('mpesa_transactions', currentInstitution?.id, undefined, {
-                                                                        order: 'created_at.desc',
-                                                                        limit: 10
-                                                                    });
-                                                                    
-                                                                    const matched = txns?.find(t => 
-                                                                        (t.status === 'completed' || t.status === 'Completed') &&
+                                                                    let freshTxns: any[] = [];
+                                                                    try {
+                                                                        freshTxns = await apiService.fetchModuleRecords<any>('mpesa_transactions', undefined, undefined, {
+                                                                            order: 'created_at.desc',
+                                                                            limit: 25
+                                                                        }) || [];
+                                                                    } catch (e) {
+                                                                        freshTxns = [];
+                                                                    }
+                                                                    const pool = [...freshTxns, ...(mpesaTransactions || [])];
+                                                                    const matched = pool.find(t => 
+                                                                        ((t.status || '').toLowerCase() === 'completed' || (t.status || '').toLowerCase() === 'success') &&
                                                                         (checkoutId ? (t.checkout_request_id === checkoutId || t.checkoutRequestId === checkoutId) : true) &&
                                                                         (phoneDigits ? (t.phone_number?.includes(phoneDigits) || t.phoneNumber?.includes(phoneDigits)) : true)
                                                                     );
 
                                                                     if (matched) {
-                                                                        const mpesaRef = matched.transaction_id || matched.transactionId || matched.receipt_number;
+                                                                        const mpesaRef = matched.transaction_id || matched.transactionId || matched.receipt_number || matched.mpesa_code;
                                                                         if (mpesaRef && !mpesaRef.startsWith('STK_') && !mpesaRef.startsWith('KCB_CO_')) {
                                                                             clearInterval(pollInterval);
                                                                             setFormData((prev: any) => ({
@@ -2986,37 +2989,51 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                 </button>
                                                 <button 
                                                     type="button"
-                                                    disabled={isActionLoading || !formData.studentId}
+                                                    disabled={isActionLoading || (!formData.studentId && !formData.transactionReference)}
                                                     onClick={async () => {
                                                         const student = (students || []).find(s => s.id === formData.studentId);
                                                         const phoneDigits = student?.phone ? student.phone.replace(/[^\d]/g, '').slice(-9) : '';
+                                                        const typedRef = (formData.transactionReference || '').trim().toUpperCase();
                                                         setIsActionLoading(true);
                                                         try {
-                                                            const txns = await apiService.fetchModuleRecords<any>('mpesa_transactions', currentInstitution?.id, undefined, {
-                                                                order: 'created_at.desc',
-                                                                limit: 10
-                                                            });
+                                                            let freshTxns: any[] = [];
+                                                            try {
+                                                                freshTxns = await apiService.fetchModuleRecords<any>('mpesa_transactions', undefined, undefined, {
+                                                                    order: 'created_at.desc',
+                                                                    limit: 50
+                                                                }) || [];
+                                                            } catch (fetchErr) {
+                                                                freshTxns = [];
+                                                            }
+
+                                                            const pool = [...freshTxns, ...(mpesaTransactions || [])];
                                                             
-                                                            const matched = txns?.find(t => 
-                                                                (t.status === 'completed' || t.status === 'Completed') &&
-                                                                (phoneDigits ? (t.phone_number?.includes(phoneDigits) || t.phoneNumber?.includes(phoneDigits)) : true)
-                                                            );
+                                                            const matched = pool.find(t => {
+                                                                const txId = (t.transaction_id || t.transactionId || t.receipt_number || t.mpesa_code || '').toString().toUpperCase();
+                                                                const matchesTyped = typedRef ? (txId === typedRef || txId.includes(typedRef)) : false;
+                                                                const matchesPhone = phoneDigits ? (t.phone_number?.includes(phoneDigits) || t.phoneNumber?.includes(phoneDigits)) : false;
+                                                                const isCompleted = (t.status || '').toString().toLowerCase() === 'completed' || (t.status || '').toString().toLowerCase() === 'success';
+                                                                
+                                                                return isCompleted && (matchesTyped || matchesPhone);
+                                                            });
 
                                                             if (matched) {
-                                                                const mpesaRef = matched.transaction_id || matched.transactionId || matched.receipt_number;
+                                                                const mpesaRef = matched.transaction_id || matched.transactionId || matched.receipt_number || matched.mpesa_code || typedRef;
+                                                                const amt = matched.amount || matched.trans_amount || matched.transAmount;
                                                                 if (mpesaRef && !mpesaRef.startsWith('STK_') && !mpesaRef.startsWith('KCB_CO_')) {
-                                                                    setFormData(prev => ({
+                                                                    setFormData((prev: any) => ({
                                                                         ...prev,
                                                                         transactionReference: mpesaRef.toUpperCase(),
-                                                                        status: 'Completed'
+                                                                        status: 'Completed',
+                                                                        ...(amt && !prev.amount ? { amount: Number(amt) } : {})
                                                                     }));
-                                                                    toastSuccess(`✨ M-Pesa Reference Fetched: ${mpesaRef.toUpperCase()}`);
+                                                                    toastSuccess(`✨ M-Pesa Verified! Ref: ${mpesaRef.toUpperCase()}${amt ? ` (Ksh ${amt})` : ''}`);
                                                                     return;
                                                                 }
                                                             }
-                                                            toastInfo("No completed M-Pesa transaction found for this student yet. Ensure PIN entry was completed.");
+                                                            toastInfo("No completed M-Pesa transaction found for this student or reference code yet. Ensure PIN entry was completed.");
                                                         } catch (err: any) {
-                                                            toastError("Failed to fetch M-Pesa reference");
+                                                            toastInfo("No completed M-Pesa transaction found yet. Please verify phone PIN entry.");
                                                         } finally {
                                                             setIsActionLoading(false);
                                                         }
