@@ -326,7 +326,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 {/* Primary Horizontal Navigation Menu Bar */}
                 <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 p-4 rounded-[2.5rem] shadow-sm shrink-0 gap-4">
                     <div className="flex flex-nowrap items-center gap-2 overflow-x-auto custom-scrollbar-horizontal max-w-[70vw] md:max-w-full pb-1">
-                        {tabs.map(sub => (
+                        {tabs.filter(sub => sub.id !== 'exam_units').map(sub => (
                             <button
                                 key={sub.id}
                                 onClick={() => setActiveTab(sub.id as any)}
@@ -363,7 +363,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
                         {/* Portal Hub Cards Grid */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {tabs.map(portal => (
+                            {tabs.filter(portal => portal.id !== 'exam_units').map(portal => (
                                 <button
                                     key={portal.id}
                                     onClick={() => setActiveTab(portal.id as any)}
