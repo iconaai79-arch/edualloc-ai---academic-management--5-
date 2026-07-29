@@ -142,8 +142,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     }, [currentInstitution]);
 
     const handlePrepopulateKenyaCBESubjects = async () => {
-        if (!onImportSubjectsAndAssociate) {
-            alert('Subject import handler is not available.');
+        if (!onImportSubjectsAndAssociate && !onAddSubject) {
+            alert('No subject handler is available. Please contact your administrator.');
             return;
         }
 
@@ -173,7 +173,16 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             { name: 'Pastoral Instruction Programme (PIP)', code: 'PIP', departmentId: defaultDeptId, description: 'Upper Primary Pastoral Instruction (PIP)', isComplete: true, lessonStructure: [{ count: 1, periods: 1 }] }
         ];
 
-        onImportSubjectsAndAssociate(primarySubjects as any);
+        if (onImportSubjectsAndAssociate) {
+            // Preferred: bulk import with course-level association
+            await onImportSubjectsAndAssociate(primarySubjects as any);
+        } else if (onAddSubject) {
+            // Fallback: add subjects one by one
+            for (const subj of primarySubjects) {
+                onAddSubject(subj);
+            }
+        }
+
         alert(`✨ Successfully pre-populated ${primarySubjects.length} Kenya CBE Primary School Subjects!`);
     };
 
