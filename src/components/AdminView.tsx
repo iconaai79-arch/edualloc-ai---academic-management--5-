@@ -819,7 +819,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'car_service', label: 'Car Service', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'customers', label: 'Customers', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
-            { id: 'remedials', label: 'Remedial Lessons', icon: <ClockIcon className="w-5 h-5 mr-2" /> },
+            { id: 'remedials', label: 'Remedial Manager', icon: <ClockIcon className="w-5 h-5 mr-2" /> },
             { id: 'transport', label: 'Fleet Registry', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
             { id: 'logistics', label: 'Logistics Hub', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: isHeritage ? 'Records' : isCommunity ? 'Analytics' : 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
@@ -986,7 +986,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     return ['eduvote', 'reports'].includes(tab.id);
                 }
                 if (activeScope === 'remedials') {
-                    return ['remedials', 'reports', 'settings'].includes(tab.id);
+                    return false;
                 }
                 if (activeScope === 'academics') {
                     const academicsTabs = ['timetable', 'reports', 'settings'];
