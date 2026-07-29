@@ -54,15 +54,28 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     marks = [],
     courses = []
 }) => {
-    // List of Exams State
-    const [exams, setExams] = useState<ExamUnitRecord[]>([
-        { id: 'exam_1', name: 'Endterm 2 Exam 2026', term: 'TERM 2', type: 'END TERM', year: 2026, status: 'in_progress', submittedPercent: 27.6, studentsEnrolled: 361, missingMarks: 4354 },
-        { id: 'exam_2', name: 'Kapseret Mock', term: 'TERM 2', type: 'END TERM', year: 2026, status: 'in_progress', submittedPercent: 19.2, studentsEnrolled: 340, missingMarks: 5120 },
-        { id: 'exam_3', name: 'Mid Term Exam', term: 'TERM 1', type: 'CAT', year: 2026, status: 'in_progress', submittedPercent: 47.4, studentsEnrolled: 380, missingMarks: 2100 },
-        { id: 'exam_pub_1', name: 'Mid Term 2 Exam', term: 'TERM 2', type: 'CAT', year: 2026, status: 'published', submittedPercent: 100, studentsEnrolled: 610, missingMarks: 0 },
-        { id: 'exam_pub_2', name: 'End Term Exam', term: 'TERM 1', type: 'END TERM', year: 2026, status: 'published', submittedPercent: 100, studentsEnrolled: 594, missingMarks: 0 },
-        { id: 'exam_pub_3', name: 'Mock Exam 2025', term: 'TERM 3', type: 'MOCK', year: 2025, status: 'published', submittedPercent: 100, studentsEnrolled: 580, missingMarks: 0 }
-    ]);
+    // Storage Key Helper
+    const instId = currentInstitution?.id || 'default_inst';
+    const examUnitsStorageKey = `eduai_exam_units_${instId}`;
+
+    // List of Exams State (Persisted in localStorage & DB)
+    const [exams, setExams] = useState<ExamUnitRecord[]>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (e) {}
+        return [
+            { id: 'exam_1', name: 'Endterm 2 Exam 2026', term: 'TERM 2', type: 'END TERM', year: 2026, status: 'in_progress', submittedPercent: 27.6, studentsEnrolled: 361, missingMarks: 4354 },
+            { id: 'exam_2', name: 'Kapseret Mock', term: 'TERM 2', type: 'END TERM', year: 2026, status: 'in_progress', submittedPercent: 19.2, studentsEnrolled: 340, missingMarks: 5120 },
+            { id: 'exam_3', name: 'Mid Term Exam', term: 'TERM 1', type: 'CAT', year: 2026, status: 'in_progress', submittedPercent: 47.4, studentsEnrolled: 380, missingMarks: 2100 },
+            { id: 'exam_pub_1', name: 'Mid Term 2 Exam', term: 'TERM 2', type: 'CAT', year: 2026, status: 'published', submittedPercent: 100, studentsEnrolled: 610, missingMarks: 0 },
+            { id: 'exam_pub_2', name: 'End Term Exam', term: 'TERM 1', type: 'END TERM', year: 2026, status: 'published', submittedPercent: 100, studentsEnrolled: 594, missingMarks: 0 },
+            { id: 'exam_pub_3', name: 'Mock Exam 2025', term: 'TERM 3', type: 'MOCK', year: 2025, status: 'published', submittedPercent: 100, studentsEnrolled: 580, missingMarks: 0 }
+        ];
+    });
 
     const [selectedExamId, setSelectedExamId] = useState<string>('exam_1');
     const [activeSubTab, setActiveSubTab] = useState<'progress' | 'irregularities' | 'history'>('progress');
@@ -152,7 +165,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         setExams(prev => {
                             const existingIds = new Set(prev.map(e => e.id));
                             const newOnes = records.filter(r => !existingIds.has(r.id));
-                            return [...newOnes, ...prev];
+                            const merged = [...newOnes, ...prev];
+                            try {
+                                localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
                         });
                     }
                 })
@@ -168,6 +185,19 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             setBroadsheetStudentRows(examMarksStore[selectedExamId]);
             return;
         }
+
+        // Try loading from localStorage first for instant availability across refresh
+        try {
+            const savedBroadsheet = localStorage.getItem(`eduai_exam_broadsheet_${selectedExamId}`);
+            if (savedBroadsheet) {
+                const parsed = JSON.parse(savedBroadsheet);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setExamMarksStore(prev => ({ ...prev, [selectedExamId]: parsed }));
+                    setBroadsheetStudentRows(parsed);
+                    return;
+                }
+            }
+        } catch(e) {}
 
         // Fetch custom broadsheet for selected exam if exists
         if (currentInstitution?.id && selectedExamId.startsWith('exam_')) {
@@ -188,7 +218,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             ? realStudents.map((st, idx) => ({
                 admNo: st.admissionNumber || st.id || `100${idx + 1}`,
                 name: st.name || `Student ${idx + 1}`,
-                class: st.studentClass || 'Form 3 Central',
+                class: (st as any).studentClass || (st as any).classLevel || 'Form 3 Central',
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
             }))
             : [
@@ -333,7 +363,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             ? realStudents.map((st, idx) => ({
                 admNo: st.admissionNumber || st.id || `100${idx + 1}`,
                 name: st.name || `Student ${idx + 1}`,
-                class: st.studentClass || 'Form 3 Central',
+                class: (st as any).studentClass || (st as any).classLevel || 'Form 3 Central',
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
             }))
             : [
@@ -344,8 +374,22 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 { admNo: '1005', name: 'Emmanuel Kamau', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 }
             ];
 
-        setExams(prev => [newExam, ...prev]);
-        setExamMarksStore(prev => ({ ...prev, [newExamId]: freshRows }));
+        setExams(prev => {
+            const nextExams = [newExam, ...prev];
+            try {
+                localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
+            } catch(e) {}
+            return nextExams;
+        });
+
+        setExamMarksStore(prev => {
+            const nextStore = { ...prev, [newExamId]: freshRows };
+            try {
+                localStorage.setItem(`eduai_exam_broadsheet_${newExamId}`, JSON.stringify(freshRows));
+            } catch(e) {}
+            return nextStore;
+        });
+
         setBroadsheetStudentRows(freshRows);
         setSelectedExamId(newExamId);
         setNewExamName('');
@@ -362,20 +406,32 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     };
 
     const handleTogglePublish = () => {
-        setExams(prev => prev.map(e => {
-            if (e.id === activeExam.id) {
-                return { ...e, status: e.status === 'published' ? 'in_progress' : 'published' };
-            }
-            return e;
-        }));
+        setExams(prev => {
+            const nextExams = prev.map(e => {
+                if (e.id === activeExam.id) {
+                    return { ...e, status: e.status === 'published' ? ('in_progress' as const) : ('published' as const) };
+                }
+                return e;
+            });
+            try {
+                localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
+            } catch(e) {}
+            return nextExams;
+        });
     };
 
     const handleDeleteExam = () => {
         if (confirm(`Are you sure you want to delete "${activeExam.name}"?`)) {
-            setExams(prev => prev.filter(e => e.id !== activeExam.id));
-            if (exams.length > 1) {
-                setSelectedExamId(exams[0].id);
-            }
+            setExams(prev => {
+                const nextExams = prev.filter(e => e.id !== activeExam.id);
+                try {
+                    localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
+                } catch(e) {}
+                if (nextExams.length > 0) {
+                    setSelectedExamId(nextExams[0].id);
+                }
+                return nextExams;
+            });
         }
     };
 
