@@ -97,6 +97,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     const [isBulkStructureOpen, setIsBulkStructureOpen] = useState(false);
     // Locally-added subjects (via direct apiService save) that haven't propagated to parent state yet
     const [locallyAddedSubjects, setLocallyAddedSubjects] = useState<Subject[]>([]);
+    const [groupByLevel, setGroupByLevel] = useState(false);
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
     const isSchool = isSchoolInstitution(currentInstitution);
     const isChurch = currentInstitution?.institutionType === 'Church';
@@ -322,7 +324,113 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 </div>
             </div>
 
+            {/* Group by Level toggle (for Primary CBE schools) */}
+            {isPrimarySchool && (
+                <div className="flex items-center justify-end gap-3">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">View Mode:</span>
+                    <button
+                        onClick={() => setGroupByLevel(false)}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                            !groupByLevel ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
+                        }`}
+                    >
+                        Flat List
+                    </button>
+                    <button
+                        onClick={() => setGroupByLevel(true)}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                            groupByLevel ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
+                        }`}
+                    >
+                        🏫 Group by Level
+                    </button>
+                </div>
+            )}
+
             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-700 overflow-x-auto">
+                {groupByLevel && isPrimarySchool ? (() => {
+                    // Classify subjects into CBE grade level buckets
+                    const LOWER_PRIMARY_CODES = ['MATH-LP','ENG-LP','KISW-LP','ENV-LP','HYG-LP','CRE-LP','CREAT-LP'];
+                    const UPPER_PRIMARY_CODES = ['MATH-UP','ENG-UP','KISW-UP','SCI-TECH','SOC-ST','AGRI-NUT','CREAT-ARTS','PHE','CRE-UP','IRE-UP','PIP'];
+                    const groups: { label: string; badge: string; color: string; subjects: Subject[] }[] = [
+                        {
+                            label: 'Lower Primary — Grade 1 to 3',
+                            badge: 'Grade 1–3',
+                            color: 'from-sky-500 to-blue-600',
+                            subjects: filteredSubjects.filter(s => LOWER_PRIMARY_CODES.includes(s.code))
+                        },
+                        {
+                            label: 'Upper Primary — Grade 4 to 6',
+                            badge: 'Grade 4–6',
+                            color: 'from-violet-500 to-indigo-600',
+                            subjects: filteredSubjects.filter(s => UPPER_PRIMARY_CODES.includes(s.code))
+                        },
+                        {
+                            label: 'Other Subjects',
+                            badge: 'Other',
+                            color: 'from-slate-500 to-slate-600',
+                            subjects: filteredSubjects.filter(s => !LOWER_PRIMARY_CODES.includes(s.code) && !UPPER_PRIMARY_CODES.includes(s.code))
+                        }
+                    ].filter(g => g.subjects.length > 0);
+
+                    const toggleGroup = (label: string) => {
+                        setCollapsedGroups(prev => {
+                            const next = new Set(prev);
+                            next.has(label) ? next.delete(label) : next.add(label);
+                            return next;
+                        });
+                    };
+
+                    return (
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {groups.map(group => (
+                                <div key={group.label}>
+                                    {/* Group header */}
+                                    <button
+                                        onClick={() => toggleGroup(group.label)}
+                                        className={`w-full flex items-center justify-between px-8 py-4 bg-gradient-to-r ${group.color} text-white hover:brightness-110 transition-all`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className="bg-white/20 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-white/30">
+                                                {group.badge}
+                                            </span>
+                                            <span className="text-sm font-black uppercase tracking-tight">{group.label}</span>
+                                            <span className="text-xs font-bold opacity-70">({group.subjects.length} subjects)</span>
+                                        </div>
+                                        <span className="text-white text-lg font-black">{collapsedGroups.has(group.label) ? '▶' : '▼'}</span>
+                                    </button>
+                                    {/* Group rows */}
+                                    {!collapsedGroups.has(group.label) && (
+                                        <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                {group.subjects.map(subject => (
+                                                    <tr key={subject.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors group">
+                                                        <td className="px-8 py-4 whitespace-nowrap text-sm font-black text-indigo-600 dark:text-indigo-400 font-mono uppercase w-32">
+                                                            {highlightMatch(subject.code, searchQuery)}
+                                                        </td>
+                                                        <td className="px-8 py-4 whitespace-nowrap">
+                                                            <div className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">{highlightMatch(subject.name, searchQuery)}</div>
+                                                            {subject.description && <p className="text-[10px] text-slate-400 mt-0.5 max-w-xs truncate">{subject.description}</p>}
+                                                        </td>
+                                                        <td className="px-8 py-4 whitespace-nowrap text-[11px] font-black text-slate-500 uppercase">
+                                                            {formatLessonStructure(subject.lessonStructure)}
+                                                        </td>
+                                                        <td className="px-8 py-4 whitespace-nowrap text-right">
+                                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button onClick={() => setEditingSubject(subject)} className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Edit</button>
+                                                                <button onClick={async () => { if (window.confirm(`Archive ${subject.name}?`)) { await onDeleteSubject?.(subject.id); setLocallyAddedSubjects(prev => prev.filter(s => s.id !== subject.id)); } }} className="px-4 py-2 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Archive</button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    );
+                })() : (
                 <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
                     <thead className="bg-slate-50 dark:bg-slate-900/50">
                         <tr>
@@ -370,6 +478,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                         ))}
                     </tbody>
                 </table>
+                )}
             </div>
 
             {isPathwaySyncOpen && createPortal(
