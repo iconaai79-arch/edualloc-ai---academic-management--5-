@@ -5866,7 +5866,7 @@ END $$;
                 )}
 
                 {/* Main Navigation - Render Horizontal ONLY if navLayoutMode === 'horizontal' */}
-                {navLayoutMode === 'horizontal' && !externalTab && activeTab !== 'portal' && (
+                {navLayoutMode === 'horizontal' && activeTab !== 'portal' && (
                     <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl md:rounded-3xl w-full overflow-x-auto custom-scrollbar-horizontal pb-3 md:pb-2">
                         <div className="flex items-center gap-2 min-w-max">
                         {[
