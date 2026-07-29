@@ -2860,11 +2860,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                     if (!parentUser) {
                         const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        const cleanPhone = formattedParentPhone ? formattedParentPhone.replace(/\+/g, '') : newId;
+                        const parentEmail = primaryParent.email 
+                            ? primaryParent.email.toLowerCase() 
+                            : `parent_${cleanPhone}_${Math.random().toString(36).substr(2, 4)}@eduai.local`;
                         parentUser = {
                             id: newId,
                             institutionId: currentInstitution.id,
                             name: primaryParent.name || 'Parent / Guardian',
-                            email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
+                            email: parentEmail,
                             phoneNumber: primaryParent.phone ? formattedParentPhone : null,
                             role: 'parent',
                             studentIds: allStudentIds,
@@ -2987,10 +2991,32 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
 
             if (usersToUpsert.size > 0) {
-                await apiService.saveModuleRecords('users', Array.from(usersToUpsert.values()));
+                const upsertedList = Array.from(usersToUpsert.values());
+                try {
+                    await apiService.saveModuleRecords('users', upsertedList);
+                } catch (err: any) {
+                    console.warn('[handleSendPinsToMissingRecipients] Bulk save users failed, saving individually:', err);
+                    for (const u of upsertedList) {
+                        try {
+                            await apiService.saveModuleRecord('users', u);
+                        } catch (singleErr) {
+                            console.warn(`[handleSendPinsToMissingRecipients] Skipped duplicate user ${u.email}:`, singleErr);
+                        }
+                    }
+                }
+                setUsers(prev => {
+                    const next = [...prev];
+                    upsertedList.forEach(u => {
+                        const idx = next.findIndex(item => item.id === u.id);
+                        if (idx !== -1) next[idx] = u;
+                        else next.push(u);
+                    });
+                    return next;
+                });
             }
             if (eventPinsToCreate.length > 0) {
                 await apiService.saveModuleRecords('event_pins', eventPinsToCreate);
+                setEventPins(prev => [...prev, ...eventPinsToCreate]);
             }
 
             const chunkArray = (array: any[], size: number): any[][] => {
@@ -3064,6 +3090,106 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setIsLoading(false);
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
         }
+    };
+
+    // Safely resolve or create a parent user profile without unique constraint errors (e.g., Code 23505 email conflicts)
+    const resolveOrCreateParentUser = async (
+        primaryParent: { name?: string; phone?: string; email?: string },
+        associatedStudentId: string,
+        currentUsersList: User[]
+    ): Promise<User | null> => {
+        if (!primaryParent || (!primaryParent.phone && !primaryParent.email)) return null;
+
+        const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
+
+        // 1. Search in memory
+        let parentUser = currentUsersList.find(u =>
+            (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+            (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
+        );
+
+        // 2. If not found in memory, query backend users table by email or phone
+        if (!parentUser) {
+            try {
+                if (primaryParent.email) {
+                    const dbByEmail = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                        filter: { email: primaryParent.email.toLowerCase() }
+                    });
+                    if (dbByEmail && dbByEmail.length > 0) parentUser = dbByEmail[0];
+                }
+                if (!parentUser && formattedParentPhone) {
+                    const dbByPhone = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                        filter: { phoneNumber: formattedParentPhone }
+                    });
+                    if (dbByPhone && dbByPhone.length > 0) parentUser = dbByPhone[0];
+                }
+            } catch (e) {
+                console.warn('[resolveOrCreateParentUser] DB search failed:', e);
+            }
+        }
+
+        // 3. If parent user exists, link studentId if missing
+        if (parentUser) {
+            const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
+            if (!currentStudentIds.includes(associatedStudentId)) {
+                parentUser = {
+                    ...parentUser,
+                    studentIds: [...currentStudentIds, associatedStudentId]
+                };
+                try {
+                    await apiService.updateModuleRecord('users', parentUser.id, parentUser);
+                } catch (_) {}
+            }
+            if (!currentUsersList.some(u => u.id === parentUser!.id)) {
+                currentUsersList.push(parentUser);
+            }
+            return parentUser;
+        }
+
+        // 4. Create new parent user with unique fallback email
+        const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        const cleanPhoneStr = formattedParentPhone ? formattedParentPhone.replace(/\+/g, '') : newId;
+        const parentEmail = primaryParent.email 
+            ? primaryParent.email.toLowerCase() 
+            : `parent_${cleanPhoneStr}_${Math.random().toString(36).substr(2, 4)}@eduai.local`;
+
+        parentUser = {
+            id: newId,
+            institutionId: currentInstitution.id,
+            name: primaryParent.name || 'Parent / Guardian',
+            email: parentEmail,
+            phoneNumber: primaryParent.phone ? formattedParentPhone : null,
+            role: 'parent',
+            studentIds: [associatedStudentId],
+            metadata: {},
+            createdAt: new Date().toISOString()
+        } as any;
+
+        try {
+            await apiService.saveModuleRecord('users', parentUser);
+            currentUsersList.push(parentUser);
+            setUsers(prev => [...prev.filter(u => u.id !== parentUser!.id), parentUser!]);
+        } catch (err: any) {
+            const errStr = String(err?.message || err);
+            if (errStr.includes('23505') || errStr.includes('Registry Conflict') || errStr.includes('already registered')) {
+                console.warn('[resolveOrCreateParentUser] Email conflict when saving parent user, resolving existing user...');
+                try {
+                    if (primaryParent.email) {
+                        const existing = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                            filter: { email: primaryParent.email.toLowerCase() }
+                        });
+                        if (existing && existing.length > 0) return existing[0];
+                    }
+                } catch (_) {}
+                // Fallback: retry with non-conflicting synthetic email
+                parentUser.email = `parent_${newId}@eduai.local`;
+                await apiService.saveModuleRecord('users', parentUser).catch(() => {});
+                currentUsersList.push(parentUser);
+                setUsers(prev => [...prev.filter(u => u.id !== parentUser!.id), parentUser!]);
+            }
+        }
+
+        return parentUser;
     };
 
     // Bulk Generate PINs ONLY (Silent / No SMS or Email)
@@ -3153,39 +3279,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 let targetUserId = associatedUser.id;
 
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
-                    const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
-                    let parentUser = currentUsersList.find(u =>
-                        (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
-                    );
-
-                    if (!parentUser) {
-                        const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                        parentUser = {
-                            id: newId,
-                            institutionId: currentInstitution.id,
-                            name: primaryParent.name || 'Parent / Guardian',
-                            email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
-                            phoneNumber: primaryParent.phone ? formattedParentPhone : null,
-                            role: 'parent',
-                            studentIds: [associatedUser.id],
-                            metadata: {},
-                            createdAt: new Date().toISOString()
-                        } as any;
-                        usersToUpsert.set(newId, parentUser);
-                        currentUsersList.push(parentUser);
-                    } else {
-                        const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
-                        if (!currentStudentIds.includes(associatedUser.id)) {
-                            parentUser = {
-                                ...parentUser,
-                                studentIds: [...currentStudentIds, associatedUser.id]
-                            };
-                            usersToUpsert.set(parentUser.id, parentUser);
-                        }
+                    const parentUser = await resolveOrCreateParentUser(primaryParent, associatedUser.id, currentUsersList);
+                    if (parentUser) {
+                        targetUserId = parentUser.id;
                     }
-
-                    targetUserId = parentUser.id;
                 }
 
                 const existingPin = eventPins.find(p => {
@@ -3217,7 +3314,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
             if (usersToUpsert.size > 0) {
                 const upsertedList = Array.from(usersToUpsert.values());
-                await apiService.saveModuleRecords('users', upsertedList);
+                try {
+                    await apiService.saveModuleRecords('users', upsertedList);
+                } catch (err: any) {
+                    console.warn('[handleGeneratePinsOnlyForMissing] Bulk save users failed, trying individually:', err);
+                    for (const u of upsertedList) {
+                        try {
+                            await apiService.saveModuleRecord('users', u);
+                        } catch (singleErr) {
+                            console.warn('[handleGeneratePinsOnlyForMissing] Individual user save skipped:', singleErr);
+                        }
+                    }
+                }
                 setUsers(prev => {
                     const next = [...prev];
                     upsertedList.forEach(u => {
@@ -3227,6 +3335,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     });
                     return next;
                 });
+            }
+            if (eventPinsToCreate.length > 0) {
+                await apiService.saveModuleRecords('event_pins', eventPinsToCreate);
+                setEventPins(prev => [...prev, ...eventPinsToCreate]);
             }
             if (eventPinsToCreate.length > 0) {
                 await apiService.saveModuleRecords('event_pins', eventPinsToCreate);
@@ -3283,38 +3395,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             let targetName = associatedUser.name;
 
             if (primaryParent && (primaryParent.phone || primaryParent.email)) {
-                const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
-                let parentUser = currentUsersList.find(u =>
-                    (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                    (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
-                );
-
-                if (!parentUser) {
-                    const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                    parentUser = {
-                        id: newId,
-                        institutionId: currentInstitution.id,
-                        name: primaryParent.name || 'Parent / Guardian',
-                        email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
-                        phoneNumber: primaryParent.phone ? formattedParentPhone : null,
-                        role: 'parent',
-                        studentIds: [associatedUser.id],
-                        metadata: {},
-                        createdAt: new Date().toISOString()
-                    } as any;
-                    await apiService.saveModuleRecord('users', parentUser);
-                } else {
-                    const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
-                    if (!currentStudentIds.includes(associatedUser.id)) {
-                        parentUser = {
-                            ...parentUser,
-                            studentIds: [...currentStudentIds, associatedUser.id]
-                        };
-                        await apiService.updateModuleRecord('users', parentUser.id, parentUser);
-                    }
+                const parentUser = await resolveOrCreateParentUser(primaryParent, associatedUser.id, currentUsersList);
+                if (parentUser) {
+                    targetUserId = parentUser.id;
+                    targetName = parentUser.name || primaryParent.name || 'Parent / Guardian';
                 }
-                targetUserId = parentUser.id;
-                targetName = primaryParent.name || 'Parent / Guardian';
             }
 
             const existingPin = eventPins.find(p => {
@@ -3419,71 +3504,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             let targetEmail = isPrimaryOrSecondary ? '' : (associatedUser.email || '');
 
             if (primaryParent && (primaryParent.phone || primaryParent.email)) {
-                const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
-                let parentUser = currentUsersList.find(u =>
-                    (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                    (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
-                );
-
-                if (!parentUser) {
-                    try {
-                        const filterVal: any = {};
-                        if (primaryParent.email) filterVal.email = primaryParent.email.toLowerCase();
-                        else if (primaryParent.phone) filterVal.phoneNumber = formattedParentPhone;
-
-                        const dbParents = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
-                            filter: filterVal
-                        });
-                        if (dbParents && dbParents.length > 0) {
-                            parentUser = dbParents[0];
-                            if (parentUser.institutionId !== currentInstitution.id) {
-                                parentUser.institutionId = currentInstitution.id;
-                                await apiService.updateModuleRecord('users', parentUser.id, parentUser);
-                            }
-                        }
-                    } catch (err) {
-                        console.error('[IndividualPin] Error searching parent user:', err);
-                    }
+                const parentUser = await resolveOrCreateParentUser(primaryParent, associatedUser.id, currentUsersList);
+                if (parentUser) {
+                    targetUserId = parentUser.id;
+                    targetName = parentUser.name || primaryParent.name || 'Parent / Guardian';
+                    targetPhone = parentUser.phoneNumber || primaryParent.phone || '';
+                    targetEmail = parentUser.email || primaryParent.email || '';
                 }
-
-                if (!parentUser) {
-                    const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                    parentUser = {
-                        id: newId,
-                        institutionId: currentInstitution.id,
-                        name: primaryParent.name || 'Parent / Guardian',
-                        email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
-                        phoneNumber: primaryParent.phone ? formattedParentPhone : null,
-                        role: 'parent',
-                        studentIds: [associatedUser.id],
-                        metadata: {},
-                        createdAt: new Date().toISOString()
-                    } as any;
-                    await apiService.saveModuleRecord('users', parentUser);
-                } else {
-                    const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
-                    if (!currentStudentIds.includes(associatedUser.id)) {
-                        parentUser = {
-                            ...parentUser,
-                            studentIds: [...currentStudentIds, associatedUser.id]
-                        };
-                        await apiService.updateModuleRecord('users', parentUser.id, parentUser);
-                    }
-                }
-
-                const currentParentIds = Array.isArray(associatedUser.parentIds) ? associatedUser.parentIds : [];
-                if (!currentParentIds.includes(parentUser!.id)) {
-                    const updatedStudent = {
-                        ...associatedUser,
-                        parentIds: [...currentParentIds, parentUser!.id]
-                    };
-                    await apiService.updateModuleRecord('users', associatedUser.id, updatedStudent);
-                }
-
-                targetUserId = parentUser!.id;
-                targetName = primaryParent.name || 'Parent / Guardian';
-                targetPhone = primaryParent.phone;
-                targetEmail = primaryParent.email;
             }
 
             // Verify if PIN exists already
