@@ -1677,10 +1677,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
                             >
                                 <option value="">-- Select Subject --</option>
-                                {subjects
-                                    .filter(s => !allocCourseId || s.courseId === allocCourseId)
-                                    .map(s => <option key={s.id} value={s.id}>{s.name}</option>)
-                                }
+                                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                         </div>
 
