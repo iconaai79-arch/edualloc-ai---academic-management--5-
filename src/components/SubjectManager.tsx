@@ -95,6 +95,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     const [constraintSubject, setConstraintSubject] = useState<Subject | null>(null);
     const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
     const [isBulkStructureOpen, setIsBulkStructureOpen] = useState(false);
+    // Locally-added subjects (via direct apiService save) that haven't propagated to parent state yet
+    const [locallyAddedSubjects, setLocallyAddedSubjects] = useState<Subject[]>([]);
 
     const isSchool = isSchoolInstitution(currentInstitution);
     const isChurch = currentInstitution?.institutionType === 'Church';
@@ -105,7 +107,10 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     }, [departments, currentUser]);
 
     const filteredSubjects = useMemo(() => {
-        let list = subjects;
+        // Merge prop subjects with any locally added ones (from direct apiService save)
+        const existingIds = new Set(subjects.map(s => s.id));
+        const merged = [...subjects, ...locallyAddedSubjects.filter(s => !existingIds.has(s.id))];
+        let list = merged;
         if (currentUser.role === 'tto' && currentUser.departmentId) list = list.filter(s => s.departmentId === currentUser.departmentId);
         return list.filter(s => {
             const matchesDept = departmentFilter === 'all' || s.departmentId === departmentFilter;
@@ -114,7 +119,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             const matchesSearch = s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q);
             return matchesDept && matchesComp && matchesSearch;
         });
-    }, [subjects, searchQuery, departmentFilter, completionFilter, isSchool, currentUser.departmentId]);
+    }, [subjects, locallyAddedSubjects, searchQuery, departmentFilter, completionFilter, isSchool, currentUser.departmentId]);
 
     const handleSaveSubject = (id: string, data: Partial<Omit<Subject, 'id' | 'institutionId'>>, initialCourseLevelIds?: string[]) => {
         if (id && onUpdateSubject) {
@@ -186,9 +191,15 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 alert('Institution ID not found. Please ensure you are logged in correctly.');
                 return;
             }
+            const newlyCreated: Subject[] = [];
             for (const subj of primarySubjects) {
-                await apiService.saveSubject({ ...subj, institutionId: instId });
+                const newId = `sub_cbe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                const fullSubject: Subject = { ...subj, id: newId, institutionId: instId } as Subject;
+                await apiService.saveSubject(fullSubject);
+                newlyCreated.push(fullSubject);
             }
+            // Immediately surface them in the local list without waiting for parent state refresh
+            setLocallyAddedSubjects(prev => [...prev, ...newlyCreated]);
         }
 
         alert(`✨ Successfully pre-populated ${primarySubjects.length} Kenya CBE Primary School Subjects!`);
