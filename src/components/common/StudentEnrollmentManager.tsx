@@ -3092,6 +3092,40 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
+    // Helper to evaluate whether a given event PIN record matches a specific enrollment
+    const isPinForEnrollment = (
+        p: any,
+        eventId: string,
+        enr: any,
+        targetUserId: string,
+        primaryParent: { phone?: string; email?: string } | null,
+        currentUsersList: any[]
+    ): boolean => {
+        const pEvtId = p.eventId || p.event_id;
+        if (pEvtId && pEvtId !== eventId) return false;
+        const pUserId = p.userId || p.user_id;
+
+        // Direct match with student user ID or target parent user ID
+        if (pUserId && (pUserId === targetUserId || pUserId === enr.userId)) return true;
+
+        // Metadata match
+        if (p.metadata?.studentId === enr.userId || p.metadata?.enrollmentId === enr.id) return true;
+        if (primaryParent?.phone && p.metadata?.parentPhone && phonesMatch(p.metadata.parentPhone, primaryParent.phone)) return true;
+        if (primaryParent?.email && p.metadata?.parentEmail && p.metadata.parentEmail.toLowerCase() === primaryParent.email.toLowerCase()) return true;
+
+        // User profile matching via studentIds array, phone, or email
+        if (pUserId) {
+            const pinUserObj = currentUsersList.find(u => u.id === pUserId);
+            if (pinUserObj) {
+                if (Array.isArray(pinUserObj.studentIds) && pinUserObj.studentIds.includes(enr.userId)) return true;
+                if (primaryParent?.phone && pinUserObj.phoneNumber && phonesMatch(pinUserObj.phoneNumber, primaryParent.phone)) return true;
+                if (primaryParent?.email && pinUserObj.email && pinUserObj.email.toLowerCase() === primaryParent.email.toLowerCase()) return true;
+            }
+        }
+
+        return false;
+    };
+
     // Safely resolve or create a parent user profile without unique constraint errors (e.g., Code 23505 email conflicts)
     const resolveOrCreateParentUser = async (
         primaryParent: { name?: string; phone?: string; email?: string },
@@ -3215,25 +3249,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 let targetUserId = enr.userId;
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
-                    const parentUser = currentUsersList.find(u =>
-                        (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
-                    );
+                    const parentUser = await resolveOrCreateParentUser(primaryParent, enr.userId, currentUsersList);
                     if (parentUser) {
                         targetUserId = parentUser.id;
                     }
                 }
 
-                const hasPin = eventPins.some(p => {
-                    const pEvtId = p.eventId || p.event_id;
-                    if (pEvtId !== event.id) return false;
-                    const pUserId = p.userId || p.user_id;
-                    if (!pUserId) return false;
-                    if (pUserId === targetUserId || pUserId === enr.userId) return true;
-                    const pinUserObj = currentUsersList.find(u => u.id === pUserId);
-                    if (pinUserObj && Array.isArray(pinUserObj.studentIds) && pinUserObj.studentIds.includes(enr.userId)) return true;
-                    return false;
-                });
+                const hasPin = eventPins.some(p => isPinForEnrollment(p, event.id, enr, targetUserId, primaryParent, currentUsersList));
                 if (!hasPin) {
                     missingEnrollments.push(enr);
                 }
@@ -3285,13 +3307,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     }
                 }
 
-                const existingPin = eventPins.find(p => {
-                    const pEvtId = p.eventId || p.event_id;
-                    if (pEvtId !== event.id) return false;
-                    const pUserId = p.userId || p.user_id;
-                    if (pUserId === targetUserId || pUserId === enr.userId) return true;
-                    return false;
-                }) || eventPinsToCreate.find(p => (p.eventId || p.event_id) === event.id && (p.userId || p.user_id) === targetUserId);
+                const existingPin = eventPins.find(p => isPinForEnrollment(p, event.id, enr, targetUserId, primaryParent, currentUsersList))
+                    || eventPinsToCreate.find(p => (p.eventId || p.event_id) === event.id && (p.userId || p.user_id) === targetUserId);
 
                 if (!existingPin) {
                     const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -3307,7 +3324,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         pin: pinCode,
                         status: 'pending',
                         createdAt: new Date().toISOString(),
-                        created_at: new Date().toISOString()
+                        created_at: new Date().toISOString(),
+                        metadata: {
+                            studentId: enr.userId,
+                            enrollmentId: enr.id,
+                            parentPhone: primaryParent?.phone || '',
+                            parentEmail: primaryParent?.email || ''
+                        }
                     });
                 }
             }
@@ -3335,10 +3358,6 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     });
                     return next;
                 });
-            }
-            if (eventPinsToCreate.length > 0) {
-                await apiService.saveModuleRecords('event_pins', eventPinsToCreate);
-                setEventPins(prev => [...prev, ...eventPinsToCreate]);
             }
             if (eventPinsToCreate.length > 0) {
                 await apiService.saveModuleRecords('event_pins', eventPinsToCreate);
@@ -8248,14 +8267,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             targetEmail = primaryParent.email || '';
                         }
                     }
-                    const existingPin = eventMatchingPins.find(p => {
-                        const pUserId = p.userId || p.user_id;
-                        if (!pUserId) return false;
-                        if (pUserId === targetUserId || pUserId === enr.userId) return true;
-                        const pinUserObj = (users as any[]).find(u => u.id === pUserId);
-                        if (pinUserObj && Array.isArray(pinUserObj.studentIds) && pinUserObj.studentIds.includes(enr.userId)) return true;
-                        return false;
-                    });
+                    const existingPin = eventMatchingPins.find(p => isPinForEnrollment(p, event.id, enr, targetUserId, primaryParent, users));
                     if (!existingPin) {
                         auditMissingList.push({ enr, studentName, targetName, targetPhone, targetEmail, cohort });
                     } else {
