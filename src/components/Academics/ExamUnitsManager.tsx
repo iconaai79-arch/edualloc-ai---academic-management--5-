@@ -145,6 +145,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             setSelectedClasses(registeredClasses);
         }
     }, [registeredClasses]);
+    const isPrimarySchool = useMemo(() => {
+        const type = (currentInstitution?.institutionType || '').toLowerCase();
+        const name = (currentInstitution?.name || '').toLowerCase();
+        return type === 'primary' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
+    }, [currentInstitution]);
+
     const [isPapersModalOpen, setIsPapersModalOpen] = useState(false);
     // Tested Papers Configuration State:
     const [testedPaperConfigs, setTestedPaperConfigs] = useState<TestedPaperConfig[]>([
@@ -160,6 +166,23 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         { id: 'tp_10', subject: 'Chemistry', paperName: 'Paper 1 (Theory)', maxInputScore: 80, convertToHundred: true, enabled: true },
         { id: 'tp_11', subject: 'Physics', paperName: 'Paper 1 (Theory)', maxInputScore: 80, convertToHundred: true, enabled: true }
     ]);
+
+    useEffect(() => {
+        if (isPrimarySchool) {
+            setTestedPaperConfigs([
+                { id: 'cbe_1', subject: 'Mathematics Activities', paperName: 'Paper 1 (Numeracy & Logic)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_2', subject: 'English Language Activities', paperName: 'Paper 1 (Language & Literacy)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_3', subject: 'Kiswahili Language Activities', paperName: 'Karatasi ya 1 (Lugha na Kusoma)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_4', subject: 'Science & Technology', paperName: 'Paper 1 (Theory & Practical)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_5', subject: 'Social Studies', paperName: 'Paper 1 (Citizenship & Society)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_6', subject: 'Agriculture & Nutrition', paperName: 'Paper 1 (Farming & Home Science)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_7', subject: 'Environmental Activities', paperName: 'Paper 1 (Hygiene & Environment)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_8', subject: 'Creative Arts', paperName: 'Paper 1 (Art, Craft & Music)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_9', subject: 'Religious Education (CRE/IRE)', paperName: 'Paper 1 (Spiritual & Moral)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_10', subject: 'Physical & Health Education (PHE)', paperName: 'Paper 1 (Fitness & Sports)', maxInputScore: 100, convertToHundred: true, enabled: true }
+            ]);
+        }
+    }, [isPrimarySchool]);
     const [useCustomRanking, setUseCustomRanking] = useState(false);
     const [rankingScope, setRankingScope] = useState<'overall' | 'per_class'>('overall');
     const [customRankingCriteria, setCustomRankingCriteria] = useState<'Points' | 'Total Marks' | 'Mean Score'>('Points');

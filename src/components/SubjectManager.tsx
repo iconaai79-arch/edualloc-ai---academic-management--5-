@@ -135,8 +135,77 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         }
     };
 
+    const isPrimarySchool = useMemo(() => {
+        const type = (currentInstitution?.institutionType || '').toLowerCase();
+        const name = (currentInstitution?.name || '').toLowerCase();
+        return type === 'primary' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
+    }, [currentInstitution]);
+
+    const handlePrepopulateKenyaCBESubjects = async () => {
+        if (!onImportSubjectsAndAssociate) {
+            alert('Subject import handler is not available.');
+            return;
+        }
+
+        const defaultDeptId = visibleDepartments[0]?.id || (departments.length > 0 ? departments[0].id : 'dept_primary');
+
+        const primarySubjects: Array<Omit<Subject, 'id' | 'institutionId'>> = [
+            // Lower Primary (Grade 1-3)
+            { name: 'Mathematics Activities', code: 'MATH-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Mathematics Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'English Language Activities', code: 'ENG-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE English Language Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'Kiswahili Language Activities', code: 'KISW-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Kiswahili Language Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Environmental Activities', code: 'ENV-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Environmental Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Hygiene & Nutrition Activities', code: 'HYG-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Hygiene & Nutrition Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Religious Education Activities', code: 'CRE-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Religious Education Activities (CRE/IRE)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Movement & Creative Activities', code: 'CREAT-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Movement & Creative Activities (Art, Music, PE)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+
+            // Upper Primary (Grade 4-6) & Junior School
+            { name: 'Mathematics', code: 'MATH-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE Mathematics (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'English', code: 'ENG-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE English Language (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'Kiswahili', code: 'KISW-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE Kiswahili / Sign Language (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Science & Technology', code: 'SCI-TECH', departmentId: defaultDeptId, description: 'Upper Primary CBE Science and Technology (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Social Studies', code: 'SOC-ST', departmentId: defaultDeptId, description: 'Upper Primary CBE Social Studies & Citizenship (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Agriculture & Nutrition', code: 'AGRI-NUT', departmentId: defaultDeptId, description: 'Upper Primary CBE Agriculture & Home Science (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Creative Arts', code: 'CREAT-ARTS', departmentId: defaultDeptId, description: 'Upper Primary CBE Creative Arts (Art, Craft & Music)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Physical & Health Education (PHE)', code: 'PHE', departmentId: defaultDeptId, description: 'Upper Primary CBE Physical & Health Education (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Christian Religious Education (CRE)', code: 'CRE-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE Religious Education (CRE)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Islamic Religious Education (IRE)', code: 'IRE-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE Religious Education (IRE)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Pastoral Instruction Programme (PIP)', code: 'PIP', departmentId: defaultDeptId, description: 'Upper Primary Pastoral Instruction (PIP)', isComplete: true, lessonStructure: [{ count: 1, periods: 1 }] }
+        ];
+
+        onImportSubjectsAndAssociate(primarySubjects as any);
+        alert(`✨ Successfully pre-populated ${primarySubjects.length} Kenya CBE Primary School Subjects!`);
+    };
+
     return (
         <div className="space-y-6">
+            {/* Primary School CBC/CBE Pre-populate Prompt Banner */}
+            {isPrimarySchool && (
+                <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-6 rounded-3xl shadow-lg border border-emerald-500/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-fade-in">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="bg-white/20 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-white/30">
+                                🇰🇪 Kenya Primary School CBE Framework
+                            </span>
+                        </div>
+                        <h4 className="text-lg font-black uppercase tracking-tight mt-2 flex items-center gap-2">
+                            Pre-populate Kenya Primary CBE Curriculum Subjects
+                        </h4>
+                        <p className="text-xs text-emerald-100 mt-1">
+                            Registered Primary Institution detected. Automatically populate official Kenya CBE Lower & Upper Primary learning areas (Mathematics Activities, Science & Tech, Environmental Activities, Creative Arts & PHE).
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handlePrepopulateKenyaCBESubjects}
+                        className="px-6 py-3 bg-white text-emerald-800 hover:bg-emerald-50 font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all whitespace-nowrap cursor-pointer hover:scale-105 active:scale-95"
+                    >
+                        ✨ Load Kenya CBE Subjects
+                    </button>
+                </div>
+            )}
+
             <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                 <div>
                     <h3 className="text-2xl font-black uppercase tracking-tighter">{isChurch ? 'Ministries' : 'Academic Subjects'}</h3>
@@ -144,6 +213,14 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 min-w-fit">
+                    <button
+                        type="button"
+                        onClick={handlePrepopulateKenyaCBESubjects}
+                        className="btn-secondary h-11 flex items-center gap-2 px-6 text-[10px] font-black uppercase tracking-widest hover:border-emerald-300 transition-all shadow-sm text-emerald-600 dark:text-emerald-400"
+                    >
+                        <SparklesIcon className="w-5 h-5 text-emerald-500" /> Kenya CBE Primary
+                    </button>
+
                     <button
                         onClick={() => setIsPathwaySyncOpen(true)}
                         className="btn-secondary h-11 flex items-center gap-2 px-6 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm"
