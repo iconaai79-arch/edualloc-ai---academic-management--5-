@@ -60,16 +60,9 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
     const [activeTab, setActiveTab] = useState<'hr' | 'eduflow' | 'activity_log'>('hr');
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col">
-            <Header 
-                currentUser={currentUser} 
-                institutionName={currentInstitution.name} 
-                onLogout={() => window.location.reload()}
-            />
-            
-            <main className="flex-1 p-8 max-w-7xl mx-auto w-full space-y-10">
-                {/* Hero / Welcome Section */}
-                <div className="flex justify-between items-end">
+        <div className="space-y-10 w-full">
+            {/* Hero / Welcome Section */}
+            <div className="flex justify-between items-end">
                     <div className="space-y-2">
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 rounded-full border border-indigo-200 dark:border-indigo-900">
                             <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
@@ -136,7 +129,6 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
                         />
                     </React.Suspense>
                 )}
-            </main>
         </div>
     );
 };
