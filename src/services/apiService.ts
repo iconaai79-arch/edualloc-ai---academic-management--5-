@@ -283,8 +283,10 @@ export const apiService = {
                             console.log('[apiService] Token silently refreshed.');
                             return refreshData.session.access_token;
                         }
-                    } catch (refreshEx) {
-                        console.warn('[apiService] Silent refresh failed:', refreshEx);
+                    } catch (refreshEx: any) {
+                        if (refreshEx?.name !== 'AbortError' && !String(refreshEx?.message || refreshEx).includes('aborted')) {
+                            console.warn('[apiService] Silent refresh failed:', refreshEx);
+                        }
                     }
                 }
             } catch (e) { }
@@ -1489,8 +1491,10 @@ export const apiService = {
                                 console.log('[apiService] Token refreshed, retrying save...');
                                 response = await doSaveRequest(token, currentPayload);
                             }
-                        } catch (refreshErr) {
-                            console.warn('[apiService] Refresh failed during save:', refreshErr);
+                        } catch (refreshErr: any) {
+                            if (refreshErr?.name !== 'AbortError' && !String(refreshErr?.message || refreshErr).includes('aborted')) {
+                                console.warn('[apiService] Refresh failed during save:', refreshErr);
+                            }
                         }
                     }
                     // If still 401 after refresh attempt, signal session expiry
