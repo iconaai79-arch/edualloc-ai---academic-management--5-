@@ -2914,32 +2914,119 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         </select>
                                         
                                         {formData.paymentMethod === 'M-Pesa' && (
-                                            <button 
-                                                type="button"
-                                                disabled={isActionLoading || !formData.amount || !formData.studentId}
-                                                onClick={async () => {
-                                                    const student = (students || []).find(s => s.id === formData.studentId);
-                                                    if (!student?.phone) { toastError("Student phone number missing"); return; }
-                                                    setIsActionLoading(true);
-                                                    try {
-                                                        await apiService.triggerMpesaStkPush({
-                                                            amount: formData.amount,
-                                                            phoneNumber: student.phone,
-                                                            reference: formData.receiptNumber || `DS-${Date.now()}`,
-                                                            description: `Driving School Payment: ${student.fullName}`,
-                                                            institutionId: currentInstitution?.id || ''
-                                                        });
-                                                        toastSuccess("STK Push sent to student's phone!");
-                                                    } catch (err: any) {
-                                                        toastError(err.message || "Failed to trigger STK Push");
-                                                    } finally {
-                                                        setIsActionLoading(false);
-                                                    }
-                                                }}
-                                                className="px-4 bg-green-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-green-600 transition-all disabled:opacity-50"
-                                            >
-                                                {isActionLoading ? '...' : 'STK Push'}
-                                            </button>
+                                            <div className="flex gap-1">
+                                                <button 
+                                                    type="button"
+                                                    disabled={isActionLoading || !formData.amount || !formData.studentId}
+                                                    onClick={async () => {
+                                                        const student = (students || []).find(s => s.id === formData.studentId);
+                                                        if (!student?.phone) { toastError("Student phone number missing"); return; }
+                                                        setIsActionLoading(true);
+                                                        try {
+                                                            const res = await apiService.triggerMpesaStkPush({
+                                                                amount: formData.amount,
+                                                                phoneNumber: student.phone,
+                                                                reference: formData.receiptNumber || `DS-${Date.now()}`,
+                                                                description: `Driving School Payment: ${student.fullName}`,
+                                                                institutionId: currentInstitution?.id || ''
+                                                            });
+                                                            
+                                                            const checkoutId = res?.CheckoutRequestID || res?.checkoutRequestId || res?.data?.CheckoutRequestID || res?.data?.checkoutRequestId || res?.data?.CheckoutRequestId;
+                                                            toastSuccess("STK Push sent to student's phone! Waiting for PIN input...");
+
+                                                            // Auto-poll mpesa_transactions for up to 50 seconds to auto-fill receipt number
+                                                            let attempts = 0;
+                                                            const maxAttempts = 20;
+                                                            const phoneDigits = student.phone.replace(/[^\d]/g, '').slice(-9);
+                                                            const pollInterval = setInterval(async () => {
+                                                                attempts++;
+                                                                try {
+                                                                    const txns = await apiService.fetchModuleRecords<any>('mpesa_transactions', currentInstitution?.id, undefined, {
+                                                                        order: 'created_at.desc',
+                                                                        limit: 10
+                                                                    });
+                                                                    
+                                                                    const matched = txns?.find(t => 
+                                                                        (t.status === 'completed' || t.status === 'Completed') &&
+                                                                        (checkoutId ? (t.checkout_request_id === checkoutId || t.checkoutRequestId === checkoutId) : true) &&
+                                                                        (phoneDigits ? (t.phone_number?.includes(phoneDigits) || t.phoneNumber?.includes(phoneDigits)) : true)
+                                                                    );
+
+                                                                    if (matched) {
+                                                                        const mpesaRef = matched.transaction_id || matched.transactionId || matched.receipt_number;
+                                                                        if (mpesaRef && !mpesaRef.startsWith('STK_') && !mpesaRef.startsWith('KCB_CO_')) {
+                                                                            clearInterval(pollInterval);
+                                                                            setFormData(prev => ({
+                                                                                ...prev,
+                                                                                transactionReference: mpesaRef.toUpperCase(),
+                                                                                status: 'Completed'
+                                                                            }));
+                                                                            toastSuccess(`✨ Payment Confirmed! M-Pesa Ref: ${mpesaRef.toUpperCase()}`);
+                                                                            return;
+                                                                        }
+                                                                    }
+                                                                } catch (pollErr) {
+                                                                    console.warn('[M-Pesa Auto-Fill Poll Error]:', pollErr);
+                                                                }
+
+                                                                if (attempts >= maxAttempts) {
+                                                                    clearInterval(pollInterval);
+                                                                }
+                                                            }, 2500);
+
+                                                        } catch (err: any) {
+                                                            toastError(err.message || "Failed to trigger STK Push");
+                                                        } finally {
+                                                            setIsActionLoading(false);
+                                                        }
+                                                    }}
+                                                    className="px-3 bg-green-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-green-600 transition-all disabled:opacity-50"
+                                                >
+                                                    {isActionLoading ? '...' : 'STK Push'}
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    disabled={isActionLoading || !formData.studentId}
+                                                    onClick={async () => {
+                                                        const student = (students || []).find(s => s.id === formData.studentId);
+                                                        const phoneDigits = student?.phone ? student.phone.replace(/[^\d]/g, '').slice(-9) : '';
+                                                        setIsActionLoading(true);
+                                                        try {
+                                                            const txns = await apiService.fetchModuleRecords<any>('mpesa_transactions', currentInstitution?.id, undefined, {
+                                                                order: 'created_at.desc',
+                                                                limit: 10
+                                                            });
+                                                            
+                                                            const matched = txns?.find(t => 
+                                                                (t.status === 'completed' || t.status === 'Completed') &&
+                                                                (phoneDigits ? (t.phone_number?.includes(phoneDigits) || t.phoneNumber?.includes(phoneDigits)) : true)
+                                                            );
+
+                                                            if (matched) {
+                                                                const mpesaRef = matched.transaction_id || matched.transactionId || matched.receipt_number;
+                                                                if (mpesaRef && !mpesaRef.startsWith('STK_') && !mpesaRef.startsWith('KCB_CO_')) {
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        transactionReference: mpesaRef.toUpperCase(),
+                                                                        status: 'Completed'
+                                                                    }));
+                                                                    toastSuccess(`✨ M-Pesa Reference Fetched: ${mpesaRef.toUpperCase()}`);
+                                                                    return;
+                                                                }
+                                                            }
+                                                            toastInfo("No completed M-Pesa transaction found for this student yet. Ensure PIN entry was completed.");
+                                                        } catch (err: any) {
+                                                            toastError("Failed to fetch M-Pesa reference");
+                                                        } finally {
+                                                            setIsActionLoading(false);
+                                                        }
+                                                    }}
+                                                    className="px-3 bg-amber-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-600 transition-all disabled:opacity-50"
+                                                    title="Auto-fill M-Pesa Reference Code from completed transaction"
+                                                >
+                                                    Verify Ref
+                                                </button>
+                                            </div>
                                         )}
  
                                         {formData.paymentMethod === 'Bank' && (
