@@ -3171,21 +3171,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'initiateStkPush') {
-            const mpesa = bodyConfig || settings?.mpesa_config || settings?.mpesaConfig || {};
+            const instId = institutionIdOverride || paramsMap.metadata?.institutionId || user?.user_metadata?.institutionId;
+            let mpesa = bodyConfig;
+            
+            if (!mpesa && instId && instId !== 'GLOBAL' && instId !== 'SYSTEM') {
+                try {
+                    const { data: inst } = await supabase.from('institutions').select('mpesa_config, mpesaConfig').eq('id', instId).maybeSingle();
+                    if (inst) {
+                        mpesa = inst.mpesa_config || inst.mpesaConfig;
+                    }
+                } catch (e) {
+                    console.warn('[M-Pesa] Failed to fetch institution mpesa config:', e);
+                }
+            }
+
+            if (!mpesa) {
+                mpesa = settings?.mpesa_config || settings?.mpesaConfig || {};
+            }
+
             if (!mpesa) return res.status(400).json({ success: false, message: 'M-Pesa configuration is missing.' });
 
             const consumerKey = (mpesa.consumerKey || mpesa.consumer_key || '').trim();
             const consumerSecret = (mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
-            const paybill = (mpesa.paybillNumber || mpesa.paybill_number || '').trim();
+            const paybill = (mpesa.paybillNumber || mpesa.paybill_number || mpesa.businessShortCode || '').trim();
             const passkey = (mpesa.passkey || '').trim();
 
             if (!consumerKey || !consumerSecret) {
-                return res.status(400).json({ success: false, message: 'M-Pesa Consumer Key or Secret is missing in config.' });
+                return res.status(400).json({ success: false, message: 'M-Pesa Consumer Key or Secret is missing in configuration.' });
             }
 
             const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+            const formattedPhone = normalizePhone(recipient);
 
-            console.log(`[M-Pesa] Initiating STK push for ${recipient} (Amount: ${amount}) using ${mpesa.environment || 'sandbox'}`);
+            if (!formattedPhone || formattedPhone.length < 10) {
+                return res.status(400).json({ success: false, message: `Invalid recipient phone number (${recipient || 'empty'}). Must be a valid Safaricom number.` });
+            }
+
+            console.log(`[M-Pesa] Initiating STK push for ${formattedPhone} (Amount: ${amount}) using ${mpesa.environment || 'sandbox'}`);
 
             const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
 
@@ -3213,6 +3235,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from(paybill + passkey + timestamp).toString('base64');
 
+            const accountRef = (paramsMap.reference || paramsMap.metadata?.institutionCode || "Payment").substring(0, 12);
+            const transactionDesc = (paramsMap.description || `${paramsMap.metadata?.type === 'sms' ? 'SMS Units' : 'Payment'}`).substring(0, 20);
+
             let stkRes;
             try {
                 stkRes = await fetchWithTimeout(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
@@ -3224,12 +3249,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         Timestamp: timestamp,
                         TransactionType: "CustomerPayBillOnline",
                         Amount: Math.round(amount),
-                        PartyA: recipient.replace(/[^\d]/g, ''),
+                        PartyA: formattedPhone,
                         PartyB: paybill,
-                        PhoneNumber: recipient.replace(/[^\d]/g, ''),
+                        PhoneNumber: formattedPhone,
                         CallBackURL: `https://${req.headers['x-forwarded-host'] || req.headers.host}/api/mpesa-callback`,
-                        AccountReference: (paramsMap.metadata?.institutionCode || "Sub/SMS").substring(0, 12),
-                        TransactionDesc: `${paramsMap.metadata?.type === 'sms' ? 'SMS Units' : 'License'}: ${paramsMap.metadata?.institutionName || "Acct"}`.substring(0, 20)
+                        AccountReference: accountRef,
+                        TransactionDesc: transactionDesc
                     })
                 }, 15000); // 15s timeout for the actual prompt
             } catch (e: any) {
@@ -3239,20 +3264,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const stkData = (await stkRes.json()) as any;
             if (stkRes.ok && stkData.ResponseCode === '0') {
-                const institutionId = paramsMap.metadata?.institutionId || user?.user_metadata?.institutionId || 'SYSTEM';
+                const targetInstitutionId = instId || 'SYSTEM';
                 await supabase.from('mpesa_transactions').insert({
                     id: `txn_${Date.now()}`,
                     transaction_id: `STK_${stkData.CheckoutRequestID}`,
                     checkout_request_id: stkData.CheckoutRequestID,
-                    institution_id: institutionId,
+                    institution_id: targetInstitutionId,
                     amount: amount,
-                    phone_number: recipient,
+                    phone_number: formattedPhone,
                     status: 'pending',
                     metadata: paramsMap.metadata || {}
                 });
-                return res.status(200).json({ success: true, message: 'M-Pesa prompt sent.', data: stkData });
+                return res.status(200).json({ success: true, message: 'M-Pesa prompt sent successfully.', data: stkData });
             }
-            return res.status(stkRes.status).json({ success: false, message: stkData.CustomerMessage || 'M-Pesa gateway rejected the request.', details: stkData });
+            console.error('[M-Pesa STK] Gateway rejection:', stkData);
+            return res.status(stkRes.status || 400).json({ 
+                success: false, 
+                message: stkData.CustomerMessage || stkData.errorMessage || stkData.ResponseDescription || 'M-Pesa gateway rejected the request.', 
+                details: stkData 
+            });
         }
 
         if (action === 'testNcbaAuth') {
