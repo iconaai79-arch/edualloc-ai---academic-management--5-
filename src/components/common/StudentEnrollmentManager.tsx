@@ -203,6 +203,17 @@ const ShortenedUrlField: React.FC<{
     );
 };
 
+// Helper to evaluate if an enrollment matches an event target scope (All, Grade, or specific student IDs)
+const isEventTargetMatch = (target: string | undefined, enr: any, context?: string): boolean => {
+    if (!target || target === 'All') return true;
+    if (target.startsWith('students:')) {
+        const sIds = target.replace('students:', '').split(',').map(s => s.trim());
+        return sIds.includes(enr.userId);
+    }
+    if (context === 'driving_school') return enr.metadata?.licenseCategory === target;
+    return enr.metadata?.gradeLevel === target;
+};
+
 interface StudentEnrollmentManagerProps {
     context: 'academic' | 'driving_school';
     currentInstitution: Institution;
