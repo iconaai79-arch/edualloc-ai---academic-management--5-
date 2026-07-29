@@ -2922,8 +2922,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                     if (!student?.phone) { toastError("Student phone number missing"); return; }
                                                     setIsActionLoading(true);
                                                     try {
-                                                        const { triggerMpesaStkPush } = await import('../../services/apiService').then(m => m.apiService);
-                                                        await triggerMpesaStkPush({
+                                                        await apiService.triggerMpesaStkPush({
                                                             amount: formData.amount,
                                                             phoneNumber: student.phone,
                                                             reference: formData.receiptNumber || `DS-${Date.now()}`,
