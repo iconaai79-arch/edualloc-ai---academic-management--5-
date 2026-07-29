@@ -5871,6 +5871,31 @@ export interface RemedialSession {
     payoutId?: string;
 }
 
+export interface RemedialAllocation {
+    id: string;
+    courseId: string;
+    className?: string;
+    subjectId: string;
+    subjectName?: string;
+    teacherId: string;
+    teacherName?: string;
+    dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+    startTime: string;
+    endTime: string;
+    isWeekend?: boolean;
+    createdAt?: string;
+    institutionId: string;
+}
+
+export interface RemedialSubject {
+    id: string;
+    institutionId: string;
+    subjectId: string;
+    subjectName: string;
+    isActive: boolean;
+    createdAt?: string;
+}
+
 export interface RemedialRateSetting {
     id: string;
     hourlyRate: number;

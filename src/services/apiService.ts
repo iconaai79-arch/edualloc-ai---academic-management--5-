@@ -16,7 +16,7 @@ import type {
     CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState,
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay,
     CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, CarInvoice, CarPayment,
-    RemedialSession, RemedialRateSetting, RemedialPayout, FeePromise
+    RemedialSession, RemedialRateSetting, RemedialPayout, RemedialAllocation, RemedialSubject, FeePromise
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -3215,6 +3215,11 @@ export const apiService = {
     async saveRemedialRateSetting(data: Partial<RemedialRateSetting>): Promise<void> { await apiService.saveModuleRecord('school_remedial_rate_settings', data); },
     async fetchRemedialPayouts(instId?: string): Promise<RemedialPayout[]> { return apiService.fetchModuleRecords('school_remedial_payouts', instId); },
     async saveRemedialPayout(data: Partial<RemedialPayout>): Promise<void> { await apiService.saveModuleRecord('school_remedial_payouts', data); },
+    async fetchRemedialAllocations(instId?: string): Promise<RemedialAllocation[]> { return apiService.fetchModuleRecords('school_remedial_allocations', instId); },
+    async saveRemedialAllocation(data: Partial<RemedialAllocation>): Promise<void> { await apiService.saveModuleRecord('school_remedial_allocations', data); },
+    async fetchRemedialSubjects(instId?: string): Promise<RemedialSubject[]> { return apiService.fetchModuleRecords('school_remedial_subjects', instId); },
+    async saveRemedialSubject(data: Partial<RemedialSubject>): Promise<void> { await apiService.saveModuleRecord('school_remedial_subjects', data); },
+    async deleteRemedialSubject(id: string): Promise<void> { await apiService.deleteModuleRecord('school_remedial_subjects', id); },
     async clearInstitutionalData(institutionId: string, currentUserId: string): Promise<void> {
         // Supabase Logic - Moved to secure proxy
         try {

@@ -3066,6 +3066,301 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
+    // Bulk Generate PINs ONLY (Silent / No SMS or Email)
+    const handleGeneratePinsOnlyForMissing = async (event: any) => {
+        setStatusMsg({ type: 'info', message: 'Generating PIN records silently...' });
+        setIsLoading(true);
+
+        try {
+            const targetEnrollments = enrollments.filter(enr => isEventTargetMatch(event.target, enr));
+            const missingEnrollments: typeof targetEnrollments = [];
+            const currentUsersList = [...users];
+
+            for (const enr of targetEnrollments) {
+                const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
+                const fallbackParent = {
+                    name: enr.metadata?.parentName || '',
+                    phone: enr.metadata?.parentPhone || (enr as any).parentPhone || '',
+                    email: enr.metadata?.parentEmail || '',
+                    relation: enr.metadata?.parentRelation || 'Guardian'
+                };
+                const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+                const primaryParent = resolvedParents[0];
+
+                let targetUserId = enr.userId;
+                if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                    const parentUser = currentUsersList.find(u =>
+                        (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+                        (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
+                    );
+                    if (parentUser) {
+                        targetUserId = parentUser.id;
+                    }
+                }
+
+                const hasPin = eventPins.some(p => {
+                    const pEvtId = p.eventId || p.event_id;
+                    if (pEvtId !== event.id) return false;
+                    const pUserId = p.userId || p.user_id;
+                    if (!pUserId) return false;
+                    if (pUserId === targetUserId || pUserId === enr.userId) return true;
+                    const pinUserObj = currentUsersList.find(u => u.id === pUserId);
+                    if (pinUserObj && Array.isArray(pinUserObj.studentIds) && pinUserObj.studentIds.includes(enr.userId)) return true;
+                    return false;
+                });
+                if (!hasPin) {
+                    missingEnrollments.push(enr);
+                }
+            }
+
+            if (missingEnrollments.length === 0) {
+                setStatusMsg({ type: 'success', message: 'All target recipients already have generated PINs.' });
+                setIsLoading(false);
+                return;
+            }
+
+            const usersToUpsert = new Map<string, any>();
+            const eventPinsToCreate: any[] = [];
+
+            for (const enr of missingEnrollments) {
+                let associatedUser = currentUsersList.find(u => u.id === enr.userId);
+                if (!associatedUser) {
+                    const newUserId = enr.userId || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    associatedUser = {
+                        id: newUserId,
+                        name: enr.metadata?.studentName || 'Student Name',
+                        email: `student_${newUserId}@eduai.local`,
+                        phoneNumber: '',
+                        role: 'student',
+                        institutionId: currentInstitution.id,
+                        createdAt: new Date().toISOString(),
+                        metadata: {}
+                    };
+                    usersToUpsert.set(newUserId, associatedUser);
+                    currentUsersList.push(associatedUser);
+                }
+
+                const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
+                const fallbackParent = {
+                    name: enr.metadata?.parentName || '',
+                    phone: enr.metadata?.parentPhone || (enr as any).parentPhone || '',
+                    email: enr.metadata?.parentEmail || '',
+                    relation: enr.metadata?.parentRelation || 'Guardian'
+                };
+                const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+                const primaryParent = resolvedParents[0];
+
+                let targetUserId = associatedUser.id;
+
+                if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                    const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
+                    let parentUser = currentUsersList.find(u =>
+                        (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+                        (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
+                    );
+
+                    if (!parentUser) {
+                        const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        parentUser = {
+                            id: newId,
+                            institutionId: currentInstitution.id,
+                            name: primaryParent.name || 'Parent / Guardian',
+                            email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
+                            phoneNumber: primaryParent.phone ? formattedParentPhone : null,
+                            role: 'parent',
+                            studentIds: [associatedUser.id],
+                            metadata: {},
+                            createdAt: new Date().toISOString()
+                        } as any;
+                        usersToUpsert.set(newId, parentUser);
+                        currentUsersList.push(parentUser);
+                    } else {
+                        const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
+                        if (!currentStudentIds.includes(associatedUser.id)) {
+                            parentUser = {
+                                ...parentUser,
+                                studentIds: [...currentStudentIds, associatedUser.id]
+                            };
+                            usersToUpsert.set(parentUser.id, parentUser);
+                        }
+                    }
+
+                    targetUserId = parentUser.id;
+                }
+
+                const existingPin = eventPins.find(p => {
+                    const pEvtId = p.eventId || p.event_id;
+                    if (pEvtId !== event.id) return false;
+                    const pUserId = p.userId || p.user_id;
+                    if (pUserId === targetUserId || pUserId === enr.userId) return true;
+                    return false;
+                }) || eventPinsToCreate.find(p => (p.eventId || p.event_id) === event.id && (p.userId || p.user_id) === targetUserId);
+
+                if (!existingPin) {
+                    const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+                    const pinId = `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    eventPinsToCreate.push({
+                        id: pinId,
+                        institutionId: currentInstitution.id,
+                        institution_id: currentInstitution.id,
+                        eventId: event.id,
+                        event_id: event.id,
+                        userId: targetUserId,
+                        user_id: targetUserId,
+                        pin: pinCode,
+                        status: 'pending',
+                        createdAt: new Date().toISOString(),
+                        created_at: new Date().toISOString()
+                    });
+                }
+            }
+
+            if (usersToUpsert.size > 0) {
+                const upsertedList = Array.from(usersToUpsert.values());
+                await apiService.saveModuleRecords('users', upsertedList);
+                setUsers(prev => {
+                    const next = [...prev];
+                    upsertedList.forEach(u => {
+                        const idx = next.findIndex(item => item.id === u.id);
+                        if (idx !== -1) next[idx] = u;
+                        else next.push(u);
+                    });
+                    return next;
+                });
+            }
+            if (eventPinsToCreate.length > 0) {
+                await apiService.saveModuleRecords('event_pins', eventPinsToCreate);
+                setEventPins(prev => [...prev, ...eventPinsToCreate]);
+            }
+
+            setStatusMsg({ type: 'success', message: `Successfully generated ${eventPinsToCreate.length} PIN records! (No SMS/Email sent). PINs are now active for portal access.` });
+            loadAllData();
+        } catch (err: any) {
+            console.error("Silent PIN generation failed:", err);
+            setStatusMsg({ type: 'error', message: `PIN generation failed: ${err.message}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
+    // Generate PIN Only for individual recipient (Silent)
+    const handleGeneratePinOnlyForIndividual = async (event: any, item: any) => {
+        setStatusMsg({ type: 'info', message: `Generating PIN for ${item.targetName}...` });
+        setIsLoading(true);
+
+        try {
+            const enr = item.enr;
+            const currentUsersList = [...users];
+            let associatedUser = currentUsersList.find(u => u.id === enr.userId);
+
+            if (!associatedUser) {
+                const newUserId = enr.userId || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                associatedUser = {
+                    id: newUserId,
+                    name: item.studentName || 'Student Name',
+                    email: `student_${newUserId}@eduai.local`,
+                    phoneNumber: '',
+                    role: 'student',
+                    institutionId: currentInstitution.id,
+                    createdAt: new Date().toISOString(),
+                    metadata: {}
+                };
+                await apiService.saveModuleRecord('users', associatedUser);
+            }
+
+            const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
+            const fallbackParent = {
+                name: enr.metadata?.parentName || '',
+                phone: enr.metadata?.parentPhone || enr.parentPhone || '',
+                email: enr.metadata?.parentEmail || '',
+                relation: enr.metadata?.parentRelation || 'Guardian'
+            };
+            const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+            const primaryParent = resolvedParents[0];
+
+            let targetUserId = associatedUser.id;
+            let targetName = associatedUser.name;
+
+            if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
+                let parentUser = currentUsersList.find(u =>
+                    (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+                    (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
+                );
+
+                if (!parentUser) {
+                    const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    parentUser = {
+                        id: newId,
+                        institutionId: currentInstitution.id,
+                        name: primaryParent.name || 'Parent / Guardian',
+                        email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
+                        phoneNumber: primaryParent.phone ? formattedParentPhone : null,
+                        role: 'parent',
+                        studentIds: [associatedUser.id],
+                        metadata: {},
+                        createdAt: new Date().toISOString()
+                    } as any;
+                    await apiService.saveModuleRecord('users', parentUser);
+                } else {
+                    const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
+                    if (!currentStudentIds.includes(associatedUser.id)) {
+                        parentUser = {
+                            ...parentUser,
+                            studentIds: [...currentStudentIds, associatedUser.id]
+                        };
+                        await apiService.updateModuleRecord('users', parentUser.id, parentUser);
+                    }
+                }
+                targetUserId = parentUser.id;
+                targetName = primaryParent.name || 'Parent / Guardian';
+            }
+
+            const existingPin = eventPins.find(p => {
+                const pEvtId = p.eventId || p.event_id;
+                if (pEvtId !== event.id) return false;
+                const pUserId = p.userId || p.user_id;
+                if (!pUserId) return false;
+                if (pUserId === targetUserId || pUserId === associatedUser.id) return true;
+                const pinUserObj = users.find(u => u.id === pUserId);
+                if (pinUserObj && Array.isArray(pinUserObj.studentIds) && pinUserObj.studentIds.includes(associatedUser.id)) return true;
+                return false;
+            });
+
+            if (!existingPin) {
+                const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+                const pinId = `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                const newPinRecord = {
+                    id: pinId,
+                    institutionId: currentInstitution.id,
+                    institution_id: currentInstitution.id,
+                    eventId: event.id,
+                    event_id: event.id,
+                    userId: targetUserId,
+                    user_id: targetUserId,
+                    pin: pinCode,
+                    status: 'pending' as const,
+                    createdAt: new Date().toISOString(),
+                    created_at: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('event_pins', newPinRecord);
+                setEventPins(prev => [...prev.filter(p => p.id !== pinId), newPinRecord]);
+                setStatusMsg({ type: 'success', message: `PIN generated for ${targetName}! (PIN: ${pinCode})` });
+            } else {
+                setStatusMsg({ type: 'info', message: `PIN already exists for ${targetName} (PIN: ${existingPin.pin})` });
+            }
+
+            loadAllData();
+        } catch (err: any) {
+            console.error("Individual PIN generation failed:", err);
+            setStatusMsg({ type: 'error', message: `PIN generation failed: ${err.message}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
     // Generate and send PIN to individual recipient
     const handleSendPinToIndividualRecipient = async (event: any, item: any, additionalMessage: string = '') => {
         setStatusMsg({ type: 'info', message: `Generating and sending PIN to ${item.targetName}...` });
@@ -3192,7 +3487,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
 
             // Verify if PIN exists already
-            const existingPin = eventPins.find(p => p.eventId === event.id && p.userId === targetUserId);
+            const existingPin = eventPins.find(p => {
+                const pEvtId = p.eventId || p.event_id;
+                if (pEvtId !== event.id) return false;
+                const pUserId = p.userId || p.user_id;
+                if (!pUserId) return false;
+                if (pUserId === targetUserId || pUserId === associatedUser.id) return true;
+                const pinUserObj = users.find(u => u.id === pUserId);
+                if (pinUserObj && Array.isArray(pinUserObj.studentIds) && pinUserObj.studentIds.includes(associatedUser.id)) return true;
+                return false;
+            });
             const pinCode = existingPin ? existingPin.pin : Math.floor(100000 + Math.random() * 900000).toString();
             const pinId = existingPin ? existingPin.id : `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
@@ -3200,13 +3504,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const newPinRecord = {
                     id: pinId,
                     institutionId: currentInstitution.id,
+                    institution_id: currentInstitution.id,
                     eventId: event.id,
+                    event_id: event.id,
                     userId: targetUserId,
+                    user_id: targetUserId,
                     pin: pinCode,
                     status: 'pending' as const,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    created_at: new Date().toISOString()
                 };
                 await apiService.saveModuleRecord('event_pins', newPinRecord);
+                setEventPins(prev => [...prev.filter(p => p.id !== pinId), newPinRecord]);
             }
 
             const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
@@ -7912,7 +8221,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             targetEmail = primaryParent.email || '';
                         }
                     }
-                    const existingPin = eventMatchingPins.find(p => p.userId === targetUserId);
+                    const existingPin = eventMatchingPins.find(p => {
+                        const pUserId = p.userId || p.user_id;
+                        if (!pUserId) return false;
+                        if (pUserId === targetUserId || pUserId === enr.userId) return true;
+                        const pinUserObj = (users as any[]).find(u => u.id === pUserId);
+                        if (pinUserObj && Array.isArray(pinUserObj.studentIds) && pinUserObj.studentIds.includes(enr.userId)) return true;
+                        return false;
+                    });
                     if (!existingPin) {
                         auditMissingList.push({ enr, studentName, targetName, targetPhone, targetEmail, cohort });
                     } else {
@@ -8334,14 +8650,26 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                         <span className="bg-rose-500/10 text-rose-450 border border-rose-500/20 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">Missing</span>
                                                                     </td>
                                                                     <td className="py-3 px-4 text-center">
-                                                                        <button
-                                                                            type="button"
-                                                                            disabled={isLoading}
-                                                                            onClick={() => handleSendPinToIndividualRecipient(event, item, auditCustomMessage)}
-                                                                            className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-600/40 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1 focus:outline-none"
-                                                                        >
-                                                                            <Send className="w-2.5 h-2.5" /> Generate &amp; Send
-                                                                        </button>
+                                                                        <div className="flex items-center justify-center gap-1.5">
+                                                                            <button
+                                                                                type="button"
+                                                                                disabled={isLoading}
+                                                                                onClick={() => handleGeneratePinOnlyForIndividual(event, item)}
+                                                                                className="px-2 py-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1 focus:outline-none"
+                                                                                title="Generate PIN record silently without sending SMS/Email"
+                                                                            >
+                                                                                <Sparkles className="w-2.5 h-2.5" /> Generate PIN
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                disabled={isLoading}
+                                                                                onClick={() => handleSendPinToIndividualRecipient(event, item, auditCustomMessage)}
+                                                                                className="px-2 py-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1 focus:outline-none"
+                                                                                title="Generate PIN and dispatch SMS/Email notification"
+                                                                            >
+                                                                                <Send className="w-2.5 h-2.5" /> Send PIN
+                                                                            </button>
+                                                                        </div>
                                                                     </td>
                                                                 </tr>
                                                             ))}
@@ -8688,22 +9016,37 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 )}
                                 {analysisTab === 'audit' && (
                                     <div className="space-y-3">
-                                        {/* Primary bulk actions row */}
-                                        <div className="flex flex-col sm:flex-row gap-3">
-                                            {/* Bulk Generate & Send — only targets missing PINs */}
-                                            <button
-                                                type="button"
-                                                disabled={isLoading || auditMissing === 0}
-                                                onClick={() => {
-                                                    setSelectedAnalysisEvent(null);
-                                                    handleSendPinsToMissingRecipients(event, auditCustomMessage);
-                                                }}
-                                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
-                                            >
-                                                <Sparkles className="w-4 h-4" />
-                                                {isLoading ? 'Generating...' : auditMissing === 0 ? 'All PINs Issued ✓' : `Bulk Generate & Send to ${auditMissing} Missing`}
-                                            </button>
-                                        </div>
+                                        {/* Primary bulk actions row — separated Generate PINs Only and Bulk Generate & Send */}
+                                         <div className="flex flex-col sm:flex-row gap-3">
+                                             {/* Bulk Generate PINs Only (Silent) */}
+                                             <button
+                                                 type="button"
+                                                 disabled={isLoading || auditMissing === 0}
+                                                 onClick={() => {
+                                                     handleGeneratePinsOnlyForMissing(event);
+                                                 }}
+                                                 className="flex-1 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-500/20"
+                                                 title="Creates PIN records silently so parents can see their PIN on the portal, without sending SMS/Email"
+                                             >
+                                                 <Sparkles className="w-4 h-4" />
+                                                 {isLoading ? 'Processing...' : auditMissing === 0 ? 'All PINs Issued ✓' : `Generate PINs Only (${auditMissing})`}
+                                             </button>
+
+                                             {/* Bulk Generate & Send SMS / Email */}
+                                             <button
+                                                 type="button"
+                                                 disabled={isLoading || auditMissing === 0}
+                                                 onClick={() => {
+                                                     setSelectedAnalysisEvent(null);
+                                                     handleSendPinsToMissingRecipients(event, auditCustomMessage);
+                                                 }}
+                                                 className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
+                                                 title="Generates PIN records and sends SMS/Email notifications to all missing recipients"
+                                             >
+                                                 <Send className="w-4 h-4" />
+                                                 {isLoading ? 'Dispatching...' : auditMissing === 0 ? 'All PINs Issued ✓' : `Generate & Send (${auditMissing})`}
+                                             </button>
+                                         </div>
 
                                         {/* Secondary actions row */}
                                         <div className="flex flex-col sm:flex-row gap-3">

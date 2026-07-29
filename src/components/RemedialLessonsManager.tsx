@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation } from '../types';
+import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject } from '../types';
 import { apiService } from '../services/apiService';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
@@ -32,8 +32,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [rateSetting, setRateSetting] = useState<RemedialRateSetting | null>(null);
     const [payouts, setPayouts] = useState<RemedialPayout[]>([]);
     const [allocations, setAllocations] = useState<RemedialAllocation[]>([]);
+    const [remedialSubjects, setRemedialSubjects] = useState<RemedialSubject[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'sessions' | 'allocations' | 'payouts' | 'billing' | 'rates' | 'portal_hub'>('sessions');
+    const [activeTab, setActiveTab] = useState<'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub'>('sessions');
+    
+    // Remedial Subject Modal / Filter States
+    const [showSubjectModal, setShowSubjectModal] = useState(false);
+    const [newSubjectId, setNewSubjectId] = useState('');
+    const [customSubjectName, setCustomSubjectName] = useState('');
+    const [subjectSearchQuery, setSubjectSearchQuery] = useState('');
     
     // Filters & Search
     const [searchQuery, setSearchQuery] = useState('');
@@ -84,8 +91,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 apiService.fetchInvoices(institutionId),
             ]);
 
-            // Fetch allocations separately with fallback for older builds
+            // Fetch allocations & subjects separately with fallback
             let allocList: RemedialAllocation[] = [];
+            let remSubList: RemedialSubject[] = [];
             try {
                 if (typeof (apiService as any).fetchRemedialAllocations === 'function') {
                     allocList = await (apiService as any).fetchRemedialAllocations(institutionId) || [];
@@ -94,10 +102,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 allocList = [];
             }
 
+            try {
+                if (typeof (apiService as any).fetchRemedialSubjects === 'function') {
+                    remSubList = await (apiService as any).fetchRemedialSubjects(institutionId) || [];
+                }
+            } catch {
+                remSubList = [];
+            }
+
             setSessions(sessList || []);
             setInvoices(invList || []);
             setPayouts(payList || []);
             setAllocations(allocList);
+            setRemedialSubjects(remSubList);
 
             if (rates && rates.length > 0) {
                 setRateSetting(rates[0]);
@@ -114,6 +131,128 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
         } catch (e) {
             console.error('Failed to load remedial data', e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Active Remedial Subjects for dropdowns
+    const activeRemedialSubjectsList = useMemo(() => {
+        if (remedialSubjects.length > 0) {
+            const active = remedialSubjects.filter(rs => rs.isActive !== false);
+            if (active.length > 0) return active.map(rs => ({ id: rs.subjectId, name: rs.subjectName }));
+        }
+        return subjects.map(s => ({ id: s.id, name: s.name }));
+    }, [remedialSubjects, subjects]);
+
+    // Save Remedial Subject Handler
+    const handleSaveRemedialSubject = async (e: React.FormEvent) => {
+        e.preventDefault();
+        let subjectName = '';
+        let subId = newSubjectId;
+
+        if (newSubjectId === 'custom') {
+            if (!customSubjectName.trim()) return alert('Please enter custom subject name');
+            subjectName = customSubjectName.trim();
+            subId = `custom_sub_${Date.now()}`;
+        } else if (newSubjectId) {
+            const found = subjects.find(s => s.id === newSubjectId);
+            subjectName = found ? found.name : newSubjectId;
+        } else {
+            return alert('Please select a subject or specify a custom name');
+        }
+
+        try {
+            const newRemSubject: RemedialSubject = {
+                id: `rem_sub_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                institutionId,
+                subjectId: subId,
+                subjectName,
+                isActive: true,
+                createdAt: new Date().toISOString()
+            };
+
+            if (typeof (apiService as any).saveRemedialSubject === 'function') {
+                await (apiService as any).saveRemedialSubject(newRemSubject);
+            } else {
+                await apiService.saveModuleRecord('school_remedial_subjects', newRemSubject);
+            }
+
+            onLogAction?.(`Registered remedial subject "${subjectName}"`);
+            alert(`Remedial subject "${subjectName}" added successfully!`);
+            setShowSubjectModal(false);
+            setNewSubjectId('');
+            setCustomSubjectName('');
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to save remedial subject');
+        }
+    };
+
+    // Toggle Subject Active/Inactive Status
+    const handleToggleSubjectStatus = async (remSub: RemedialSubject) => {
+        try {
+            const updated = { ...remSub, isActive: !remSub.isActive };
+            if (typeof (apiService as any).saveRemedialSubject === 'function') {
+                await (apiService as any).saveRemedialSubject(updated);
+            } else {
+                await apiService.saveModuleRecord('school_remedial_subjects', updated);
+            }
+            onLogAction?.(`Toggled remedial subject "${remSub.subjectName}" status to ${updated.isActive ? 'Active' : 'Inactive'}`);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to update subject status');
+        }
+    };
+
+    // Delete Remedial Subject
+    const handleDeleteRemedialSubject = async (id: string, name: string) => {
+        if (!window.confirm(`Delete remedial subject "${name}"?`)) return;
+        try {
+            if (typeof (apiService as any).deleteRemedialSubject === 'function') {
+                await (apiService as any).deleteRemedialSubject(id);
+            } else {
+                await apiService.deleteModuleRecord('school_remedial_subjects', id);
+            }
+            onLogAction?.(`Deleted remedial subject "${name}"`);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to delete remedial subject');
+        }
+    };
+
+    // Auto-Register All School Subjects
+    const handleRegisterAllSubjects = async () => {
+        if (subjects.length === 0) return alert('No general school subjects found in the institution.');
+        if (!window.confirm(`Register all ${subjects.length} school subjects as Active Remedial Subjects?`)) return;
+
+        try {
+            setLoading(true);
+            const existingIds = new Set(remedialSubjects.map(rs => rs.subjectId));
+            let count = 0;
+            for (const sub of subjects) {
+                if (!existingIds.has(sub.id)) {
+                    const newRemSub: RemedialSubject = {
+                        id: `rem_sub_${Date.now()}_${sub.id.slice(-4)}_${count}`,
+                        institutionId,
+                        subjectId: sub.id,
+                        subjectName: sub.name,
+                        isActive: true,
+                        createdAt: new Date().toISOString()
+                    };
+                    if (typeof (apiService as any).saveRemedialSubject === 'function') {
+                        await (apiService as any).saveRemedialSubject(newRemSub);
+                    } else {
+                        await apiService.saveModuleRecord('school_remedial_subjects', newRemSub);
+                    }
+                    count++;
+                }
+            }
+            onLogAction?.(`Registered ${count} new remedial subjects from school catalog.`);
+            alert(`Successfully registered ${count} remedial subjects!`);
+            loadData();
+        } catch (err: any) {
+            alert('Failed to register subjects: ' + err.message);
         } finally {
             setLoading(false);
         }
@@ -677,6 +816,34 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         </button>
 
                         <button 
+                            onClick={() => setActiveTab('subjects')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'subjects' 
+                                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'subjects' ? 'bg-white/20 text-white' : 'bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <BookOpen className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Remedial Subjects</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'subjects' ? 'text-indigo-100' : 'text-slate-400'}`}>Subject registry &amp; status</p>
+                                </div>
+                            </div>
+                            {remedialSubjects.length > 0 && (
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                    activeTab === 'subjects' ? 'bg-white text-indigo-700' : 'bg-pink-100 dark:bg-pink-950/50 text-pink-600 dark:text-pink-400'
+                                }`}>
+                                    {remedialSubjects.filter(rs => rs.isActive !== false).length}
+                                </span>
+                            )}
+                        </button>
+
+                        <button 
                             onClick={() => setActiveTab('payouts')}
                             className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
                                 activeTab === 'payouts' 
@@ -771,6 +938,141 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                 {/* Right Main Content Workspace */}
                 <div className="lg:col-span-9 min-w-0">
+
+            {/* TAB: REMEDIAL SUBJECTS */}
+            {activeTab === 'subjects' && (
+                <div className="space-y-6">
+                    {/* Header Controls */}
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-1 flex items-center gap-2">
+                                <BookOpen className="w-4 h-4 text-pink-500" /> Remedial Subjects Registry
+                            </h4>
+                            <p className="text-xs text-slate-500">
+                                Configure which subjects are offered for extra remedial tuition. Active subjects will be available for timetable allocations and session logging.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                            <button
+                                onClick={handleRegisterAllSubjects}
+                                className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-pink-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <Sparkles className="w-4 h-4" /> Register All School Subjects
+                            </button>
+                            <button
+                                onClick={() => setShowSubjectModal(true)}
+                                className="flex-1 md:flex-none px-5 py-3 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <Plus className="w-4 h-4" /> Add Remedial Subject
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Search & Stats Bar */}
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-3">
+                        <div className="relative w-full sm:w-80 group">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-pink-600 transition-colors" />
+                            <input
+                                type="text"
+                                placeholder="Search remedial subject..."
+                                value={subjectSearchQuery}
+                                onChange={e => setSubjectSearchQuery(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full pl-12 pr-6 py-2.5 text-xs font-bold outline-none focus:border-pink-600 transition-all dark:text-white"
+                            />
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
+                            <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-full text-[10px] uppercase font-black">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                {remedialSubjects.filter(s => s.isActive !== false).length} Active
+                            </span>
+                            <span className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-[10px] uppercase font-black">
+                                {remedialSubjects.length} Total Registered
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Subject Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {remedialSubjects
+                            .filter(s => s.subjectName.toLowerCase().includes(subjectSearchQuery.toLowerCase()))
+                            .map(remSub => {
+                                const allocationCount = allocations.filter(a => a.subjectId === remSub.subjectId || a.subjectName === remSub.subjectName).length;
+                                return (
+                                    <div
+                                        key={remSub.id}
+                                        className={`p-5 rounded-3xl border transition-all space-y-3 relative group ${
+                                            remSub.isActive !== false
+                                                ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm hover:border-pink-500/50'
+                                                : 'bg-slate-50/70 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800 opacity-75'
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <h5 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                    {remSub.subjectName}
+                                                </h5>
+                                                <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+                                                    ID: {remSub.subjectId}
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteRemedialSubject(remSub.id, remSub.subjectName)}
+                                                className="text-slate-400 hover:text-red-500 p-1.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                                                title="Remove remedial subject"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
+                                                <Calendar className="w-3.5 h-3.5 text-violet-500" />
+                                                <span>{allocationCount} Timetable Allocation{allocationCount === 1 ? '' : 's'}</span>
+                                            </div>
+
+                                            <button
+                                                onClick={() => handleToggleSubjectStatus(remSub)}
+                                                className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                                    remSub.isActive !== false
+                                                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200'
+                                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300'
+                                                }`}
+                                            >
+                                                <span className={`w-2 h-2 rounded-full ${remSub.isActive !== false ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                                                {remSub.isActive !== false ? 'Active' : 'Inactive'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        }
+
+                        {remedialSubjects.length === 0 && (
+                            <div className="col-span-full bg-white dark:bg-slate-800 p-12 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 text-center space-y-4">
+                                <div className="w-16 h-16 bg-pink-50 dark:bg-pink-950/40 text-pink-500 rounded-3xl flex items-center justify-center mx-auto">
+                                    <BookOpen className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">No Remedial Subjects Registered</h4>
+                                    <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                                        You haven't configured any remedial subjects yet. Register your school subjects to enable remedial allocations and extra session logging.
+                                    </p>
+                                </div>
+                                <div className="flex justify-center gap-3 pt-2">
+                                    <button
+                                        onClick={handleRegisterAllSubjects}
+                                        className="px-6 py-3 bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md hover:from-pink-700 hover:to-rose-700 transition-all flex items-center gap-2"
+                                    >
+                                        <Sparkles className="w-4 h-4" /> Register All School Subjects
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* TAB: ALLOCATIONS & TIMETABLE */}
             {activeTab === 'allocations' && (
@@ -1568,8 +1870,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     onChange={e => setManualSubjectId(e.target.value)}
                                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
                                 >
-                                    <option value="">-- Select Subject --</option>
-                                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    <option value="">-- Select Remedial Subject --</option>
+                                    {activeRemedialSubjectsList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
                             </div>
 
@@ -1676,8 +1978,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 required
                                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
                             >
-                                <option value="">-- Select Subject --</option>
-                                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                <option value="">-- Select Remedial Subject --</option>
+                                {activeRemedialSubjectsList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                         </div>
 
@@ -1782,6 +2084,82 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 className="flex-1 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
                             >
                                 Save Allocation
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )}
+
+        {/* ===== ADD REMEDIAL SUBJECT MODAL ===== */}
+        {showSubjectModal && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    {/* Modal Header */}
+                    <div className="flex items-center justify-between px-7 pt-7 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                <BookOpen className="w-4 h-4 text-pink-500" /> Add Remedial Subject
+                            </h3>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Register a subject to enable extra tuition sessions</p>
+                        </div>
+                        <button
+                            onClick={() => setShowSubjectModal(false)}
+                            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    {/* Modal Form */}
+                    <form onSubmit={handleSaveRemedialSubject} className="p-7 space-y-5">
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                Select School Subject
+                            </label>
+                            <select
+                                value={newSubjectId}
+                                onChange={e => setNewSubjectId(e.target.value)}
+                                required
+                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-pink-600 dark:text-white"
+                            >
+                                <option value="">-- Choose Subject --</option>
+                                {subjects.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                                <option value="custom">+ Other / Custom Subject Name</option>
+                            </select>
+                        </div>
+
+                        {newSubjectId === 'custom' && (
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                    Custom Subject Name
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Remedial Coding &amp; Robotics"
+                                    value={customSubjectName}
+                                    onChange={e => setCustomSubjectName(e.target.value)}
+                                    required
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-pink-600 dark:text-white"
+                                />
+                            </div>
+                        )}
+
+                        <div className="flex items-center gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowSubjectModal(false)}
+                                className="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="flex-1 py-3.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-pink-500/20 transition-all active:scale-95"
+                            >
+                                Register Subject
                             </button>
                         </div>
                     </form>
