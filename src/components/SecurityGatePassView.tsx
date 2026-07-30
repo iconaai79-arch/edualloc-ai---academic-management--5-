@@ -160,13 +160,28 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 
     const syncDahuaAccessLogs = async () => {
         if (!dahuaConfig.enabled || !dahuaConfig.ipAddress || syncingDahuaLogs) return;
+        
+        const isNative = Capacitor.isNativePlatform();
+        const isHttpsWeb = typeof window !== 'undefined' && window.location.protocol === 'https:';
+        
+        // Prevent continuous browser mixed-content console spam when accessing local IP from HTTPS production domain
+        if (!isNative && isHttpsWeb && (dahuaConfig.ipAddress.startsWith('192.168.') || dahuaConfig.ipAddress.startsWith('10.') || dahuaConfig.ipAddress.startsWith('172.'))) {
+            console.warn('[Dahua Biometric Sync] Direct HTTP local IP connection (http://' + dahuaConfig.ipAddress + ') is blocked on HTTPS web origin (https://portal.eduai.co.ke). Use the Capacitor Native Mobile App or an HTTPS Relay Proxy.');
+            return;
+        }
+
         setSyncingDahuaLogs(true);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 sec timeout
+
         try {
             const baseUrl = `http://${dahuaConfig.ipAddress}:${dahuaConfig.port || 80}`;
             const queryUrl = `${baseUrl}/cgi-bin/recordFinder.cgi?action=find&name=AccessControlCardRec&count=30`;
             
-            const isNative = Capacitor.isNativePlatform();
-            const fetchOptions: RequestInit = { method: 'GET' };
+            const fetchOptions: RequestInit = { 
+                method: 'GET',
+                signal: controller.signal
+            };
 
             if (isNative) {
                 const headers: Record<string, string> = {};
@@ -179,6 +194,8 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             }
 
             const response = await fetch(queryUrl, fetchOptions);
+            clearTimeout(timeoutId);
+
             const text = await response.text();
             
             if (text && text.includes('records[')) {
@@ -242,8 +259,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     }
                 }
             }
-        } catch (err) {
-            console.warn("Dahua log sync attempt completed:", err);
+        } catch (err: any) {
+            clearTimeout(timeoutId);
+            if (err.name !== 'AbortError') {
+                console.warn("Dahua log sync attempt completed:", err?.message || err);
+            }
         } finally {
             setSyncingDahuaLogs(false);
         }
