@@ -159,7 +159,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         onSaveAssessmentMarks = async () => {},
         onAccessAlumnaPortal = () => {}, 
         schoolRegistry = [], 
-        onTimetableGenerated = async () => {}
+        onTimetableGenerated = async () => {},
+        academicLevels = []
     } = props;
 
     const [activeTab, setActiveTab] = useState<'home' | 'exam_units' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
