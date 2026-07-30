@@ -414,7 +414,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     progress = activeExam.submittedPercent;
                 }
 
-                const teacherObj = users.find(u => (u.role === 'teacher' || u.role === 'instructor') && ((u as any).subject === subName || u.name));
+                const teacherObj = users.find(u => (u.role === 'teacher' || (u.role as string) === 'instructor') && ((u as any).subject === subName || u.name));
                 const teacherName = teacherObj ? teacherObj.name : `Subject Teacher`;
 
                 return {
