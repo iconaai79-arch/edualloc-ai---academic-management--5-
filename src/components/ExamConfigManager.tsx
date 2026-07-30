@@ -867,7 +867,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                         Help us determine what scores or marks constitute a grade A, B+ or C- in your school. The system defaults to overall grading if subject-specific grading is not specified.
                     </p>
-                    <GradingSystemManager currentInstitution={currentInstitution} onUpdateInstitution={onUpdateInstitution} />
+                    <GradingSystemManager currentInstitution={currentInstitution} onUpdateInstitution={onUpdateInstitution} courses={courses} academicLevels={academicLevels} subjects={subjects} />
                 </div>
             )}
 

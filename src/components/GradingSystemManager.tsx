@@ -12,6 +12,7 @@ interface GradingSystemManagerProps {
     courses?: any[];
     users?: any[];
     subjects?: any[];
+    academicLevels?: any[];
 }
 
 export interface TreeGradingNode {
@@ -51,7 +52,8 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
     onUpdateInstitution,
     courses = [],
     users = [],
-    subjects = []
+    subjects = [],
+    academicLevels = []
 }) => {
     const isPrimarySchool = useMemo(() => {
         const type = (currentInstitution?.institutionType || '').toLowerCase();
@@ -61,17 +63,27 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
 
     const activeDefaultDefinitions = isPrimarySchool ? defaultCbeDefinitions : defaultDefinitions;
 
-    // Dynamically compute configured classes
+    // Dynamically compute configured classes from all available sources
     const configuredClasses = useMemo(() => {
         const set = new Set<string>();
 
-        if (courses && courses.length > 0) {
-            courses.forEach(c => {
-                const name = c.name || (c as any).title || c.code;
+        // 1. From academicLevels prop
+        if (academicLevels && academicLevels.length > 0) {
+            academicLevels.forEach(l => {
+                const name = typeof l === 'string' ? l : (l.name || l.title || l.code);
                 if (name) set.add(name);
             });
         }
 
+        // 2. From courses prop
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
+                if (name) set.add(name);
+            });
+        }
+
+        // 3. From users prop
         if (users && users.length > 0) {
             users.forEach(u => {
                 const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
@@ -81,16 +93,48 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             });
         }
 
+        // 4. From currentInstitution object properties
+        if (currentInstitution) {
+            if ((currentInstitution as any).classes && Array.isArray((currentInstitution as any).classes)) {
+                (currentInstitution as any).classes.forEach((c: any) => {
+                    const name = typeof c === 'string' ? c : c.name;
+                    if (name) set.add(name);
+                });
+            }
+            if ((currentInstitution as any).courses && Array.isArray((currentInstitution as any).courses)) {
+                (currentInstitution as any).courses.forEach((c: any) => {
+                    const name = typeof c === 'string' ? c : (c.name || c.title);
+                    if (name) set.add(name);
+                });
+            }
+        }
+
+        // 5. From LocalStorage cached registered classes
+        try {
+            const instId = currentInstitution?.id || 'default_inst';
+            const savedClasses = localStorage.getItem(`eduai_registered_classes_${instId}`);
+            if (savedClasses) {
+                const parsed = JSON.parse(savedClasses);
+                if (Array.isArray(parsed)) parsed.forEach(c => set.add(c));
+            }
+            const savedLevels = localStorage.getItem(`eduai_academic_levels_${instId}`);
+            if (savedLevels) {
+                const parsed = JSON.parse(savedLevels);
+                if (Array.isArray(parsed)) parsed.forEach((l: any) => set.add(l.name || l));
+            }
+        } catch(e) {}
+
+        // 6. Fallback defaults if no custom classes registered yet
         if (set.size === 0) {
             if (isPrimarySchool) {
-                ['Grade 1 Central', 'Grade 2 Central', 'Grade 3 Central', 'Grade 4 Central', 'Grade 5 Central', 'Grade 6 Central', 'Grade 7 Central'].forEach(c => set.add(c));
+                ['Grade 1 Central', 'Grade 2 Central', 'Grade 3 Central', 'Grade 4 Central', 'Grade 5 Central', 'Grade 6 Central', 'Grade 7 Central', 'Grade 8 Central'].forEach(c => set.add(c));
             } else {
                 ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central'].forEach(c => set.add(c));
             }
         }
 
         return Array.from(set);
-    }, [courses, users, isPrimarySchool]);
+    }, [academicLevels, courses, users, currentInstitution, isPrimarySchool]);
 
     // Collapsible tree node expand state
     const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>(() => {
@@ -133,24 +177,56 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
 
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
-    // Sync saved data from currentInstitution
+    // Sync saved data from currentInstitution AND dynamically populate configuredClasses nodes
     useEffect(() => {
-        if ((currentInstitution as any)?.treeGradingNodes) {
-            setGradingNodes((currentInstitution as any).treeGradingNodes);
-        }
-    }, [currentInstitution]);
+        const savedNodes = (currentInstitution as any)?.treeGradingNodes;
+        
+        setGradingNodes(prev => {
+            const base = (savedNodes && Object.keys(savedNodes).length > 0) ? { ...savedNodes } : { ...prev };
+            
+            if (!base['root_main']) {
+                base['root_main'] = {
+                    id: 'root_main',
+                    label: 'Main grading system (default)',
+                    title: `MAIN DEFAULT GRADING SYSTEM (${isPrimarySchool ? 'CBE 4-Level' : '8-4-4 12-Point'})`,
+                    type: 'root',
+                    definitions: activeDefaultDefinitions
+                };
+            }
+
+            configuredClasses.forEach(cName => {
+                const classKey = `class_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+                const overallId = `${classKey}_overall`;
+
+                if (!base[overallId]) {
+                    base[overallId] = {
+                        id: overallId,
+                        label: `${cName} Overall`,
+                        title: `${cName.toUpperCase()} OVERALL GRADING SYSTEM`,
+                        type: 'overall',
+                        classId: cName,
+                        definitions: activeDefaultDefinitions
+                    };
+                }
+            });
+
+            return base;
+        });
+    }, [currentInstitution, configuredClasses, isPrimarySchool, activeDefaultDefinitions]);
 
     const activeNode = useMemo(() => {
-        const found = gradingNodes[selectedNodeId] || gradingNodes['node_f3_101'] || gradingNodes['root_main'] || Object.values(gradingNodes)[0];
-        if (found) return found;
-        return {
+        if (gradingNodes[selectedNodeId]) return gradingNodes[selectedNodeId];
+        const firstClassKey = configuredClasses[0] ? `class_${configuredClasses[0].toLowerCase().replace(/[^a-z0-9]/g, '_')}_overall` : null;
+        if (firstClassKey && gradingNodes[firstClassKey]) return gradingNodes[firstClassKey];
+        if (gradingNodes['root_main']) return gradingNodes['root_main'];
+        return Object.values(gradingNodes)[0] || {
             id: 'root_main',
-            label: 'Overall grading system',
-            title: 'OVERALL DEFAULT GRADING SYSTEM',
+            label: 'Main grading system (default)',
+            title: `MAIN DEFAULT GRADING SYSTEM (${isPrimarySchool ? 'CBE 4-Level' : '8-4-4 12-Point'})`,
             type: 'root' as const,
-            definitions: defaultDefinitions
+            definitions: activeDefaultDefinitions
         };
-    }, [gradingNodes, selectedNodeId]);
+    }, [gradingNodes, selectedNodeId, configuredClasses, isPrimarySchool, activeDefaultDefinitions]);
 
     const toggleExpand = (key: string) => {
         setExpandedNodes(prev => ({ ...prev, [key]: !prev[key] }));
