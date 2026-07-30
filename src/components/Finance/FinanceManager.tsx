@@ -5138,6 +5138,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </p>
                         </div>
                     )}
+                </div>
                 <nav className="space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
                     {[
                         { id: 'home', label: 'Overview', icon: HomeIcon },
@@ -14366,7 +14367,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 );
                             })()}
 
-                {activeTab === 'users' && (
+                {(activeTab as string) === 'users' && (
                     <div className="space-y-6 animate-in fade-in duration-300">
                         <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-6 md:p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
                             <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
