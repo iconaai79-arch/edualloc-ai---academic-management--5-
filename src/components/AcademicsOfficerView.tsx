@@ -592,8 +592,12 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         assessments={assessments} 
                         marks={marks} 
                         students={users.filter(u => u.role === 'student')} 
+                        users={users}
                         subjects={subjects} 
                         activityLogs={activityLog} 
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        academicLevels={academicLevels}
                     />
                 </div>
             )}
