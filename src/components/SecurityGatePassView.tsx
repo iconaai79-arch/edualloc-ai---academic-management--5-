@@ -443,10 +443,103 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         }
     }, [parentScanning, currentInstitution.id]);
 
-    const filteredVehicles = vehicles.filter(v =>
-        v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.model.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Registered Parents & Guests Directory List (Always visible to security officers)
+    const registeredParentsList = React.useMemo(() => {
+        const list: Array<{
+            id: string;
+            name: string;
+            phone: string;
+            email?: string;
+            students: User[];
+            pin?: any;
+            isRegisteredUser: boolean;
+            userObj: User;
+        }> = [];
+
+        const addedIds = new Set<string>();
+
+        // 1. Registered parent users from user database
+        const parents = activeUsers.filter(u => u && u.role === 'parent');
+        parents.forEach(p => {
+            const studentMatches = activeUsers.filter(u => 
+                u && u.role === 'student' && (
+                    u.parentIds?.includes(p.id) ||
+                    p.studentIds?.includes(u.id) ||
+                    phonesMatch((u as any).parentPhone || (u as any).parent_phone || '', p.phoneNumber || '')
+                )
+            );
+
+            // Match active event pin if any
+            const activePin = (allEventPins || []).find(pin => pin.userId === p.id || studentMatches.some(st => pin.userId === st.id));
+
+            list.push({
+                id: p.id,
+                name: p.name,
+                phone: p.phoneNumber || (p as any).phone || '',
+                email: p.email,
+                students: studentMatches,
+                pin: activePin,
+                isRegisteredUser: true,
+                userObj: p
+            });
+            addedIds.add(p.id);
+        });
+
+        // 2. Parents stored directly on student records
+        const studentParents = activeUsers.filter(u => 
+            u && u.role === 'student' && (
+                (u as any).parentPhone || (u as any).parent_phone || (u as any).parentName || (u as any).parent_name
+            )
+        );
+
+        studentParents.forEach(st => {
+            const pPhone = (st as any).parentPhone || (st as any).parent_phone || '';
+            const pName = (st as any).parentName || (st as any).parent_name || 'Parent of ' + st.name;
+            const tempId = 'temp_' + st.id;
+
+            const exists = list.some(item => phonesMatch(item.phone, pPhone) || item.name.toLowerCase() === pName.toLowerCase());
+            if (!exists) {
+                const mockParent: User = {
+                    id: tempId,
+                    name: pName,
+                    phoneNumber: pPhone,
+                    role: 'parent',
+                    email: (st as any).parentEmail || '',
+                    institutionId: currentInstitution.id
+                } as any;
+
+                const activePin = (allEventPins || []).find(pin => pin.userId === st.id || pin.userId === tempId);
+
+                list.push({
+                    id: tempId,
+                    name: pName,
+                    phone: pPhone,
+                    email: (st as any).parentEmail || '',
+                    students: [st],
+                    pin: activePin,
+                    isRegisteredUser: false,
+                    userObj: mockParent
+                });
+            }
+        });
+
+        return list;
+    }, [activeUsers, allEventPins, currentInstitution.id]);
+
+    const filteredRegisteredParents = React.useMemo(() => {
+        if (!parentSearchTerm.trim()) return registeredParentsList;
+        const q = parentSearchTerm.toLowerCase();
+        return registeredParentsList.filter(item => 
+            item.name.toLowerCase().includes(q) ||
+            item.phone.toLowerCase().includes(q) ||
+            item.students.some(st => 
+                st.name.toLowerCase().includes(q) || 
+                (st.admissionNumber && st.admissionNumber.toLowerCase().includes(q)) ||
+                ((st as any).admission_number && (st as any).admission_number.toLowerCase().includes(q))
+            ) ||
+            (item.pin && (item.pin.pin || '').toLowerCase().includes(q))
+        );
+    }, [registeredParentsList, parentSearchTerm]);
 
     // Parent Search Logic
     const handleSearchParent = async (overrideTerm?: string) => {
@@ -1548,124 +1641,87 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                             </div>
                                         </div>
                                         
-                                        {parentSearchTerm.length === 0 && !selectedParent && (
-                                            <div className="text-center py-12 bg-slate-50/40 dark:bg-slate-950/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                                                <QrCodeIcon className="w-14 h-14 text-slate-350 dark:text-slate-750 mx-auto mb-4" />
-                                                <p className="text-sm text-slate-500 dark:text-slate-400 px-8 font-medium">Scan visitor/parent invitation card or enter PIN to begin</p>
-                                                <button
-                                                    onClick={() => setParentScanning(true)}
-                                                    className="mt-6 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-750 hover:to-pink-750 text-white rounded-xl font-black uppercase text-xs tracking-widest transition-all shadow-lg shadow-purple-600/15"
-                                                >
-                                                    Scan Invitee QR
-                                                </button>
-                                            </div>
-                                        )}
-                                        
-                                        {selectedParent && (
-                                            <div className="p-6 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-800/50 rounded-3xl animate-in fade-in slide-in-from-bottom-4 space-y-6">
-                                                <div className="flex items-start justify-between">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-14 h-14 bg-gradient-to-tr from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-md">
-                                                            {selectedParent.name.charAt(0)}
-                                                        </div>
-                                                        <div className="text-left">
-                                                            <h4 className="font-black text-lg text-slate-900 dark:text-white leading-tight">{selectedParent.name}</h4>
-                                                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest mt-1">{selectedParent.phoneNumber || 'No Phone Number'}</p>
-                                                        </div>
-                                                    </div>
-                                                    <span className={`px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border ${
-                                                        selectedPin && selectedPin.status === 'used'
-                                                            ? 'bg-red-500/10 text-red-650 border-red-500/20'
-                                                            : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                                                    }`}>
-                                                        {selectedPin && selectedPin.status === 'used' ? (
-                                                            <>
-                                                                <XCircleIcon className="w-3.5 h-3.5 animate-pulse" /> DUPLICATE / USED
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <CheckCircleIcon className="w-3.5 h-3.5" /> ACTIVE PASS
-                                                            </>
-                                                        )}
+                                        {!selectedParent && (
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between items-center px-1">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                                                        REGISTERED PARENTS & GUESTS ({filteredRegisteredParents.length})
                                                     </span>
+                                                    {parentSearchTerm && (
+                                                        <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400">
+                                                            Filtered by "{parentSearchTerm}"
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                
-                                                {selectedStudent && (
-                                                    <div className="pt-4 border-t border-purple-200/50 dark:border-purple-800/40">
-                                                        <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2.5">Associated Student</p>
-                                                        <div className="flex items-center gap-3 p-3 bg-white/50 dark:bg-slate-950/40 rounded-xl border border-purple-200/30 dark:border-purple-850">
-                                                            <UserIcon className="w-5 h-5 text-slate-400" />
-                                                            <span className="text-xs font-black text-slate-750 dark:text-slate-300">{selectedStudent.name}</span>
-                                                            {(selectedStudent.admissionNumber || selectedStudent.admission_number) && (
-                                                                <span className="px-2.5 py-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-black rounded-lg ml-auto">
-                                                                    {selectedStudent.admissionNumber || selectedStudent.admission_number}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )}
 
-                                                {selectedPin && (
-                                                    <div className="pt-4 border-t border-purple-200/50 dark:border-purple-800/40 space-y-4">
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div>
-                                                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Event Invitation</p>
-                                                                <p className="text-xs font-black text-slate-800 dark:text-white mt-1.5 leading-tight">{associatedEvent?.title || 'Institution Event'}</p>
-                                                            </div>
-                                                            
-                                                            {(selectedPin.vehicleRegistration || selectedPin.vehicle_registration) && (
-                                                                <div>
-                                                                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vehicle Reg Plate</p>
-                                                                    <span className="inline-block px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 rounded-lg text-xs font-bold mt-1.5 font-mono">
-                                                                        {selectedPin.vehicleRegistration || selectedPin.vehicle_registration}
-                                                                    </span>
+                                                <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                                                    {filteredRegisteredParents.map(item => (
+                                                        <div
+                                                            key={item.id}
+                                                            className="p-4 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 rounded-2xl hover:border-purple-300 dark:hover:border-purple-700 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-sm"
+                                                        >
+                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                <div className="w-11 h-11 bg-gradient-to-tr from-purple-500 to-pink-500 rounded-xl flex items-center justify-center text-white font-black text-base shrink-0 shadow-sm">
+                                                                    {item.name.charAt(0)}
                                                                 </div>
-                                                            )}
-                                                        </div>
+                                                                <div className="text-left min-w-0">
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <h4 className="font-black text-sm text-slate-900 dark:text-white leading-tight truncate">{item.name}</h4>
+                                                                        {item.isRegisteredUser ? (
+                                                                            <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 text-[9px] font-black uppercase rounded-md border border-emerald-200 dark:border-emerald-800">
+                                                                                REGISTERED PARENT
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[9px] font-black uppercase rounded-md border border-indigo-200 dark:border-indigo-800">
+                                                                                STUDENT CONTACT
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
 
-                                                        <div>
-                                                            <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Accompanying Guests</p>
-                                                            <div className="mt-2 space-y-1">
-                                                                {(() => {
-                                                                    try {
-                                                                        const parsed = JSON.parse(selectedPin.guests || '[]');
-                                                                        if (Array.isArray(parsed) && parsed.length > 0) {
-                                                                            return parsed.map((g: string, idx: number) => (
-                                                                                <div key={idx} className="text-xs text-slate-600 dark:text-slate-400 font-bold flex items-center gap-1.5">
-                                                                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> {g}
-                                                                                </div>
-                                                                            ));
-                                                                        }
-                                                                    } catch (e) {}
-                                                                    return <span className="text-xs text-slate-450 dark:text-slate-500 italic">No accompanying guests</span>;
-                                                                })()}
+                                                                    <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex-wrap font-semibold">
+                                                                        {item.phone && <span>📞 {item.phone}</span>}
+                                                                        {item.students.length > 0 && (
+                                                                            <span className="text-purple-600 dark:text-purple-400 font-bold">
+                                                                                🎓 Student: {item.students.map(s => `${s.name} (${s.admissionNumber || (s as any).admission_number || 'No Adm'})`).join(', ')}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+                                                                {item.pin && (
+                                                                    <span className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[10px] font-mono font-bold rounded-lg border border-amber-200 dark:border-amber-800">
+                                                                        PIN: {item.pin.pin} ({item.pin.status})
+                                                                    </span>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedParent(item.userObj);
+                                                                        if (item.students.length > 0) setSelectedStudent(item.students[0]);
+                                                                        if (item.pin) setSelectedPin(item.pin);
+                                                                    }}
+                                                                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+                                                                >
+                                                                    Verify & Grant Entry
+                                                                </button>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                )}
+                                                    ))}
 
-                                                <div className="pt-4 border-t border-purple-200/50 dark:border-purple-800/40">
-                                                    <button
-                                                        onClick={handleVerifyParent}
-                                                        className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-650 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg transition-all active:scale-[0.98] cursor-pointer"
-                                                    >
-                                                        Confirm Verification & print pass
-                                                    </button>
+                                                    {filteredRegisteredParents.length === 0 && (
+                                                        <div className="text-center py-10 bg-slate-50/40 dark:bg-slate-950/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                                                            <UserGroupIcon className="w-12 h-12 text-slate-350 dark:text-slate-750 mx-auto mb-2" />
+                                                            <p className="text-xs font-black text-slate-500 uppercase tracking-widest">No matching parent or guest record</p>
+                                                            <button
+                                                                onClick={() => setShowWalkInForm(true)}
+                                                                className="mt-4 px-6 py-2.5 bg-purple-600 text-white rounded-xl font-black text-xs uppercase"
+                                                            >
+                                                                + Register Walk-In Guest
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            </div>
-                                        )}
-                                        
-                                        {parentSearchTerm.length >= 3 && !selectedParent && (
-                                            <div className="text-center py-12">
-                                                <UserGroupIcon className="w-14 h-14 text-slate-350 dark:text-slate-750 mx-auto mb-3" />
-                                                <p className="text-slate-500 dark:text-slate-450 font-black uppercase text-xs tracking-wider">Visitor Record Not Found</p>
-                                                <p className="text-slate-400 text-[11px] font-medium mt-1 mb-5">Create a quick gate pass record for this walk-in visitor.</p>
-                                                <button
-                                                    onClick={() => setShowWalkInForm(true)}
-                                                    className="px-6 py-3 bg-purple-600 hover:bg-purple-755 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-md cursor-pointer"
-                                                >
-                                                    + Register Walk-In Visitor
-                                                </button>
                                             </div>
                                         )}
                                     </>
