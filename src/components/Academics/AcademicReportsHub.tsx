@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import type { Assessment, AssessmentMark, User, Subject, ActivityLog, Institution, Course, AcademicLevel } from '../../types';
 import { ChartPieIcon } from '../icons/ChartPieIcon';
 import { GridIcon } from '../icons/GridIcon';
@@ -210,8 +211,8 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
             let count = 0;
 
             activeSubjList.forEach(sub => {
-                const markObj = filteredMarks.find(m => m.studentId === st.id && (m.subjectId === sub.id || (m as any).subject_id === sub.id));
-                const val = markObj ? markObj.marks : Math.floor(45 + (st.id.charCodeAt(st.id.length - 1) % 45));
+                const markObj = filteredMarks.find(m => m.studentId === st.id && (((m as any).subjectId || (m as any).subject_id) === sub.id));
+                const val = markObj && (markObj as any).marks !== null && (markObj as any).marks !== undefined ? Number((markObj as any).marks) : Math.floor(45 + (st.id.charCodeAt(st.id.length - 1) % 45));
                 studentMarksMap[sub.id] = val;
                 total += val;
                 count++;
@@ -248,7 +249,10 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
         ] as Subject[];
 
         return activeSubjList.map(sub => {
-            const subMarks = filteredMarks.filter(m => m.subjectId === sub.id || (m as any).subject_id === sub.id).map(m => m.marks);
+            const subMarks = filteredMarks
+                .filter(m => ((m as any).subjectId || (m as any).subject_id) === sub.id)
+                .map(m => (m as any).marks)
+                .filter((val): val is number => typeof val === 'number' && !isNaN(val));
             const validScores = subMarks.length > 0 ? subMarks : [72, 68, 85, 54, 61, 79];
             const avg = parseFloat((validScores.reduce((a, b) => a + b, 0) / validScores.length).toFixed(1));
             const highest = Math.max(...validScores);
@@ -288,7 +292,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
         const exportRows = broadsheetData.map(r => {
             const rowObj: any = {
                 'Rank': r.rank,
-                'Admission No': r.student.admissionNo || r.student.id,
+                'Admission No': (r.student as any).admissionNo || (r.student as any).admission_no || (r.student as any).staffId || r.student.id,
                 'Student Name': r.student.name,
             };
 
@@ -491,7 +495,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                                         onChange={e => setSelectedStudentId(e.target.value)} 
                                         className="form-select text-xs font-bold text-indigo-600 dark:text-indigo-400"
                                     >
-                                        {activeStudents.map(s => <option key={s.id} value={s.id}>{s.name} ({s.admissionNo || s.id})</option>)}
+                                        {activeStudents.map(s => <option key={s.id} value={s.id}>{s.name} ({(s as any).admissionNo || (s as any).admission_no || (s as any).staffId || s.id})</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -542,7 +546,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                                 </div>
                                 <div>
                                     <span className="text-[10px] font-black text-slate-400 uppercase block">ADMISSION NO</span>
-                                    <span className="font-mono font-bold text-slate-700">{activeStudentObj.admissionNo || activeStudentObj.id}</span>
+                                    <span className="font-mono font-bold text-slate-700">{(activeStudentObj as any).admissionNo || (activeStudentObj as any).admission_no || (activeStudentObj as any).staffId || activeStudentObj.id}</span>
                                 </div>
                                 <div>
                                     <span className="text-[10px] font-black text-slate-400 uppercase block">CLASS STREAM</span>
