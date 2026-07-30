@@ -36,6 +36,7 @@ const getSafeEnv = (key: string): string | null => {
 let _supabase: SupabaseClient | null = null;
 let _activeUrl: string | null = null;
 let _activeKey: string | null = null;
+let _rpcGetNextDocFailed = false;
 
 export const initSupabaseClient = (url?: string, key?: string) => {
     const finalUrl = url || (typeof process !== 'undefined' && process.env?.SUPABASE_URL) || getSafeEnv('SUPABASE_URL');
@@ -208,16 +209,21 @@ export const apiService = {
             }
 
             // Try atomic RPC first to avoid concurrent/race-condition duplicate numbers
-            try {
-                const { data, error } = await supabaseClient.rpc('get_next_document_number', {
-                    p_institution_id: instId,
-                    p_document_type: docType
-                });
-                if (!error && data) {
-                    return data;
+            if (!_rpcGetNextDocFailed) {
+                try {
+                    const { data, error } = await supabaseClient.rpc('get_next_document_number', {
+                        p_institution_id: instId,
+                        p_document_type: docType
+                    });
+                    if (!error && data) {
+                        return data;
+                    }
+                    if (error && (error.code === 'PGRST202' || error.message?.includes('404') || String(error.message || '').includes('Could not find the function'))) {
+                        _rpcGetNextDocFailed = true;
+                    }
+                } catch (rpcErr) {
+                    _rpcGetNextDocFailed = true;
                 }
-            } catch (rpcErr) {
-                console.warn("[apiService] get_next_document_number RPC failed, falling back to legacy:", rpcErr);
             }
 
             const numberingConfigs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
