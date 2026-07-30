@@ -310,6 +310,80 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
         { id: 'missing_marks', label: 'Missing Marks Integrity', icon: ExclamationTriangleIcon },
     ];
 
+    // If viewing any of the full-width report dashboards that contain their own drawer navigation, render them directly without duplicate outer header
+    const hasOwnDrawerNav = ['exam_analysis', 'subject_grades_analysis', 'broadsheet', 'result_slips', 'student_progress', 'report_cards'].includes(activeSubTab);
+
+    if (hasOwnDrawerNav) {
+        return (
+            <div className="w-full text-left">
+                {activeSubTab === 'exam_analysis' && (
+                    <ExamOverviewDashboard
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
+                )}
+
+                {activeSubTab === 'subject_grades_analysis' && (
+                    <SubjectGradesDistributionDashboard
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
+                )}
+
+                {activeSubTab === 'broadsheet' && (
+                    <BroadsheetReportView
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
+                )}
+
+                {activeSubTab === 'student_progress' && (
+                    <StudentProgressReportView
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
+                )}
+
+                {activeSubTab === 'report_cards' && (
+                    <FuturisticReportCardView
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
+                )}
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden text-left">
             {/* Header & Sub-navigation Menu */}
