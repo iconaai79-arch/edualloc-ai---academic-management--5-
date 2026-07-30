@@ -44,6 +44,8 @@ const highlightMatch = (text: string, query: string) => {
     } catch (e) { return <>{text}</>; }
 };
 
+import { ClassSubjectAllocationModal } from './ClassSubjectAllocationModal';
+
 interface SubjectManagerProps {
     subjects: Subject[];
     departments: Department[];
@@ -83,14 +85,16 @@ const formatLessonStructure = (structure: LessonStructure[] | undefined): string
 };
 
 export const SubjectManager: React.FC<SubjectManagerProps> = ({
-    subjects, departments, onAddSubject, onUpdateSubject, onDeleteSubject, currentInstitution, courses, onImportSubjectsAndAssociate,
+    subjects, departments, onAddSubject, onUpdateSubject, onDeleteSubject, currentInstitution, courses = [], onImportSubjectsAndAssociate,
     onAssociateSubjectToCourseLevel, onDisassociateSubjectFromCourseLevel, timetableSettings, onSaveTimetableSettings, rooms, currentUser, onUpdateCourse,
     onLogAction
 }) => {
     const [isPathwaySyncOpen, setIsPathwaySyncOpen] = useState(false);
+    const [isClassAllocationOpen, setIsClassAllocationOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('all');
     const [completionFilter, setCompletionFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
+    const [classFilter, setClassFilter] = useState<string>('all');
     const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
     const [constraintSubject, setConstraintSubject] = useState<Subject | null>(null);
     const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
@@ -103,10 +107,66 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     const isSchool = isSchoolInstitution(currentInstitution);
     const isChurch = currentInstitution?.institutionType === 'Church';
 
+    const isPrimarySchool = useMemo(() => {
+        const type = (currentInstitution?.institutionType || '').toLowerCase();
+        const name = (currentInstitution?.name || '').toLowerCase();
+        return type === 'primary' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
+    }, [currentInstitution]);
+
     const visibleDepartments = useMemo(() => {
         if (currentUser.role === 'tto' && currentUser.departmentId) return departments.filter(d => d.id === currentUser.departmentId);
         return departments;
     }, [departments, currentUser]);
+
+    // Dynamic list of registered classes
+    const classOptions = useMemo(() => {
+        const set = new Set<string>();
+
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
+                if (name) set.add(name);
+                if (c.levels && Array.isArray(c.levels)) {
+                    c.levels.forEach(l => {
+                        if (l.name) set.add(l.name);
+                    });
+                }
+            });
+        }
+
+        if (currentInstitution) {
+            if ((currentInstitution as any).classes && Array.isArray((currentInstitution as any).classes)) {
+                (currentInstitution as any).classes.forEach((c: any) => {
+                    const name = typeof c === 'string' ? c : c.name;
+                    if (name) set.add(name);
+                });
+            }
+        }
+
+        try {
+            const instId = currentInstitution?.id || 'default_inst';
+            const savedClasses = localStorage.getItem(`eduai_registered_classes_${instId}`);
+            if (savedClasses) {
+                const parsed = JSON.parse(savedClasses);
+                if (Array.isArray(parsed)) parsed.forEach(c => set.add(c));
+            }
+            const savedLevels = localStorage.getItem(`eduai_academic_levels_${instId}`);
+            if (savedLevels) {
+                const parsed = JSON.parse(savedLevels);
+                if (Array.isArray(parsed)) parsed.forEach((l: any) => set.add(l.name || l));
+            }
+        } catch(e) {}
+
+        if (set.size === 0) {
+            if (isPrimarySchool) {
+                ['Grade 1 Central', 'Grade 2 Central', 'Grade 3 Central', 'Grade 4 Central', 'Grade 5 Central', 'Grade 6 Central', 'Grade 7 Central', 'Grade 8 Central'].forEach(c => set.add(c));
+            } else {
+                ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central'].forEach(c => set.add(c));
+            }
+        }
+
+        return Array.from(set);
+    }, [courses, currentInstitution, isPrimarySchool]);
 
     const filteredSubjects = useMemo(() => {
         // Merge prop subjects with any locally added ones (from direct apiService save)
@@ -117,11 +177,21 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         return list.filter(s => {
             const matchesDept = departmentFilter === 'all' || s.departmentId === departmentFilter;
             const matchesComp = completionFilter === 'all' || (completionFilter === 'complete' && s.isComplete) || (completionFilter === 'incomplete' && !s.isComplete);
+            
+            // Filter by Class stream if selected
+            let matchesClass = true;
+            if (classFilter !== 'all') {
+                const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
+                if (Array.isArray(targetCls) && targetCls.length > 0) {
+                    matchesClass = targetCls.includes(classFilter);
+                }
+            }
+
             const q = searchQuery.toLowerCase();
             const matchesSearch = s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q);
-            return matchesDept && matchesComp && matchesSearch;
+            return matchesDept && matchesComp && matchesClass && matchesSearch;
         });
-    }, [subjects, locallyAddedSubjects, searchQuery, departmentFilter, completionFilter, isSchool, currentUser.departmentId]);
+    }, [subjects, locallyAddedSubjects, searchQuery, departmentFilter, completionFilter, classFilter, currentUser.departmentId]);
 
     const handleSaveSubject = (id: string, data: Partial<Omit<Subject, 'id' | 'institutionId'>>, initialCourseLevelIds?: string[]) => {
         if (id && onUpdateSubject) {
@@ -142,12 +212,6 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             await onUpdateSubject(id, data);
         }
     };
-
-    const isPrimarySchool = useMemo(() => {
-        const type = (currentInstitution?.institutionType || '').toLowerCase();
-        const name = (currentInstitution?.name || '').toLowerCase();
-        return type === 'primary' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
-    }, [currentInstitution]);
 
     const handlePrepopulateKenyaCBESubjects = async () => {
         // All three paths are acceptable — use whichever is available
@@ -244,6 +308,13 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
 
                 <div className="flex flex-wrap items-center gap-3 min-w-fit">
                     <button
+                        onClick={() => setIsClassAllocationOpen(true)}
+                        className="btn-secondary h-11 flex items-center gap-2 px-6 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm text-indigo-600 dark:text-indigo-400"
+                    >
+                        <BookOpenIcon className="w-5 h-5 text-indigo-500" /> Manage Subjects per Class
+                    </button>
+
+                    <button
                         type="button"
                         onClick={handlePrepopulateKenyaCBESubjects}
                         className="btn-secondary h-11 flex items-center gap-2 px-6 text-[10px] font-black uppercase tracking-widest hover:border-emerald-300 transition-all shadow-sm text-emerald-600 dark:text-emerald-400"
@@ -297,7 +368,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="relative">
                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Keyword Search</label>
                     <div className="relative">
@@ -305,6 +376,15 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                         <MagnifyingGlassIcon className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
                     </div>
                 </div>
+
+                <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Class Stream Filter</label>
+                    <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="form-select text-indigo-600 dark:text-indigo-400 font-bold">
+                        <option value="all">All Classes (Full Registry)</option>
+                        {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                </div>
+
                 {departments.length > 0 && (
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Department Filter</label>
@@ -314,6 +394,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                         </select>
                     </div>
                 )}
+
                 <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Learning Status</label>
                     <select value={completionFilter} onChange={e => setCompletionFilter(e.target.value as any)} className="form-select">
@@ -541,6 +622,19 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                     departments={visibleDepartments}
                     subjects={subjects}
                     onBulkUpdate={handleBulkPathwayUpdate}
+                />,
+                document.body
+            )}
+
+            {isClassAllocationOpen && createPortal(
+                <ClassSubjectAllocationModal
+                    onClose={() => setIsClassAllocationOpen(false)}
+                    subjects={subjects}
+                    courses={courses}
+                    classOptions={classOptions}
+                    currentInstitution={currentInstitution}
+                    onUpdateSubject={onUpdateSubject}
+                    onUpdateCourse={onUpdateCourse}
                 />,
                 document.body
             )}
