@@ -14778,6 +14778,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 </div>
             )}
+            </div>
 
             {/* On-Screen Interactive PDF Preview Modal */}
             {pdfPreviewModal && (
