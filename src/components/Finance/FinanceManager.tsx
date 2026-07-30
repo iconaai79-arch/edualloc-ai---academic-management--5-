@@ -14951,10 +14951,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     Close Preview
                                 </button>
                             </div>
+                        </div>
                     </div>
                 </div>
             )}
-            </div>
         </div>
     );
 };
