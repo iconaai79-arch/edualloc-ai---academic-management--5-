@@ -4335,21 +4335,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 const balPrevAllEntries: Array<{ date: string; eType: 'invoice' | 'payment' | 'opening'; data: any }> = [
                     ...(balPrevOpeningBal > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: balPrevOpeningBal } }] : []),
-                    ...balPrevInvoices.map((i: any) => ({ date: i.issueDate || i.createdAt || '', eType: 'invoice' as const, data: i })),
-                    ...balPrevReceipts.map((r: any) => ({ date: r.createdAt || r.date || '', eType: 'payment' as const, data: r })),
+                    ...balPrevInvoices.map((i: any) => ({ date: i.issueDate || i.issue_date || i.createdAt || i.created_at || i.date || i.invoiceDate || i.termStartDate || i.timestamp || '', eType: 'invoice' as const, data: i })),
+                    ...balPrevReceipts.map((r: any) => ({ date: r.paymentDate || r.payment_date || r.date || r.receiptDate || r.createdAt || r.created_at || r.timestamp || '', eType: 'payment' as const, data: r })),
                 ].sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
+
+                const formatLedgerDate = (rawDate: any, entryData: any) => {
+                    const candidate = rawDate || entryData?.paymentDate || entryData?.payment_date || entryData?.issueDate || entryData?.issue_date || entryData?.date || entryData?.createdAt || entryData?.created_at || entryData?.receiptDate;
+                    if (!candidate || candidate === '0001-01-01') return '—';
+                    const str = String(candidate).trim();
+                    if (!str || str === '—') return '—';
+                    try {
+                        const d = new Date(str);
+                        if (!isNaN(d.getTime())) {
+                            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                        }
+                    } catch {}
+                    const rawSplit = str.split('T')[0]?.trim();
+                    return rawSplit || '—';
+                };
 
                 let balPrevRunning = 0;
                 const balPrevLedger = balPrevAllEntries.map(entry => {
+                    const formattedDate = formatLedgerDate(entry.date, entry.data);
                     if (entry.eType === 'opening') {
                         balPrevRunning += entry.data.amount || 0;
-                        return { date: '—', description: 'Opening Balance (Brought Forward)', debit: entry.data.amount || 0, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
+                        return { date: formattedDate, description: 'Opening Balance (Brought Forward)', debit: entry.data.amount || 0, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
                     } else if (entry.eType === 'invoice') {
                         balPrevRunning += entry.data.totalAmount || 0;
-                        return { date: (entry.date || '').split('T')[0] || '—', description: `Invoice ${entry.data.invoiceNumber || entry.data.id?.slice(-8)} — School Fees`, debit: entry.data.totalAmount || 0, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
+                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || entry.data.id?.slice(-8)} — School Fees`, debit: entry.data.totalAmount || 0, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
                     } else {
                         balPrevRunning -= entry.data.amountPaid || 0;
-                        return { date: (entry.date || '').split('T')[0] || '—', description: `Payment Rcpt ${entry.data.receiptNumber || entry.data.id?.slice(-8)} · ${entry.data.paymentMethod || entry.data.method || 'Cash'}`, debit: 0, credit: entry.data.amountPaid || 0, balance: balPrevRunning, eType: 'payment' as const };
+                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || entry.data.id?.slice(-8)} · ${entry.data.paymentMethod || entry.data.method || 'Cash'}`, debit: 0, credit: entry.data.amountPaid || 0, balance: balPrevRunning, eType: 'payment' as const };
                     }
                 });
 
@@ -13976,21 +13992,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 const allEntries: Array<{ date: string; eType: 'invoice' | 'payment' | 'opening'; data: any }> = [
                                     ...(openingBalForStmt > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: openingBalForStmt } }] : []),
-                                    ...studentInvoices.map((i: any) => ({ date: i.issueDate || i.createdAt || '', eType: 'invoice' as const, data: i })),
-                                    ...studentReceipts.map((r: any) => ({ date: r.createdAt || r.date || '', eType: 'payment' as const, data: r })),
+                                    ...studentInvoices.map((i: any) => ({ date: i.issueDate || i.issue_date || i.createdAt || i.created_at || i.date || i.invoiceDate || i.termStartDate || i.timestamp || '', eType: 'invoice' as const, data: i })),
+                                    ...studentReceipts.map((r: any) => ({ date: r.paymentDate || r.payment_date || r.date || r.receiptDate || r.createdAt || r.created_at || r.timestamp || '', eType: 'payment' as const, data: r })),
                                 ].sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
 
                                 let running = 0;
                                 const ledger = allEntries.map(entry => {
+                                    const formattedDate = formatLedgerDate(entry.date, entry.data);
                                     if (entry.eType === 'opening') {
                                         running += entry.data.amount || 0;
-                                        return { date: '—', description: 'Opening Balance (Brought Forward)', debit: entry.data.amount || 0, credit: 0, balance: running, eType: 'invoice' as const };
+                                        return { date: formattedDate, description: 'Opening Balance (Brought Forward)', debit: entry.data.amount || 0, credit: 0, balance: running, eType: 'invoice' as const };
                                     } else if (entry.eType === 'invoice') {
                                         running += entry.data.totalAmount || 0;
-                                        return { date: (entry.date || '').split('T')[0] || '—', description: `Invoice ${entry.data.invoiceNumber || entry.data.id?.slice(-8)} — School Fees`, debit: entry.data.totalAmount || 0, credit: 0, balance: running, eType: 'invoice' as const };
+                                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || entry.data.id?.slice(-8)} — School Fees`, debit: entry.data.totalAmount || 0, credit: 0, balance: running, eType: 'invoice' as const };
                                     } else {
                                         running -= entry.data.amountPaid || 0;
-                                        return { date: (entry.date || '').split('T')[0] || '—', description: `Payment Rcpt ${entry.data.receiptNumber || entry.data.id?.slice(-8)} · ${entry.data.paymentMethod || entry.data.method || 'Cash'}`, debit: 0, credit: entry.data.amountPaid || 0, balance: running, eType: 'payment' as const };
+                                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || entry.data.id?.slice(-8)} · ${entry.data.paymentMethod || entry.data.method || 'Cash'}`, debit: 0, credit: entry.data.amountPaid || 0, balance: running, eType: 'payment' as const };
                                     }
                                 });
 
