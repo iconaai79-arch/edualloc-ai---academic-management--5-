@@ -18,6 +18,48 @@ interface ClassSubjectAllocationModalProps {
     onUpdateCourse?: (courseId: string, updatedData: Partial<Omit<Course, 'id' | 'institutionId'>>) => void;
 }
 
+export const isSubjectApplicableToClass = (
+    subject: { code?: string; name?: string; description?: string },
+    className: string
+): boolean => {
+    if (!className || !className.trim()) return true;
+    const cLower = className.toLowerCase().trim();
+    const code = (subject.code || '').toUpperCase().trim();
+    const name = (subject.name || '').toLowerCase().trim();
+    const desc = (subject.description || '').toLowerCase().trim();
+
+    // 1. Pre-Primary (PP1, PP2, Playgroup, Nursery, KG)
+    const isPPClass = cLower.includes('pp1') || cLower.includes('pp2') || cLower.includes('pp 1') || cLower.includes('pp 2') || cLower.includes('playgroup') || cLower.includes('nursery') || cLower.includes('kindergarten') || cLower.includes('kg') || cLower === 'pp';
+    const isPPSubject = code.endsWith('-PP') || name.includes('pre-primary') || desc.includes('pre-primary') || desc.includes('pp1') || desc.includes('pp2') || desc.includes('playgroup');
+
+    if (isPPSubject) return isPPClass;
+    if (isPPClass) return isPPSubject;
+
+    // 2. Lower Primary (Grade 1 - 3)
+    const isLPClass = /\b(grade|std|standard|class)\s*[1-3]\b/i.test(className) || cLower.includes('lower primary') || cLower === 'g1' || cLower === 'g2' || cLower === 'g3';
+    const isLPSubject = code.endsWith('-LP') || name.endsWith('activities') || desc.includes('lower primary') || desc.includes('grade 1-3') || desc.includes('grade 1 - 3');
+
+    if (isLPSubject) return isLPClass;
+    if (isLPClass) return isLPSubject;
+
+    // 3. Upper Primary (Grade 4 - 6)
+    const isUPClass = /\b(grade|std|standard|class)\s*[4-6]\b/i.test(className) || cLower.includes('upper primary') || cLower === 'g4' || cLower === 'g5' || cLower === 'g6';
+    const isUPSubject = code.endsWith('-UP') || code === 'SCI-TECH' || code === 'CREAT-ARTS' || code === 'PHE' || desc.includes('upper primary') || desc.includes('grade 4-6') || desc.includes('grade 4 - 6');
+
+    if (isUPSubject) return isUPClass;
+    if (isUPClass) return isUPSubject;
+
+    // 4. Junior Secondary / JSS (Grade 7 - 9)
+    const isJSSClass = /\b(grade|std|standard|class)\s*[7-9]\b/i.test(className) || cLower.includes('jss') || cLower.includes('junior') || cLower === 'g7' || cLower === 'g8' || cLower === 'g9';
+    const isJSSSubject = code.endsWith('-JSS') || code === 'INT-SCI' || code === 'PRE-TECH' || code === 'HEALTH-ED' || code === 'LIFE-SKILLS' || code === 'ARTS-SPORTS' || desc.includes('junior') || desc.includes('jss') || desc.includes('grade 7-9') || desc.includes('grade 7 - 9');
+
+    if (isJSSSubject) return isJSSClass;
+    if (isJSSClass) return isJSSSubject;
+
+    // Default fallback: general subjects apply to all non-PP classes
+    return true;
+};
+
 export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalProps> = ({
     onClose,
     subjects = [],
@@ -39,11 +81,11 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         subjects.forEach(s => {
             const set = new Set<string>();
             const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
-            if (Array.isArray(targetCls)) {
+            if (Array.isArray(targetCls) && targetCls.length > 0) {
                 targetCls.forEach(c => set.add(c));
             } else {
-                // If no specific class assignments set, default to all classOptions
-                classOptions.forEach(c => set.add(c));
+                // Default subject assignment based on Grade level (PP1 to Grade 9)
+                classOptions.filter(c => isSubjectApplicableToClass(s, c)).forEach(c => set.add(c));
             }
             
             // Check course levels

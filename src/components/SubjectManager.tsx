@@ -20,6 +20,7 @@ import { SubjectConstraintsModal } from './SubjectConstraintsModal';
 import { BulkSubjectStructureModal } from './BulkSubjectStructureModal';
 import { isSchoolInstitution } from '../utils/roleUtils';
 import { apiService } from '../services/apiService';
+import { isSubjectApplicableToClass } from './ClassSubjectAllocationModal';
 
 import * as XLSX from 'xlsx';
 
@@ -219,33 +220,61 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     };
 
     const handlePrepopulateKenyaCBESubjects = async () => {
-        // All three paths are acceptable — use whichever is available
-
         const defaultDeptId = visibleDepartments[0]?.id || (departments.length > 0 ? departments[0].id : 'dept_primary');
 
-        const primarySubjects: Array<Omit<Subject, 'id' | 'institutionId'>> = [
-            // Lower Primary (Grade 1-3)
+        const baseCbeSubjects: Array<Omit<Subject, 'id' | 'institutionId'>> = [
+            // 1. Pre-Primary (PP1 & PP2)
+            { name: 'Language Activities', code: 'LANG-PP', departmentId: defaultDeptId, description: 'Pre-Primary CBE Language Activities (PP1 & PP2)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'Mathematical Activities (Pre-Primary)', code: 'MATH-PP', departmentId: defaultDeptId, description: 'Pre-Primary CBE Mathematical Activities (PP1 & PP2)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'Environmental Activities (Pre-Primary)', code: 'ENV-PP', departmentId: defaultDeptId, description: 'Pre-Primary CBE Environmental Activities (PP1 & PP2)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Psychomotor & Creative Activities', code: 'PSYCH-PP', departmentId: defaultDeptId, description: 'Pre-Primary CBE Psychomotor & Creative Activities (PP1 & PP2)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'Religious Education Activities (Pre-Primary)', code: 'REL-PP', departmentId: defaultDeptId, description: 'Pre-Primary CBE Religious Education Activities (PP1 & PP2)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+
+            // 2. Lower Primary (Grade 1-3)
             { name: 'Mathematics Activities', code: 'MATH-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Mathematics Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
             { name: 'English Language Activities', code: 'ENG-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE English Language Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
             { name: 'Kiswahili Language Activities', code: 'KISW-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Kiswahili Language Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
             { name: 'Environmental Activities', code: 'ENV-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Environmental Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
             { name: 'Hygiene & Nutrition Activities', code: 'HYG-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Hygiene & Nutrition Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
-            { name: 'Religious Education Activities', code: 'CRE-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Religious Education Activities (CRE/IRE)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
-            { name: 'Movement & Creative Activities', code: 'CREAT-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Movement & Creative Activities (Art, Music, PE)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'Religious Education Activities', code: 'CRE-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Religious Education Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Movement & Creative Activities', code: 'CREAT-LP', departmentId: defaultDeptId, description: 'Lower Primary CBE Movement & Creative Activities (Grade 1-3)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
 
-            // Upper Primary (Grade 4-6) & Junior School
-            { name: 'Mathematics', code: 'MATH-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE Mathematics (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
-            { name: 'English', code: 'ENG-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE English Language (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
-            { name: 'Kiswahili', code: 'KISW-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE Kiswahili / Sign Language (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            // 3. Upper Primary (Grade 4-6)
+            { name: 'Mathematics (Upper Primary)', code: 'MATH-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE Mathematics (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'English (Upper Primary)', code: 'ENG-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE English Language (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'Kiswahili (Upper Primary)', code: 'KISW-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE Kiswahili / Sign Language (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
             { name: 'Science & Technology', code: 'SCI-TECH', departmentId: defaultDeptId, description: 'Upper Primary CBE Science and Technology (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
-            { name: 'Social Studies', code: 'SOC-ST', departmentId: defaultDeptId, description: 'Upper Primary CBE Social Studies & Citizenship (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
-            { name: 'Agriculture & Nutrition', code: 'AGRI-NUT', departmentId: defaultDeptId, description: 'Upper Primary CBE Agriculture & Home Science (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Social Studies (Upper Primary)', code: 'SOC-ST', departmentId: defaultDeptId, description: 'Upper Primary CBE Social Studies & Citizenship (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Agriculture & Nutrition (Upper Primary)', code: 'AGRI-NUT', departmentId: defaultDeptId, description: 'Upper Primary CBE Agriculture & Home Science (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
             { name: 'Creative Arts', code: 'CREAT-ARTS', departmentId: defaultDeptId, description: 'Upper Primary CBE Creative Arts (Art, Craft & Music)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
             { name: 'Physical & Health Education (PHE)', code: 'PHE', departmentId: defaultDeptId, description: 'Upper Primary CBE Physical & Health Education (Grade 4-6)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
             { name: 'Christian Religious Education (CRE)', code: 'CRE-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE Religious Education (CRE)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
             { name: 'Islamic Religious Education (IRE)', code: 'IRE-UP', departmentId: defaultDeptId, description: 'Upper Primary CBE Religious Education (IRE)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
-            { name: 'Pastoral Instruction Programme (PIP)', code: 'PIP', departmentId: defaultDeptId, description: 'Upper Primary Pastoral Instruction (PIP)', isComplete: true, lessonStructure: [{ count: 1, periods: 1 }] }
+
+            // 4. Junior Secondary School / JSS (Grade 7-9)
+            { name: 'English (Junior Secondary)', code: 'ENG-JSS', departmentId: defaultDeptId, description: 'Junior Secondary JSS English (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'Kiswahili (Junior Secondary)', code: 'KISW-JSS', departmentId: defaultDeptId, description: 'Junior Secondary JSS Kiswahili / KSL (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Mathematics (Junior Secondary)', code: 'MATH-JSS', departmentId: defaultDeptId, description: 'Junior Secondary JSS Mathematics (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'Integrated Science', code: 'INT-SCI', departmentId: defaultDeptId, description: 'Junior Secondary JSS Integrated Science (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 5, periods: 1 }] },
+            { name: 'Health Education', code: 'HEALTH-ED', departmentId: defaultDeptId, description: 'Junior Secondary JSS Health Education (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Social Studies (Junior Secondary)', code: 'SOC-JSS', departmentId: defaultDeptId, description: 'Junior Secondary JSS Social Studies (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Business Studies', code: 'BUS-ST', departmentId: defaultDeptId, description: 'Junior Secondary JSS Business Studies (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] },
+            { name: 'Agriculture & Nutrition (Junior Secondary)', code: 'AGRI-JSS', departmentId: defaultDeptId, description: 'Junior Secondary JSS Agriculture & Home Science (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Pre-Technical & Computer Studies', code: 'PRE-TECH', departmentId: defaultDeptId, description: 'Junior Secondary JSS Pre-Technical & Computer Studies (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Creative Arts & Sports', code: 'ARTS-SPORTS', departmentId: defaultDeptId, description: 'Junior Secondary JSS Creative Arts & Sports (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 4, periods: 1 }] },
+            { name: 'Life Skills Education', code: 'LIFE-SKILLS', departmentId: defaultDeptId, description: 'Junior Secondary JSS Life Skills Education (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 2, periods: 1 }] },
+            { name: 'Religious Education (CRE/IRE JSS)', code: 'CRE-JSS', departmentId: defaultDeptId, description: 'Junior Secondary JSS Religious Education (Grade 7-9)', isComplete: true, lessonStructure: [{ count: 3, periods: 1 }] }
         ];
+
+        // Map targetClasses dynamically based on classOptions & grade level suitability
+        const primarySubjects = baseCbeSubjects.map(subj => {
+            const applicableClasses = classOptions.filter(cls => isSubjectApplicableToClass(subj, cls));
+            return {
+                ...subj,
+                targetClasses: applicableClasses,
+                assignedClasses: applicableClasses
+            };
+        });
 
         if (onImportSubjectsAndAssociate) {
             // Preferred: bulk import with course-level association
@@ -256,7 +285,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 onAddSubject(subj);
             }
         } else {
-            // Last resort: save directly via apiService (works in any view)
+            // Last resort: save directly via apiService
             const instId = currentInstitution?.id;
             if (!instId) {
                 alert('Institution ID not found. Please ensure you are logged in correctly.');
@@ -269,11 +298,10 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 await apiService.saveSubject(fullSubject);
                 newlyCreated.push(fullSubject);
             }
-            // Immediately surface them in the local list without waiting for parent state refresh
             setLocallyAddedSubjects(prev => [...prev, ...newlyCreated]);
         }
 
-        alert(`✨ Successfully pre-populated ${primarySubjects.length} Kenya CBE Primary School Subjects!`);
+        alert(`✨ Successfully pre-populated ${primarySubjects.length} Kenya CBE Subjects categorized from PP1 to Grade 9!`);
     };
 
     return (
