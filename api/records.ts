@@ -320,6 +320,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         delete cleaned.id;
                     }
                 }
+                if (moduleName === 'receipts') {
+                    const isPseudo = (id: any) => typeof id === 'string' && (id.trim() === '' || id.startsWith('__opening_balance__') || id.startsWith('__'));
+                    if (isPseudo(cleaned.invoice_id)) cleaned.invoice_id = null;
+                    if (isPseudo(cleaned.invoiceId)) cleaned.invoiceId = null;
+                }
                 return cleaned;
             };
 
