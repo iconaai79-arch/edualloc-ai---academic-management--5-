@@ -229,7 +229,11 @@ export const apiService = {
                 payment_voucher: 'PV-',
                 credit_note: 'CN-',
                 debit_note: 'DN-',
-                goods_in_lieu: 'GIL-'
+                goods_in_lieu: 'GIL-',
+                lpo: 'LPO-',
+                requisition: 'REQ-',
+                admission: 'ADM-',
+                student: 'ADM-'
             };
 
             if (!config) {
@@ -1132,10 +1136,13 @@ export const apiService = {
             }
 
             if (module === 'sms_logs') {
+                const rVal = item.recipient || item.recipients || item.recipient_phone || item.phone_number;
+                if (rVal) {
+                    item.recipient = String(rVal).trim();
+                }
                 delete item.recipients;
                 delete item.sent_at;
                 delete item.sentAt;
-                delete item.recipient;
                 delete item.logs;
             }
 
@@ -2588,28 +2595,33 @@ export const apiService = {
         const amountPaidNum = Number(params.amount);
         const instId = params.institutionId;
 
-        // Fetch all active invoices of the student that are not fully paid
-        const allInvoices = await apiService.fetchModuleRecords<any>('invoices').catch(() => []);
+        // Fetch active invoices & receipts of the target student in parallel with database filtering
+        const [allInvoices, allReceipts] = await Promise.all([
+            apiService.fetchModuleRecords<any>('invoices', instId, undefined, {
+                filter: { studentId: params.studentId }
+            }).catch(() => []),
+            apiService.fetchModuleRecords<any>('receipts', instId, undefined, {
+                filter: { studentId: params.studentId }
+            }).catch(() => [])
+        ]);
+
         const studentInvoices = allInvoices.filter((inv: any) => 
-            inv.studentId === params.studentId && 
+            (inv.studentId === params.studentId || inv.student_id === params.studentId) && 
             inv.status !== 'cancelled' && 
             inv.status !== 'quote'
         );
 
-        // Fetch all receipts of the student to calculate paid amount so far
-        const allReceipts = await apiService.fetchModuleRecords<any>('receipts').catch(() => []);
-        
         const invoicePaidAmounts: Record<string, number> = {};
         allReceipts.forEach((rec: any) => {
             const invId = rec.invoiceId || rec.invoice_id;
             if (invId) {
-                invoicePaidAmounts[invId] = (invoicePaidAmounts[invId] || 0) + Number(rec.amountPaid || 0);
+                invoicePaidAmounts[invId] = (invoicePaidAmounts[invId] || 0) + Number(rec.amountPaid || rec.amount_paid || 0);
             }
         });
 
         const unpaidInvoices = studentInvoices.filter((inv: any) => {
             const paid = invoicePaidAmounts[inv.id] || 0;
-            return paid < inv.totalAmount;
+            return paid < Number(inv.totalAmount || inv.total_amount || 0);
         });
 
         // Sort invoices: if targetInvoiceId is provided, place it first, then others sorted by issueDate/createdAt
@@ -2646,7 +2658,7 @@ export const apiService = {
                     const invId = r.invoiceId || r.invoice_id;
                     return !invId || invId.startsWith('__opening_balance__');
                 }).reduce((sum: number, r: any) => {
-                    let allocated = Number(r.amountPaid || 0);
+                    let allocated = Number(r.amountPaid || r.amount_paid || 0);
                     if (r.allocations) {
                         try {
                             const allocs = typeof r.allocations === 'string' ? JSON.parse(r.allocations) : r.allocations;
@@ -2673,6 +2685,8 @@ export const apiService = {
                 remainingAmount -= allocatedToOpening;
             }
         }
+
+        const modifiedInvoicesToSave: any[] = [];
 
         // Distribute to sorted invoices
         for (const inv of sortedInvoices) {
@@ -2720,10 +2734,9 @@ export const apiService = {
             if (invoiceModified) {
                 // Determine new status
                 const updatedItemsPaid = sortedItems.reduce((sum, it) => sum + (it.paid || 0), 0);
-                const newStatus = updatedItemsPaid >= inv.totalAmount ? 'paid' : 'partial';
+                const newStatus = updatedItemsPaid >= Number(inv.totalAmount || inv.total_amount || 0) ? 'paid' : 'partial';
 
-                // Save updated invoice back to DB
-                await apiService.saveModuleRecord('invoices', {
+                modifiedInvoicesToSave.push({
                     ...inv,
                     items: sortedItems,
                     status: newStatus
@@ -2741,8 +2754,7 @@ export const apiService = {
             });
         }
 
-        // Receipt generation: "but generation of receipts all the related votes from different invoices are grouped"
-        // Group allocations by votehead description / name
+        // Receipt generation
         const groupedAllocations: Record<string, number> = {};
         allocations.forEach(alloc => {
             groupedAllocations[alloc.description] = (groupedAllocations[alloc.description] || 0) + alloc.amount;
@@ -2755,7 +2767,6 @@ export const apiService = {
         const receiptId = `RCT_${Date.now()}_${Math.random().toString(36).substring(2,6)}`;
         const receiptNumber = params.customReceiptNumber ? params.customReceiptNumber.trim() : await apiService.getNextDocumentNumber(instId, 'receipt');
 
-        // Save the single grouped receipt
         // Link to targetInvoiceId if provided, or the first invoice paid, or null if it's purely prepayment
         const primaryInvoiceId = params.targetInvoiceId || (allocations[0] ? allocations[0].invoiceId : null);
 
@@ -2784,7 +2795,11 @@ export const apiService = {
             allocations: JSON.stringify(allocations)
         };
 
-        await apiService.saveModuleRecord('receipts', receiptPayload);
+        // Save updated invoices and new receipt in parallel
+        await Promise.all([
+            ...modifiedInvoicesToSave.map(inv => apiService.saveModuleRecord('invoices', inv)),
+            apiService.saveModuleRecord('receipts', receiptPayload)
+        ]);
 
         return { receiptNumber, allocations };
     },

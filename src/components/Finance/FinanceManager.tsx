@@ -54,6 +54,7 @@ import { DevicePhoneMobileIcon } from '../icons/DevicePhoneMobileIcon';
 const HRManager = React.lazy(() => import('../HR/HRManager').then(m => ({ default: m.HRManager })));
 const StudentEnrollmentManager = React.lazy(() => import('../common/StudentEnrollmentManager').then(m => ({ default: m.StudentEnrollmentManager })));
 const CommunicationsManager = React.lazy(() => import('../CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
+const UserManager = React.lazy(() => import('../UserManager').then(m => ({ default: m.UserManager })));
 
 const parseMoneyAmount = (amt: any): number => {
     if (amt === null || amt === undefined) return 0;
@@ -103,7 +104,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     
     // Dynamic Tabs based on Institution Type
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
-    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers'>(isProcurementOfficer ? 'requisitions' : 'home');
+    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users'>(isProcurementOfficer ? 'requisitions' : 'home');
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
@@ -148,6 +149,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 .catch(() => {});
         }
     }, [props.institution?.id]);
+
+    // Branch User Isolation for System Users
+    const filteredUsersByBranch = useMemo(() => {
+        const allUsers = props.users || [];
+        const currentUserBranchId = props.currentUser?.branchId || (props.currentUser as any)?.branch_id;
+        const isGlobalAdmin = ['super_admin', 'group_admin', 'admin'].includes(props.currentUser?.role || '');
+
+        // Branch constraint: if non-global admin has an assigned branch, constrain to that branch
+        const effectiveBranchId = (!isGlobalAdmin && currentUserBranchId) ? currentUserBranchId : selectedBranchId;
+
+        if (!effectiveBranchId || effectiveBranchId === 'ALL') return allUsers;
+
+        return allUsers.filter((u: any) => {
+            const uBranchId = u.branchId || u.branch_id || u.institutionBranchId || u.metadata?.branchId || u.metadata?.branch_id;
+            return !uBranchId || uBranchId === effectiveBranchId;
+        });
+    }, [props.users, props.currentUser, selectedBranchId]);
 
     // Translate DS structures to standard Dashboard Invoice models dynamically
     const mappedInvoices = useMemo(() => {
@@ -322,6 +340,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { type: 'invoice', label: 'Invoice Numbering', defaultPrefix: 'INV-', defaultNextNumber: 1001 },
         { type: 'receipt', label: 'Receipt Numbering', defaultPrefix: 'REC-', defaultNextNumber: 1001 },
         { type: 'payment_voucher', label: 'Payment Voucher (Expense)', defaultPrefix: 'PV-', defaultNextNumber: 1001 },
+        { type: 'lpo', label: 'Local Purchase Order (LPO)', defaultPrefix: 'LPO-', defaultNextNumber: 1001 },
+        { type: 'requisition', label: 'Requisition Numbering', defaultPrefix: 'REQ-', defaultNextNumber: 1001 },
+        { type: 'admission', label: 'Admission Numbering (Student ADM)', defaultPrefix: 'ADM-', defaultNextNumber: 1001 },
         { type: 'credit_note', label: 'Credit Note', defaultPrefix: 'CN-', defaultNextNumber: 1001 },
         { type: 'debit_note', label: 'Debit Note', defaultPrefix: 'DN-', defaultNextNumber: 1001 },
         { type: 'goods_in_lieu', label: 'Goods In Lieu Proposal', defaultPrefix: 'GIL-', defaultNextNumber: 1001 },
@@ -2698,7 +2719,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             });
 
             if (props.onRefreshData) {
-                await props.onRefreshData();
+                props.onRefreshData().catch(() => {});
             }
 
             // --- Receipt Notification (SMS + Email) ---
@@ -5117,10 +5138,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </p>
                         </div>
                     )}
-                </div>
-
                 <nav className="space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
-                    {tabs.filter(item => {
+                    {[
+                        { id: 'home', label: 'Overview', icon: HomeIcon },
+                        { id: 'billing', label: 'Automated Billing', icon: ZapIcon },
+                        { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
+                        { id: 'receipts', label: 'Receipts & Income', icon: BanknotesIcon },
+                        { id: 'student_invoices', label: 'Student Invoices', icon: ClipboardListIcon },
+                        { id: 'gok_capitation', label: 'GoK Capitation', icon: ScaleIcon },
+                        { id: 'bursaries', label: 'Bursaries & Grants', icon: CreditCardIcon },
+                        { id: 'expenses', label: 'Expenses & Payments', icon: CreditCardIcon },
+                        { id: 'requisitions', label: 'Requisitions', icon: ClipboardListIcon },
+                        { id: 'payroll', label: 'Payroll & HR', icon: BriefcaseIcon },
+                        { id: 'reports', label: 'Financial Reports', icon: BarChart3Icon },
+                        { id: 'audit', label: 'Fiscal Audit', icon: ShieldCheckIcon },
+                        { id: 'users', label: 'System Users', icon: UserGroupIcon },
+                        { id: 'settings', label: 'Fiscal Settings', icon: Cog8ToothIcon },
+                    ].filter(item => {
                         const isEdu = isEduInstitution(props.institution);
                         if (item.id === 'gok_capitation') return isEdu;
                         if (item.id === 'bursaries') return isEdu;
@@ -14332,9 +14366,90 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 );
                             })()}
 
+                {activeTab === 'users' && (
+                    <div className="space-y-6 animate-in fade-in duration-300">
+                        <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-6 md:p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
+                            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div>
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full border border-white/20 mb-2 backdrop-blur-md">
+                                        <UserGroupIcon className="w-3.5 h-3.5 text-indigo-300" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200">System Users & Branch Access Control</span>
+                                    </div>
+                                    <h2 className="text-2xl md:text-3xl font-black tracking-tight">Institutional System Users</h2>
+                                    <p className="text-xs text-indigo-200/80 font-medium mt-1">Manage staff, finance officers, bursars, and branch system users with strict branch access controls.</p>
+                                </div>
+                                {branches.length > 0 && (
+                                    <div className="bg-white/10 border border-white/20 p-3 rounded-2xl backdrop-blur-md flex items-center gap-3">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200 whitespace-nowrap">Branch Filter:</span>
+                                        <select
+                                            value={selectedBranchId}
+                                            onChange={e => setSelectedBranchId(e.target.value)}
+                                            className="bg-slate-950/80 text-white font-bold text-xs px-3 py-1.5 rounded-xl border border-indigo-400/40 focus:outline-none"
+                                        >
+                                            <option value="ALL">🌐 All Branches ({props.users?.length || 0} Users)</option>
+                                            {branches.map((b: any) => (
+                                                <option key={b.id} value={b.id}>🏢 {b.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    );
-                })()}
+
+                        <React.Suspense fallback={<div className="p-16 text-center text-slate-400 font-bold animate-pulse">Loading System Users Directory...</div>}>
+                            <UserManager
+                                allocations={[]}
+                                users={filteredUsersByBranch}
+                                currentInstitution={props.institution}
+                                currentUser={props.currentUser}
+                                onAddUser={async (userData: any) => {
+                                    const branchToSet = selectedBranchId !== 'ALL' ? selectedBranchId : (props.currentUser?.branchId || (props.currentUser as any)?.branch_id || null);
+                                    const newUser = {
+                                        id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                        institutionId: props.institution.id,
+                                        institution_id: props.institution.id,
+                                        branchId: branchToSet,
+                                        branch_id: branchToSet,
+                                        createdAt: new Date().toISOString(),
+                                        ...userData
+                                    };
+                                    await apiService.saveModuleRecord('users', newUser);
+                                    alert(`System user "${userData.name}" added successfully!`);
+                                    if (props.onRefreshData) await props.onRefreshData();
+                                }}
+                                onEditUser={async (userId: string, data: any) => {
+                                    if (props.onEditUser) {
+                                        await props.onEditUser(userId, data);
+                                    } else {
+                                        await apiService.updateModuleRecord('users', userId, data);
+                                    }
+                                    alert("User updated successfully!");
+                                    if (props.onRefreshData) await props.onRefreshData();
+                                }}
+                                onDeleteUser={async (userId: string) => {
+                                    if (props.onDeleteUser) {
+                                        await props.onDeleteUser(userId);
+                                    } else {
+                                        await apiService.deleteModuleRecord('users', userId);
+                                    }
+                                    alert("User deleted successfully.");
+                                    if (props.onRefreshData) await props.onRefreshData();
+                                }}
+                                smsConfig={(props.institution?.smsConfig || {}) as any}
+                                departments={[]}
+                                courses={props.courses || []}
+                                subjects={[]}
+                                letterheadConfig={{} as any}
+                                logoUrl={props.institution?.logoUrl || null}
+                                footerImageUrl={null}
+                                companyDetails={props.companyDetails}
+                            />
+                        </React.Suspense>
+                    </div>
+                )}
+            </div>
+        );
+    })()}
 
             {/* Excel Payment Import & Auto-Reconcile Modal */}
             {isExcelImportModalOpen && (
@@ -14836,11 +14951,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     Close Preview
                                 </button>
                             </div>
-                        </div>
                     </div>
                 </div>
             )}
-                </div>
             </div>
         </div>
     );

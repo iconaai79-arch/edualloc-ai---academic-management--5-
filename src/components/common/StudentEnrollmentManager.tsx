@@ -28,6 +28,7 @@ import {
     Clock,
     MapPin,
     AlertCircle,
+    AlertTriangle,
     CheckCircle,
     Check,
     Key,
@@ -1099,12 +1100,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 setStatusMsg({ type: 'success', message: 'Enrollment record updated successfully.' });
             } else {
                 const enrollmentId = `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                let finalAdmNo = formData.admissionNumber;
+                if (!finalAdmNo) {
+                    try {
+                        finalAdmNo = await apiService.getNextDocumentNumber(currentInstitution.id, 'admission');
+                    } catch (e) {
+                        finalAdmNo = `ADM-${Date.now().toString().slice(-5)}`;
+                    }
+                }
                 const newEnrollment: StudentEnrollment = {
                     id: enrollmentId,
                     institutionId: currentInstitution.id,
                     userId: userId,
                     enrollmentType: context,
-                    admissionNumber: formData.admissionNumber || `ADM-${Date.now().toString().slice(-5)}`,
+                    admissionNumber: finalAdmNo,
                     status: formData.status,
                     enrollmentDate: formData.enrollmentDate,
                     metadata: metadataToSave,
@@ -3225,7 +3234,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             ? primaryParent.email.toLowerCase() 
             : `parent_${cleanPhoneStr}_${Math.random().toString(36).substr(2, 4)}@eduai.local`;
 
-        parentUser = {
+        const newParentUser: User = {
             id: newId,
             institutionId: currentInstitution.id,
             name: primaryParent.name || 'Parent / Guardian',
@@ -3238,9 +3247,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         } as any;
 
         try {
-            await apiService.saveModuleRecord('users', parentUser);
-            currentUsersList.push(parentUser);
-            setUsers(prev => [...prev.filter(u => u.id !== parentUser!.id), parentUser!]);
+            await apiService.saveModuleRecord('users', newParentUser);
+            currentUsersList.push(newParentUser);
+            setUsers(prev => [...prev.filter(u => u.id !== newParentUser.id), newParentUser]);
+            return newParentUser;
         } catch (err: any) {
             const errStr = String(err?.message || err);
             if (errStr.includes('23505') || errStr.includes('Registry Conflict') || errStr.includes('already registered')) {
@@ -3254,14 +3264,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     }
                 } catch (_) {}
                 // Fallback: retry with non-conflicting synthetic email
-                parentUser.email = `parent_${newId}@eduai.local`;
-                await apiService.saveModuleRecord('users', parentUser).catch(() => {});
-                currentUsersList.push(parentUser);
-                setUsers(prev => [...prev.filter(u => u.id !== parentUser!.id), parentUser!]);
+                newParentUser.email = `parent_${newId}@eduai.local`;
+                await apiService.saveModuleRecord('users', newParentUser).catch(() => {});
+                currentUsersList.push(newParentUser);
+                setUsers(prev => [...prev.filter(u => u.id !== newParentUser.id), newParentUser]);
+                return newParentUser;
             }
         }
 
-        return parentUser;
+        return null;
     };
 
     // Bulk Generate PINs ONLY (Silent / No SMS or Email)
@@ -3453,7 +3464,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const failCount = executionResults.filter(r => r.status === 'failed').length;
 
             setStatusMsg({
-                type: failCount > 0 ? 'warning' : 'success',
+                type: failCount > 0 ? 'info' : 'success',
                 message: `Bulk PIN Generation Complete: ${succCount} generated, ${failCount} failed.`
             });
 

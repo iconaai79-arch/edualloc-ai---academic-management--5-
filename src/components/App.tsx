@@ -3000,7 +3000,19 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 // Assistant / Support staff
                 'transport_assistant', 'driver'
             ];
-            const matchedAdmins = users.filter(u => u.institutionId === institutionId && adminRoles.includes(u.role));
+            const targetInstitution = institutions.find(i => i.id === institutionId);
+            const parentInstId = (targetInstitution as any)?.parentInstitutionId || (targetInstitution as any)?.parent_institution_id || (targetInstitution as any)?.metadata?.parentInstitutionId;
+
+            const isUserForInst = (u: any) => {
+                if (!u) return false;
+                const uInst = u.institutionId || u.institution_id;
+                const uBranch = u.branchId || u.branch_id || u.metadata?.branchId || u.metadata?.branch_id;
+                if (uInst === institutionId || uBranch === institutionId) return true;
+                if (parentInstId && uInst === parentInstId && (!uBranch || uBranch === 'ALL' || uBranch === institutionId)) return true;
+                return false;
+            };
+
+            const matchedAdmins = users.filter(u => isUserForInst(u) && adminRoles.includes(u.role));
             let admin = null;
             if (matchedAdmins.length > 0) {
                 matchedAdmins.sort((a, b) => {
@@ -3015,7 +3027,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 console.warn(`Strict admin lookup failed for institution ${institutionId}. Falling back to non-portal user.`);
                 // Avoid logging in as student/parent/customer unless explicitly requested via initialRole
                 const excludedRoles = ['student', 'parent', 'customer'];
-                const fallbackUsers = users.filter(u => u.institutionId === institutionId && (!excludedRoles.includes(u.role) || initialRole === u.role));
+                const fallbackUsers = users.filter(u => isUserForInst(u) && (!excludedRoles.includes(u.role) || initialRole === u.role));
                 if (fallbackUsers.length > 0) {
                     admin = fallbackUsers[0];
                 }

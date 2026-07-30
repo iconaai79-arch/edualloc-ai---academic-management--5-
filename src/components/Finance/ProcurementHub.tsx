@@ -241,6 +241,26 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ institution, cur
     const lpoNumber = (id?: string) => lpos.find(l => l.id === id)?.lpoNumber || lpos.find(l => l.id === id)?.lpo_number || '—';
 
     // ── Save handlers ──
+    const handleOpenCreateLPO = async (req?: any) => {
+        setEditLPO(null);
+        let nextLPO = `LPO-${Date.now().toString().slice(-6)}`;
+        try {
+            nextLPO = await apiService.getNextDocumentNumber(institution.id, 'lpo');
+        } catch (e) {
+            console.error("Failed to generate LPO number:", e);
+        }
+        
+        const base = emptyLPO();
+        setLpoForm({
+            ...base,
+            lpoNumber: nextLPO,
+            requisitionId: req?.id || base.requisitionId,
+            items: req?.items || base.items || []
+        });
+        setShowLPOModal(true);
+        if (req) setActiveTab('lpos');
+    };
+
     const saveItem = async () => {
         await apiService.saveModuleRecord('procurement_items', { ...itemForm, institution_id: institution.id, institutionId: institution.id, unit_cost: itemForm.unitCost, reorder_level: itemForm.reorderLevel, current_stock: itemForm.currentStock, item_code: itemForm.itemCode, is_active: true });
         setShowItemModal(false); setEditItem(null); setItemForm(emptyItem()); load();
@@ -252,10 +272,31 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ institution, cur
     };
 
     const saveLPO = async () => {
+        let finalLpoNumber = lpoForm.lpoNumber || lpoForm.lpo_number;
+        if (!finalLpoNumber || finalLpoNumber.startsWith('LPO-17') || finalLpoNumber.includes(Date.now().toString().slice(0, 5))) {
+            try {
+                finalLpoNumber = await apiService.getNextDocumentNumber(institution.id, 'lpo');
+            } catch (e) {}
+        }
         const subtotal = (lpoForm.items || []).reduce((s, i) => s + i.total, 0);
         const tax = subtotal * 0.16;
         const total = subtotal + tax;
-        await apiService.saveModuleRecord('procurement_lpos', { ...lpoForm, institution_id: institution.id, institutionId: institution.id, lpo_number: lpoForm.lpoNumber, supplier_id: lpoForm.supplierId, requisition_id: lpoForm.requisitionId, issued_date: lpoForm.issuedDate, expected_delivery_date: lpoForm.expectedDeliveryDate, delivery_address: lpoForm.deliveryAddress, tax_amount: tax, total_amount: total, subtotal, created_by: currentUser?.name || currentUser?.id });
+        await apiService.saveModuleRecord('procurement_lpos', { 
+            ...lpoForm, 
+            institution_id: institution.id, 
+            institutionId: institution.id, 
+            lpo_number: finalLpoNumber, 
+            lpoNumber: finalLpoNumber,
+            supplier_id: lpoForm.supplierId, 
+            requisition_id: lpoForm.requisitionId, 
+            issued_date: lpoForm.issuedDate, 
+            expected_delivery_date: lpoForm.expectedDeliveryDate, 
+            delivery_address: lpoForm.deliveryAddress, 
+            tax_amount: tax, 
+            total_amount: total, 
+            subtotal, 
+            created_by: currentUser?.name || currentUser?.id 
+        });
         setShowLPOModal(false); setEditLPO(null); setLpoForm(emptyLPO()); load();
     };
 
@@ -607,7 +648,7 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ institution, cur
                                                     <button onClick={() => updateReqStatus(req.id, 'rejected')} className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg font-black text-[9px] hover:bg-rose-200">✗ Reject</button>
                                                 </>}
                                                 {req.status === 'approved' && (
-                                                    <button onClick={() => { setLpoForm({ ...emptyLPO(), lpoNumber: `LPO-${Date.now()}`, requisitionId: req.id, items: req.items || [] }); setShowLPOModal(true); setActiveTab('lpos'); }} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg font-black text-[9px] hover:bg-blue-200">📄 Create LPO</button>
+                                                    <button onClick={() => handleOpenCreateLPO(req)} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg font-black text-[9px] hover:bg-blue-200">📄 Create LPO</button>
                                                 )}
                                             </div>
                                         </td>
@@ -625,7 +666,7 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ institution, cur
                 <div className="space-y-4">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                         <input value={lpoSearch} onChange={e => setLpoSearch(e.target.value)} placeholder="🔍 Search LPOs..." className="flex-1 min-w-[200px] px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-                        <button onClick={() => { setEditLPO(null); setLpoForm(emptyLPO()); setShowLPOModal(true); }} className="px-5 py-2.5 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-md">
+                        <button onClick={() => handleOpenCreateLPO()} className="px-5 py-2.5 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-md">
                             + Create LPO
                         </button>
                     </div>
