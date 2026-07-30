@@ -9,6 +9,9 @@ import { ChevronRightIcon } from './icons/ChevronRightIcon';
 interface GradingSystemManagerProps {
     currentInstitution?: Institution | null;
     onUpdateInstitution?: (institutionId: string, data: Partial<Omit<Institution, 'id'>>) => void;
+    courses?: any[];
+    users?: any[];
+    subjects?: any[];
 }
 
 export interface TreeGradingNode {
@@ -21,7 +24,14 @@ export interface TreeGradingNode {
     definitions: GradeDefinition[];
 }
 
-const defaultDefinitions: GradeDefinition[] = [
+export const defaultCbeDefinitions: GradeDefinition[] = [
+    { id: 'g_ee', grade: 'EE', minScore: 80, maxScore: 100, points: 4.0, comment: 'Exceeding Expectations (EE)' },
+    { id: 'g_me', grade: 'ME', minScore: 65, maxScore: 79, points: 3.0, comment: 'Meeting Expectations (ME)' },
+    { id: 'g_ae', grade: 'AE', minScore: 50, maxScore: 64, points: 2.0, comment: 'Approaching Expectations (AE)' },
+    { id: 'g_be', grade: 'BE', minScore: 0, maxScore: 49, points: 1.0, comment: 'Below Expectations (BE)' }
+];
+
+export const defaultDefinitions: GradeDefinition[] = [
     { id: 'g_a', grade: 'A', minScore: 80, maxScore: 100, points: 12.0, comment: 'EXCELLENT' },
     { id: 'g_a_minus', grade: 'A-', minScore: 75, maxScore: 79, points: 11.0, comment: 'EXCELLENT' },
     { id: 'g_b_plus', grade: 'B+', minScore: 70, maxScore: 74, points: 10.0, comment: 'VERY GOOD' },
@@ -36,123 +46,89 @@ const defaultDefinitions: GradeDefinition[] = [
     { id: 'g_e', grade: 'E', minScore: 0, maxScore: 29, points: 1.0, comment: 'VERY POOR' }
 ];
 
-export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ currentInstitution, onUpdateInstitution }) => {
+export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ 
+    currentInstitution, 
+    onUpdateInstitution,
+    courses = [],
+    users = [],
+    subjects = []
+}) => {
+    const isPrimarySchool = useMemo(() => {
+        const type = (currentInstitution?.institutionType || '').toLowerCase();
+        const name = (currentInstitution?.name || '').toLowerCase();
+        return type === 'primary' || type === 'primary_school' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
+    }, [currentInstitution]);
+
+    const activeDefaultDefinitions = isPrimarySchool ? defaultCbeDefinitions : defaultDefinitions;
+
+    // Dynamically compute configured classes
+    const configuredClasses = useMemo(() => {
+        const set = new Set<string>();
+
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const name = c.name || (c as any).title || c.code;
+                if (name) set.add(name);
+            });
+        }
+
+        if (users && users.length > 0) {
+            users.forEach(u => {
+                const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    set.add(cl.trim());
+                }
+            });
+        }
+
+        if (set.size === 0) {
+            if (isPrimarySchool) {
+                ['Grade 1 Central', 'Grade 2 Central', 'Grade 3 Central', 'Grade 4 Central', 'Grade 5 Central', 'Grade 6 Central', 'Grade 7 Central'].forEach(c => set.add(c));
+            } else {
+                ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central'].forEach(c => set.add(c));
+            }
+        }
+
+        return Array.from(set);
+    }, [courses, users, isPrimarySchool]);
+
     // Collapsible tree node expand state
-    const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({
-        'root_main': true,
-        'class_form_3': true,
-        'class_form_4': true
+    const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>(() => {
+        const initial: Record<string, boolean> = { 'root_main': true };
+        configuredClasses.forEach(c => {
+            initial[`class_${c}`] = true;
+        });
+        return initial;
     });
 
     // Selected tree node ID
-    const [selectedNodeId, setSelectedNodeId] = useState<string>('node_f3_101');
+    const [selectedNodeId, setSelectedNodeId] = useState<string>('root_main');
 
     // Tree nodes grading data dictionary
-    const [gradingNodes, setGradingNodes] = useState<Record<string, TreeGradingNode>>({
-        'root_main': {
-            id: 'root_main',
-            label: 'Main grading system (default)',
-            title: 'MAIN DEFAULT GRADING SYSTEM',
-            type: 'root',
-            definitions: defaultDefinitions
-        },
-        'f3_overall': {
-            id: 'f3_overall',
-            label: 'Overall',
-            title: 'FORM 3 OVERALL',
-            type: 'overall',
-            classId: 'form_3',
-            definitions: defaultDefinitions
-        },
-        'node_f3_101': {
-            id: 'node_f3_101',
-            label: '101 English',
-            title: 'FORM 3 ENGLISH',
-            type: 'subject',
-            classId: 'form_3',
-            subjectId: '101',
-            definitions: defaultDefinitions
-        },
-        'node_f3_102': {
-            id: 'node_f3_102',
-            label: '102 Swahili',
-            title: 'FORM 3 SWAHILI',
-            type: 'subject',
-            classId: 'form_3',
-            subjectId: '102',
-            definitions: defaultDefinitions
-        },
-        'node_f3_121': {
-            id: 'node_f3_121',
-            label: '121 MATHS',
-            title: 'FORM 3 MATHS',
-            type: 'subject',
-            classId: 'form_3',
-            subjectId: '121',
-            definitions: defaultDefinitions
-        },
-        'node_f3_231': {
-            id: 'node_f3_231',
-            label: '231 Biology',
-            title: 'FORM 3 BIOLOGY',
-            type: 'subject',
-            classId: 'form_3',
-            subjectId: '231',
-            definitions: defaultDefinitions
-        },
-        'node_f3_232': {
-            id: 'node_f3_232',
-            label: '232 Physics',
-            title: 'FORM 3 PHYSICS',
-            type: 'subject',
-            classId: 'form_3',
-            subjectId: '232',
-            definitions: defaultDefinitions
-        },
-        'node_f3_233': {
-            id: 'node_f3_233',
-            label: '233 Chemistry',
-            title: 'FORM 3 CHEMISTRY',
-            type: 'subject',
-            classId: 'form_3',
-            subjectId: '233',
-            definitions: defaultDefinitions
-        },
-        'node_f3_311': {
-            id: 'node_f3_311',
-            label: '311 History and GOVERNMENT',
-            title: 'FORM 3 HISTORY AND GOVERNMENT',
-            type: 'subject',
-            classId: 'form_3',
-            subjectId: '311',
-            definitions: defaultDefinitions
-        },
-        'f4_overall': {
-            id: 'f4_overall',
-            label: 'Overall',
-            title: 'FORM 4 OVERALL',
-            type: 'overall',
-            classId: 'form_4',
-            definitions: defaultDefinitions
-        },
-        'node_f4_101': {
-            id: 'node_f4_101',
-            label: '101 English',
-            title: 'FORM 4 ENGLISH',
-            type: 'subject',
-            classId: 'form_4',
-            subjectId: '101',
-            definitions: defaultDefinitions
-        },
-        'node_f4_121': {
-            id: 'node_f4_121',
-            label: '121 MATHS',
-            title: 'FORM 4 MATHS',
-            type: 'subject',
-            classId: 'form_4',
-            subjectId: '121',
-            definitions: defaultDefinitions
-        }
+    const [gradingNodes, setGradingNodes] = useState<Record<string, TreeGradingNode>>(() => {
+        const initialNodes: Record<string, TreeGradingNode> = {
+            'root_main': {
+                id: 'root_main',
+                label: `Main grading system (default)`,
+                title: `MAIN DEFAULT GRADING SYSTEM (${isPrimarySchool ? 'CBE 4-Level' : '8-4-4 12-Point'})`,
+                type: 'root',
+                definitions: activeDefaultDefinitions
+            }
+        };
+
+        configuredClasses.forEach(cName => {
+            const classKey = `class_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+            initialNodes[`${classKey}_overall`] = {
+                id: `${classKey}_overall`,
+                label: `${cName} Overall`,
+                title: `${cName.toUpperCase()} OVERALL GRADING SYSTEM`,
+                type: 'overall',
+                classId: cName,
+                definitions: activeDefaultDefinitions
+            };
+        });
+
+        return initialNodes;
     });
 
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -358,134 +334,57 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ curr
                             </div>
 
                             {expandedNodes['root_main'] && (
-                                <div className="pl-4 space-y-1 border-l border-slate-200 dark:border-slate-800 ml-1">
-                                    {/* Class: Form 3 */}
-                                    <div className="space-y-1">
-                                        <div
-                                            onClick={() => toggleExpand('class_form_3')}
-                                            className="flex items-center gap-1 text-slate-700 dark:text-slate-300 cursor-pointer py-1 font-bold"
-                                        >
-                                            {expandedNodes['class_form_3'] ? (
-                                                <ChevronDownIcon className="w-3.5 h-3.5 text-slate-500" />
-                                            ) : (
-                                                <ChevronRightIcon className="w-3.5 h-3.5 text-slate-500" />
-                                            )}
-                                            <span>Form 3</span>
-                                        </div>
+                                <div className="pl-4 space-y-2 border-l border-slate-200 dark:border-slate-800 ml-1 pt-1">
+                                    {configuredClasses.map(cName => {
+                                        const classKey = `class_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+                                        const isExp = expandedNodes[classKey] ?? true;
+                                        const overallNodeId = `${classKey}_overall`;
 
-                                        {expandedNodes['class_form_3'] && (
-                                            <div className="pl-4 space-y-0.5 border-l border-slate-200 dark:border-slate-800 ml-1">
+                                        return (
+                                            <div key={classKey} className="space-y-1">
                                                 <div
-                                                    onClick={() => setSelectedNodeId('f3_overall')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'f3_overall' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
+                                                    onClick={() => toggleExpand(classKey)}
+                                                    className="flex items-center gap-1 text-slate-700 dark:text-slate-300 cursor-pointer py-1 font-bold hover:text-blue-600"
                                                 >
-                                                    Overall
+                                                    {isExp ? (
+                                                        <ChevronDownIcon className="w-3.5 h-3.5 text-slate-500" />
+                                                    ) : (
+                                                        <ChevronRightIcon className="w-3.5 h-3.5 text-slate-500" />
+                                                    )}
+                                                    <span>{cName}</span>
                                                 </div>
-                                                <div
-                                                    onClick={() => setSelectedNodeId('node_f3_101')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'node_f3_101' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
-                                                >
-                                                    101 English
-                                                </div>
-                                                <div
-                                                    onClick={() => setSelectedNodeId('node_f3_102')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'node_f3_102' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
-                                                >
-                                                    102 Swahili
-                                                </div>
-                                                <div
-                                                    onClick={() => setSelectedNodeId('node_f3_121')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'node_f3_121' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
-                                                >
-                                                    121 MATHS
-                                                </div>
-                                                <div
-                                                    onClick={() => setSelectedNodeId('node_f3_231')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'node_f3_231' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
-                                                >
-                                                    231 Biology
-                                                </div>
-                                                <div
-                                                    onClick={() => setSelectedNodeId('node_f3_232')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'node_f3_232' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
-                                                >
-                                                    232 Physics
-                                                </div>
-                                                <div
-                                                    onClick={() => setSelectedNodeId('node_f3_233')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'node_f3_233' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
-                                                >
-                                                    233 Chemistry
-                                                </div>
-                                                <div
-                                                    onClick={() => setSelectedNodeId('node_f3_311')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'node_f3_311' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
-                                                >
-                                                    311 History and GOVERNMENT
-                                                </div>
+
+                                                {isExp && (
+                                                    <div className="pl-4 space-y-0.5 border-l border-slate-200 dark:border-slate-800 ml-1">
+                                                        <div
+                                                            onClick={() => setSelectedNodeId(overallNodeId)}
+                                                            className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
+                                                                selectedNodeId === overallNodeId ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
+                                                            }`}
+                                                        >
+                                                            Overall
+                                                        </div>
+                                                        {(subjects || []).map(s => {
+                                                            const subName = s.name || s.title || s;
+                                                            const subCode = s.code || '';
+                                                            const subNodeId = `${classKey}_sub_${(subName || '').toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+                                                            return (
+                                                                <div
+                                                                    key={subNodeId}
+                                                                    onClick={() => setSelectedNodeId(subNodeId)}
+                                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
+                                                                        selectedNodeId === subNodeId ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
+                                                                    }`}
+                                                                >
+                                                                    {subCode ? `${subCode} ` : ''}{subName}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-
-                                    {/* Class: Form 4 */}
-                                    <div className="space-y-1 pt-1">
-                                        <div
-                                            onClick={() => toggleExpand('class_form_4')}
-                                            className="flex items-center gap-1 text-slate-700 dark:text-slate-300 cursor-pointer py-1 font-bold"
-                                        >
-                                            {expandedNodes['class_form_4'] ? (
-                                                <ChevronDownIcon className="w-3.5 h-3.5 text-slate-500" />
-                                            ) : (
-                                                <ChevronRightIcon className="w-3.5 h-3.5 text-slate-500" />
-                                            )}
-                                            <span>Form 4</span>
-                                        </div>
-
-                                        {expandedNodes['class_form_4'] && (
-                                            <div className="pl-4 space-y-0.5 border-l border-slate-200 dark:border-slate-800 ml-1">
-                                                <div
-                                                    onClick={() => setSelectedNodeId('f4_overall')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'f4_overall' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
-                                                >
-                                                    Overall
-                                                </div>
-                                                <div
-                                                    onClick={() => setSelectedNodeId('node_f4_101')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'node_f4_101' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
-                                                >
-                                                    101 English
-                                                </div>
-                                                <div
-                                                    onClick={() => setSelectedNodeId('node_f4_121')}
-                                                    className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                                                        selectedNodeId === 'node_f4_121' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                                                    }`}
-                                                >
-                                                    121 MATHS
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
@@ -494,18 +393,60 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ curr
 
                 {/* Right Panel: Grading Table matching screenshot */}
                 <div className="md:col-span-3 space-y-4">
-                    {/* Header Title with Add New Grade Button */}
-                    <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-800">
-                        <h3 className="font-black text-sm uppercase text-slate-900 dark:text-white tracking-wider">
-                            {activeNode?.title || 'OVERALL GRADING SYSTEM'}
-                        </h3>
-                        <button
-                            type="button"
-                            onClick={handleAddGradeRow}
-                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all border border-slate-300 dark:border-slate-700 flex items-center gap-1.5"
-                        >
-                            <PlusIcon className="w-3.5 h-3.5" /> Add New Grade
-                        </button>
+                    {/* Header Title with Add New Grade & Preload Buttons */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+                        <div>
+                            <h3 className="font-black text-sm uppercase text-slate-900 dark:text-white tracking-wider">
+                                {activeNode?.title || 'OVERALL GRADING SYSTEM'}
+                            </h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                                {isPrimarySchool ? '🎯 CBE Primary 4-Level Standards' : '📜 8-4-4 KCSE 12-Point Standards'}
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setGradingNodes(prev => ({
+                                        ...prev,
+                                        [selectedNodeId]: {
+                                            ...(prev[selectedNodeId] || activeNode),
+                                            definitions: defaultCbeDefinitions
+                                        }
+                                    }));
+                                }}
+                                className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-all cursor-pointer"
+                                title="Pre-load CBE 4-Level Grading (EE, ME, AE, BE) with Comments"
+                            >
+                                Preload CBE Primary (EE/ME/AE/BE)
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setGradingNodes(prev => ({
+                                        ...prev,
+                                        [selectedNodeId]: {
+                                            ...(prev[selectedNodeId] || activeNode),
+                                            definitions: defaultDefinitions
+                                        }
+                                    }));
+                                }}
+                                className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all cursor-pointer"
+                                title="Pre-load 8-4-4 KCSE 12-Point Grading (A to E) with Comments"
+                            >
+                                Preload 8-4-4 KCSE (A to E)
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleAddGradeRow}
+                                className="px-4 py-1.5 bg-slate-900 dark:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all border border-slate-700 flex items-center gap-1.5 cursor-pointer"
+                            >
+                                <PlusIcon className="w-3.5 h-3.5" /> Add Grade
+                            </button>
+                        </div>
                     </div>
 
                     {/* Table matching screenshot */}
