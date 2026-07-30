@@ -32,7 +32,16 @@ const PUBLIC_MODULES = [
   'ds_skill_mastery', 'ds_votes', 'ds_license_categories', 'ds_leads',
   'store_categories', 'integration_logs', 'event_pins', 'institution_events',
   'student_enrollments', 'county_bursary_funds', 'bursary_applications',
-  'ng_cdf_funds', 'ng_cdf_bursaries'
+  'ng_cdf_funds', 'ng_cdf_bursaries',
+  'semesters', 'academic_years', 'academic_levels', 'subjects', 'courses',
+  'departments', 'rooms', 'buildings', 'inventory', 'receipts', 'invoices',
+  'tasks', 'assignments', 'allocation_requests', 'vote_heads', 'fee_structures',
+  'financial_periods', 'school_remedial_sessions', 'school_remedial_rate_settings',
+  'school_remedial_payouts', 'school_remedial_allocations', 'school_remedial_subjects',
+  'coop_farmers', 'coop_collections', 'coop_riders', 'coop_agrovet_inventory',
+  'coop_agrovet_sales', 'sacco_accounts', 'sacco_transactions', 'coop_monthly_payouts',
+  'coop_expenses', 'coop_income', 'car_appraisals', 'car_test_drives', 'car_invoices',
+  'car_payments', 'fee_promises', 'timetable_entries', 'exam_timetable_entries'
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

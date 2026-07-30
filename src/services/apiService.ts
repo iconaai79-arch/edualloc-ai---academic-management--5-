@@ -1364,7 +1364,6 @@ export const apiService = {
         }
 
         // ── Tier 1: Supabase RPC with SECURITY DEFINER (bypasses RLS, no body parsing) ──
-        // Requires migration 241_safe_delete_records_rpc.sql to be applied in Supabase.
         try {
             const { data: rpcResult, error: rpcErr } = await _supabase.rpc('safe_delete_records', {
                 p_table: module,
@@ -1374,10 +1373,11 @@ export const apiService = {
                 console.log(`[deleteModuleRecord] RPC OK: ${module} x${idsArray.length} → ${rpcResult} deleted`);
                 return;
             }
-            // RPC did not delete anything or failed; fall through to direct client-side delete
-            console.warn(`[deleteModuleRecord] RPC returned 0 or error for ${module}: ${rpcErr?.message || '0 deleted'}. Falling back to direct client-side delete...`);
+            if (rpcErr && !rpcErr.message?.includes('allow list')) {
+                console.warn(`[deleteModuleRecord] RPC note for ${module}: ${rpcErr.message}`);
+            }
         } catch (rpcEx: any) {
-            console.warn(`[deleteModuleRecord] RPC exception (${rpcEx.message}), falling back to direct client-side delete...`);
+            // Quiet fallback
         }
 
         // ── Tier 1.5: Client-side direct Supabase delete (respects RLS) ──
@@ -1391,9 +1391,8 @@ export const apiService = {
                 console.log(`[deleteModuleRecord] Client-side delete OK: ${module} x${deletedRows.length} rows`);
                 return;
             }
-            console.warn(`[deleteModuleRecord] Client-side delete did not delete any rows (possibly RLS block or missing record), falling back to API...`);
         } catch (directEx: any) {
-            console.warn(`[deleteModuleRecord] Client-side delete exception (${directEx.message}), falling back to API...`);
+            // Quiet fallback
         }
 
         // ── Tier 2: Dedicated Delete API Call ──
