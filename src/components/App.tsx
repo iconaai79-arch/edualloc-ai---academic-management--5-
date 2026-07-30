@@ -3007,7 +3007,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 'transport_assistant', 'driver'
             ];
 
-            const branchRecord = (branches || []).find((b: any) => b.linked_institution_id === institutionId || b.id === institutionId || b.id === `br_${institutionId}`);
+            const branchRecord = (branches || []).find((b: any) => b.linked_institution_id === institutionId || b.id === institutionId || b.id === `br_${institutionId}` || (b.id && institutionId.includes(b.id)));
             let targetInst = institutions.find(i => i.id === institutionId);
             
             if (!targetInst) {
