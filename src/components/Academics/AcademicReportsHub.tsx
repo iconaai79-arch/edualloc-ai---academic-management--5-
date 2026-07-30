@@ -14,6 +14,7 @@ import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 import { ExamOverviewDashboard } from './ExamOverviewDashboard';
 import { SubjectGradesDistributionDashboard } from './SubjectGradesDistributionDashboard';
+import { FuturisticReportCardView } from './FuturisticReportCardView';
 
 interface AcademicReportsHubProps {
     assessments?: Assessment[];
@@ -652,33 +653,16 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
                 {/* 6. REPORT CARDS */}
                 {activeSubTab === 'report_cards' && (
-                    <div className="space-y-8 animate-fade-in">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700">
-                            <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Official End-of-Term Report Cards Generator</h4>
-                                <p className="text-[11px] text-slate-400">Generate full CBC Report Cards or 8-4-4 Official Report Documents with principal comments & seal.</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={() => window.print()}
-                                    className="btn-primary px-6 py-3 text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-100"
-                                >
-                                    <PrinterIcon className="w-4 h-4" /> Print Report Card
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Interactive CBC or Secondary Report Card Component */}
-                        <div className="py-4">
-                            <CBCReportCard
-                                student={activeStudentObj}
-                                assessments={assessments}
-                                marks={marks}
-                                subjects={subjects}
-                                institution={currentInstitution || { name: 'ACADEMIC INSTITUTION', institutionType: 'Primary' } as Institution}
-                            />
-                        </div>
-                    </div>
+                    <FuturisticReportCardView
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
                 )}
 
                 {/* MISSING MARKS */}
