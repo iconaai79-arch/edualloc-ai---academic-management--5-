@@ -1146,6 +1146,12 @@ export const apiService = {
                 delete item.logs;
             }
 
+            if (module === 'receipts') {
+                const isPseudoInvoice = (id: any) => !id || (typeof id === 'string' && (id.trim() === '' || id.startsWith('__opening_balance__') || id.startsWith('__')));
+                if (isPseudoInvoice(item.invoice_id)) item.invoice_id = null;
+                if (isPseudoInvoice(item.invoiceId)) item.invoiceId = null;
+            }
+
             // Safety net for Driving School modules to prevent schema mismatch errors
             if (module === 'ds_vehicles' || module === 'ds_instructors' || module === 'ds_students') {
                 delete item.start_time;
@@ -2767,8 +2773,10 @@ export const apiService = {
         const receiptId = `RCT_${Date.now()}_${Math.random().toString(36).substring(2,6)}`;
         const receiptNumber = params.customReceiptNumber ? params.customReceiptNumber.trim() : await apiService.getNextDocumentNumber(instId, 'receipt');
 
-        // Link to targetInvoiceId if provided, or the first invoice paid, or null if it's purely prepayment
-        const primaryInvoiceId = params.targetInvoiceId || (allocations[0] ? allocations[0].invoiceId : null);
+        // Link to targetInvoiceId if provided, or the first invoice paid, or null if it's purely prepayment / opening balance
+        const rawPrimaryInvoiceId = params.targetInvoiceId || (allocations[0] ? allocations[0].invoiceId : null);
+        const isPseudoInvoice = (id: string | null | undefined) => !id || id.trim() === '' || id.startsWith('__opening_balance__') || id.startsWith('__');
+        const primaryInvoiceId = (rawPrimaryInvoiceId && !isPseudoInvoice(rawPrimaryInvoiceId)) ? rawPrimaryInvoiceId : null;
 
         const receiptPayload = {
             id: receiptId,
@@ -2786,8 +2794,8 @@ export const apiService = {
             payment_method: params.paymentMethod,
             relatedTransactionId: params.reference,
             related_transaction_id: params.reference,
-            invoiceId: primaryInvoiceId || '',
-            invoice_id: primaryInvoiceId || '',
+            invoiceId: primaryInvoiceId,
+            invoice_id: primaryInvoiceId,
             studentId: params.studentId,
             student_id: params.studentId,
             bankAccountId: params.bankAccountId || '',
