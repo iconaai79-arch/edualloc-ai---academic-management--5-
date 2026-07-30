@@ -856,6 +856,7 @@ export const App: React.FC = () => {
             let imsPhase1: any[] = [];
             let evts: any[] = [];
             let consts: any[] = [];
+            let brs: any[] = [];
 
             if (isOffline) {
                 if (!silent) setLoadStatus("Offline Mode Active...");
@@ -867,6 +868,7 @@ export const App: React.FC = () => {
                 imsPhase1 = await localDb.getAll('institution_module_states').catch(() => []);
                 evts = await localDb.getAll('events').catch(() => []);
                 consts = await localDb.getAll('constituencies').catch(() => []);
+                brs = await localDb.getAll('branches').catch(() => []);
 
                 setIsApiOnline(false);
                 setIsSchemaInitializationRequired(false);
@@ -1036,7 +1038,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 imsPhase1 = results[5];
                 evts = results[6];
                 consts = results[7];
-                const brs = results[8];
+                brs = results[8];
             }
 
             // Sync identity state immediately so we can use activeInstitution in Phase 2
