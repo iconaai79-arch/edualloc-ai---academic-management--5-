@@ -10,6 +10,7 @@ interface EditInstitutionModalProps {
   counties: County[];
   initialTab?: 'identity' | 'financials' | 'modules';
   onRefreshData?: () => Promise<void> | void;
+  resellers?: Institution[];
 }
 
 const PLATFORM_MODULES = [
@@ -37,7 +38,7 @@ const PLATFORM_MODULES = [
   { id: 'fuel_station', name: 'Fuel Station IoT', category: 'Specialized', desc: 'Pump readings & tank dip logs' }
 ];
 
-export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution, onClose, onSave, defaultPrices, counties, initialTab = 'identity', onRefreshData }) => {
+export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution, onClose, onSave, defaultPrices, counties, initialTab = 'identity', onRefreshData, resellers }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -55,6 +56,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     businessSubType: '',
     billingModel: 'fixed',
     ratePerStudent: '0',
+    resellerId: '',
   });
 
   const [activeTab, setActiveTab] = useState<'identity' | 'financials' | 'modules'>(initialTab);
@@ -62,6 +64,20 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
   const [isExtendingModule, setIsExtendingModule] = useState(false);
   const [customDaysMap, setCustomDaysMap] = useState<Record<string, number>>({});
   const [moduleStatusMap, setModuleStatusMap] = useState<Record<string, 'active' | 'trial'>>({});
+
+  const [availableResellers, setAvailableResellers] = useState<Institution[]>(resellers || []);
+
+  useEffect(() => {
+    if (!resellers || resellers.length === 0) {
+      apiService.fetchInstitutions().then(insts => {
+        if (insts) {
+          setAvailableResellers(insts.filter(i => i.institutionType === 'Reseller'));
+        }
+      }).catch(err => console.warn("Failed to load resellers:", err));
+    } else {
+      setAvailableResellers(resellers.filter(i => i.institutionType === 'Reseller'));
+    }
+  }, [resellers]);
 
   useEffect(() => {
     if (institution) {
@@ -82,6 +98,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         businessSubType: institution.businessSubType || '',
         billingModel: institution.billingModel || (institution as any).billing_model || 'fixed',
         ratePerStudent: (institution.ratePerStudent ?? (institution as any).rate_per_student ?? 0).toString(),
+        resellerId: institution.resellerId || (institution as any).reseller_id || '',
       });
       fetchLatestModuleStates();
     }
@@ -150,6 +167,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       businessSubType: formData.category || formData.businessSubType || undefined,
       billingModel: isReseller ? 'fixed' : (formData.billingModel as any),
       ratePerStudent: isReseller ? 0 : (parseFloat(formData.ratePerStudent) || 0),
+      resellerId: isReseller ? undefined : (formData.resellerId || null as any),
     };
     onSave(institution.id, saveData);
   };
@@ -243,6 +261,33 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option value="Constituency">Constituency (NG-CDF)</option>
                     </select>
                   </div>
+
+                  {formData.institutionType !== 'Reseller' && (
+                    <div className="md:col-span-2 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 animate-fade-in-up">
+                      <label className="block text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest mb-1.5 ml-1 flex items-center justify-between">
+                        <span>Assigned Reseller Agency</span>
+                        <span className="text-[9px] text-slate-400 font-normal">Links tenant to reseller commission & referral system</span>
+                      </label>
+                      <select
+                        name="resellerId"
+                        value={formData.resellerId}
+                        onChange={e => setFormData({ ...formData, resellerId: e.target.value })}
+                        className="form-select font-bold text-slate-900 dark:text-white"
+                      >
+                        <option value="">-- Direct Institution (No Reseller Assigned) --</option>
+                        {availableResellers.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name} ({r.institutionCode || r.id})
+                          </option>
+                        ))}
+                      </select>
+                      {formData.resellerId && (
+                        <p className="text-[10px] text-emerald-600 font-bold mt-1.5 ml-1">
+                          ✓ Connected to Reseller: {availableResellers.find(r => r.id === formData.resellerId)?.name || formData.resellerId}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {(formData.institutionType === 'Education') && (
                     <div className="animate-fade-in-up">
                       <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Educational Level / Category</label>

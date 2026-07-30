@@ -643,6 +643,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [institutionSearchQuery, setInstitutionSearchQuery] = useState('');
     const [institutionTimeFilter, setInstitutionTimeFilter] = useState<'all' | '7d' | '30d' | '90d' | 'active' | 'suspended'>('all');
     const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
+    const [assigningResellerFor, setAssigningResellerFor] = useState<Institution | null>(null);
+    const [selectedResellerId, setSelectedResellerId] = useState<string>('');
     const [migrationSubTab, setMigrationSubTab] = useState<'full' | 'semester'>('full');
     const [copyStatus, setCopyStatus] = useState(false);
     const [requestedSettingsTab, setRequestedSettingsTab] = useState<string | undefined>(undefined);
@@ -812,7 +814,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         institutionType: 'Education' as Institution['institutionType'],
         category: 'University',
         businessSubType: 'University',
-        countyId: ''
+        countyId: '',
+        resellerId: ''
     });
 
     // Timetable state
@@ -1626,6 +1629,7 @@ Please change it after login.`;
                         category: newInstData.category,
                         businessSubType: newInstData.category, // Mirror for legacy support
                         countyId: newInstData.countyId || undefined,
+                        resellerId: isReseller ? undefined : (newInstData.resellerId || undefined),
                         status: isReseller ? 'active' : 'trial',
                         trialEndsAt: isReseller ? undefined : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
                         institutionCode: `INST-${Date.now().toString().slice(-4)}`,
@@ -1636,7 +1640,7 @@ Please change it after login.`;
                     });
                 }
                 setIsAddingInstitution(false);
-                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'Education', category: 'University', businessSubType: 'University', countyId: '' });
+                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'Education', category: 'University', businessSubType: 'University', countyId: '', resellerId: '' });
                 alert("New institution tenant created successfully.");
             } catch (err: any) {
                 console.error("Failed to add institution:", err);
@@ -2572,6 +2576,21 @@ Please change it after login.`;
                                                     ))}
                                                 </select>
                                             </div>
+                                            {newInstData.institutionType !== 'Reseller' && (
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest mb-1.5 ml-1">Assigned Reseller Agency (Optional)</label>
+                                                    <select
+                                                        value={newInstData.resellerId || ''}
+                                                        onChange={e => setNewInstData({ ...newInstData, resellerId: e.target.value })}
+                                                        className="form-select border-indigo-100 dark:border-indigo-900/30 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
+                                                    >
+                                                        <option value="">-- Direct Institution (No Reseller) --</option>
+                                                        {institutions.filter(i => i.institutionType === 'Reseller').map(r => (
+                                                            <option key={r.id} value={r.id}>{r.name} ({r.institutionCode || r.id})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
                                             {newInstData.institutionType === 'HIS' && (
                                                 <div className="animate-fade-in-up">
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Health Sector Category</label>
@@ -2759,7 +2778,15 @@ Please change it after login.`;
                                                                 {inst.name.charAt(0)}
                                                             </div>
                                                             <div>
-                                                                <div className="text-sm font-black text-slate-900 dark:text-white">{inst.name}</div>
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="text-sm font-black text-slate-900 dark:text-white">{inst.name}</span>
+                                                                    {inst.resellerId && (
+                                                                        <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/50">
+                                                                            <UserGroupIcon className="w-2.5 h-2.5" />
+                                                                            Reseller: {institutions.find(r => r.id === inst.resellerId)?.name || inst.resellerId}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                                 <div className="text-[10px] text-slate-400 font-mono">{inst.institutionCode}</div>
                                                             </div>
                                                         </div>
@@ -2857,6 +2884,18 @@ Please change it after login.`;
                                                                 >
                                                                     <ShoppingCartIcon className="w-3 h-3" />
                                                                     Marketplace
+                                                                </button>
+                                                            )}
+                                                            {inst.institutionType !== 'Reseller' && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setAssigningResellerFor(inst);
+                                                                        setSelectedResellerId(inst.resellerId || '');
+                                                                    }}
+                                                                    className="flex items-center gap-1 text-purple-600 hover:text-purple-900 font-black text-[10px] uppercase tracking-tighter bg-purple-50 px-2 py-1 rounded-lg"
+                                                                >
+                                                                    <UserGroupIcon className="w-3 h-3" />
+                                                                    Assign Reseller
                                                                 </button>
                                                             )}
                                                             <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
@@ -6556,7 +6595,84 @@ Please change it after login.`;
                     defaultPrices={companyDetails.subscriptionConfig}
                     counties={counties}
                     onRefreshData={onRefreshData}
+                    resellers={institutions.filter(i => i.institutionType === 'Reseller')}
                 />
+            )}
+
+            {assigningResellerFor && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setAssigningResellerFor(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-purple-50/50 dark:bg-purple-950/20">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/50 rounded-xl flex items-center justify-center text-purple-600 dark:text-purple-300">
+                                    <UserGroupIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Assign Reseller Agency</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{assigningResellerFor.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setAssigningResellerFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-5">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Select Reseller Partner</label>
+                                <select
+                                    value={selectedResellerId}
+                                    onChange={e => setSelectedResellerId(e.target.value)}
+                                    className="form-select font-bold text-sm text-slate-900 dark:text-white"
+                                >
+                                    <option value="">-- Direct Institution (Unassigned / No Reseller) --</option>
+                                    {institutions.filter(i => i.institutionType === 'Reseller' && i.id !== assigningResellerFor.id).map(r => (
+                                        <option key={r.id} value={r.id}>
+                                            {r.name} ({r.institutionCode || r.id})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {selectedResellerId ? (
+                                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 text-xs text-emerald-800 dark:text-emerald-300 font-medium leading-relaxed">
+                                    ✓ Selected Agency: <strong>{institutions.find(r => r.id === selectedResellerId)?.name}</strong>. Commissions and referral analytics for {assigningResellerFor.name} will be routed to this reseller.
+                                </div>
+                            ) : (
+                                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-300 font-medium leading-relaxed">
+                                    ℹ This tenant will operate as a direct platform institution without an assigned reseller agency.
+                                </div>
+                            )}
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setAssigningResellerFor(null)}
+                                    className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-xs uppercase tracking-wider rounded-xl transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (props.onUpdateInstitution) {
+                                            try {
+                                                await props.onUpdateInstitution(assigningResellerFor.id, { resellerId: selectedResellerId || null as any });
+                                                success(`Reseller assignment updated for ${assigningResellerFor.name}`);
+                                                setAssigningResellerFor(null);
+                                                if (onRefreshData) await onRefreshData();
+                                            } catch (err: any) {
+                                                toastError("Failed to update reseller assignment: " + (err.message || err));
+                                            }
+                                        }
+                                    }}
+                                    className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-purple-600/30 transition-all"
+                                >
+                                    Save Assignment
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {extendingInstitution && (
