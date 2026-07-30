@@ -16,6 +16,7 @@ import { ExamOverviewDashboard } from './ExamOverviewDashboard';
 import { SubjectGradesDistributionDashboard } from './SubjectGradesDistributionDashboard';
 import { FuturisticReportCardView } from './FuturisticReportCardView';
 import { StudentProgressReportView } from './StudentProgressReportView';
+import { BroadsheetReportView } from './BroadsheetReportView';
 
 interface AcademicReportsHubProps {
     assessments?: Assessment[];
@@ -381,112 +382,16 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
                 {/* 3. BROADSHEET */}
                 {activeSubTab === 'broadsheet' && (
-                    <div className="space-y-8 animate-fade-in">
-                        {/* Control Bar */}
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700">
-                            <div className="flex flex-wrap items-center gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Class Stream</label>
-                                    <select 
-                                        value={selectedClass} 
-                                        onChange={e => setSelectedClass(e.target.value)} 
-                                        className="form-select text-xs font-bold text-indigo-600 dark:text-indigo-400"
-                                    >
-                                        {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Assessment</label>
-                                    <select 
-                                        value={selectedAssessmentId} 
-                                        onChange={e => setSelectedAssessmentId(e.target.value)} 
-                                        className="form-select text-xs font-bold"
-                                    >
-                                        <option value="all">All Assessments (Overall)</option>
-                                        {assessments.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={handleExportBroadsheetExcel}
-                                    className="btn-primary px-6 py-3 text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-100"
-                                >
-                                    <ArrowUpTrayIcon className="w-4 h-4" /> Export Excel Broadsheet
-                                </button>
-                                <button
-                                    onClick={() => window.print()}
-                                    className="btn-secondary px-6 py-3 text-xs font-black uppercase tracking-widest flex items-center gap-2"
-                                >
-                                    <PrinterIcon className="w-4 h-4" /> Print
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Master Broadsheet Table */}
-                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
-                            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">
-                                    Master Broadsheet &mdash; {selectedClass || 'All Classes'} ({activeAssessmentObj.title})
-                                </h4>
-                                <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
-                                    {broadsheetData.length} Students Listed
-                                </span>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 dark:bg-slate-900/50">
-                                        <tr>
-                                            <th className="px-4 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Rank</th>
-                                            <th className="px-4 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Adm No</th>
-                                            <th className="px-4 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Student Name</th>
-                                            {subjects.slice(0, 8).map(sub => (
-                                                <th key={sub.id} className="px-3 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">
-                                                    {sub.code || sub.name.substring(0, 4)}
-                                                </th>
-                                            ))}
-                                            <th className="px-4 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Total</th>
-                                            <th className="px-4 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Mean (%)</th>
-                                            <th className="px-4 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Grade</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-xs">
-                                        {broadsheetData.map((row) => (
-                                            <tr key={row.student.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                                <td className="px-4 py-3 whitespace-nowrap font-black text-indigo-600">
-                                                    #{row.rank}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap font-mono font-bold text-slate-500">
-                                                    {row.student.admissionNo || row.student.id}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap font-bold text-slate-900 dark:text-white uppercase">
-                                                    {row.student.name}
-                                                </td>
-                                                {subjects.slice(0, 8).map(sub => (
-                                                    <td key={sub.id} className="px-3 py-3 whitespace-nowrap text-center font-semibold text-slate-700 dark:text-slate-300">
-                                                        {row.marksMap[sub.id] ?? '-'}
-                                                    </td>
-                                                ))}
-                                                <td className="px-4 py-3 whitespace-nowrap text-center font-black text-indigo-600 dark:text-indigo-400">
-                                                    {row.total}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-center font-black text-slate-900 dark:text-white">
-                                                    {row.mean}%
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-right font-black">
-                                                    <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-[11px]">
-                                                        {row.grade}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
+                    <BroadsheetReportView
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
                 )}
 
                 {/* 4. RESULTS SLIPS */}
