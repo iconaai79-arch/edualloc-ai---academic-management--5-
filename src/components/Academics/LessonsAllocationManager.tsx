@@ -40,45 +40,83 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     courses = []
 }) => {
     const [viewMode, setViewMode] = useState<'per_class' | 'per_teacher' | 'matrix'>('per_class');
-    const [selectedClass, setSelectedClass] = useState<string>('Form 3 Central');
+    // Dynamically compute registered classes from all available sources
+    const classOptions = useMemo(() => {
+        const set = new Set<string>();
+
+        // 1. From courses prop
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
+                if (name) set.add(name);
+            });
+        }
+
+        // 2. From users prop
+        if (users && users.length > 0) {
+            users.forEach(u => {
+                const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    set.add(cl.trim());
+                }
+            });
+        }
+
+        // 3. From currentInstitution properties
+        if (currentInstitution) {
+            if ((currentInstitution as any).classes && Array.isArray((currentInstitution as any).classes)) {
+                (currentInstitution as any).classes.forEach((c: any) => {
+                    const name = typeof c === 'string' ? c : c.name;
+                    if (name) set.add(name);
+                });
+            }
+            if ((currentInstitution as any).courses && Array.isArray((currentInstitution as any).courses)) {
+                (currentInstitution as any).courses.forEach((c: any) => {
+                    const name = typeof c === 'string' ? c : (c.name || c.title);
+                    if (name) set.add(name);
+                });
+            }
+        }
+
+        // 4. From LocalStorage cached registered classes
+        try {
+            const instId = currentInstitution?.id || 'default_inst';
+            const savedClasses = localStorage.getItem(`eduai_registered_classes_${instId}`);
+            if (savedClasses) {
+                const parsed = JSON.parse(savedClasses);
+                if (Array.isArray(parsed)) parsed.forEach(c => set.add(c));
+            }
+            const savedLevels = localStorage.getItem(`eduai_academic_levels_${instId}`);
+            if (savedLevels) {
+                const parsed = JSON.parse(savedLevels);
+                if (Array.isArray(parsed)) parsed.forEach((l: any) => set.add(l.name || l));
+            }
+        } catch(e) {}
+
+        // 5. Fallback defaults if no custom classes registered
+        if (set.size === 0) {
+            const isPrimary = (currentInstitution?.institutionType || '').toLowerCase().includes('primary') || (currentInstitution?.name || '').toLowerCase().includes('primary');
+            if (isPrimary) {
+                ['Grade 1 Central', 'Grade 2 Central', 'Grade 3 Central', 'Grade 4 Central', 'Grade 5 Central', 'Grade 6 Central', 'Grade 7 Central'].forEach(c => set.add(c));
+            } else {
+                ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central'].forEach(c => set.add(c));
+            }
+        }
+
+        return Array.from(set);
+    }, [courses, users, currentInstitution]);
+
+    const [selectedClass, setSelectedClass] = useState<string>('');
     const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [saveToast, setSaveToast] = useState<string | null>(null);
     const [isAddAllocationModalOpen, setIsAddAllocationModalOpen] = useState(false);
 
     // Form modal state
-    const [modalClassName, setModalClassName] = useState('Form 3 Central');
+    const [modalClassName, setModalClassName] = useState('');
     const [modalSubjectName, setModalSubjectName] = useState('Mathematics');
     const [modalTeacherId, setModalTeacherId] = useState('');
     const [modalLessons, setModalLessons] = useState(6);
-
-    // Initial dummy / default allocations
-    const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>([
-        { id: 'alloc_1', institutionId: currentInstitution?.id || 'inst_1', className: 'Form 3 Central', subjectName: 'Mathematics', subjectCode: 'MATH 101', teacherId: 't_1', teacherName: 'Mr. Justus (Maths)', lessonsPerWeek: 7, status: 'allocated' },
-        { id: 'alloc_2', institutionId: currentInstitution?.id || 'inst_1', className: 'Form 3 Central', subjectName: 'English', subjectCode: 'ENG 102', teacherId: 't_2', teacherName: 'Mdm. Faith Kanguha', lessonsPerWeek: 6, status: 'allocated' },
-        { id: 'alloc_3', institutionId: currentInstitution?.id || 'inst_1', className: 'Form 3 Central', subjectName: 'Kiswahili', subjectCode: 'KISW 103', teacherId: 't_3', teacherName: 'Chome Ngala', lessonsPerWeek: 5, status: 'allocated' },
-        { id: 'alloc_4', institutionId: currentInstitution?.id || 'inst_1', className: 'Form 3 Central', subjectName: 'Biology', subjectCode: 'BIO 104', teacherId: 't_4', teacherName: 'Mdm Romana', lessonsPerWeek: 5, status: 'allocated' },
-        { id: 'alloc_5', institutionId: currentInstitution?.id || 'inst_1', className: 'Form 3 Central', subjectName: 'Chemistry', subjectCode: 'CHEM 105', teacherId: '', teacherName: 'Unassigned', lessonsPerWeek: 5, status: 'unassigned' },
-        
-        { id: 'alloc_6', institutionId: currentInstitution?.id || 'inst_1', className: 'Form 3 South', subjectName: 'Mathematics', subjectCode: 'MATH 101', teacherId: 't_1', teacherName: 'Mr. Justus (Maths)', lessonsPerWeek: 7, status: 'allocated' },
-        { id: 'alloc_7', institutionId: currentInstitution?.id || 'inst_1', className: 'Form 3 South', subjectName: 'English', subjectCode: 'ENG 102', teacherId: 't_2', teacherName: 'Mdm. Faith Kanguha', lessonsPerWeek: 6, status: 'allocated' },
-        
-        { id: 'alloc_8', institutionId: currentInstitution?.id || 'inst_1', className: 'Form 2 East', subjectName: 'Physics', subjectCode: 'PHYS 106', teacherId: 't_1', teacherName: 'Mr. Justus (Maths)', lessonsPerWeek: 5, status: 'allocated' },
-        { id: 'alloc_9', institutionId: currentInstitution?.id || 'inst_1', className: 'Form 1 North', subjectName: 'Mathematics', subjectCode: 'MATH 101', teacherId: 't_1', teacherName: 'Mr. Justus (Maths)', lessonsPerWeek: 6, status: 'allocated' },
-    ]);
-
-    // Load allocations from DB if available
-    useEffect(() => {
-        if (currentInstitution?.id) {
-            apiService.fetchModuleRecords<SubjectAllocationRecord>('subject_allocations', currentInstitution.id)
-                .then(dbAllocations => {
-                    if (dbAllocations && dbAllocations.length > 0) {
-                        setAllocations(dbAllocations);
-                    }
-                })
-                .catch(err => console.log('Using initial allocation records:', err));
-        }
-    }, [currentInstitution]);
 
     // List of teachers
     const teacherUsers = useMemo(() => {
@@ -92,19 +130,58 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         ];
     }, [users]);
 
-    // List of available class streams
-    const classOptions = [
-        'Form 1 North', 'Form 1 South', 'Form 1 East',
-        'Form 2 Central', 'Form 2 East', 'Form 2 West',
-        'Form 3 Central', 'Form 3 South', 'Form 3 East', 'Form 3 West',
-        'Form 4 Central', 'Form 4 North', 'Grade 10 Central'
-    ];
-
     // List of available subjects
     const subjectList = useMemo(() => {
         if (subjects.length > 0) return subjects.map(s => s.name);
         return ['Mathematics', 'English', 'Kiswahili', 'Biology', 'Chemistry', 'Physics', 'Geography', 'History', 'CRE', 'Computer Studies', 'Business Studies', 'Agriculture'];
     }, [subjects]);
+
+    // Dynamic Initial Default Allocations
+    const initialDefaultAllocations = useMemo(() => {
+        const list: SubjectAllocationRecord[] = [];
+        const activeSubjects = subjectList.slice(0, 6);
+
+        classOptions.forEach((cName, cIdx) => {
+            activeSubjects.forEach((sName, sIdx) => {
+                const teacherObj = teacherUsers[sIdx % teacherUsers.length];
+                list.push({
+                    id: `alloc_${cIdx}_${sIdx}`,
+                    institutionId: currentInstitution?.id || 'inst_1',
+                    className: cName,
+                    subjectName: sName,
+                    subjectCode: `${sName.substring(0, 4).toUpperCase()} 10${sIdx + 1}`,
+                    teacherId: teacherObj ? teacherObj.id : '',
+                    teacherName: teacherObj ? teacherObj.name : 'Unassigned',
+                    lessonsPerWeek: sIdx % 2 === 0 ? 7 : 6,
+                    status: teacherObj ? 'allocated' : 'unassigned'
+                });
+            });
+        });
+        return list;
+    }, [classOptions, subjectList, teacherUsers, currentInstitution]);
+
+    const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>(initialDefaultAllocations);
+
+    // Sync selectedClass and modalClassName when classOptions resolves
+    useEffect(() => {
+        if (classOptions.length > 0 && (!selectedClass || !classOptions.includes(selectedClass))) {
+            setSelectedClass(classOptions[0]);
+            setModalClassName(classOptions[0]);
+        }
+    }, [classOptions, selectedClass]);
+
+    // Load allocations from DB if available
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<SubjectAllocationRecord>('subject_allocations', currentInstitution.id)
+                .then(dbAllocations => {
+                    if (dbAllocations && dbAllocations.length > 0) {
+                        setAllocations(dbAllocations);
+                    }
+                })
+                .catch(err => console.log('Using initial allocation records:', err));
+        }
+    }, [currentInstitution]);
 
     // Initialize selected teacher if empty
     useEffect(() => {
