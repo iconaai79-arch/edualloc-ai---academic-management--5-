@@ -117,11 +117,6 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
                 const parsed = JSON.parse(savedClasses);
                 if (Array.isArray(parsed)) parsed.forEach(c => set.add(c));
             }
-            const savedLevels = localStorage.getItem(`eduai_academic_levels_${instId}`);
-            if (savedLevels) {
-                const parsed = JSON.parse(savedLevels);
-                if (Array.isArray(parsed)) parsed.forEach((l: any) => set.add(l.name || l));
-            }
         } catch(e) {}
 
         // 6. Fallback defaults if no custom classes registered yet
@@ -133,7 +128,8 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             }
         }
 
-        return Array.from(set);
+        const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c']);
+        return Array.from(set).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
     }, [academicLevels, courses, users, currentInstitution, isPrimarySchool]);
 
     // Collapsible tree node expand state

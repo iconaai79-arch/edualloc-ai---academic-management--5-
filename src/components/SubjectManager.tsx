@@ -128,7 +128,16 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 if (name) set.add(name);
                 if (c.levels && Array.isArray(c.levels)) {
                     c.levels.forEach(l => {
-                        if (l.name) set.add(l.name);
+                        if (l.name) {
+                            const streamName = String(l.name).trim();
+                            if (streamName) {
+                                if (streamName.toLowerCase().startsWith(name.toLowerCase())) {
+                                    set.add(streamName);
+                                } else {
+                                    set.add(`${name} ${streamName}`);
+                                }
+                            }
+                        }
                     });
                 }
             });
@@ -150,11 +159,6 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 const parsed = JSON.parse(savedClasses);
                 if (Array.isArray(parsed)) parsed.forEach(c => set.add(c));
             }
-            const savedLevels = localStorage.getItem(`eduai_academic_levels_${instId}`);
-            if (savedLevels) {
-                const parsed = JSON.parse(savedLevels);
-                if (Array.isArray(parsed)) parsed.forEach((l: any) => set.add(l.name || l));
-            }
         } catch(e) {}
 
         if (set.size === 0) {
@@ -165,7 +169,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             }
         }
 
-        return Array.from(set);
+        const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c']);
+        return Array.from(set).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
     }, [courses, currentInstitution, isPrimarySchool]);
 
     const filteredSubjects = useMemo(() => {
