@@ -13,6 +13,7 @@ import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 import { ExamOverviewDashboard } from './ExamOverviewDashboard';
+import { SubjectGradesDistributionDashboard } from './SubjectGradesDistributionDashboard';
 
 interface AcademicReportsHubProps {
     assessments?: Assessment[];
@@ -362,63 +363,18 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                     />
                 )}
 
-                {/* 2. SUBJECTS GRADES ANALYSIS */}
+                {/* 2. SUBJECTS GRADES ANALYSIS / DISTRIBUTION */}
                 {activeSubTab === 'subject_grades_analysis' && (
-                    <div className="space-y-8 animate-fade-in">
-                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700">
-                            <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Subject-by-Subject Academic Ranking</h4>
-                                <p className="text-[11px] text-slate-400">Compare mean scores, grade distribution and lowest/highest marks across learning areas.</p>
-                            </div>
-                        </div>
-
-                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 dark:bg-slate-900/50">
-                                        <tr>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Rank</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Subject Title</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Code</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Enrolled</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Mean Score (%)</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Range (Min - Max)</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Subject Grade</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                        {subjectsAnalysisData.map((sRow, idx) => (
-                                            <tr key={sRow.subject.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap font-black text-xs text-slate-400">
-                                                    #{idx + 1}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap font-bold text-slate-900 dark:text-white uppercase">
-                                                    {sRow.subject.name}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                                                    {sRow.subject.code}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center font-bold text-slate-600 dark:text-slate-300">
-                                                    {sRow.enrolled}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center font-black text-slate-900 dark:text-white text-base">
-                                                    {sRow.meanScore}%
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-bold text-slate-500">
-                                                    {sRow.lowest}% &ndash; {sRow.highest}%
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-black rounded-xl border border-emerald-200 dark:border-emerald-800">
-                                                        {sRow.meanGrade} ({sRow.points} pts)
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
+                    <SubjectGradesDistributionDashboard
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
                 )}
 
                 {/* 3. BROADSHEET */}
