@@ -24,6 +24,7 @@ export interface ExamUnitRecord {
     submittedPercent: number; // e.g. 27.6
     studentsEnrolled: number; // e.g. 361
     missingMarks: number; // e.g. 4354
+    classes?: string[]; // Registered/target classes for this exam
 }
 
 export interface TestedPaperConfig {
@@ -318,12 +319,20 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     }, [selectedExamId, currentInstitution, users]);
 
     const filteredStudentRows = useMemo(() => {
-        if (!searchStudentQuery.trim()) return broadsheetStudentRows;
+        let rows = broadsheetStudentRows;
+        if (selectedClassFilter && selectedClassFilter !== 'all') {
+            const cleanFilter = selectedClassFilter.replace(/\s*\d{4}$/, '').trim().toLowerCase();
+            rows = rows.filter(st => {
+                const stClass = (st.class || '').trim().toLowerCase();
+                return stClass === cleanFilter || stClass.includes(cleanFilter) || cleanFilter.includes(stClass);
+            });
+        }
+        if (!searchStudentQuery.trim()) return rows;
         const q = searchStudentQuery.toLowerCase().trim();
-        return broadsheetStudentRows.filter(st =>
+        return rows.filter(st =>
             st.name.toLowerCase().includes(q) || st.admNo.toLowerCase().includes(q)
         );
-    }, [broadsheetStudentRows, searchStudentQuery]);
+    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery]);
 
     const handleUpdateStudentMark = (admNo: string, fieldKey: string, newValue: number) => {
         const updated = broadsheetStudentRows.map(row => {
@@ -370,134 +379,117 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     const [expandedYears, setExpandedYears] = useState<Record<number, boolean>>({ 2026: true, 2025: false });
 
+    // Resolved Active Exam Classes
+    const activeExamClasses = useMemo(() => {
+        if (activeExam?.classes && activeExam.classes.length > 0) {
+            return activeExam.classes;
+        }
+        const classesFromRows = Array.from(new Set((broadsheetStudentRows || []).map(r => r.class).filter(Boolean)));
+        if (classesFromRows.length > 0) return classesFromRows;
+        return registeredClasses;
+    }, [activeExam, broadsheetStudentRows, registeredClasses]);
+
     // Dynamic Class Paper Progress Rows based on active exam & broadsheet rows
     const classPaperRows = useMemo(() => {
-        const totalSt = broadsheetStudentRows.length;
-        if (totalSt === 0 || activeExam.submittedPercent === 0) {
-            return [
-                {
-                    classKey: 'c_form_3_central',
-                    className: 'Form 3 Central 2026',
-                    enrollment: totalSt || 60,
-                    overallProgress: 0.00,
-                    papers: [
-                        { id: 'p1', subject: 'English', teacher: 'Mdm. Faith Kanguha', enrollment: totalSt || 58, progress: 0.00 },
-                        { id: 'p2', subject: 'Kiswahili', teacher: 'Mr Justus', enrollment: totalSt || 58, progress: 0.00 },
-                        { id: 'p3', subject: 'MATHS', teacher: 'Chome Ngala', enrollment: totalSt || 58, progress: 0.00 },
-                        { id: 'p4', subject: 'Biology', teacher: 'Mdm Romana', enrollment: totalSt || 58, progress: 0.00 }
-                    ]
-                },
-                {
-                    classKey: 'c_form_3_south',
-                    className: 'Form 3 South 2026',
-                    enrollment: 55,
-                    overallProgress: 0.00,
-                    papers: [
-                        { id: 'p5', subject: 'English', teacher: 'Mdm. Faith Kanguha', enrollment: 55, progress: 0.00 },
-                        { id: 'p6', subject: 'Kiswahili', teacher: 'Mr Justus', enrollment: 55, progress: 0.00 }
-                    ]
+        const activeSubjects = testedPaperConfigs.filter(p => p.enabled);
+        const subjectList = activeSubjects.length > 0
+            ? Array.from(new Set(activeSubjects.map(p => p.subject)))
+            : (subjects.length > 0 ? subjects.map(s => s.name || (s as any).title) : ['English', 'Kiswahili', 'MATHS', 'Biology', 'Chemistry', 'Physics']);
+
+        return activeExamClasses.map((cName, cIdx) => {
+            const classStudents = broadsheetStudentRows.filter(s => (s.class || '').toLowerCase() === cName.toLowerCase() || (s.class || '').includes(cName));
+            const classEnrollment = classStudents.length > 0 ? classStudents.length : Math.round((activeExam?.studentsEnrolled || 60) / Math.max(1, activeExamClasses.length)) || 50;
+
+            const papers = subjectList.map((subName, sIdx) => {
+                const fieldKey = subName.toLowerCase().includes('math') ? 'mathP1' :
+                                 subName.toLowerCase().includes('eng') ? 'engP1' :
+                                 subName.toLowerCase().includes('kisw') ? 'kiswP1' :
+                                 subName.toLowerCase().includes('bio') ? 'bioP1' : null;
+
+                let progress = 0;
+                if (fieldKey && classStudents.length > 0) {
+                    const enteredCount = classStudents.filter(st => (st[fieldKey] || 0) > 0).length;
+                    progress = parseFloat(((enteredCount / classStudents.length) * 100).toFixed(2));
+                } else if (activeExam?.submittedPercent && activeExam.submittedPercent > 0) {
+                    progress = activeExam.submittedPercent;
                 }
-            ];
-        }
 
-        const engP1Entered = broadsheetStudentRows.filter(st => (st.engP1 || 0) > 0).length;
-        const mathP1Entered = broadsheetStudentRows.filter(st => (st.mathP1 || 0) > 0).length;
-        const kiswP1Entered = broadsheetStudentRows.filter(st => (st.kiswP1 || 0) > 0).length;
-        const bioP1Entered = broadsheetStudentRows.filter(st => (st.bioP1 || 0) > 0).length;
+                const teacherObj = users.find(u => (u.role === 'teacher' || u.role === 'instructor') && ((u as any).subject === subName || u.name));
+                const teacherName = teacherObj ? teacherObj.name : `Subject Teacher`;
 
-        const engPct = parseFloat(((engP1Entered / totalSt) * 100).toFixed(2));
-        const kiswPct = parseFloat(((kiswP1Entered / totalSt) * 100).toFixed(2));
-        const mathPct = parseFloat(((mathP1Entered / totalSt) * 100).toFixed(2));
-        const bioPct = parseFloat(((bioP1Entered / totalSt) * 100).toFixed(2));
+                return {
+                    id: `p_${cIdx}_${sIdx}`,
+                    subject: subName,
+                    teacher: teacherName,
+                    enrollment: classEnrollment,
+                    progress
+                };
+            });
 
-        const overallClassPct = parseFloat(((engPct + kiswPct + mathPct + bioPct) / 4).toFixed(2));
+            const avgProgress = papers.length > 0
+                ? parseFloat((papers.reduce((sum, p) => sum + p.progress, 0) / papers.length).toFixed(2))
+                : (activeExam?.submittedPercent || 0);
 
-        return [
-            {
-                classKey: 'c_form_3_central',
-                className: 'Form 3 Central 2026',
-                enrollment: totalSt,
-                overallProgress: overallClassPct,
-                papers: [
-                    { id: 'p1', subject: 'English', teacher: 'Mdm. Faith Kanguha', enrollment: totalSt, progress: engPct },
-                    { id: 'p2', subject: 'Kiswahili', teacher: 'Mr Justus', enrollment: totalSt, progress: kiswPct },
-                    { id: 'p3', subject: 'MATHS', teacher: 'Chome Ngala', enrollment: totalSt, progress: mathPct },
-                    { id: 'p4', subject: 'Biology', teacher: 'Mdm Romana', enrollment: totalSt, progress: bioPct }
-                ]
-            },
-            {
-                classKey: 'c_form_3_south',
-                className: 'Form 3 South 2026',
-                enrollment: 55,
-                overallProgress: 0.00,
-                papers: [
-                    { id: 'p5', subject: 'English', teacher: 'Mdm. Faith Kanguha', enrollment: 55, progress: 0.00 },
-                    { id: 'p6', subject: 'Kiswahili', teacher: 'Mr Justus', enrollment: 55, progress: 0.00 }
-                ]
-            }
-        ];
-    }, [broadsheetStudentRows, activeExam]);
+            return {
+                classKey: `c_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                className: cName.includes(String(activeExam?.year || '')) ? cName : `${cName} ${activeExam?.year || 2026}`,
+                rawClassName: cName,
+                enrollment: classEnrollment,
+                overallProgress: avgProgress,
+                papers
+            };
+        });
+    }, [activeExamClasses, broadsheetStudentRows, testedPaperConfigs, subjects, users, activeExam]);
 
     // Dynamic Teacher Progress
     const teacherProgressList = useMemo(() => {
-        if (activeExam.submittedPercent === 0) {
+        const teachersMap = new Map<string, number[]>();
+        classPaperRows.forEach(cRow => {
+            cRow.papers.forEach(p => {
+                const tName = p.teacher || 'Subject Teacher';
+                if (!teachersMap.has(tName)) teachersMap.set(tName, []);
+                teachersMap.get(tName)!.push(p.progress);
+            });
+        });
+
+        if (teachersMap.size === 0) {
             return [
-                { name: 'Mr. Kipsang', progress: 0 },
-                { name: 'Md Kandie', progress: 0 },
-                { name: 'Mdm. Faith Kanguha', progress: 0 },
-                { name: 'Md Linet', progress: 0 },
-                { name: 'Mdm Sharon Jepchumba', progress: 0 }
+                { name: 'Subject Teacher', progress: activeExam?.submittedPercent || 0 }
             ];
         }
-        return [
-            { name: 'Mr. Kipsang', progress: activeExam.submittedPercent },
-            { name: 'Md Kandie', progress: activeExam.submittedPercent },
-            { name: 'Mdm. Faith Kanguha', progress: activeExam.submittedPercent },
-            { name: 'Md Linet', progress: activeExam.submittedPercent },
-            { name: 'Mdm Sharon Jepchumba', progress: activeExam.submittedPercent }
-        ];
-    }, [activeExam]);
+
+        return Array.from(teachersMap.entries()).map(([name, progs]) => ({
+            name,
+            progress: parseFloat((progs.reduce((a, b) => a + b, 0) / progs.length).toFixed(1))
+        }));
+    }, [classPaperRows, activeExam]);
 
     // Dynamic Class Progress
     const classProgressList = useMemo(() => {
-        if (activeExam.submittedPercent === 0) {
-            return [
-                { name: 'Form 3 Central 2026', progress: 0 },
-                { name: 'Form 3 South 2026', progress: 0 },
-                { name: 'Form 3 East 2026', progress: 0 },
-                { name: 'Form 3 West 2026', progress: 0 },
-                { name: 'Grade 10 Central 2026', progress: 0 }
-            ];
-        }
-        return [
-            { name: 'Form 3 Central 2026', progress: classPaperRows[0]?.overallProgress || activeExam.submittedPercent },
-            { name: 'Form 3 South 2026', progress: 0 },
-            { name: 'Form 3 East 2026', progress: 0 },
-            { name: 'Form 3 West 2026', progress: 0 },
-            { name: 'Grade 10 Central 2026', progress: 0 }
-        ];
-    }, [activeExam, classPaperRows]);
+        return classPaperRows.map(c => ({
+            name: c.className,
+            progress: c.overallProgress
+        }));
+    }, [classPaperRows]);
 
     // Dynamic Subject Progress
     const subjectProgressList = useMemo(() => {
-        const papers = classPaperRows[0]?.papers || [];
-        if (activeExam.submittedPercent === 0 || papers.length === 0) {
-            return [
-                { name: 'COMMUNITY SERVICE LEARNING', progress: 0 },
-                { name: 'English', progress: 0 },
-                { name: 'Kiswahili', progress: 0 },
-                { name: 'ESSENTIAL MATHS', progress: 0 },
-                { name: 'MATHS', progress: 0 }
-            ];
-        }
-        return [
-            { name: 'COMMUNITY SERVICE LEARNING', progress: activeExam.submittedPercent },
-            { name: 'English', progress: papers.find(p => p.subject === 'English')?.progress || 0 },
-            { name: 'Kiswahili', progress: papers.find(p => p.subject === 'Kiswahili')?.progress || 0 },
-            { name: 'ESSENTIAL MATHS', progress: activeExam.submittedPercent },
-            { name: 'MATHS', progress: papers.find(p => p.subject === 'MATHS')?.progress || 0 }
-        ];
-    }, [activeExam, classPaperRows]);
+        const allSubjects = new Set<string>();
+        classPaperRows.forEach(c => c.papers.forEach(p => allSubjects.add(p.subject)));
+        return Array.from(allSubjects).map(subName => {
+            let totalProg = 0;
+            let count = 0;
+            classPaperRows.forEach(c => {
+                const p = c.papers.find(x => x.subject === subName);
+                if (p) {
+                    totalProg += p.progress;
+                    count++;
+                }
+            });
+            const avg = count > 0 ? parseFloat((totalProg / count).toFixed(1)) : 0;
+            return { name: subName, progress: avg };
+        });
+    }, [classPaperRows]);
 
     const handleCreateExam = async () => {
         if (!newExamName.trim()) {
@@ -505,8 +497,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return;
         }
 
+        const targetClasses = selectedClasses.length > 0 ? selectedClasses : registeredClasses;
         const realStudents = users.filter(u => u.role === 'student');
-        const studentCount = realStudents.length > 0 ? realStudents.length : 60;
+
+        const matchedStudents = realStudents.filter(st => {
+            const cl = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class;
+            return !cl || targetClasses.includes(cl);
+        });
+
+        const studentCount = matchedStudents.length > 0 ? matchedStudents.length : targetClasses.length * 40;
         const newExamId = `exam_${Date.now()}`;
 
         const newExam: ExamUnitRecord = {
@@ -518,24 +517,32 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             status: 'in_progress',
             submittedPercent: 0,
             studentsEnrolled: studentCount,
-            missingMarks: studentCount * 7
+            missingMarks: studentCount * (testedPaperConfigs.filter(p => p.enabled).length || 7),
+            classes: targetClasses
         };
 
-        // Construct clean zeroed marks rows for the new exam
-        const freshRows = realStudents.length > 0
-            ? realStudents.map((st, idx) => ({
+        // Construct clean zeroed marks rows for each target class in the new exam
+        let freshRows: any[] = [];
+        if (matchedStudents.length > 0) {
+            freshRows = matchedStudents.map((st, idx) => ({
                 admNo: resolveCleanAdmNo(st, idx),
                 name: st.name || `Student ${idx + 1}`,
-                class: (st as any).studentClass || (st as any).classLevel || 'Form 3 Central',
+                class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || targetClasses[0],
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-            }))
-            : [
-                { admNo: '1001', name: 'Amina Kiprop', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                { admNo: '1002', name: 'Brian Omondi', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                { admNo: '1003', name: 'Cynthia Wambui', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                { admNo: '1004', name: 'David Cheruiyot', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                { admNo: '1005', name: 'Emmanuel Kamau', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 }
-            ];
+            }));
+        } else {
+            targetClasses.forEach((cName, cIdx) => {
+                const sampleNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau'];
+                sampleNames.forEach((sName, sIdx) => {
+                    freshRows.push({
+                        admNo: `${1001 + (cIdx * 10) + sIdx}`,
+                        name: `${sName}`,
+                        class: cName,
+                        mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+                    });
+                });
+            });
+        }
 
         setExams(prev => {
             const nextExams = [newExam, ...prev];
@@ -555,6 +562,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         setBroadsheetStudentRows(freshRows);
         setSelectedExamId(newExamId);
+        setSelectedClassFilter(targetClasses[0] || 'all');
         setNewExamName('');
         setIsAddExamModalOpen(false);
 
@@ -564,7 +572,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             await apiService.saveModuleRecord('exam_broadsheets', { id: newExamId, examId: newExamId, rows: freshRows, institutionId: currentInstitution.id }).catch(() => {});
         }
 
-        setSaveToastMessage(`✨ Created "${newExam.name}" cleanly! Ready for new marks entry.`);
+        setSaveToastMessage(`✨ Created "${newExam.name}" cleanly for ${targetClasses.length} registered classes!`);
         setTimeout(() => setSaveToastMessage(null), 4000);
     };
 
@@ -1601,6 +1609,21 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     )}
                                 </div>
 
+                                {/* Class Selector Dropdown */}
+                                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-xs">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Class:</span>
+                                    <select
+                                        value={selectedClassFilter}
+                                        onChange={(e) => setSelectedClassFilter(e.target.value)}
+                                        className="bg-transparent text-xs font-bold text-slate-900 dark:text-white border-none focus:outline-none cursor-pointer"
+                                    >
+                                        <option value="all">All Classes</option>
+                                        {activeExamClasses.map(cName => (
+                                            <option key={cName} value={cName}>{cName}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 {/* Subject Selector Dropdown */}
                                 <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-xs">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Subject:</span>
@@ -1610,10 +1633,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         className="bg-transparent text-xs font-bold text-slate-900 dark:text-white border-none focus:outline-none cursor-pointer"
                                     >
                                         <option value="all">All Subjects (Full Broadsheet)</option>
-                                        <option value="English">English</option>
-                                        <option value="Kiswahili">Kiswahili</option>
-                                        <option value="MATHS">Mathematics (MATHS)</option>
-                                        <option value="Biology">Biology</option>
+                                        {Array.from(new Set([
+                                            ...testedPaperConfigs.filter(p => p.enabled).map(p => p.subject),
+                                            ...(subjects || []).map(s => s.name || (s as any).title)
+                                        ])).filter(Boolean).map(subName => (
+                                            <option key={subName} value={subName}>{subName}</option>
+                                        ))}
                                     </select>
                                 </div>
 
