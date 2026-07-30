@@ -33,12 +33,14 @@ interface GroupedInstitutionsManagerProps {
     institutions: Institution[];
     users: User[];
     onRefreshData?: () => Promise<void>;
+    onLoginAsAdmin?: (institutionId: string, initialRole?: any) => void;
 }
 
 export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProps> = ({
     institutions = [],
     users = [],
-    onRefreshData
+    onRefreshData,
+    onLoginAsAdmin
 }) => {
     const { success, error: toastError, info } = useToast();
 
@@ -523,6 +525,17 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                     </div>
 
                                     <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                                        {onLoginAsAdmin && (
+                                            <button
+                                                onClick={() => onLoginAsAdmin(inst.id)}
+                                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/20 active:scale-95 cursor-pointer"
+                                                title="Login as Institution Admin"
+                                            >
+                                                <ShieldCheck className="w-3.5 h-3.5" />
+                                                Login as Admin
+                                            </button>
+                                        )}
+
                                         <button
                                             onClick={() => handleOpenAddBranchModal(inst)}
                                             className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
@@ -572,6 +585,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                                     const bConfigs = configMap.get(branch.id) || [];
                                                     const branchUsersCount = users.filter(u => (u as any).branch_id === branch.id || (u as any).branchId === branch.id).length;
                                                     const isLinkedInst = !!(branch.linked_institution_id || branch.linkedInstitutionId);
+                                                    const targetBranchInstId = branch.linked_institution_id || branch.linkedInstitutionId || branch.id;
 
                                                     return (
                                                         <div
@@ -620,13 +634,25 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                                                 </div>
                                                             </div>
 
-                                                            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 pt-3 mt-4">
-                                                                <button
-                                                                    onClick={() => handleOpenGatewayModal(branch)}
-                                                                    className="text-xs font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                                                                >
-                                                                    <Settings className="w-3.5 h-3.5" /> Gateways
-                                                                </button>
+                                                            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 pt-3 mt-4 gap-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <button
+                                                                        onClick={() => handleOpenGatewayModal(branch)}
+                                                                        className="text-xs font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                                                                    >
+                                                                        <Settings className="w-3.5 h-3.5" /> Gateways
+                                                                    </button>
+
+                                                                    {onLoginAsAdmin && (
+                                                                        <button
+                                                                            onClick={() => onLoginAsAdmin(targetBranchInstId)}
+                                                                            className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer"
+                                                                            title="Login as Branch Admin"
+                                                                        >
+                                                                            <UserCheck className="w-3 h-3" /> Login Admin
+                                                                        </button>
+                                                                    )}
+                                                                </div>
 
                                                                 <div className="flex items-center gap-2">
                                                                     <button

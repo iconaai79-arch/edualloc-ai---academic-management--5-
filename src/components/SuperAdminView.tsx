@@ -2888,6 +2888,7 @@ Please change it after login.`;
                                 institutions={institutions}
                                 users={users}
                                 onRefreshData={onRefreshData}
+                                onLoginAsAdmin={onLoginAsAdmin}
                             />
                         )}
 

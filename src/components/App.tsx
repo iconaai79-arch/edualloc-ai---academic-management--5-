@@ -3000,15 +3000,41 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 // Assistant / Support staff
                 'transport_assistant', 'driver'
             ];
-            const targetInstitution = institutions.find(i => i.id === institutionId);
-            const parentInstId = (targetInstitution as any)?.parentInstitutionId || (targetInstitution as any)?.parent_institution_id || (targetInstitution as any)?.metadata?.parentInstitutionId;
+
+            const branchRecord = (branches || []).find((b: any) => b.linked_institution_id === institutionId || b.id === institutionId || b.id === `br_${institutionId}`);
+            let targetInst = institutions.find(i => i.id === institutionId);
+            
+            if (!targetInst) {
+                const regEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId);
+                const parentInst = branchRecord ? institutions.find(i => i.id === branchRecord.institution_id) : null;
+                
+                targetInst = {
+                    id: institutionId,
+                    name: regEntry?.name || (branchRecord?.name ? `${parentInst?.name || 'Group'} (${branchRecord.name})` : `Branch ${institutionId.slice(-6)}`),
+                    institutionType: regEntry?.institutionType || parentInst?.institutionType || 'Education',
+                    parentInstitutionId: branchRecord?.institution_id || (regEntry as any)?.parentInstitutionId,
+                    isBranch: true,
+                    status: 'active'
+                } as any;
+
+                setInstitutions(prev => [...prev, targetInst!]);
+            }
+
+            const parentInstId = (targetInst as any)?.parentInstitutionId || 
+                                 (targetInst as any)?.parent_institution_id || 
+                                 (targetInst as any)?.metadata?.parentInstitutionId ||
+                                 branchRecord?.institution_id;
 
             const isUserForInst = (u: any) => {
                 if (!u) return false;
                 const uInst = u.institutionId || u.institution_id;
                 const uBranch = u.branchId || u.branch_id || u.metadata?.branchId || u.metadata?.branch_id;
+                
                 if (uInst === institutionId || uBranch === institutionId) return true;
-                if (parentInstId && uInst === parentInstId && (!uBranch || uBranch === 'ALL' || uBranch === institutionId)) return true;
+                if (parentInstId && (uInst === parentInstId || uBranch === parentInstId)) {
+                    if (!uBranch || uBranch === 'ALL' || uBranch === 'main' || uBranch === institutionId || uBranch === parentInstId) return true;
+                }
+                if (branchRecord && (uInst === branchRecord.institution_id || uInst === branchRecord.linked_institution_id)) return true;
                 return false;
             };
 
@@ -3025,7 +3051,6 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
             if (!admin) {
                 console.warn(`Strict admin lookup failed for institution ${institutionId}. Falling back to non-portal user.`);
-                // Avoid logging in as student/parent/customer unless explicitly requested via initialRole
                 const excludedRoles = ['student', 'parent', 'customer'];
                 const fallbackUsers = users.filter(u => isUserForInst(u) && (!excludedRoles.includes(u.role) || initialRole === u.role));
                 if (fallbackUsers.length > 0) {
@@ -3035,18 +3060,18 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
             if (!admin) {
                 console.warn(`No users found for institution ${institutionId}. Creating temporary admin session.`);
-                const targetInstitution = institutions.find(i => i.id === institutionId);
                 const registryEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId);
-                
-                const isPM = targetInstitution?.businessSubType?.toLowerCase().includes('property management') || targetInstitution?.institutionType?.toLowerCase().includes('property management');
-                const fallbackRole = (targetInstitution?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') ? 'reseller' : isPM ? 'property_admin' : (initialRole || 'admin');
+                const isPM = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
+                const fallbackRole = (targetInst?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') ? 'reseller' : isPM ? 'property_admin' : (initialRole || 'admin');
 
+                const cleanName = targetInst?.name || registryEntry?.name || 'Grouped Institution';
                 admin = {
                     id: `temp_admin_${institutionId.replace(/\s+/g, '_')}_${Date.now()}`,
                     institutionId: institutionId,
+                    branchId: institutionId,
                     role: fallbackRole as Role,
                     email: `admin@${institutionId.replace('demo_', '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'cdf'}.eduai.io`,
-                    name: registryEntry ? `${registryEntry.name} Admin` : `Demo Administrator`,
+                    name: `${cleanName} Admin`,
                     phoneNumber: '+254700000000',
                     password: 'password123',
                     expertise: []
@@ -3065,7 +3090,6 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
                 // For Property Management institutions, always use property_admin so routing
                 // lands on PropertyManagementView rather than LandlordPortalView
-                const targetInst = institutions.find(i => i.id === institutionId);
                 const isPMInstitution = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
                 const resolvedRole = initialRole
                     ? initialRole
@@ -3076,6 +3100,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 const impersonatedUser = {
                     ...admin,
                     institutionId: institutionId,
+                    branchId: institutionId,
                     role: resolvedRole as Role
                 };
                 
@@ -3088,7 +3113,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             }
             setIsTransitioning(false);
         }, 300);
-    }, [users, institutions, currentUser, originalSuperAdminSession, toastError]);
+    }, [users, institutions, schoolRegistry, currentUser, originalSuperAdminSession, toastError]);
     
 
 
