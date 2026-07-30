@@ -12,8 +12,7 @@ import { BookOpenIcon } from '../icons/BookOpenIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
-import { CBCReportCard } from './CBCReportCard';
-import * as XLSX from 'xlsx';
+import { ExamOverviewDashboard } from './ExamOverviewDashboard';
 
 interface AcademicReportsHubProps {
     assessments?: Assessment[];
@@ -351,118 +350,16 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
                 {/* 1. EXAM ANALYSIS */}
                 {activeSubTab === 'exam_analysis' && (
-                    <div className="space-y-8 animate-fade-in">
-                        {/* Selector Controls */}
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700">
-                            <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Exam Analysis Scope</h4>
-                                <p className="text-[11px] text-slate-400">Select an assessment to review overall mean, pass rate, and grade distribution.</p>
-                            </div>
-                            <div className="flex items-center gap-3 w-full sm:w-auto">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest whitespace-nowrap">Assessment:</label>
-                                <select 
-                                    value={selectedAssessmentId} 
-                                    onChange={e => setSelectedAssessmentId(e.target.value)} 
-                                    className="form-select text-xs font-bold text-indigo-600 dark:text-indigo-400"
-                                >
-                                    <option value="all">All Active Assessments (Combined)</option>
-                                    {assessments.map(a => <option key={a.id} value={a.id}>{a.title} ({a.type})</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Top Stats Overview Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <div className="p-6 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-3xl shadow-xl space-y-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Students Examined</span>
-                                <div className="text-3xl font-black">{broadsheetData.length}</div>
-                                <p className="text-[10px] opacity-80 font-bold uppercase">Tested & Recorded</p>
-                            </div>
-
-                            <div className="p-6 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl shadow-xl space-y-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Mean Score (%)</span>
-                                <div className="text-3xl font-black">
-                                    {broadsheetData.length > 0 ? parseFloat((broadsheetData.reduce((a, b) => a + b.mean, 0) / broadsheetData.length).toFixed(1)) : 0}%
-                                </div>
-                                <p className="text-[10px] opacity-80 font-bold uppercase">Institutional Average</p>
-                            </div>
-
-                            <div className="p-6 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-3xl shadow-xl space-y-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Mean Grade</span>
-                                <div className="text-3xl font-black">
-                                    {getGradeFromScore(broadsheetData.length > 0 ? (broadsheetData.reduce((a, b) => a + b.mean, 0) / broadsheetData.length) : 0).grade}
-                                </div>
-                                <p className="text-[10px] opacity-80 font-bold uppercase">Overall Performance</p>
-                            </div>
-
-                            <div className="p-6 bg-gradient-to-br from-blue-500 to-cyan-600 text-white rounded-3xl shadow-xl space-y-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Top Student Score</span>
-                                <div className="text-3xl font-black">
-                                    {broadsheetData.length > 0 ? `${broadsheetData[0].mean}%` : 'N/A'}
-                                </div>
-                                <p className="text-[10px] opacity-80 font-bold uppercase">{broadsheetData[0]?.student.name || 'Top Rank'}</p>
-                            </div>
-                        </div>
-
-                        {/* Merit List / Top Scorers Table */}
-                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
-                            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white flex items-center gap-2">
-                                    🏆 Overall Top 10 Merit List ({activeAssessmentObj.title})
-                                </h4>
-                                <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-                                    Official Merit Ranking
-                                </span>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50/60 dark:bg-slate-800">
-                                        <tr>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Rank</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Student Name</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Admission No</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Total Marks</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Mean Score (%)</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Grade & Remarks</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                        {broadsheetData.slice(0, 10).map((row) => (
-                                            <tr key={row.student.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
-                                                        row.rank === 1 ? 'bg-amber-100 text-amber-700 font-bold' :
-                                                        row.rank === 2 ? 'bg-slate-200 text-slate-700' :
-                                                        row.rank === 3 ? 'bg-amber-800/10 text-amber-900' : 'bg-slate-100 text-slate-500'
-                                                    }`}>
-                                                        #{row.rank}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap font-bold text-slate-900 dark:text-white uppercase">
-                                                    {row.student.name}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-slate-500">
-                                                    {row.student.admissionNo || row.student.id}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center font-black text-indigo-600 dark:text-indigo-400">
-                                                    {row.total} pts
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center font-black text-slate-900 dark:text-white">
-                                                    {row.mean}%
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-xs font-black rounded-xl">
-                                                        {row.grade} ({row.comment})
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
+                    <ExamOverviewDashboard
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
                 )}
 
                 {/* 2. SUBJECTS GRADES ANALYSIS */}
