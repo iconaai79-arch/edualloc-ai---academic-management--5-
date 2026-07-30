@@ -64,6 +64,21 @@ const parseMoneyAmount = (amt: any): number => {
     return isNaN(parsed) ? 0 : parsed;
 };
 
+const formatLedgerDate = (rawDate: any, entryData?: any) => {
+    const candidate = rawDate || entryData?.paymentDate || entryData?.payment_date || entryData?.issueDate || entryData?.issue_date || entryData?.date || entryData?.createdAt || entryData?.created_at || entryData?.receiptDate;
+    if (!candidate || candidate === '0001-01-01') return '—';
+    const str = String(candidate).trim();
+    if (!str || str === '—') return '—';
+    try {
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+    } catch {}
+    const rawSplit = str.split('T')[0]?.trim();
+    return rawSplit || '—';
+};
+
 interface FinanceManagerProps {
     invoices: Invoice[];
     receipts: Receipt[];
@@ -4338,21 +4353,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     ...balPrevInvoices.map((i: any) => ({ date: i.issueDate || i.issue_date || i.createdAt || i.created_at || i.date || i.invoiceDate || i.termStartDate || i.timestamp || '', eType: 'invoice' as const, data: i })),
                     ...balPrevReceipts.map((r: any) => ({ date: r.paymentDate || r.payment_date || r.date || r.receiptDate || r.createdAt || r.created_at || r.timestamp || '', eType: 'payment' as const, data: r })),
                 ].sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
-
-                const formatLedgerDate = (rawDate: any, entryData: any) => {
-                    const candidate = rawDate || entryData?.paymentDate || entryData?.payment_date || entryData?.issueDate || entryData?.issue_date || entryData?.date || entryData?.createdAt || entryData?.created_at || entryData?.receiptDate;
-                    if (!candidate || candidate === '0001-01-01') return '—';
-                    const str = String(candidate).trim();
-                    if (!str || str === '—') return '—';
-                    try {
-                        const d = new Date(str);
-                        if (!isNaN(d.getTime())) {
-                            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-                        }
-                    } catch {}
-                    const rawSplit = str.split('T')[0]?.trim();
-                    return rawSplit || '—';
-                };
 
                 let balPrevRunning = 0;
                 const balPrevLedger = balPrevAllEntries.map(entry => {
