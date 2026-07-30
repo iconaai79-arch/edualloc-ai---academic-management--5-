@@ -15,6 +15,7 @@ import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 import { ExamOverviewDashboard } from './ExamOverviewDashboard';
 import { SubjectGradesDistributionDashboard } from './SubjectGradesDistributionDashboard';
 import { FuturisticReportCardView } from './FuturisticReportCardView';
+import { StudentProgressReportView } from './StudentProgressReportView';
 
 interface AcademicReportsHubProps {
     assessments?: Assessment[];
@@ -610,45 +611,16 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
                 {/* 5. STUDENT PROGRESS REPORTS */}
                 {activeSubTab === 'student_progress' && (
-                    <div className="space-y-8 animate-fade-in">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700">
-                            <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Individual Progress Trajectory</h4>
-                                <p className="text-[11px] text-slate-400">Track term-by-term performance improvements and growth trends for any student.</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest whitespace-nowrap">Select Student:</label>
-                                <select 
-                                    value={selectedStudentId} 
-                                    onChange={e => setSelectedStudentId(e.target.value)} 
-                                    className="form-select text-xs font-bold text-indigo-600 dark:text-indigo-400"
-                                >
-                                    {activeStudents.map(s => <option key={s.id} value={s.id}>{s.name} ({s.admissionNo || s.id})</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Progress Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-3">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Term 1 Mean Score</span>
-                                <div className="text-3xl font-black text-slate-900 dark:text-white">68.5%</div>
-                                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Base Grade: B</span>
-                            </div>
-
-                            <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-3">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Term 2 Mean Score</span>
-                                <div className="text-3xl font-black text-slate-900 dark:text-white">74.2%</div>
-                                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">+5.7% Improvement</span>
-                            </div>
-
-                            <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-3">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Term 3 Target Score</span>
-                                <div className="text-3xl font-black text-indigo-600 dark:text-indigo-400">80.0%</div>
-                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">Target Grade: A</span>
-                            </div>
-                        </div>
-                    </div>
+                    <StudentProgressReportView
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
                 )}
 
                 {/* 6. REPORT CARDS */}
