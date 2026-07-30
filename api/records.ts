@@ -338,9 +338,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let maxRetries = 5;
 
             while (maxRetries >= 0) {
-                const res = await supabase.from(moduleName).upsert(currentPayload).select();
-                data = res.data;
-                error = res.error;
+                const queryRes = await supabase.from(moduleName).upsert(currentPayload).select();
+                data = queryRes.data;
+                error = queryRes.error;
 
                 if (!error) break;
 
@@ -460,9 +460,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         q = q.eq(moduleName === 'branches' ? 'id' : 'branch_id', user.branchId);
                     }
 
-                    const res = await q.select();
-                    data = res.data;
-                    error = res.error;
+                    const queryRes = await q.select();
+                    data = queryRes.data;
+                    error = queryRes.error;
 
                     if (!error) break;
 
