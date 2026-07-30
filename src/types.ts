@@ -503,6 +503,18 @@ export interface CoopSettings {
     approverIds?: string[]; // IDs of users authorized to approve sensitive transactions
 }
 
+export interface Branch {
+    id: string;
+    institution_id: string;
+    institutionId?: string;
+    name: string;
+    location?: string;
+    linked_institution_id?: string;
+    linkedInstitutionId?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface Institution {
     id: string;
     name: string;

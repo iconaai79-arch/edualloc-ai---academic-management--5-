@@ -118,7 +118,7 @@ import {
     INITIAL_ACADEMIC_YEARS, INITIAL_SEMESTERS, DEFAULT_GRADING_SYSTEMS
 } from '../constants';
 import type {
-    User, Role, Institution, AllocationRequest, TimetableEntry,
+    User, Role, Institution, Branch, AllocationRequest, TimetableEntry,
     Priority, RequestStatus, CompanyDetails, Room, Subject, Course,
     Department, AcademicYear, Semester, UserTask, ActivityLog,
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
@@ -244,6 +244,7 @@ export const App: React.FC = () => {
     });
     const [users, setUsers] = useState<User[]>([]);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
+    const [branches, setBranches] = useState<Branch[]>([]);
     const [events, setEvents] = useState<any[]>([]);
     const [isHealthSystemOpen, setIsHealthSystemOpen] = useState(false);
     const [isPharmacySystemOpen, setIsPharmacySystemOpen] = useState(false);
@@ -1025,6 +1026,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                     !currentUser ? Promise.resolve([]) : apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
                     apiService.fetchModuleRecords<any>('events').catch(() => []),
                     (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchModuleRecords<Constituency>('constituencies').catch(() => []) : Promise.resolve([]),
+                    apiService.fetchModuleRecords<Branch>('branches').catch(() => []),
                 ]);
                 insts = results[0];
                 cnts = results[1];
@@ -1034,6 +1036,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 imsPhase1 = results[5];
                 evts = results[6];
                 consts = results[7];
+                const brs = results[8];
             }
 
             // Sync identity state immediately so we can use activeInstitution in Phase 2
@@ -1045,6 +1048,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             if (sett) setCompanyDetails(prev => ({ ...prev, ...sett }));
             if (imsPhase1) setInstitutionModuleStates(imsPhase1);
             if (consts) setConstituencies(consts);
+            if (brs) setBranches(brs);
 
             const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
             const activeInstWithModules = activeInst ? {
@@ -3113,7 +3117,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             }
             setIsTransitioning(false);
         }, 300);
-    }, [users, institutions, schoolRegistry, currentUser, originalSuperAdminSession, toastError]);
+    }, [users, institutions, schoolRegistry, currentUser, originalSuperAdminSession, toastError, branches]);
     
 
 

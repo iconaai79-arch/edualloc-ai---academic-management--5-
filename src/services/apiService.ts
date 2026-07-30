@@ -1223,12 +1223,19 @@ export const apiService = {
                         lowerKey === 'recorded_by' ||
                         lowerKey === 'date' ||
                         lowerKey.endsWith('_date') || 
-                        lowerKey.endsWith('_at')
+                        lowerKey.endsWith('_at') ||
+                        lowerKey.endsWith('_id')
                     ) {
                         item[key] = null;
                     }
                 }
             });
+
+            // Vehicles module: ensure FK reference columns are null (not undefined/empty) to prevent constraint violations
+            if (module === 'vehicles') {
+                if (!item.driver_id) item.driver_id = null;
+                if (!item.assistant_id) item.assistant_id = null;
+            }
             
             return item;
         };
