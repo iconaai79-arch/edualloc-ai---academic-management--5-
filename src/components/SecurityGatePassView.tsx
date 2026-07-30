@@ -813,7 +813,18 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         try {
             const dateStr = new Date().toISOString().split('T')[0];
             const timeInStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const plate = pin?.vehicleRegistration || pin?.vehicle_registration || '';
+
+            // Create a valid Gate Pass PIN if none exists
+            const resolvedPin = pin || {
+                id: `pin_pass_${Date.now()}`,
+                pin: Math.floor(100000 + Math.random() * 900000).toString(),
+                status: 'used',
+                institutionId: currentInstitution.id,
+                userId: parent.id,
+                createdAt: new Date().toISOString()
+            };
+
+            const plate = resolvedPin?.vehicleRegistration || resolvedPin?.vehicle_registration || '';
 
             const isSchool = ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(currentInstitution?.institutionType || '') ||
                              ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(currentInstitution?.category || '');
@@ -838,13 +849,13 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 institutionId: currentInstitution.id,
                 hostId: resolvedHostId,
                 vehiclePlate: plate,
-                idNumber: pin ? `PIN: ${pin.pin}` : ''
+                idNumber: `PIN: ${resolvedPin.pin}`
             });
 
             // Also add any accompanying guests
-            if (pin && pin.guests) {
+            if (resolvedPin && resolvedPin.guests) {
                 try {
-                    const parsedGuests = JSON.parse(pin.guests || '[]');
+                    const parsedGuests = JSON.parse(resolvedPin.guests || '[]');
                     if (Array.isArray(parsedGuests)) {
                         for (const guestName of parsedGuests) {
                             if (guestName && typeof guestName === 'string' && guestName.trim()) {
@@ -857,7 +868,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     institutionId: currentInstitution.id,
                                     hostId: resolvedHostId,
                                     vehiclePlate: plate,
-                                    idNumber: `PIN: ${pin.pin}`
+                                    idNumber: `PIN: ${resolvedPin.pin}`
                                 });
                             }
                         }
@@ -867,8 +878,10 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 }
             }
 
-            if (pin) {
-                printEposGatePass(pin, parent, event, currentInstitution, currentUser?.name);
+            // Print the Gate Pass
+            printEposGatePass(resolvedPin, parent, event, currentInstitution, currentUser?.name);
+
+            if (pin && pin.id && !pin.id.startsWith('pin_pass_')) {
                 const updatedPin = {
                     ...pin,
                     status: 'used'
@@ -1682,7 +1695,12 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                                         {item.phone && <span>📞 {item.phone}</span>}
                                                                         {item.students.length > 0 && (
                                                                             <span className="text-purple-600 dark:text-purple-400 font-bold">
-                                                                                🎓 Student: {item.students.map(s => `${s.name} (${s.admissionNumber || (s as any).admission_number || 'No Adm'})`).join(', ')}
+                                                                                🎓 Student: {item.students.map(s => {
+                                                                                    const adm = s.admissionNo || (s as any).admission_no || s.admissionNumber || (s as any).admission_number || (s as any).admNo || (s as any).adm_no || s.staffId || (s as any).studentId || '';
+                                                                                    const cls = s.studentClass || (s as any).class_name || '';
+                                                                                    const info = adm ? `Adm: ${adm}` : cls ? `Class: ${cls}` : '';
+                                                                                    return info ? `${s.name} (${info})` : s.name;
+                                                                                }).join(', ')}
                                                                             </span>
                                                                         )}
                                                                     </div>
@@ -1696,10 +1714,27 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                                     </span>
                                                                 )}
                                                                 <button
-                                                                    onClick={() => {
-                                                                        setSelectedParent(item.userObj);
-                                                                        if (item.students.length > 0) setSelectedStudent(item.students[0]);
-                                                                        if (item.pin) setSelectedPin(item.pin);
+                                                                    onClick={async () => {
+                                                                        const pUser = item.userObj;
+                                                                        const stUser = item.students[0] || null;
+                                                                        let pinObj = item.pin || null;
+                                                                        let evtObj = null;
+
+                                                                        setSelectedParent(pUser);
+                                                                        if (stUser) setSelectedStudent(stUser);
+
+                                                                        if (!pinObj) {
+                                                                            const genRes = await autoGeneratePinForParent(pUser);
+                                                                            if (genRes) {
+                                                                                pinObj = genRes.pin;
+                                                                                evtObj = genRes.event;
+                                                                            }
+                                                                        }
+
+                                                                        if (pinObj) setSelectedPin(pinObj);
+                                                                        if (evtObj) setAssociatedEvent(evtObj);
+
+                                                                        await performVerificationAndPrint(pinObj, pUser, evtObj, stUser);
                                                                     }}
                                                                     className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
                                                                 >
