@@ -430,6 +430,43 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         return teacherAllocations.reduce((sum, a) => sum + (a.lessonsPerWeek || 0), 0);
     }, [teacherAllocations]);
 
+    // Subject Columns for Allocation Matrix (dynamically resolved from active subjects across the institution)
+    const matrixSubjectColumns = useMemo(() => {
+        const seen = new Set<string>();
+        const cols: { name: string; code?: string }[] = [];
+
+        // 1. Registered subjects prop
+        if (subjects && subjects.length > 0) {
+            subjects.forEach(s => {
+                const nameKey = (s.name || '').trim();
+                if (nameKey && !seen.has(nameKey.toLowerCase())) {
+                    seen.add(nameKey.toLowerCase());
+                    cols.push({ name: nameKey, code: s.code });
+                }
+            });
+        }
+
+        // 2. All allocations
+        allAllocations.forEach(a => {
+            const nameKey = (a.subjectName || '').trim();
+            if (nameKey && !seen.has(nameKey.toLowerCase())) {
+                seen.add(nameKey.toLowerCase());
+                cols.push({ name: nameKey, code: a.subjectCode });
+            }
+        });
+
+        if (cols.length > 0) return cols;
+
+        return [
+            { name: 'Mathematics Activities', code: 'MATH-LP' },
+            { name: 'English Language Activities', code: 'ENG-LP' },
+            { name: 'Kiswahili Language Activities', code: 'KISW-LP' },
+            { name: 'Environmental Activities', code: 'ENV-LP' },
+            { name: 'Religious Education Activities', code: 'CRE-LP' },
+            { name: 'Integrated Science', code: 'INT-SCI' }
+        ];
+    }, [subjects, allAllocations]);
+
     return (
         <div className="space-y-6 animate-fade-in w-full text-left">
             {/* Toast Banner */}
@@ -771,19 +808,39 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                             <thead className="bg-slate-900 text-white font-black uppercase tracking-wider">
                                 <tr>
                                     <th className="px-4 py-3 text-left w-36">Class Stream</th>
-                                    {['Mathematics', 'English', 'Kiswahili', 'Biology', 'Chemistry', 'Physics'].map(sub => (
-                                        <th key={sub} className="px-4 py-3 text-center border-x border-slate-800">{sub}</th>
+                                    {matrixSubjectColumns.map(subCol => (
+                                        <th key={subCol.name} className="px-4 py-3 text-center border-x border-slate-800">{subCol.name}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                                {classOptions.slice(0, 7).map(cls => (
+                                {classOptions.map(cls => (
                                     <tr key={cls} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                                         <td className="px-4 py-3 font-bold text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-950/50">{cls}</td>
-                                        {['Mathematics', 'English', 'Kiswahili', 'Biology', 'Chemistry', 'Physics'].map(sub => {
-                                            const alloc = allocations.find(a => a.className === cls && a.subjectName === sub);
+                                        {matrixSubjectColumns.map(subCol => {
+                                            const subName = subCol.name;
+                                            const subObj = (subjects || []).find(s => s.name.toLowerCase().trim() === subName.toLowerCase().trim());
+                                            
+                                            // Check if subject is assigned or applicable to this class stream
+                                            const isApplicable = subObj 
+                                                ? isSubjectAssignedToClassStream(subObj, cls, courses)
+                                                : true;
+
+                                            if (!isApplicable) {
+                                                return (
+                                                    <td key={subName} className="px-3 py-3 text-center border-x border-slate-100 dark:border-slate-800 text-slate-300 dark:text-slate-700 text-[10px] font-mono">
+                                                        —
+                                                    </td>
+                                                );
+                                            }
+
+                                            const alloc = allAllocations.find(a => 
+                                                a.className === cls && 
+                                                (a.subjectName.toLowerCase().trim() === subName.toLowerCase().trim() || (subCol.code && a.subjectCode === subCol.code))
+                                            );
+
                                             return (
-                                                <td key={sub} className="px-3 py-3 text-center border-x border-slate-100 dark:border-slate-800">
+                                                <td key={subName} className="px-3 py-3 text-center border-x border-slate-100 dark:border-slate-800">
                                                     {alloc && alloc.teacherName && alloc.teacherName !== 'Unassigned' ? (
                                                         <div className="space-y-0.5">
                                                             <div className="font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[120px] mx-auto" title={alloc.teacherName}>{alloc.teacherName}</div>
@@ -794,10 +851,10 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                                             type="button"
                                                             onClick={() => {
                                                                 setModalClassName(cls);
-                                                                setModalSubjectName(sub);
+                                                                setModalSubjectName(subName);
                                                                 setIsAddAllocationModalOpen(true);
                                                             }}
-                                                            className="text-[10px] font-bold text-amber-600 hover:text-amber-800 bg-amber-50 dark:bg-amber-950 px-2 py-1 rounded-md border border-amber-200 transition-all cursor-pointer"
+                                                            className="text-[10px] font-bold text-amber-600 hover:text-amber-800 bg-amber-50 dark:bg-amber-950 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-900 transition-all cursor-pointer"
                                                         >
                                                             + Assign
                                                         </button>
