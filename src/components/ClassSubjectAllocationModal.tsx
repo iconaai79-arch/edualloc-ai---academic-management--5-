@@ -30,17 +30,23 @@ export const isSubjectApplicableToClass = (
 ): boolean => {
     if (!className || !className.trim()) return true;
 
-    // 0. If explicit targetClasses or assignedClasses array is defined and non-empty, use exact match
+    const cLower = className.toLowerCase().trim();
     const targetCls = subject.targetClasses || subject.assignedClasses || (subject as any).classes;
+
+    // 0. If explicit targetClasses array is defined and non-empty, check for exact/partial class match or level match
     if (Array.isArray(targetCls) && targetCls.length > 0) {
-        return targetCls.some(c => 
-            c.toLowerCase().trim() === className.toLowerCase().trim() ||
-            className.toLowerCase().trim().startsWith(c.toLowerCase().trim()) ||
-            c.toLowerCase().trim().startsWith(className.toLowerCase().trim())
-        );
+        const hasExplicitMatch = targetCls.some(c => {
+            const cleanC = (c || '').toLowerCase().trim();
+            return cleanC === cLower ||
+                   cLower.startsWith(cleanC) ||
+                   cleanC.startsWith(cLower) ||
+                   (cleanC.includes('lower primary') && /\b(grade|std|class)\s*[1-3]\b/i.test(className)) ||
+                   (cleanC.includes('upper primary') && /\b(grade|std|class)\s*[4-6]\b/i.test(className)) ||
+                   (cleanC.includes('junior secondary') && /\b(grade|std|class)\s*[7-9]\b/i.test(className));
+        });
+        if (hasExplicitMatch) return true;
     }
 
-    const cLower = className.toLowerCase().trim();
     const code = (subject.code || '').toUpperCase().trim();
     const name = (subject.name || '').toLowerCase().trim();
     const desc = (subject.description || '').toLowerCase().trim();
@@ -73,7 +79,12 @@ export const isSubjectApplicableToClass = (
     if (isJSSSubject) return isJSSClass;
     if (isJSSClass && (code.endsWith('-PP') || code.endsWith('-LP') || code.endsWith('-UP') || desc.includes('pre-primary') || desc.includes('lower primary') || desc.includes('upper primary') || (name.includes('activities') && !name.includes('creative arts')))) return false;
 
-    // Default: General subjects apply to all Primary and Secondary classes (Grade 1 through Form 4)
+    // If explicit targetClasses was set by user and doesn't contain this class, return false
+    if (Array.isArray(targetCls) && targetCls.length > 0) {
+        return false;
+    }
+
+    // Default: General subjects apply to all Primary and Secondary classes
     return true;
 };
 

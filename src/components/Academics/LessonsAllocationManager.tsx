@@ -142,17 +142,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         if (!clsName) return [];
         
         if (subjects && subjects.length > 0) {
-            const applicable = subjects.filter(s => {
-                const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
-                if (Array.isArray(targetCls) && targetCls.length > 0) {
-                    return targetCls.some((c: string) => 
-                        c.toLowerCase().trim() === clsName.toLowerCase().trim() ||
-                        clsName.toLowerCase().trim().startsWith(c.toLowerCase().trim()) ||
-                        c.toLowerCase().trim().startsWith(clsName.toLowerCase().trim())
-                    );
-                }
-                return isSubjectApplicableToClass(s, clsName);
-            });
+            const applicable = subjects.filter(s => isSubjectApplicableToClass(s, clsName));
             if (applicable.length > 0) return applicable;
         }
 
