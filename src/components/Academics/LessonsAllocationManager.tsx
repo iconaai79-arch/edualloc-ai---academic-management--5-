@@ -340,59 +340,70 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         setTimeout(() => setSaveToast(null), 3000);
     };
 
-    // Selected Class Allocations (dynamically populated based on subjects assigned to selectedClass)
+    // Selected Class Allocations (dynamically populated based on subjects assigned to selectedClass, deduplicated strictly by subject name)
     const classAllocations = useMemo(() => {
         if (!selectedClass) return [];
 
         const q = searchQuery.toLowerCase().trim();
-        const applicableSubjects = getApplicableSubjectsForClass(selectedClass);
+        const map = new Map<string, SubjectAllocationRecord>();
 
-        return applicableSubjects.map((subj, idx) => {
-            const existing = allocations.find(a => 
-                a.className === selectedClass && 
-                (a.subjectName === subj.name || (subj.code && a.subjectCode === subj.code))
-            );
-
-            if (existing) {
-                return existing;
+        // 1. First add saved DB allocation records for selectedClass
+        const savedForClass = (allocations || []).filter(a => a.className === selectedClass);
+        savedForClass.forEach(a => {
+            const key = (a.subjectName || '').toLowerCase().trim();
+            if (key && !map.has(key)) {
+                map.set(key, a);
             }
+        });
 
-            const defaultTeacher = teacherUsers[idx % teacherUsers.length];
-            return {
-                id: `alloc_${selectedClass.replace(/\s+/g, '_')}_${subj.id || idx}`,
-                institutionId: currentInstitution?.id || 'inst_1',
-                className: selectedClass,
-                subjectName: subj.name,
-                subjectCode: subj.code || `${subj.name.substring(0, 4).toUpperCase()} 101`,
-                teacherId: defaultTeacher ? defaultTeacher.id : '',
-                teacherName: defaultTeacher ? defaultTeacher.name : 'Unassigned',
-                lessonsPerWeek: (subj as any).periodsPerWeek || (subj as any).lessonsPerWeek || (idx % 2 === 0 ? 7 : 6),
-                status: defaultTeacher ? ('allocated' as const) : ('unassigned' as const)
-            };
-        }).filter(a => {
+        // 2. Add applicable subjects for selectedClass if not already present
+        const applicableSubjects = getApplicableSubjectsForClass(selectedClass);
+        applicableSubjects.forEach((subj, idx) => {
+            const key = (subj.name || '').toLowerCase().trim();
+            if (key && !map.has(key)) {
+                const defaultTeacher = teacherUsers[idx % teacherUsers.length];
+                map.set(key, {
+                    id: `alloc_${selectedClass.replace(/\s+/g, '_')}_${subj.id || idx}`,
+                    institutionId: currentInstitution?.id || 'inst_1',
+                    className: selectedClass,
+                    subjectName: subj.name,
+                    subjectCode: subj.code || `${subj.name.substring(0, 4).toUpperCase()} 101`,
+                    teacherId: defaultTeacher ? defaultTeacher.id : '',
+                    teacherName: defaultTeacher ? defaultTeacher.name : 'Unassigned',
+                    lessonsPerWeek: (subj as any).periodsPerWeek || (subj as any).lessonsPerWeek || (idx % 2 === 0 ? 7 : 6),
+                    status: defaultTeacher ? ('allocated' as const) : ('unassigned' as const)
+                });
+            }
+        });
+
+        // 3. Convert to array and filter out deleted/removed keys and search query
+        return Array.from(map.values()).filter(a => {
             if (removedFromClassKeys.has(`${a.className}_${a.subjectName}`)) return false;
             if (!q) return true;
             return a.className.toLowerCase().includes(q) ||
                    a.subjectName.toLowerCase().includes(q) ||
                    (a.teacherName && a.teacherName.toLowerCase().includes(q));
         });
-    }, [getApplicableSubjectsForClass, selectedClass, allocations, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys]);
+    }, [selectedClass, allocations, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys]);
 
-    // All allocations dynamically gathered across classOptions + saved DB allocations
+    // All allocations dynamically gathered across classOptions + saved DB allocations (deduplicated by className + subjectName)
     const allAllocations = useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
         const map = new Map<string, SubjectAllocationRecord>();
 
         // 1. First add all DB/state saved allocations
         (allocations || []).forEach(a => {
-            map.set(`${a.className}_${a.subjectName}`, a);
+            const key = `${a.className.toLowerCase().trim()}_${a.subjectName.toLowerCase().trim()}`;
+            if (key && !map.has(key)) {
+                map.set(key, a);
+            }
         });
 
         // 2. Add dynamically derived class allocations for all classOptions
         (classOptions || []).forEach(cls => {
             const applicable = getApplicableSubjectsForClass(cls);
             applicable.forEach((subj, idx) => {
-                const key = `${cls}_${subj.name}`;
+                const key = `${cls.toLowerCase().trim()}_${subj.name.toLowerCase().trim()}`;
                 if (!map.has(key)) {
                     const defaultTeacher = teacherUsers[idx % teacherUsers.length];
                     map.set(key, {
@@ -410,14 +421,14 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             });
         });
 
-        const list = Array.from(map.values());
+        const list = Array.from(map.values()).filter(a => !removedFromClassKeys.has(`${a.className}_${a.subjectName}`));
         if (!q) return list;
         return list.filter(a =>
             a.className.toLowerCase().includes(q) ||
             a.subjectName.toLowerCase().includes(q) ||
             (a.teacherName && a.teacherName.toLowerCase().includes(q))
         );
-    }, [allocations, classOptions, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery]);
+    }, [allocations, classOptions, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys]);
 
     // Selected Teacher Allocations & Workload
     const selectedTeacherObj = teacherUsers.find(t => t.id === selectedTeacherId);
@@ -526,10 +537,20 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     {/* Class Selector Pills */}
                     <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar-horizontal">
                         {classOptions.map(cls => {
-                            const applicable = getApplicableSubjectsForClass(cls);
+                            const rawApplicable = getApplicableSubjectsForClass(cls);
+                            const seenNames = new Set<string>();
+                            const applicable: typeof rawApplicable = [];
+                            rawApplicable.forEach(s => {
+                                const k = (s.name || '').toLowerCase().trim();
+                                if (k && !seenNames.has(k) && !removedFromClassKeys.has(`${cls}_${s.name}`)) {
+                                    seenNames.add(k);
+                                    applicable.push(s);
+                                }
+                            });
+
                             const count = applicable.length;
                             const unassigned = applicable.filter(subj => {
-                                const alloc = allocations.find(a => a.className === cls && (a.subjectName === subj.name || (subj.code && a.subjectCode === subj.code)));
+                                const alloc = allocations.find(a => a.className === cls && a.subjectName.toLowerCase().trim() === subj.name.toLowerCase().trim());
                                 return !alloc || alloc.status === 'unassigned' || !alloc.teacherId;
                             }).length;
                             const isSelected = selectedClass === cls;
