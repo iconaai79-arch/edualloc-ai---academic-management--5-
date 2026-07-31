@@ -9549,9 +9549,9 @@ export const generateStudentStatementPdfDataUri = async (
     logoUrl?: string | null,
     issuedByOfficerName?: string
 ): Promise<string> => {
-    const lib = getJsPdf();
-    if (!lib) throw new Error("jsPDF library not available.");
-    const doc = new lib.jsPDF();
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
+    const doc = new jsPDF();
 
     const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
     const letterheadUrl = letterConfig?.headerImageUrl 
@@ -9661,7 +9661,7 @@ export const generateStudentStatementPdfDataUri = async (
         `KSh ${Math.abs(summary.balance).toLocaleString()} ${summary.balance > 0 ? 'Dr' : 'Cr'}`
     ]);
 
-    doc.autoTable({
+    autoTable(doc, {
         head: tableHead,
         body: tableBody,
         startY: yPos,

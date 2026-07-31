@@ -284,7 +284,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing' | 'subject_grouping' | 'kcpe_scores' | 'exam_config'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage' | 'googledrive'>('profile');
-    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba' | 'kcb' | 'coop'>('mpesa');
+    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba' | 'kcb' | 'equity' | 'im' | 'coop'>('mpesa');
     const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive' | 'itax'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>(isDS ? 'buildings' : 'departments');
     const [dsConfigSubTab, setDsConfigSubTab] = useState<'business_rules' | 'license_category' | 'license_groups' | 'vote_heads' | 'fee_structures'>('business_rules');
@@ -1839,6 +1839,20 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                          </button>
 
                                          <button
+                                             onClick={() => setBillingSubTab('equity')}
+                                             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${billingSubTab === 'equity' ? 'bg-white dark:bg-slate-600 text-red-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                         >
+                                             Equity
+                                         </button>
+
+                                         <button
+                                             onClick={() => setBillingSubTab('im')}
+                                             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${billingSubTab === 'im' ? 'bg-white dark:bg-slate-600 text-blue-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                         >
+                                             I&M Bank
+                                         </button>
+
+                                         <button
                                              onClick={() => setBillingSubTab('coop')}
                                              className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${billingSubTab === 'coop' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
                                          >
@@ -2233,6 +2247,187 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                  <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-14 shadow-indigo-200 uppercase tracking-widest text-xs w-full sm:w-auto">Confirm KCB Configuration</button>
                                              </div>
                                          </div>
+                                    </div>
+                                )}
+
+                                {billingSubTab === 'equity' && (
+                                    <div className="animate-fade-in space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-4 mb-6">
+                                                    <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-2xl">
+                                                        <span className="w-6 h-6 text-red-600 font-black text-center block">EQ</span>
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black uppercase tracking-widest">Equity Bank Biller Credentials</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400">JWT Authentication & Validation settings</p>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Biller Username</label>
+                                                        <input
+                                                            type="text"
+                                                            defaultValue="equity_biller_user"
+                                                            className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-red-500 transition-all text-slate-900 dark:text-white"
+                                                            placeholder="equity_biller_user"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Biller Password</label>
+                                                        <input
+                                                            type="password"
+                                                            defaultValue="EquityBiller@2026!"
+                                                            className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-red-500 transition-all text-slate-900 dark:text-white"
+                                                            placeholder="Enter Biller Password"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">JWT HMAC Secret Key</label>
+                                                        <input
+                                                            type="password"
+                                                            defaultValue="equity-biller-default-jwt-secret-2026"
+                                                            className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-red-500 transition-all text-slate-900 dark:text-white"
+                                                            placeholder="Enter JWT Secret Key"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-4 mb-6">
+                                                    <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-2xl shrink-0">
+                                                        <span className="w-6 h-6 text-red-600 font-black text-center block">🔗</span>
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black uppercase tracking-widest">Equity Biller Callback Endpoints</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400">REST Endpoints to share with Equity Bank</p>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">1. JWT Token Endpoint (POST /token)</p>
+                                                        <code className="text-xs font-mono text-red-600 dark:text-red-400 break-all">
+                                                            {typeof window !== 'undefined' 
+                                                                ? `${window.location.origin}/functions/v1/equity-biller-api/token` 
+                                                                : 'https://yourdomain.com/functions/v1/equity-biller-api/token'}
+                                                        </code>
+                                                    </div>
+                                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">2. Validation Endpoint (POST /validation)</p>
+                                                        <code className="text-xs font-mono text-red-600 dark:text-red-400 break-all">
+                                                            {typeof window !== 'undefined' 
+                                                                ? `${window.location.origin}/functions/v1/equity-biller-api/validation` 
+                                                                : 'https://yourdomain.com/functions/v1/equity-biller-api/validation'}
+                                                        </code>
+                                                    </div>
+                                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">3. Notification Endpoint (POST /notification)</p>
+                                                        <code className="text-xs font-mono text-red-600 dark:text-red-400 break-all">
+                                                            {typeof window !== 'undefined' 
+                                                                ? `${window.location.origin}/functions/v1/equity-biller-api/notification` 
+                                                                : 'https://yourdomain.com/functions/v1/equity-biller-api/notification'}
+                                                        </code>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-end pt-4">
+                                            <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-14 bg-red-600 hover:bg-red-700 shadow-red-200 uppercase tracking-widest text-xs w-full sm:w-auto">Confirm Equity Biller Configuration</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {billingSubTab === 'im' && (
+                                    <div className="animate-fade-in space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-4 mb-6">
+                                                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-2xl">
+                                                        <span className="w-6 h-6 text-blue-600 font-black text-center block">I&M</span>
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black uppercase tracking-widest">I&M Bank Collections Credentials</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400">API Key & Basic Authentication credentials</p>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">API Key (x-api-key Header)</label>
+                                                        <input
+                                                            type="text"
+                                                            defaultValue="im-api-key-default-2026"
+                                                            className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-white"
+                                                            placeholder="Enter I&M API Key"
+                                                        />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Callback Username</label>
+                                                            <input
+                                                                type="text"
+                                                                defaultValue="im_callback_user"
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="Basic Auth Username"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Callback Secret</label>
+                                                            <input
+                                                                type="password"
+                                                                defaultValue="im_callback_secret_2026"
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="Basic Auth Secret"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Account Number / Short Code</label>
+                                                        <input
+                                                            type="text"
+                                                            defaultValue="01201928374"
+                                                            className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-white"
+                                                            placeholder="e.g. 01201928374"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-4 mb-6">
+                                                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-2xl shrink-0">
+                                                        <span className="w-6 h-6 text-blue-600 font-black text-center block">🔗</span>
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black uppercase tracking-widest">I&M Bank Callback Endpoints</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400">Share these endpoints with I&M Bank Integration Team</p>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">1. Customer Validation Endpoint (POST /api/collections/validate)</p>
+                                                        <code className="text-xs font-mono text-blue-600 dark:text-blue-400 break-all">
+                                                            {typeof window !== 'undefined' 
+                                                                ? `${window.location.origin}/api/collections/validate` 
+                                                                : 'https://yourdomain.com/api/collections/validate'}
+                                                        </code>
+                                                    </div>
+                                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">2. Payment Notification Endpoint (POST /api/collections/notify)</p>
+                                                        <code className="text-xs font-mono text-blue-600 dark:text-blue-400 break-all">
+                                                            {typeof window !== 'undefined' 
+                                                                ? `${window.location.origin}/api/collections/notify` 
+                                                                : 'https://yourdomain.com/api/collections/notify'}
+                                                        </code>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-end pt-4">
+                                            <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-14 bg-blue-600 hover:bg-blue-700 shadow-blue-200 uppercase tracking-widest text-xs w-full sm:w-auto">Confirm I&M Bank Configuration</button>
+                                        </div>
                                     </div>
                                 )}
 

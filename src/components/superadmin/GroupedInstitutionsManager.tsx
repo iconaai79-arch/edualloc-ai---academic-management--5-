@@ -24,7 +24,7 @@ export interface BranchIntegrationConfig {
     id: string;
     branch_id: string;
     branchId?: string;
-    provider: 'mpesa' | 'kcb' | 'ncba' | 'coop' | string;
+    provider: 'mpesa' | 'kcb' | 'equity' | 'im' | 'ncba' | 'coop' | string;
     account_details: Record<string, any>;
     is_active?: boolean;
 }
@@ -63,7 +63,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
 
     // Branch Gateway Integration Modal
     const [configuringBranch, setConfiguringBranch] = useState<Branch | null>(null);
-    const [selectedProvider, setSelectedProvider] = useState<'mpesa' | 'kcb' | 'ncba' | 'coop'>('mpesa');
+    const [selectedProvider, setSelectedProvider] = useState<'mpesa' | 'kcb' | 'equity' | 'im' | 'ncba' | 'coop'>('mpesa');
     const [gatewayDetails, setGatewayDetails] = useState<Record<string, string>>({
         paybillNumber: '',
         accountNumber: '',
@@ -903,14 +903,14 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
 
                         {/* Provider Selector Tabs */}
                         <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
-                            {(['mpesa', 'kcb', 'ncba', 'coop'] as const).map(provider => (
+                            {(['mpesa', 'kcb', 'equity', 'im', 'ncba', 'coop'] as const).map(provider => (
                                 <button
                                     key={provider}
                                     type="button"
                                     onClick={() => setSelectedProvider(provider)}
                                     className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${selectedProvider === provider ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
                                 >
-                                    {provider.toUpperCase()}
+                                    {provider === 'im' ? 'I&M' : provider.toUpperCase()}
                                 </button>
                             ))}
                         </div>
@@ -941,7 +941,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                 </>
                             )}
 
-                            {(selectedProvider === 'kcb' || selectedProvider === 'ncba' || selectedProvider === 'coop') && (
+                            {(selectedProvider === 'kcb' || selectedProvider === 'equity' || selectedProvider === 'im' || selectedProvider === 'ncba' || selectedProvider === 'coop') && (
                                 <>
                                     <div>
                                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1">Bank Name</label>
