@@ -32,13 +32,17 @@ interface LessonsAllocationManagerProps {
     users: User[];
     subjects: Subject[];
     courses?: Course[];
+    onUpdateSubject?: (subjectId: string, updatedData: Partial<Omit<Subject, 'id' | 'institutionId'>>) => void;
+    onDeleteSubject?: (subjectId: string) => void;
 }
 
 export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> = ({
     currentInstitution,
     users = [],
     subjects = [],
-    courses = []
+    courses = [],
+    onUpdateSubject,
+    onDeleteSubject
 }) => {
     const [viewMode, setViewMode] = useState<'per_class' | 'per_teacher' | 'matrix'>('per_class');
     // Dynamically compute registered classes from all available sources
@@ -163,6 +167,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     }, [subjects]);
 
     const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>([]);
+    const [removedFromClassKeys, setRemovedFromClassKeys] = useState<Set<string>>(new Set());
 
     // Sync selectedClass and modalClassName when classOptions resolves
     useEffect(() => {
@@ -292,6 +297,49 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         setTimeout(() => setSaveToast(null), 3000);
     };
 
+    // Handle Deleting / Unallocating a subject allocation from a class
+    const handleDeleteAllocation = async (alloc: SubjectAllocationRecord) => {
+        const confirmDelete = window.confirm(`Are you sure you want to remove the subject allocation for "${alloc.subjectName}" in ${alloc.className}?`);
+        if (!confirmDelete) return;
+
+        const key = `${alloc.className}_${alloc.subjectName}`;
+        setRemovedFromClassKeys(prev => {
+            const next = new Set(prev);
+            next.add(key);
+            return next;
+        });
+
+        setAllocations(prev => prev.filter(a => a.id !== alloc.id && !(a.className === alloc.className && a.subjectName === alloc.subjectName)));
+
+        // Delete from DB subject_allocations table if record exists
+        if (currentInstitution?.id && alloc.id && !alloc.id.startsWith('alloc_') && alloc.id.length > 5) {
+            await apiService.deleteModuleRecord('subject_allocations', alloc.id).catch(() => {});
+        }
+
+        // Unassign class stream from subject's targetClasses / assignedClasses
+        const subjObj = (subjects || []).find(s => 
+            s.name.toLowerCase().trim() === alloc.subjectName.toLowerCase().trim() || 
+            (alloc.subjectCode && s.code.toLowerCase().trim() === alloc.subjectCode.toLowerCase().trim())
+        );
+
+        if (subjObj) {
+            const existingClasses = (subjObj as any).targetClasses || (subjObj as any).assignedClasses || (subjObj as any).classes || [];
+            const updatedClasses = Array.isArray(existingClasses) 
+                ? existingClasses.filter((c: string) => c.toLowerCase().trim() !== alloc.className.toLowerCase().trim())
+                : [];
+            
+            if (onUpdateSubject) {
+                onUpdateSubject(subjObj.id, { targetClasses: updatedClasses, assignedClasses: updatedClasses } as any);
+            }
+            if (currentInstitution?.id) {
+                await apiService.saveSubject({ ...subjObj, targetClasses: updatedClasses, assignedClasses: updatedClasses } as Subject).catch(() => {});
+            }
+        }
+
+        setSaveToast(`Removed ${alloc.subjectName} allocation from ${alloc.className}`);
+        setTimeout(() => setSaveToast(null), 3000);
+    };
+
     // Selected Class Allocations (dynamically populated based on subjects assigned to selectedClass)
     const classAllocations = useMemo(() => {
         if (!selectedClass) return [];
@@ -322,12 +370,13 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 status: defaultTeacher ? ('allocated' as const) : ('unassigned' as const)
             };
         }).filter(a => {
+            if (removedFromClassKeys.has(`${a.className}_${a.subjectName}`)) return false;
             if (!q) return true;
             return a.className.toLowerCase().includes(q) ||
                    a.subjectName.toLowerCase().includes(q) ||
                    (a.teacherName && a.teacherName.toLowerCase().includes(q));
         });
-    }, [getApplicableSubjectsForClass, selectedClass, allocations, teacherUsers, currentInstitution, searchQuery]);
+    }, [getApplicableSubjectsForClass, selectedClass, allocations, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys]);
 
     // All allocations dynamically gathered across classOptions + saved DB allocations
     const allAllocations = useMemo(() => {
@@ -569,10 +618,8 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                             <td className="px-6 py-4 text-right">
                                                 <button
                                                     type="button"
-                                                    onClick={() => {
-                                                        setAllocations(prev => prev.filter(a => a.id !== alloc.id));
-                                                    }}
-                                                    className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                                    onClick={() => handleDeleteAllocation(alloc)}
+                                                    className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                                                     title="Remove allocation"
                                                 >
                                                     <TrashIcon className="w-4 h-4" />
