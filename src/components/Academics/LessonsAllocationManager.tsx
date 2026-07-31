@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Institution, User, Subject, Course } from '../../types';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { PlusIcon } from '../icons/PlusIcon';
@@ -12,6 +12,7 @@ import { BookOpenIcon } from '../icons/BookOpenIcon';
 import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { RectangleStackIcon } from '../icons/RectangleStackIcon';
 import { apiService } from '../../services/apiService';
+import { isSubjectApplicableToClass } from '../ClassSubjectAllocationModal';
 
 export interface SubjectAllocationRecord {
     id: string;
@@ -132,31 +133,36 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         return ['Mathematics', 'English', 'Kiswahili', 'Biology', 'Chemistry', 'Physics', 'Geography', 'History', 'CRE', 'Computer Studies', 'Business Studies', 'Agriculture'];
     }, [subjects]);
 
-    // Dynamic Initial Default Allocations
-    const initialDefaultAllocations = useMemo(() => {
-        const list: SubjectAllocationRecord[] = [];
-        const activeSubjects = subjectList.slice(0, 6);
-
-        classOptions.forEach((cName, cIdx) => {
-            activeSubjects.forEach((sName, sIdx) => {
-                const teacherObj = teacherUsers[sIdx % teacherUsers.length];
-                list.push({
-                    id: `alloc_${cIdx}_${sIdx}`,
-                    institutionId: currentInstitution?.id || 'inst_1',
-                    className: cName,
-                    subjectName: sName,
-                    subjectCode: `${sName.substring(0, 4).toUpperCase()} 10${sIdx + 1}`,
-                    teacherId: teacherObj ? teacherObj.id : '',
-                    teacherName: teacherObj ? teacherObj.name : 'Unassigned',
-                    lessonsPerWeek: sIdx % 2 === 0 ? 7 : 6,
-                    status: teacherObj ? 'allocated' : 'unassigned'
-                });
+    // Helper to get applicable subjects for any given class name
+    const getApplicableSubjectsForClass = useCallback((clsName: string) => {
+        if (!clsName) return [];
+        
+        if (subjects && subjects.length > 0) {
+            const applicable = subjects.filter(s => {
+                const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
+                if (Array.isArray(targetCls) && targetCls.length > 0) {
+                    return targetCls.some((c: string) => 
+                        c.toLowerCase().trim() === clsName.toLowerCase().trim() ||
+                        clsName.toLowerCase().trim().startsWith(c.toLowerCase().trim()) ||
+                        c.toLowerCase().trim().startsWith(clsName.toLowerCase().trim())
+                    );
+                }
+                return isSubjectApplicableToClass(s, clsName);
             });
-        });
-        return list;
-    }, [classOptions, subjectList, teacherUsers, currentInstitution]);
+            if (applicable.length > 0) return applicable;
+        }
 
-    const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>(initialDefaultAllocations);
+        return [
+            { id: 'sub_math', name: 'Mathematics', code: 'MATH 101', periodsPerWeek: 6 },
+            { id: 'sub_eng', name: 'English', code: 'ENGL 101', periodsPerWeek: 6 },
+            { id: 'sub_kisw', name: 'Kiswahili', code: 'KISW 101', periodsPerWeek: 5 },
+            { id: 'sub_sci', name: 'Integrated Science', code: 'SCI 101', periodsPerWeek: 5 },
+            { id: 'sub_soc', name: 'Social Studies', code: 'SST 101', periodsPerWeek: 4 },
+            { id: 'sub_cre', name: 'Religious Education', code: 'CRE 101', periodsPerWeek: 3 }
+        ];
+    }, [subjects]);
+
+    const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>([]);
 
     // Sync selectedClass and modalClassName when classOptions resolves
     useEffect(() => {
@@ -187,10 +193,13 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     }, [teacherUsers, selectedTeacherId]);
 
     // Handle Assigning Teacher to a subject row
-    const handleAssignTeacher = async (allocId: string, newTeacherId: string) => {
+    const handleAssignTeacher = async (allocId: string, newTeacherId: string, classNameOverride?: string, subjectNameOverride?: string, subjectCodeOverride?: string, lessonsOverride?: number) => {
         const teacherObj = teacherUsers.find(t => t.id === newTeacherId);
+        
+        let found = false;
         const updatedAllocations = allocations.map(a => {
-            if (a.id === allocId) {
+            if (a.id === allocId || (classNameOverride && a.className === classNameOverride && a.subjectName === subjectNameOverride)) {
+                found = true;
                 return {
                     ...a,
                     teacherId: newTeacherId,
@@ -201,26 +210,56 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             return a;
         });
 
+        if (!found && classNameOverride && subjectNameOverride) {
+            const newAlloc: SubjectAllocationRecord = {
+                id: allocId || `alloc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                institutionId: currentInstitution?.id || 'inst_1',
+                className: classNameOverride,
+                subjectName: subjectNameOverride,
+                subjectCode: subjectCodeOverride || `${subjectNameOverride.substring(0, 4).toUpperCase()} 101`,
+                teacherId: newTeacherId,
+                teacherName: teacherObj ? teacherObj.name : 'Unassigned',
+                lessonsPerWeek: lessonsOverride || 6,
+                status: newTeacherId ? 'allocated' : 'unassigned'
+            };
+            updatedAllocations.push(newAlloc);
+        }
+
         setAllocations(updatedAllocations);
-        const targetRecord = updatedAllocations.find(a => a.id === allocId);
+        const targetRecord = updatedAllocations.find(a => a.id === allocId || (a.className === classNameOverride && a.subjectName === subjectNameOverride));
         if (targetRecord && currentInstitution?.id) {
             await apiService.saveModuleRecord('subject_allocations', targetRecord).catch(() => {});
         }
 
-        setSaveToast(`Updated allocation for ${targetRecord?.subjectName} (${targetRecord?.className})`);
+        setSaveToast(`Updated allocation for ${targetRecord?.subjectName || subjectNameOverride} (${targetRecord?.className || classNameOverride})`);
         setTimeout(() => setSaveToast(null), 3000);
     };
 
     // Handle Updating Lessons Count
-    const handleUpdateLessonsCount = async (allocId: string, lessons: number) => {
+    const handleUpdateLessonsCount = async (allocId: string, lessons: number, classNameOverride?: string, subjectNameOverride?: string) => {
+        let found = false;
         const updatedAllocations = allocations.map(a => {
-            if (a.id === allocId) {
+            if (a.id === allocId || (classNameOverride && a.className === classNameOverride && a.subjectName === subjectNameOverride)) {
+                found = true;
                 return { ...a, lessonsPerWeek: lessons };
             }
             return a;
         });
+
+        if (!found && classNameOverride && subjectNameOverride) {
+            const newAlloc: SubjectAllocationRecord = {
+                id: allocId || `alloc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                institutionId: currentInstitution?.id || 'inst_1',
+                className: classNameOverride,
+                subjectName: subjectNameOverride,
+                lessonsPerWeek: lessons,
+                status: 'unassigned'
+            };
+            updatedAllocations.push(newAlloc);
+        }
+
         setAllocations(updatedAllocations);
-        const targetRecord = updatedAllocations.find(a => a.id === allocId);
+        const targetRecord = updatedAllocations.find(a => a.id === allocId || (a.className === classNameOverride && a.subjectName === subjectNameOverride));
         if (targetRecord && currentInstitution?.id) {
             await apiService.saveModuleRecord('subject_allocations', targetRecord).catch(() => {});
         }
@@ -253,21 +292,42 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         setTimeout(() => setSaveToast(null), 3000);
     };
 
-    // Filtered Allocations based on search
-    const filteredAllocations = useMemo(() => {
-        if (!searchQuery.trim()) return allocations;
-        const q = searchQuery.toLowerCase().trim();
-        return allocations.filter(a =>
-            a.className.toLowerCase().includes(q) ||
-            a.subjectName.toLowerCase().includes(q) ||
-            (a.teacherName && a.teacherName.toLowerCase().includes(q))
-        );
-    }, [allocations, searchQuery]);
-
-    // Selected Class Allocations
+    // Selected Class Allocations (dynamically populated based on subjects assigned to selectedClass)
     const classAllocations = useMemo(() => {
-        return filteredAllocations.filter(a => a.className === selectedClass);
-    }, [filteredAllocations, selectedClass]);
+        if (!selectedClass) return [];
+
+        const q = searchQuery.toLowerCase().trim();
+        const applicableSubjects = getApplicableSubjectsForClass(selectedClass);
+
+        return applicableSubjects.map((subj, idx) => {
+            const existing = allocations.find(a => 
+                a.className === selectedClass && 
+                (a.subjectName === subj.name || (subj.code && a.subjectCode === subj.code))
+            );
+
+            if (existing) {
+                return existing;
+            }
+
+            const defaultTeacher = teacherUsers[idx % teacherUsers.length];
+            return {
+                id: `alloc_${selectedClass.replace(/\s+/g, '_')}_${subj.id || idx}`,
+                institutionId: currentInstitution?.id || 'inst_1',
+                className: selectedClass,
+                subjectName: subj.name,
+                subjectCode: subj.code || `${subj.name.substring(0, 4).toUpperCase()} 101`,
+                teacherId: defaultTeacher ? defaultTeacher.id : '',
+                teacherName: defaultTeacher ? defaultTeacher.name : 'Unassigned',
+                lessonsPerWeek: (subj as any).periodsPerWeek || (subj as any).lessonsPerWeek || (idx % 2 === 0 ? 7 : 6),
+                status: defaultTeacher ? ('allocated' as const) : ('unassigned' as const)
+            };
+        }).filter(a => {
+            if (!q) return true;
+            return a.className.toLowerCase().includes(q) ||
+                   a.subjectName.toLowerCase().includes(q) ||
+                   (a.teacherName && a.teacherName.toLowerCase().includes(q));
+        });
+    }, [getApplicableSubjectsForClass, selectedClass, allocations, teacherUsers, currentInstitution, searchQuery]);
 
     // Selected Teacher Allocations & Workload
     const selectedTeacherObj = teacherUsers.find(t => t.id === selectedTeacherId);
@@ -376,8 +436,12 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     {/* Class Selector Pills */}
                     <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar-horizontal">
                         {classOptions.map(cls => {
-                            const count = allocations.filter(a => a.className === cls).length;
-                            const unassigned = allocations.filter(a => a.className === cls && a.status === 'unassigned').length;
+                            const applicable = getApplicableSubjectsForClass(cls);
+                            const count = applicable.length;
+                            const unassigned = applicable.filter(subj => {
+                                const alloc = allocations.find(a => a.className === cls && (a.subjectName === subj.name || (subj.code && a.subjectCode === subj.code)));
+                                return !alloc || alloc.status === 'unassigned' || !alloc.teacherId;
+                            }).length;
                             const isSelected = selectedClass === cls;
                             return (
                                 <button
@@ -433,7 +497,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                             <td className="px-6 py-4">
                                                 <select
                                                     value={alloc.teacherId || ''}
-                                                    onChange={(e) => handleAssignTeacher(alloc.id, e.target.value)}
+                                                    onChange={(e) => handleAssignTeacher(alloc.id, e.target.value, alloc.className, alloc.subjectName, alloc.subjectCode, alloc.lessonsPerWeek)}
                                                     className="w-full max-w-xs py-2 px-3 bg-slate-50 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-xs cursor-pointer"
                                                 >
                                                     <option value="">-- Select Teacher --</option>
@@ -448,7 +512,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                                     min={1}
                                                     max={15}
                                                     value={alloc.lessonsPerWeek}
-                                                    onChange={(e) => handleUpdateLessonsCount(alloc.id, parseInt(e.target.value) || 1)}
+                                                    onChange={(e) => handleUpdateLessonsCount(alloc.id, parseInt(e.target.value) || 1, alloc.className, alloc.subjectName)}
                                                     className="w-16 py-1.5 text-center font-mono font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
                                                 />
                                             </td>

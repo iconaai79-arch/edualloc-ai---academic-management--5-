@@ -25,10 +25,21 @@ interface ClassSubjectAllocationModalProps {
 }
 
 export const isSubjectApplicableToClass = (
-    subject: { code?: string; name?: string; description?: string },
+    subject: { code?: string; name?: string; description?: string; targetClasses?: string[]; assignedClasses?: string[] },
     className: string
 ): boolean => {
     if (!className || !className.trim()) return true;
+
+    // 0. If explicit targetClasses or assignedClasses array is defined and non-empty, use exact match
+    const targetCls = subject.targetClasses || subject.assignedClasses || (subject as any).classes;
+    if (Array.isArray(targetCls) && targetCls.length > 0) {
+        return targetCls.some(c => 
+            c.toLowerCase().trim() === className.toLowerCase().trim() ||
+            className.toLowerCase().trim().startsWith(c.toLowerCase().trim()) ||
+            c.toLowerCase().trim().startsWith(className.toLowerCase().trim())
+        );
+    }
+
     const cLower = className.toLowerCase().trim();
     const code = (subject.code || '').toUpperCase().trim();
     const name = (subject.name || '').toLowerCase().trim();
@@ -36,33 +47,33 @@ export const isSubjectApplicableToClass = (
 
     // 1. Pre-Primary (PP1, PP2, Playgroup, Nursery, KG)
     const isPPClass = cLower.includes('pp1') || cLower.includes('pp2') || cLower.includes('pp 1') || cLower.includes('pp 2') || cLower.includes('playgroup') || cLower.includes('nursery') || cLower.includes('kindergarten') || cLower.includes('kg') || cLower === 'pp';
-    const isPPSubject = code.endsWith('-PP') || name.includes('pre-primary') || desc.includes('pre-primary') || desc.includes('pp1') || desc.includes('pp2') || desc.includes('playgroup');
+    const isPPSubject = code.endsWith('-PP') || name.includes('pre-primary') || desc.includes('pre-primary') || desc.includes('pp1') || desc.includes('pp2') || desc.includes('playgroup') || (name.includes('activities') && (name.includes('language') || name.includes('mathematical') || name.includes('environmental') || name.includes('psychomotor') || name.includes('religious')));
 
     if (isPPSubject) return isPPClass;
     if (isPPClass) return isPPSubject;
 
     // 2. Lower Primary (Grade 1 - 3)
     const isLPClass = /\b(grade|std|standard|class)\s*[1-3]\b/i.test(className) || cLower.includes('lower primary') || cLower === 'g1' || cLower === 'g2' || cLower === 'g3';
-    const isLPSubject = code.endsWith('-LP') || name.endsWith('activities') || desc.includes('lower primary') || desc.includes('grade 1-3') || desc.includes('grade 1 - 3');
+    const isLPSubject = code.endsWith('-LP') || desc.includes('lower primary') || desc.includes('grade 1-3') || desc.includes('grade 1 - 3');
 
     if (isLPSubject) return isLPClass;
-    if (isLPClass) return isLPSubject;
+    if (isLPClass && (code.endsWith('-UP') || code.endsWith('-JSS') || desc.includes('upper primary') || desc.includes('junior secondary') || desc.includes('jss'))) return false;
 
     // 3. Upper Primary (Grade 4 - 6)
     const isUPClass = /\b(grade|std|standard|class)\s*[4-6]\b/i.test(className) || cLower.includes('upper primary') || cLower === 'g4' || cLower === 'g5' || cLower === 'g6';
-    const isUPSubject = code.endsWith('-UP') || code === 'SCI-TECH' || code === 'CREAT-ARTS' || code === 'PHE' || desc.includes('upper primary') || desc.includes('grade 4-6') || desc.includes('grade 4 - 6');
+    const isUPSubject = code.endsWith('-UP') || desc.includes('upper primary') || desc.includes('grade 4-6') || desc.includes('grade 4 - 6');
 
     if (isUPSubject) return isUPClass;
-    if (isUPClass) return isUPSubject;
+    if (isUPClass && (code.endsWith('-PP') || code.endsWith('-LP') || code.endsWith('-JSS') || desc.includes('pre-primary') || desc.includes('lower primary') || desc.includes('junior secondary') || desc.includes('jss'))) return false;
 
     // 4. Junior Secondary / JSS (Grade 7 - 9)
     const isJSSClass = /\b(grade|std|standard|class)\s*[7-9]\b/i.test(className) || cLower.includes('jss') || cLower.includes('junior') || cLower === 'g7' || cLower === 'g8' || cLower === 'g9';
     const isJSSSubject = code.endsWith('-JSS') || code === 'INT-SCI' || code === 'PRE-TECH' || code === 'HEALTH-ED' || code === 'LIFE-SKILLS' || code === 'ARTS-SPORTS' || desc.includes('junior') || desc.includes('jss') || desc.includes('grade 7-9') || desc.includes('grade 7 - 9');
 
     if (isJSSSubject) return isJSSClass;
-    if (isJSSClass) return isJSSSubject;
+    if (isJSSClass && (code.endsWith('-PP') || code.endsWith('-LP') || code.endsWith('-UP') || desc.includes('pre-primary') || desc.includes('lower primary') || desc.includes('upper primary') || (name.includes('activities') && !name.includes('creative arts')))) return false;
 
-    // Default fallback: general subjects apply to all non-PP classes
+    // Default: General subjects apply to all Primary and Secondary classes (Grade 1 through Form 4)
     return true;
 };
 
