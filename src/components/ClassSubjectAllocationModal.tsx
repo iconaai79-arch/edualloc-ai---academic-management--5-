@@ -1,11 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Subject, Course, Institution } from '../types';
+import type { Subject, Course, Institution, Department } from '../types';
 import { XIcon } from './icons/XIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { TrashIcon } from './icons/TrashIcon';
 import { apiService } from '../services/apiService';
 
 interface ClassSubjectAllocationModalProps {
@@ -13,9 +16,12 @@ interface ClassSubjectAllocationModalProps {
     subjects: Subject[];
     courses: Course[];
     classOptions: string[];
+    departments?: Department[];
     currentInstitution?: Institution | null;
     onUpdateSubject?: (subjectId: string, updatedData: Partial<Omit<Subject, 'id' | 'institutionId'>>) => void;
     onUpdateCourse?: (courseId: string, updatedData: Partial<Omit<Course, 'id' | 'institutionId'>>) => void;
+    onAddSubject?: (newSubject: Omit<Subject, 'id' | 'institutionId'>, initialCourseLevelIds?: string[]) => void;
+    onDeleteSubject?: (subjectId: string) => void;
 }
 
 export const isSubjectApplicableToClass = (
@@ -65,14 +71,32 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     subjects = [],
     courses = [],
     classOptions = [],
+    departments = [],
     currentInstitution,
     onUpdateSubject,
-    onUpdateCourse
+    onUpdateCourse,
+    onAddSubject,
+    onDeleteSubject
 }) => {
     const [selectedClass, setSelectedClass] = useState<string>(classOptions[0] || 'Form 1 Central');
     const [searchQuery, setSearchQuery] = useState('');
     const [copyFromClass, setCopyFromClass] = useState<string>('');
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+    const [localSubjects, setLocalSubjects] = useState<Subject[]>(subjects);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+
+    const [formData, setFormData] = useState({
+        name: '',
+        code: '',
+        departmentId: '',
+        periodsPerWeek: 4
+    });
+
+    useEffect(() => {
+        setLocalSubjects(subjects);
+    }, [subjects]);
 
     // Map of subjectId -> set of classNames assigned
     const [assignments, setAssignments] = useState<Record<string, Set<string>>>(() => {
@@ -112,15 +136,15 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     }, [classOptions, selectedClass]);
 
     const filteredSubjects = useMemo(() => {
-        if (!searchQuery.trim()) return subjects;
+        if (!searchQuery.trim()) return localSubjects;
         const q = searchQuery.toLowerCase();
-        return subjects.filter(s => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q));
-    }, [subjects, searchQuery]);
+        return localSubjects.filter(s => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q));
+    }, [localSubjects, searchQuery]);
 
     // Count assigned subjects for selectedClass
     const assignedCountForSelectedClass = useMemo(() => {
-        return subjects.filter(s => assignments[s.id]?.has(selectedClass)).length;
-    }, [subjects, assignments, selectedClass]);
+        return localSubjects.filter(s => assignments[s.id]?.has(selectedClass)).length;
+    }, [localSubjects, assignments, selectedClass]);
 
     const handleToggleSubject = async (subjectId: string) => {
         const currentSet = new Set(assignments[subjectId] || []);
@@ -137,7 +161,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         setAssignments(updatedAssignments);
 
         const targetClassesArr = Array.from(currentSet);
-        const subj = subjects.find(s => s.id === subjectId);
+        const subj = localSubjects.find(s => s.id === subjectId);
         if (subj) {
             const updatedData = { ...subj, targetClasses: targetClassesArr, assignedClasses: targetClassesArr };
             if (onUpdateSubject) {
@@ -151,14 +175,14 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
 
     const handleSelectAll = async () => {
         const next = { ...assignments };
-        subjects.forEach(s => {
+        localSubjects.forEach(s => {
             const set = new Set(next[s.id] || []);
             set.add(selectedClass);
             next[s.id] = set;
         });
         setAssignments(next);
 
-        for (const s of subjects) {
+        for (const s of localSubjects) {
             const targetClassesArr = Array.from(next[s.id]);
             if (onUpdateSubject) {
                 onUpdateSubject(s.id, { targetClasses: targetClassesArr, assignedClasses: targetClassesArr } as any);
@@ -167,20 +191,20 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 await apiService.saveSubject({ ...s, targetClasses: targetClassesArr } as Subject).catch(() => {});
             }
         }
-        setToastMessage(`Assigned all ${subjects.length} subjects to ${selectedClass}`);
+        setToastMessage(`Assigned all ${localSubjects.length} subjects to ${selectedClass}`);
         setTimeout(() => setToastMessage(null), 3000);
     };
 
     const handleClearAll = async () => {
         const next = { ...assignments };
-        subjects.forEach(s => {
+        localSubjects.forEach(s => {
             const set = new Set(next[s.id] || []);
             set.delete(selectedClass);
             next[s.id] = set;
         });
         setAssignments(next);
 
-        for (const s of subjects) {
+        for (const s of localSubjects) {
             const targetClassesArr = Array.from(next[s.id]);
             if (onUpdateSubject) {
                 onUpdateSubject(s.id, { targetClasses: targetClassesArr, assignedClasses: targetClassesArr } as any);
@@ -197,7 +221,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         if (!copyFromClass || copyFromClass === selectedClass) return;
         const next = { ...assignments };
         
-        subjects.forEach(s => {
+        localSubjects.forEach(s => {
             const sourceSet = assignments[s.id] || new Set();
             const targetSet = new Set(next[s.id] || []);
             if (sourceSet.has(copyFromClass)) {
@@ -209,7 +233,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         });
         setAssignments(next);
 
-        for (const s of subjects) {
+        for (const s of localSubjects) {
             const targetClassesArr = Array.from(next[s.id]);
             if (onUpdateSubject) {
                 onUpdateSubject(s.id, { targetClasses: targetClassesArr, assignedClasses: targetClassesArr } as any);
@@ -222,9 +246,123 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         setTimeout(() => setToastMessage(null), 3000);
     };
 
+    // Add / Edit Handlers
+    const handleOpenAdd = () => {
+        setEditingSubject(null);
+        setFormData({
+            name: '',
+            code: '',
+            departmentId: departments[0]?.id || '',
+            periodsPerWeek: 4
+        });
+        setIsAddModalOpen(true);
+    };
+
+    const handleOpenEdit = (subject: Subject, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setEditingSubject(subject);
+        const periods = subject.lessonStructure && subject.lessonStructure.length > 0
+            ? subject.lessonStructure.reduce((a, b) => a + b.count, 0)
+            : 4;
+        setFormData({
+            name: subject.name,
+            code: subject.code,
+            departmentId: subject.departmentId || departments[0]?.id || '',
+            periodsPerWeek: periods
+        });
+        setIsAddModalOpen(true);
+    };
+
+    const handleSaveForm = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.name.trim() || !formData.code.trim()) {
+            alert('Subject Title and Subject Code are required.');
+            return;
+        }
+
+        const lessonStructure = [{ count: Number(formData.periodsPerWeek) || 4, periods: 1 }];
+
+        if (editingSubject) {
+            // Edit existing subject
+            const updatedData = {
+                name: formData.name.trim(),
+                code: formData.code.trim().toUpperCase(),
+                departmentId: formData.departmentId || undefined,
+                lessonStructure
+            };
+
+            if (onUpdateSubject) {
+                onUpdateSubject(editingSubject.id, updatedData as any);
+            }
+            if (currentInstitution?.id) {
+                await apiService.saveSubject({ ...editingSubject, ...updatedData } as Subject).catch(() => {});
+            }
+
+            setLocalSubjects(prev => prev.map(s => s.id === editingSubject.id ? { ...s, ...updatedData } : s));
+            setToastMessage(`Subject "${formData.name.trim()}" updated successfully.`);
+        } else {
+            // Add new subject & allocate to selectedClass
+            const newSubjData: Omit<Subject, 'id' | 'institutionId'> = {
+                name: formData.name.trim(),
+                code: formData.code.trim().toUpperCase(),
+                departmentId: formData.departmentId || departments[0]?.id || 'dept_1',
+                lessonStructure,
+                isComplete: true,
+                targetClasses: [selectedClass],
+                assignedClasses: [selectedClass]
+            };
+
+            const newId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+            if (onAddSubject) {
+                onAddSubject(newSubjData);
+            }
+            if (currentInstitution?.id) {
+                await apiService.saveSubject({ ...newSubjData, id: newId, institutionId: currentInstitution.id } as Subject).catch(() => {});
+            }
+
+            const fullCreated: Subject = { ...newSubjData, id: newId, institutionId: currentInstitution?.id || 'default' } as Subject;
+            setLocalSubjects(prev => [...prev, fullCreated]);
+            setAssignments(prev => ({
+                ...prev,
+                [newId]: new Set([selectedClass])
+            }));
+
+            setToastMessage(`New subject "${formData.name.trim()}" created and allocated to ${selectedClass}.`);
+        }
+
+        setIsAddModalOpen(false);
+        setEditingSubject(null);
+        setTimeout(() => setToastMessage(null), 3500);
+    };
+
+    const handleDeleteSubject = async (subjectId: string, subjectName: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!window.confirm(`Are you sure you want to delete "${subjectName}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        if (onDeleteSubject) {
+            onDeleteSubject(subjectId);
+        }
+        if (currentInstitution?.id) {
+            await apiService.deleteSubject(subjectId).catch(() => {});
+        }
+
+        setLocalSubjects(prev => prev.filter(s => s.id !== subjectId));
+        setAssignments(prev => {
+            const next = { ...prev };
+            delete next[subjectId];
+            return next;
+        });
+
+        setToastMessage(`Subject "${subjectName}" deleted.`);
+        setTimeout(() => setToastMessage(null), 3500);
+    };
+
     return (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden relative">
                 {/* Header */}
                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                     <div>
@@ -237,7 +375,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                             Manage Subjects per Class Stream
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Configure which learning areas and subjects are active for each specific class grade/stream.
+                            Configure, edit, add, or delete learning areas and subject allocations for each specific class grade/stream.
                         </p>
                     </div>
 
@@ -308,15 +446,23 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                     </div>
                 </div>
 
-                {/* Stats & Quick Actions */}
+                {/* Stats & Quick Actions Bar */}
                 <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/30 border-b border-slate-100 dark:border-slate-700 flex flex-wrap justify-between items-center gap-4">
                     <div className="flex items-center gap-3">
                         <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/40 rounded-2xl border border-indigo-100 dark:border-indigo-800">
                             <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block">Active for {selectedClass}</span>
                             <span className="text-lg font-black text-indigo-700 dark:text-indigo-300">
-                                {assignedCountForSelectedClass} / {subjects.length} Subjects
+                                {assignedCountForSelectedClass} / {localSubjects.length} Subjects
                             </span>
                         </div>
+
+                        <button
+                            type="button"
+                            onClick={handleOpenAdd}
+                            className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md shadow-indigo-200 dark:shadow-none hover:scale-105 active:scale-95"
+                        >
+                            <PlusIcon className="w-4 h-4" /> + Add New Subject
+                        </button>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -349,6 +495,12 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                         <div className="py-12 text-center text-slate-400">
                             <BookOpenIcon className="w-12 h-12 mx-auto mb-3 opacity-30" />
                             <p className="text-sm font-bold uppercase tracking-wider">No subjects match search criteria.</p>
+                            <button
+                                onClick={handleOpenAdd}
+                                className="mt-4 px-4 py-2 bg-indigo-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md"
+                            >
+                                + Add First Subject
+                            </button>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -380,10 +532,28 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                                             </div>
                                         </div>
 
-                                        <div className="shrink-0">
+                                        <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                                             <button
                                                 type="button"
-                                                className={`w-12 h-7 rounded-full transition-colors relative focus:outline-none ${
+                                                onClick={e => handleOpenEdit(subject, e)}
+                                                title="Edit subject details"
+                                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                                            >
+                                                <PencilIcon className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={e => handleDeleteSubject(subject.id, subject.name, e)}
+                                                title="Delete subject"
+                                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleToggleSubject(subject.id)}
+                                                className={`w-12 h-7 rounded-full transition-colors relative focus:outline-none ml-1 ${
                                                     isAssigned ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
                                                 }`}
                                             >
@@ -412,6 +582,100 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                         Done
                     </button>
                 </div>
+
+                {/* Add / Edit Subject Sub-Modal Form Overlay */}
+                {isAddModalOpen && (
+                    <div className="fixed inset-0 z-60 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 w-full max-w-md p-6 space-y-6 animate-fade-in">
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-4">
+                                <h4 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                    {editingSubject ? <PencilIcon className="w-5 h-5 text-indigo-500" /> : <PlusIcon className="w-5 h-5 text-indigo-500" />}
+                                    {editingSubject ? 'Edit Subject' : `Add Subject for ${selectedClass}`}
+                                </h4>
+                                <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                                    <XIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleSaveForm} className="space-y-4 text-xs">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">
+                                        Subject Name / Learning Area *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={formData.name}
+                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                        placeholder="e.g. Integrated Science, Kiswahili Language"
+                                        className="form-input font-bold"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">
+                                        Subject Code *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={formData.code}
+                                        onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                                        placeholder="e.g. INT-SCI, KISW-01"
+                                        className="form-input font-mono uppercase font-bold"
+                                    />
+                                </div>
+
+                                {departments && departments.length > 0 && (
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">
+                                            Department
+                                        </label>
+                                        <select
+                                            value={formData.departmentId}
+                                            onChange={e => setFormData({ ...formData, departmentId: e.target.value })}
+                                            className="form-select font-bold text-slate-700 dark:text-slate-200"
+                                        >
+                                            {departments.map(d => (
+                                                <option key={d.id} value={d.id}>{d.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">
+                                        Periods per Week
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="20"
+                                        value={formData.periodsPerWeek}
+                                        onChange={e => setFormData({ ...formData, periodsPerWeek: Number(e.target.value) || 1 })}
+                                        className="form-input font-bold"
+                                    />
+                                </div>
+
+                                <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddModalOpen(false)}
+                                        className="px-4 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="btn-primary px-6 py-2.5 text-xs font-black uppercase tracking-wider"
+                                    >
+                                        {editingSubject ? 'Save Changes' : 'Create & Allocate'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

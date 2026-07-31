@@ -665,9 +665,12 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                     subjects={subjects}
                     courses={courses}
                     classOptions={classOptions}
+                    departments={visibleDepartments}
                     currentInstitution={currentInstitution}
                     onUpdateSubject={onUpdateSubject}
                     onUpdateCourse={onUpdateCourse}
+                    onAddSubject={onAddSubject}
+                    onDeleteSubject={onDeleteSubject}
                 />,
                 document.body
             )}
