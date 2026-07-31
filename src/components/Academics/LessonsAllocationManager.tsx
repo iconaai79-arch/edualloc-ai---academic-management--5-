@@ -12,7 +12,7 @@ import { BookOpenIcon } from '../icons/BookOpenIcon';
 import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { RectangleStackIcon } from '../icons/RectangleStackIcon';
 import { apiService } from '../../services/apiService';
-import { isSubjectApplicableToClass } from '../ClassSubjectAllocationModal';
+import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../ClassSubjectAllocationModal';
 
 export interface SubjectAllocationRecord {
     id: string;
@@ -142,7 +142,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         if (!clsName) return [];
         
         if (subjects && subjects.length > 0) {
-            const applicable = subjects.filter(s => isSubjectApplicableToClass(s, clsName));
+            const applicable = subjects.filter(s => isSubjectAssignedToClassStream(s, clsName, courses));
             if (applicable.length > 0) return applicable;
         }
 
@@ -154,7 +154,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             { id: 'sub_soc', name: 'Social Studies', code: 'SST 101', periodsPerWeek: 4 },
             { id: 'sub_cre', name: 'Religious Education', code: 'CRE 101', periodsPerWeek: 3 }
         ];
-    }, [subjects]);
+    }, [subjects, courses]);
 
     const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>([]);
     const [removedFromClassKeys, setRemovedFromClassKeys] = useState<Set<string>>(new Set());

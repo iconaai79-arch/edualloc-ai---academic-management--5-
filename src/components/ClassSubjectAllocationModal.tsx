@@ -88,6 +88,53 @@ export const isSubjectApplicableToClass = (
     return true;
 };
 
+export const isSubjectAssignedToClassStream = (
+    subject: Subject,
+    className: string,
+    courses: Course[] = []
+): boolean => {
+    if (!className || !className.trim()) return false;
+    const cLower = className.toLowerCase().trim();
+
+    // 1. Explicit targetClasses / assignedClasses array on subject
+    const targetCls = subject.targetClasses || subject.assignedClasses || (subject as any).classes;
+    if (Array.isArray(targetCls) && targetCls.length > 0) {
+        const hasExplicitMatch = targetCls.some(c => {
+            const cleanC = (c || '').toLowerCase().trim();
+            return cleanC === cLower ||
+                   cLower.startsWith(cleanC) ||
+                   cleanC.startsWith(cLower) ||
+                   (cleanC.includes('lower primary') && /\b(grade|std|class)\s*[1-3]\b/i.test(className)) ||
+                   (cleanC.includes('upper primary') && /\b(grade|std|class)\s*[4-6]\b/i.test(className)) ||
+                   (cleanC.includes('junior secondary') && /\b(grade|std|class)\s*[7-9]\b/i.test(className));
+        });
+        if (hasExplicitMatch) return true;
+    }
+
+    // 2. Course level assignments (e.g. course levels matching className)
+    if (courses && courses.length > 0) {
+        for (const c of courses) {
+            if (c.levels) {
+                for (const l of c.levels) {
+                    const levelName = (l.name || c.name || '').toLowerCase().trim();
+                    const ids = l.subjectIds || (l as any).subject_ids || [];
+                    if (ids.includes(subject.id)) {
+                        if (levelName === cLower || cLower.startsWith(levelName) || levelName.startsWith(cLower) ||
+                            (levelName.includes('lower primary') && /\b(grade|std|class)\s*[1-3]\b/i.test(className)) ||
+                            (levelName.includes('upper primary') && /\b(grade|std|class)\s*[4-6]\b/i.test(className)) ||
+                            (levelName.includes('junior secondary') && /\b(grade|std|class)\s*[7-9]\b/i.test(className))) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Fallback to standard CBC grade level applicability
+    return isSubjectApplicableToClass(subject, className);
+};
+
 export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalProps> = ({
     onClose,
     subjects = [],
@@ -126,23 +173,9 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         
         subjects.forEach(s => {
             const set = new Set<string>();
-            const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
-            if (Array.isArray(targetCls) && targetCls.length > 0) {
-                targetCls.forEach(c => set.add(c));
-            } else {
-                // Default subject assignment based on Grade level (PP1 to Grade 9)
-                classOptions.filter(c => isSubjectApplicableToClass(s, c)).forEach(c => set.add(c));
-            }
-            
-            // Check course levels
-            courses.forEach(c => {
-                if (c.levels) {
-                    c.levels.forEach(l => {
-                        const ids = l.subjectIds || (l as any).subject_ids || [];
-                        if (ids.includes(s.id)) {
-                            set.add(l.name || c.name);
-                        }
-                    });
+            classOptions.forEach(c => {
+                if (isSubjectAssignedToClassStream(s, c, courses)) {
+                    set.add(c);
                 }
             });
             initial[s.id] = set;
