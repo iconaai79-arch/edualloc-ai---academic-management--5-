@@ -3003,7 +3003,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
      const onLoginAsAdmin = useCallback((institutionId: string, initialRole?: Role | null) => {
         setIsTransitioning(true);
-        setTimeout(() => {
+        setTimeout(async () => {
             const adminRoles = [
                 // Top Tier Admin
                 'admin', 'group_admin', 'school_group_admin', 'school_admin', 'head_teacher', 'deputy', 'dos', 'hod', 'tto', 
@@ -3079,7 +3079,20 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 return false;
             };
 
-            const matchedAdmins = users.filter(u => isUserForInst(u) && adminRoles.includes(u.role));
+            let currentUsers = users;
+            if (!currentUsers.some(u => isUserForInst(u))) {
+                const fetchedInstUsers = await apiService.fetchModuleRecords<User>('users', institutionId).catch(() => []);
+                if (fetchedInstUsers && fetchedInstUsers.length > 0) {
+                    setUsers(prev => {
+                        const existingIds = new Set(prev.map(u => u.id));
+                        const newUsers = fetchedInstUsers.filter(u => !existingIds.has(u.id));
+                        return [...prev, ...newUsers];
+                    });
+                    currentUsers = [...currentUsers, ...fetchedInstUsers];
+                }
+            }
+
+            const matchedAdmins = currentUsers.filter(u => isUserForInst(u) && adminRoles.includes(u.role));
             let admin = null;
             if (matchedAdmins.length > 0) {
                 matchedAdmins.sort((a, b) => {
@@ -3093,7 +3106,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             if (!admin) {
                 console.warn(`Strict admin lookup failed for institution ${institutionId}. Falling back to non-portal user.`);
                 const excludedRoles = ['student', 'parent', 'customer'];
-                const fallbackUsers = users.filter(u => isUserForInst(u) && (!excludedRoles.includes(u.role) || initialRole === u.role));
+                const fallbackUsers = currentUsers.filter(u => isUserForInst(u) && (!excludedRoles.includes(u.role) || initialRole === u.role));
                 if (fallbackUsers.length > 0) {
                     admin = fallbackUsers[0];
                 }
@@ -3106,10 +3119,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 const fallbackRole = (targetInst?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') ? 'reseller' : isPM ? 'property_admin' : (initialRole || 'admin');
 
                 const cleanName = targetInst?.name || registryEntry?.name || 'Grouped Institution';
+                const isActualBranch = (branches || []).some((b: any) => b.id === institutionId);
                 admin = {
                     id: `temp_admin_${institutionId.replace(/\s+/g, '_')}_${Date.now()}`,
                     institutionId: institutionId,
-                    branchId: institutionId,
+                    branchId: isActualBranch ? institutionId : undefined,
                     role: fallbackRole as Role,
                     email: `admin@${institutionId.replace('demo_', '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'cdf'}.eduai.io`,
                     name: `${cleanName} Admin`,
