@@ -94,6 +94,9 @@ interface AcademicsOfficerViewProps {
     letterheadConfig?: LetterheadConfig;
     logoUrl?: string | null;
     footerImageUrl?: string | null;
+    onUpdateLogo?: (url: string) => void;
+    onUpdateFooterImage?: (url: string) => void;
+    onSaveLetterheadConfig?: (config: LetterheadConfig) => void;
     emailConfig?: EmailConfig;
     onSaveEmailConfig?: (config: EmailConfig) => void;
     onSendTestEmail?: (recipient: string) => Promise<{ success?: boolean; message?: string; }>;

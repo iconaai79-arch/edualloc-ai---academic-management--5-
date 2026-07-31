@@ -5938,6 +5938,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                         letterheadConfig={activeLetterheadConfig}
                                         logoUrl={activeBranding.logoUrl}
                                         footerImageUrl={activeFooterImageUrl}
+                                        onUpdateLogo={(logo: string) => onUpdateInstitution(activeInstitution!.id, { logoUrl: logo })}
+                                        onUpdateFooterImage={(footer: string) => onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer })}
+                                        onSaveLetterheadConfig={(config: any) => onUpdateInstitution(activeInstitution!.id, { letterheadConfig: config })}
                                         emailConfig={companyDetails.emailConfig}
                                         onSaveEmailConfig={(config: any) => onUpdateInstitution(activeInstitution!.id, { emailConfig: config })}
                                         onSendTestEmail={async (r: string) => ({ success: true, message: 'Test email functionality bypassed.' })}

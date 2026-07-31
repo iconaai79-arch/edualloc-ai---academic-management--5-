@@ -2717,6 +2717,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     letterheadConfig={props.letterheadConfig}
                                     logoUrl={props.logoUrl}
                                     footerImageUrl={props.footerImageUrl}
+                                    onUpdateLogo={props.onUpdateLogo as any}
+                                    onUpdateFooterImage={props.onUpdateFooterImage as any}
+                                    onSaveLetterheadConfig={props.onSaveLetterheadConfig}
                                     emailConfig={props.emailConfig}
                                     onSaveEmailConfig={props.onSaveEmailConfig as any}
                                     onSendTestEmail={props.onSendTestEmail as any}
