@@ -529,7 +529,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                         {classOptions.map(cls => {
                             const rawApplicable = getApplicableSubjectsForClass(cls);
                             const seenNames = new Set<string>();
-                            const applicable: typeof rawApplicable = [];
+                            const applicable: any[] = [];
                             rawApplicable.forEach(s => {
                                 const k = (s.name || '').toLowerCase().trim();
                                 if (k && !seenNames.has(k) && !removedFromClassKeys.has(`${cls}_${s.name}`)) {

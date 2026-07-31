@@ -320,11 +320,11 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 await apiService.saveSubject({ ...editingSubject, ...updatedData } as Subject).catch(() => {});
             }
 
-            setLocalSubjects(prev => prev.map(s => s.id === editingSubject.id ? { ...s, ...updatedData } : s));
+            setLocalSubjects(prev => prev.map(s => s.id === editingSubject.id ? ({ ...s, ...updatedData } as Subject) : s));
             setToastMessage(`Subject "${formData.name.trim()}" updated successfully.`);
         } else {
             // Add new subject & allocate to selectedClass
-            const newSubjData: Omit<Subject, 'id' | 'institutionId'> = {
+            const newSubjData: any = {
                 name: formData.name.trim(),
                 code: formData.code.trim().toUpperCase(),
                 departmentId: formData.departmentId || departments[0]?.id || 'dept_1',
@@ -368,7 +368,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             onDeleteSubject(subjectId);
         }
         if (currentInstitution?.id) {
-            await apiService.deleteSubject(subjectId).catch(() => {});
+            await apiService.deleteModuleRecord('subjects', subjectId).catch(() => {});
         }
 
         setLocalSubjects(prev => prev.filter(s => s.id !== subjectId));
