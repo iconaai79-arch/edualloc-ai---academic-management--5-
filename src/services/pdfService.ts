@@ -126,7 +126,23 @@ const createPdfWithLetterhead = (
             finalWidth = (headerImg.width * finalHeight) / headerImg.height;
         }
         const xPos = (pageWidth - finalWidth) / 2;
-        doc.addImage(headerImg, 'JPEG', xPos, 15, finalWidth, finalHeight);
+
+        let format = 'JPEG';
+        if (headerImg.src) {
+            const srcLower = headerImg.src.toLowerCase();
+            if (srcLower.includes('png') || srcLower.startsWith('data:image/png')) format = 'PNG';
+            else if (srcLower.includes('webp') || srcLower.startsWith('data:image/webp')) format = 'WEBP';
+        }
+
+        try {
+            doc.addImage(headerImg, format, xPos, 15, finalWidth, finalHeight);
+        } catch (e) {
+            try {
+                doc.addImage(headerImg, 'PNG', xPos, 15, finalWidth, finalHeight);
+            } catch (e2) {
+                console.warn("[pdfService] Failed to draw headerImg on PDF:", e2);
+            }
+        }
 
         const lineY = 15 + finalHeight + 5;
         doc.setDrawColor(180, 180, 180);
@@ -9538,9 +9554,21 @@ export const generateStudentStatementPdfDataUri = async (
     const doc = new lib.jsPDF();
 
     const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
-    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
-    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
-    const logoImg = await loadImage(logoUrl || companyDetails?.logoUrl);
+    const letterheadUrl = letterConfig?.headerImageUrl 
+        || (institution as any)?.letterheadUrl 
+        || (institution as any)?.letterhead_url 
+        || companyDetails?.letterheadConfig?.headerImageUrl 
+        || (companyDetails as any)?.letterheadUrl;
+    
+    const footerUrl = letterConfig?.footerImageUrl 
+        || (institution as any)?.footerImageUrl 
+        || (institution as any)?.footer_image_url 
+        || companyDetails?.letterheadConfig?.footerImageUrl 
+        || (companyDetails as any)?.footerImageUrl;
+
+    const headerImg = letterheadUrl ? await loadImage(letterheadUrl) : null;
+    const footerImg = footerUrl ? await loadImage(footerUrl) : null;
+    const logoImg = await loadImage(logoUrl || institution?.logoUrl || (institution as any)?.logo_url || companyDetails?.logoUrl);
 
     let yPos = createPdfWithLetterhead(
         doc,

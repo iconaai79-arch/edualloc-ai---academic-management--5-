@@ -14220,25 +14220,48 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                                         {/* A4 Document Preview Card */}
                                                         <div className="bg-white text-slate-900 shadow-2xl rounded-2xl border border-slate-200 p-8 md:p-12 max-w-4xl mx-auto space-y-8 font-sans print:shadow-none print:border-none print:p-0">
-                                                            {/* School Header */}
-                                                            <div className="flex justify-between items-start border-b-2 border-indigo-600 pb-6">
-                                                                <div>
-                                                                    <div className="flex items-center gap-3 mb-2">
-                                                                        {(props.institution.logoUrl || (props.institution as any).logo_url) && (
-                                                                            <img src={props.institution.logoUrl || (props.institution as any).logo_url} alt="Logo" className="w-12 h-12 object-contain rounded-xl" />
-                                                                        )}
-                                                                        <div>
-                                                                            <h2 className="text-2xl font-black tracking-tight text-indigo-950">{props.institution.name}</h2>
-                                                                            <p className="text-xs text-slate-500 font-medium">{props.institution.email || 'finance@school.edu'} · {props.institution.phoneNumber || '+254 700 000000'}</p>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 font-black text-[10px] uppercase tracking-widest rounded-lg border border-indigo-200 mb-1">Official Document</span>
-                                                                    <h4 className="text-lg font-black uppercase tracking-tight text-slate-800">Statement of Account</h4>
-                                                                    <p className="text-xs text-slate-400 font-bold">Issue Date: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                                                                </div>
-                                                            </div>
+                                                            {(() => {
+                                                                 const letterheadUrl = props.institution.letterheadConfig?.headerImageUrl 
+                                                                     || (props.institution as any).letterheadUrl 
+                                                                     || (props.institution as any).letterhead_url 
+                                                                     || props.companyDetails?.letterheadConfig?.headerImageUrl;
+                                                                 
+                                                                 if (letterheadUrl) {
+                                                                     return (
+                                                                         <div className="border-b-2 border-indigo-600 pb-6 space-y-4">
+                                                                             <div className="w-full flex justify-center">
+                                                                                 <img src={letterheadUrl} alt="School Letterhead" className="max-h-28 w-auto object-contain" />
+                                                                             </div>
+                                                                             <div className="flex justify-between items-center pt-2">
+                                                                                 <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 font-black text-[10px] uppercase tracking-widest rounded-lg border border-indigo-200">Official Document</span>
+                                                                                 <h4 className="text-lg font-black uppercase tracking-tight text-slate-800">Statement of Account</h4>
+                                                                                 <p className="text-xs text-slate-400 font-bold">Issue Date: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                                                                             </div>
+                                                                         </div>
+                                                                     );
+                                                                 }
+
+                                                                 return (
+                                                                     <div className="flex justify-between items-start border-b-2 border-indigo-600 pb-6">
+                                                                         <div>
+                                                                             <div className="flex items-center gap-3 mb-2">
+                                                                                 {(props.institution.logoUrl || (props.institution as any).logo_url) && (
+                                                                                     <img src={props.institution.logoUrl || (props.institution as any).logo_url} alt="Logo" className="w-12 h-12 object-contain rounded-xl" />
+                                                                                 )}
+                                                                                 <div>
+                                                                                     <h2 className="text-2xl font-black tracking-tight text-indigo-950">{props.institution.name}</h2>
+                                                                                     <p className="text-xs text-slate-500 font-medium">{props.institution.email || 'finance@school.edu'} · {props.institution.phoneNumber || '+254 700 000000'}</p>
+                                                                                 </div>
+                                                                             </div>
+                                                                         </div>
+                                                                         <div className="text-right">
+                                                                             <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 font-black text-[10px] uppercase tracking-widest rounded-lg border border-indigo-200 mb-1">Official Document</span>
+                                                                             <h4 className="text-lg font-black uppercase tracking-tight text-slate-800">Statement of Account</h4>
+                                                                             <p className="text-xs text-slate-400 font-bold">Issue Date: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                                                                         </div>
+                                                                     </div>
+                                                                 );
+                                                             })()}
 
                                                             {/* Student Metadata Box */}
                                                             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
