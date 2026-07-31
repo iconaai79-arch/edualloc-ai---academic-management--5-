@@ -219,7 +219,8 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                 linkedInstId = newInstId;
             }
 
-            const branchId = newBranchData.customId.trim() || (linkedInstId ? `br_${linkedInstId}` : `br_${selectedInstForNewBranch.id}_${Date.now()}`);
+            const formatBranchId = (id: string) => id.startsWith('br_') ? id : `br_${id}`;
+            const branchId = newBranchData.customId.trim() || (linkedInstId ? formatBranchId(linkedInstId) : formatBranchId(`${selectedInstForNewBranch.id}_${Date.now()}`));
             const record: Partial<Branch> = {
                 id: branchId,
                 institution_id: selectedInstForNewBranch.id,

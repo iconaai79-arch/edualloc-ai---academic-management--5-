@@ -3007,12 +3007,24 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 'transport_assistant', 'driver'
             ];
 
-            const branchRecord = (branches || []).find((b: any) => b.linked_institution_id === institutionId || b.id === institutionId || b.id === `br_${institutionId}` || (b.id && institutionId.includes(b.id)));
-            let targetInst = institutions.find(i => i.id === institutionId);
+            const cleanId = (id?: string) => id ? String(id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '') : '';
+            const normTargetId = cleanId(institutionId);
+
+            const branchRecord = (branches || []).find((b: any) => {
+                if (!b) return false;
+                if (b.linked_institution_id === institutionId || b.id === institutionId || b.id === `br_${institutionId}`) return true;
+                if (b.linked_institution_id && cleanId(b.linked_institution_id) === normTargetId) return true;
+                if (b.id && cleanId(b.id) === normTargetId) return true;
+                if (b.institution_id === institutionId || (b.institution_id && cleanId(b.institution_id) === normTargetId)) return true;
+                if (b.id && institutionId.includes(b.id)) return true;
+                return false;
+            });
+
+            let targetInst = institutions.find(i => i.id === institutionId || cleanId(i.id) === normTargetId);
             
             if (!targetInst) {
-                const regEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId);
-                const parentInst = branchRecord ? institutions.find(i => i.id === branchRecord.institution_id) : null;
+                const regEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId || cleanId(s.id) === normTargetId || cleanId(s.institutionId) === normTargetId);
+                const parentInst = branchRecord ? institutions.find(i => i.id === branchRecord.institution_id || cleanId(i.id) === cleanId(branchRecord.institution_id)) : null;
                 
                 targetInst = {
                     id: institutionId,
@@ -3037,10 +3049,18 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 const uBranch = u.branchId || u.branch_id || u.metadata?.branchId || u.metadata?.branch_id;
                 
                 if (uInst === institutionId || uBranch === institutionId) return true;
-                if (parentInstId && (uInst === parentInstId || uBranch === parentInstId)) {
-                    if (!uBranch || uBranch === 'ALL' || uBranch === 'main' || uBranch === institutionId || uBranch === parentInstId) return true;
+                if (normTargetId && (cleanId(uInst) === normTargetId || cleanId(uBranch) === normTargetId)) return true;
+
+                if (parentInstId) {
+                    const normParentInstId = cleanId(parentInstId);
+                    if (uInst === parentInstId || uBranch === parentInstId || cleanId(uInst) === normParentInstId || cleanId(uBranch) === normParentInstId) {
+                        if (!uBranch || uBranch === 'ALL' || uBranch === 'main' || uBranch === institutionId || uBranch === parentInstId || cleanId(uBranch) === normTargetId || cleanId(uBranch) === normParentInstId) return true;
+                    }
                 }
-                if (branchRecord && (uInst === branchRecord.institution_id || uInst === branchRecord.linked_institution_id)) return true;
+                if (branchRecord) {
+                    if (uInst === branchRecord.institution_id || uInst === branchRecord.linked_institution_id || uBranch === branchRecord.id || uBranch === branchRecord.linked_institution_id) return true;
+                    if (cleanId(uInst) === cleanId(branchRecord.institution_id) || cleanId(uInst) === cleanId(branchRecord.linked_institution_id)) return true;
+                }
                 return false;
             };
 
