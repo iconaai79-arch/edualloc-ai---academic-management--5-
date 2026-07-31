@@ -329,11 +329,52 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         });
     }, [getApplicableSubjectsForClass, selectedClass, allocations, teacherUsers, currentInstitution, searchQuery]);
 
+    // All allocations dynamically gathered across classOptions + saved DB allocations
+    const allAllocations = useMemo(() => {
+        const q = searchQuery.toLowerCase().trim();
+        const map = new Map<string, SubjectAllocationRecord>();
+
+        // 1. First add all DB/state saved allocations
+        (allocations || []).forEach(a => {
+            map.set(`${a.className}_${a.subjectName}`, a);
+        });
+
+        // 2. Add dynamically derived class allocations for all classOptions
+        (classOptions || []).forEach(cls => {
+            const applicable = getApplicableSubjectsForClass(cls);
+            applicable.forEach((subj, idx) => {
+                const key = `${cls}_${subj.name}`;
+                if (!map.has(key)) {
+                    const defaultTeacher = teacherUsers[idx % teacherUsers.length];
+                    map.set(key, {
+                        id: `alloc_${cls.replace(/\s+/g, '_')}_${subj.id || idx}`,
+                        institutionId: currentInstitution?.id || 'inst_1',
+                        className: cls,
+                        subjectName: subj.name,
+                        subjectCode: subj.code || `${subj.name.substring(0, 4).toUpperCase()} 101`,
+                        teacherId: defaultTeacher ? defaultTeacher.id : '',
+                        teacherName: defaultTeacher ? defaultTeacher.name : 'Unassigned',
+                        lessonsPerWeek: (subj as any).periodsPerWeek || (subj as any).lessonsPerWeek || (idx % 2 === 0 ? 7 : 6),
+                        status: defaultTeacher ? ('allocated' as const) : ('unassigned' as const)
+                    });
+                }
+            });
+        });
+
+        const list = Array.from(map.values());
+        if (!q) return list;
+        return list.filter(a =>
+            a.className.toLowerCase().includes(q) ||
+            a.subjectName.toLowerCase().includes(q) ||
+            (a.teacherName && a.teacherName.toLowerCase().includes(q))
+        );
+    }, [allocations, classOptions, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery]);
+
     // Selected Teacher Allocations & Workload
     const selectedTeacherObj = teacherUsers.find(t => t.id === selectedTeacherId);
     const teacherAllocations = useMemo(() => {
-        return filteredAllocations.filter(a => a.teacherId === selectedTeacherId);
-    }, [filteredAllocations, selectedTeacherId]);
+        return allAllocations.filter(a => a.teacherId === selectedTeacherId);
+    }, [allAllocations, selectedTeacherId]);
 
     const totalTeacherLessons = useMemo(() => {
         return teacherAllocations.reduce((sum, a) => sum + (a.lessonsPerWeek || 0), 0);

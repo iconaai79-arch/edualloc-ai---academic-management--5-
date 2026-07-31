@@ -1508,12 +1508,15 @@ export const apiService = {
         const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
         if (tablesWithBranchId.includes(module) && module !== 'branches') {
             const bId = _sessionUser?.branchId || _sessionUser?.branch_id;
-            if (bId && !(data as any).branch_id && !(data as any).branchId) {
+            if (bId && !bId.startsWith('inst_') && bId !== (data as any).institutionId && bId !== (data as any).institution_id && !(data as any).branch_id && !(data as any).branchId) {
                 (data as any).branchId = bId;
             }
         }
 
         let payload = apiService.sanitizePayload(module, toSnakeCase(data));
+        if (payload && payload.branch_id && (payload.branch_id.startsWith('inst_') || payload.branch_id === payload.institution_id)) {
+            payload.branch_id = null;
+        }
 
         if (!_supabase) {
             ls.upsert(module, payload);
@@ -1651,9 +1654,9 @@ export const apiService = {
         const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
         if (tablesWithBranchId.includes(module) && module !== 'branches') {
             const bId = _sessionUser?.branchId || _sessionUser?.branch_id;
-            if (bId) {
+            if (bId && !bId.startsWith('inst_')) {
                 data.forEach((item: any) => {
-                    if (item && !item.branch_id && !item.branchId) {
+                    if (item && !item.branch_id && !item.branchId && bId !== item.institutionId && bId !== item.institution_id) {
                         (item as any).branchId = bId;
                     }
                 });
@@ -1661,6 +1664,13 @@ export const apiService = {
         }
 
         let payload = apiService.sanitizePayload(module, data.map(toSnakeCase));
+        if (Array.isArray(payload)) {
+            payload.forEach((item: any) => {
+                if (item && item.branch_id && (item.branch_id.startsWith('inst_') || item.branch_id === item.institution_id)) {
+                    item.branch_id = null;
+                }
+            });
+        }
 
         if (!_supabase) {
             const records = ls.get(module);

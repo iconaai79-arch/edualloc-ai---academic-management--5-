@@ -3118,10 +3118,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                         ? 'property_admin'
                         : admin.role;
 
+                const isBranchInst = (branches || []).some((b: any) => b.id === institutionId || b.id === `br_${institutionId}` || b.linked_institution_id === institutionId);
+
                 const impersonatedUser = {
                     ...admin,
                     institutionId: institutionId,
-                    branchId: institutionId,
+                    branchId: isBranchInst ? institutionId : undefined,
                     role: resolvedRole as Role
                 };
                 
