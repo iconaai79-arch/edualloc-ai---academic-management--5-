@@ -397,13 +397,6 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             return;
         }
 
-        if (onDeleteSubject) {
-            onDeleteSubject(subjectId);
-        }
-        if (currentInstitution?.id) {
-            await apiService.deleteModuleRecord('subjects', subjectId).catch(() => {});
-        }
-
         setLocalSubjects(prev => prev.filter(s => s.id !== subjectId));
         setAssignments(prev => {
             const next = { ...prev };
@@ -411,7 +404,13 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             return next;
         });
 
-        setToastMessage(`Subject "${subjectName}" deleted.`);
+        if (onDeleteSubject) {
+            await onDeleteSubject(subjectId);
+        } else if (currentInstitution?.id) {
+            await apiService.deleteModuleRecord('subjects', subjectId).catch(() => {});
+        }
+
+        setToastMessage(`Subject "${subjectName}" deleted successfully.`);
         setTimeout(() => setToastMessage(null), 3500);
     };
 

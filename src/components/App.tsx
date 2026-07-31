@@ -2226,9 +2226,29 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
     }, [currentUser, loadData]);
 
     const handleDeleteSubject = useCallback(async (id: string) => {
-        await apiService.deleteModuleRecord('subjects', id);
-        loadData();
-    }, [loadData]);
+        try {
+            const subjObj = (subjects || []).find(s => s.id === id);
+            // 1. Clean up dependent subject allocations from DB to prevent foreign key issues
+            const instId = currentUser?.institutionId || activeInstitution?.id;
+            const allAllocations = await apiService.fetchModuleRecords<any>('subject_allocations', instId).catch(() => []);
+            const matchingAllocations = allAllocations.filter((a: any) => a.subjectId === id || (subjObj && a.subjectName && a.subjectName.toLowerCase().trim() === subjObj.name.toLowerCase().trim()));
+            for (const alloc of matchingAllocations) {
+                if (alloc.id) {
+                    await apiService.deleteModuleRecord('subject_allocations', alloc.id).catch(() => {});
+                }
+            }
+
+            // 2. Delete subject from DB
+            await apiService.deleteModuleRecord('subjects', id);
+        } catch (err) {
+            console.error("Failed to delete subject from DB:", err);
+            const subjObj = (subjects || []).find(s => s.id === id);
+            if (subjObj) {
+                await apiService.saveSubject({ ...subjObj, targetClasses: [], assignedClasses: [], isArchived: true } as any).catch(() => {});
+            }
+        }
+        await loadData(false, true);
+    }, [subjects, currentUser, activeInstitution, loadData]);
 
     const handleImportSubjectsAndAssociate = useCallback(async (subjects: any[]) => {
         await apiService.onImportSubjectsAndAssociate(subjects, currentUser?.institutionId);
