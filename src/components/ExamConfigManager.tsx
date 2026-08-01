@@ -14,6 +14,7 @@ import { CheckIcon } from './icons/CheckIcon';
 import { XIcon } from './icons/XIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { isSubjectAssignedToClassStream } from './ClassSubjectAllocationModal';
+import { apiService } from '../services/apiService';
 
 export interface ClassSubjectPaper {
     id: string;
@@ -117,6 +118,26 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
             setActiveCommentClassId(classList[0].id);
         }
     }, [classList, activeClassId]);
+
+    // DB subject_allocations records — used to detect subjects added via LessonsAllocationManager
+    // that may not have targetClasses set on their Subject record
+    const [dbAllocations, setDbAllocations] = useState<Array<{ className: string; subjectName: string; subjectCode?: string; subjectId?: string }>>([]);
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('subject_allocations', currentInstitution.id)
+                .then((recs: any[]) => {
+                    if (recs && recs.length > 0) {
+                        setDbAllocations(recs.map((r: any) => ({
+                            className: r.className || '',
+                            subjectName: r.subjectName || '',
+                            subjectCode: r.subjectCode,
+                            subjectId: r.subjectId
+                        })));
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
 
     // 1. Default initial Per-Class Exam Papers state
     const initialClassConfigs: ClassExamConfig[] = useMemo(() => [
@@ -423,9 +444,11 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
             const className = activeClassObj?.name || '';
 
             // Auto-populate subjects from those allocated to this class
+            const seenNames = new Set<string>();
             const autoSubjects: ClassSubjectConfig[] = [];
+
+            // Source 1: subjects with targetClasses including this class (CBC / explicit assignment)
             if (className && subjects && subjects.length > 0) {
-                const seenNames = new Set<string>();
                 const allocatedForClass = subjects.filter(s =>
                     isSubjectAssignedToClassStream(s, className, courses)
                 );
@@ -438,14 +461,31 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                             subjectId: s.id,
                             subjectCode: s.code || s.name.substring(0, 4).toUpperCase(),
                             subjectName: s.name.toUpperCase(),
-                            papers: [{
-                                id: `auto_paper_${s.id}_${activeClassId}`,
-                                name: 'Main paper',
-                                maxScore: 100
-                            }]
+                            papers: [{ id: `auto_paper_${s.id}_${activeClassId}`, name: 'Main paper', maxScore: 100 }]
                         });
                     }
                 });
+            }
+
+            // Source 2: subjects added directly as DB allocation records (e.g. via LessonsAllocationManager)
+            if (className) {
+                const clsLower = className.toLowerCase().trim();
+                dbAllocations
+                    .filter(a => (a.className || '').toLowerCase().trim() === clsLower)
+                    .forEach(a => {
+                        const nameKey = (a.subjectName || '').toLowerCase().trim();
+                        if (nameKey && !seenNames.has(nameKey)) {
+                            seenNames.add(nameKey);
+                            const matchedSubj = subjects.find(s => (s.name || '').toLowerCase().trim() === nameKey);
+                            autoSubjects.push({
+                                id: `auto_db_${nameKey}_${activeClassId}`,
+                                subjectId: matchedSubj?.id || a.subjectId || nameKey,
+                                subjectCode: a.subjectCode || matchedSubj?.code || nameKey.substring(0, 4).toUpperCase(),
+                                subjectName: a.subjectName.toUpperCase(),
+                                papers: [{ id: `auto_db_paper_${nameKey}_${activeClassId}`, name: 'Main paper', maxScore: 100 }]
+                            });
+                        }
+                    });
             }
 
             found = {
@@ -455,7 +495,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
             };
         }
         return found;
-    }, [classConfigs, activeClassId, classList, subjects, courses]);
+    }, [classConfigs, activeClassId, classList, subjects, courses, dbAllocations]);
 
     // Active class comments helper for Teacher Comments
     const activeClassComments = useMemo(() => {
@@ -477,19 +517,32 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         const conf = classConfigs.find(c => c.classId === cId);
         if (conf) return conf.subjects.reduce((sum, s) => sum + s.papers.length, 0);
 
-        // No saved config — count subjects allocated to this class (each gets 1 auto paper)
+        // No saved config — count unique subjects across both sources (targetClasses + DB allocations)
         const classObj = classList.find(c => c.id === cId);
-        if (!classObj || !subjects || subjects.length === 0) return 0;
+        if (!classObj) return 0;
+        const clsName = classObj.name;
+        const clsLower = clsName.toLowerCase().trim();
         const seenNames = new Set<string>();
-        let count = 0;
-        subjects.forEach(s => {
-            const k = (s.name || '').toLowerCase().trim();
-            if (k && !seenNames.has(k) && isSubjectAssignedToClassStream(s, classObj.name, courses)) {
-                seenNames.add(k);
-                count++;
-            }
-        });
-        return count;
+
+        // Source 1: subjects with targetClasses matching this class
+        if (subjects && subjects.length > 0) {
+            subjects.forEach(s => {
+                const k = (s.name || '').toLowerCase().trim();
+                if (k && !seenNames.has(k) && isSubjectAssignedToClassStream(s, clsName, courses)) {
+                    seenNames.add(k);
+                }
+            });
+        }
+
+        // Source 2: DB allocation records for this class
+        dbAllocations
+            .filter(a => (a.className || '').toLowerCase().trim() === clsLower)
+            .forEach(a => {
+                const k = (a.subjectName || '').toLowerCase().trim();
+                if (k && !seenNames.has(k)) seenNames.add(k);
+            });
+
+        return seenNames.size;
     };
 
     // Helper to get total teacher comment rules count for a class
