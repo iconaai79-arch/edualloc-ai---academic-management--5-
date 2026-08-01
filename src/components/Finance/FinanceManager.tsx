@@ -159,24 +159,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [allBranchReceipts, setAllBranchReceipts] = useState<any[]>([]);
     const [allBranchEnrollments, setAllBranchEnrollments] = useState<any[]>([]);
 
+    const cleanId = React.useCallback((id?: string) => id ? String(id).trim().replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '') : '', []);
+
     useEffect(() => {
         if (props.institution?.id) {
-            apiService.fetchModuleRecords('branches', props.institution.id)
-                .then((list: any[]) => {
-                    setBranches(list || []);
-                })
-                .catch(() => {});
+            const isGlobalAdmin = ['super_admin', 'group_admin', 'admin'].includes(props.currentUser?.role || '');
+            const fetchPromise = isGlobalAdmin
+                ? apiService.fetchModuleRecords('branches').catch(() => [])
+                : apiService.fetchModuleRecords('branches', props.institution.id).catch(() => []);
+
+            fetchPromise.then((list: any[]) => {
+                setBranches(list || []);
+            });
         }
-    }, [props.institution?.id]);
+    }, [props.institution?.id, props.currentUser?.role]);
 
     // Fetch records for all satellite branches when in multi-branch/group admin mode
     useEffect(() => {
         const isGlobalAdmin = ['super_admin', 'group_admin', 'admin'].includes(props.currentUser?.role || '');
         if (!isGlobalAdmin || branches.length === 0) return;
 
-        const linkedInstIds = branches
-            .map((b: any) => b.linked_institution_id || b.linkedInstitutionId || b.id)
-            .filter((id: string) => id && id !== props.institution?.id);
+        const currentInstClean = cleanId(props.institution?.id);
+        const linkedInstIds = Array.from(new Set(
+            branches.flatMap((b: any) => [
+                b.linked_institution_id,
+                b.linkedInstitutionId,
+                b.institution_id,
+                b.id,
+                b.metadata?.institutionId,
+                b.metadata?.linkedInstitutionId
+            ]).filter((id: string) => id && cleanId(id) !== currentInstClean)
+        ));
 
         if (linkedInstIds.length === 0) return;
 
@@ -212,7 +225,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         };
 
         fetchAllBranchData();
-    }, [branches, props.institution?.id, props.currentUser?.role]);
+    }, [branches, props.institution?.id, props.currentUser?.role, cleanId]);
 
     const mergedStudents = useMemo(() => {
         const map = new Map<string, any>();
@@ -256,31 +269,55 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         if (!selectedBranchId || selectedBranchId === 'ALL') return null;
         const ids = new Set<string>();
         ids.add(selectedBranchId);
-        
-        const branchObj = branches.find((b: any) => 
-            b.id === selectedBranchId || 
-            b.linked_institution_id === selectedBranchId || 
-            b.linkedInstitutionId === selectedBranchId ||
-            b.institution_id === selectedBranchId
-        );
-        if (branchObj) {
-            if (branchObj.id) ids.add(branchObj.id);
-            if (branchObj.linked_institution_id) ids.add(branchObj.linked_institution_id);
-            if (branchObj.linkedInstitutionId) ids.add(branchObj.linkedInstitutionId);
-            if (branchObj.institution_id) ids.add(branchObj.institution_id);
-            if (branchObj.metadata?.institutionId) ids.add(branchObj.metadata.institutionId);
-            if (branchObj.metadata?.linkedInstitutionId) ids.add(branchObj.metadata.linkedInstitutionId);
-        }
+        ids.add(cleanId(selectedBranchId));
+
+        const normSelectedId = cleanId(selectedBranchId);
+
+        const matchingBranches = branches.filter((b: any) => {
+            if (!b) return false;
+            const bId = b.id;
+            const bLinked = b.linked_institution_id || b.linkedInstitutionId;
+            const bInst = b.institution_id;
+            return (
+                bId === selectedBranchId ||
+                bLinked === selectedBranchId ||
+                bInst === selectedBranchId ||
+                cleanId(bId) === normSelectedId ||
+                cleanId(bLinked) === normSelectedId ||
+                cleanId(bInst) === normSelectedId
+            );
+        });
+
+        matchingBranches.forEach((branchObj: any) => {
+            [
+                branchObj.id,
+                branchObj.linked_institution_id,
+                branchObj.linkedInstitutionId,
+                branchObj.institution_id,
+                branchObj.metadata?.institutionId,
+                branchObj.metadata?.linkedInstitutionId,
+                branchObj.metadata?.branchId
+            ].forEach(id => {
+                if (id) {
+                    ids.add(id);
+                    ids.add(cleanId(id));
+                }
+            });
+        });
+
         return ids;
-    }, [selectedBranchId, branches]);
+    }, [selectedBranchId, branches, cleanId]);
 
     const matchesSelectedBranch = React.useCallback((item: any) => {
         if (!selectedBranchTargetIds) return true;
         if (!item) return false;
         const bId = item.branchId || item.branch_id || item.institutionBranchId || item.metadata?.branchId || item.metadata?.branch_id;
         const instId = item.institutionId || item.institution_id || item.metadata?.institutionId || item.metadata?.institution_id;
-        return (bId && selectedBranchTargetIds.has(bId)) || (instId && selectedBranchTargetIds.has(instId));
-    }, [selectedBranchTargetIds]);
+
+        if (bId && (selectedBranchTargetIds.has(bId) || selectedBranchTargetIds.has(cleanId(bId)))) return true;
+        if (instId && (selectedBranchTargetIds.has(instId) || selectedBranchTargetIds.has(cleanId(instId)))) return true;
+        return false;
+    }, [selectedBranchTargetIds, cleanId]);
 
     // Branch User Isolation for System Users
     const filteredUsersByBranch = useMemo(() => {
@@ -439,15 +476,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     });
 
     useEffect(() => {
-        if (!props.students || props.students.length === 0) return;
+        if (!mergedStudents || mergedStudents.length === 0) return;
         setOpeningBalancesMap(prev => {
             const newMap: Record<string, number> = {};
-            props.students.forEach(s => {
+            mergedStudents.forEach(s => {
                 newMap[s.id] = parseMoneyAmount(s.metadata?.openingBalance ?? prev[s.id] ?? 0);
             });
             return newMap;
         });
-    }, [props.students]);
+    }, [mergedStudents]);
 
     // Importer State
     const [showImporter, setShowImporter] = useState(false);
