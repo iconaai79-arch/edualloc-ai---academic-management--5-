@@ -13,6 +13,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { XIcon } from './icons/XIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
+import { isSubjectAssignedToClassStream } from './ClassSubjectAllocationModal';
 
 export interface ClassSubjectPaper {
     id: string;
@@ -108,6 +109,14 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
 
     const [activeClassId, setActiveClassId] = useState<string>('form_3');
     const [activeCommentClassId, setActiveCommentClassId] = useState<string>('form_3');
+
+    // Sync active class to first real class when classList resolves from DB
+    useEffect(() => {
+        if (classList.length > 0 && !classList.find(c => c.id === activeClassId)) {
+            setActiveClassId(classList[0].id);
+            setActiveCommentClassId(classList[0].id);
+        }
+    }, [classList, activeClassId]);
 
     // 1. Default initial Per-Class Exam Papers state
     const initialClassConfigs: ClassExamConfig[] = useMemo(() => [
@@ -406,18 +415,47 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     }, [classList, classRankingConfigs]);
 
     // Active class configuration helper for Exam Papers
+    // If no saved config exists for the active class, auto-populate from allocated subjects
     const activeClassConfig = useMemo(() => {
         let found = classConfigs.find(c => c.classId === activeClassId);
         if (!found) {
             const activeClassObj = classList.find(c => c.id === activeClassId);
+            const className = activeClassObj?.name || '';
+
+            // Auto-populate subjects from those allocated to this class
+            const autoSubjects: ClassSubjectConfig[] = [];
+            if (className && subjects && subjects.length > 0) {
+                const seenNames = new Set<string>();
+                const allocatedForClass = subjects.filter(s =>
+                    isSubjectAssignedToClassStream(s, className, courses)
+                );
+                allocatedForClass.forEach(s => {
+                    const nameKey = (s.name || '').toLowerCase().trim();
+                    if (nameKey && !seenNames.has(nameKey)) {
+                        seenNames.add(nameKey);
+                        autoSubjects.push({
+                            id: `auto_${s.id}_${activeClassId}`,
+                            subjectId: s.id,
+                            subjectCode: s.code || s.name.substring(0, 4).toUpperCase(),
+                            subjectName: s.name.toUpperCase(),
+                            papers: [{
+                                id: `auto_paper_${s.id}_${activeClassId}`,
+                                name: 'Main paper',
+                                maxScore: 100
+                            }]
+                        });
+                    }
+                });
+            }
+
             found = {
                 classId: activeClassId,
                 className: activeClassObj?.name || 'Class',
-                subjects: []
+                subjects: autoSubjects
             };
         }
         return found;
-    }, [classConfigs, activeClassId, classList]);
+    }, [classConfigs, activeClassId, classList, subjects, courses]);
 
     // Active class comments helper for Teacher Comments
     const activeClassComments = useMemo(() => {
