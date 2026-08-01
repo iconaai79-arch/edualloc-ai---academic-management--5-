@@ -592,23 +592,32 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     {/* Class Selector Pills */}
                     <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar-horizontal">
                         {classOptions.map(cls => {
+                            // Build a merged set: DB allocation records first, then applicable subjects
+                            // This mirrors the classAllocations table logic so the count stays in sync
+                            const seenNamesForCount = new Set<string>();
+                            (allocations || []).forEach(a => {
+                                if (a.className.toLowerCase().trim() === cls.toLowerCase().trim()) {
+                                    const k = (a.subjectName || '').toLowerCase().trim();
+                                    if (k && !removedFromClassKeys.has(`${cls}_${a.subjectName}`)) {
+                                        seenNamesForCount.add(k);
+                                    }
+                                }
+                            });
                             const rawApplicable = getApplicableSubjectsForClass(cls);
-                            const seenNames = new Set<string>();
-                            const applicable: any[] = [];
                             rawApplicable.forEach(s => {
                                 const k = (s.name || '').toLowerCase().trim();
-                                if (k && !seenNames.has(k) && !removedFromClassKeys.has(`${cls}_${s.name}`)) {
-                                    seenNames.add(k);
-                                    applicable.push(s);
+                                if (k && !removedFromClassKeys.has(`${cls}_${s.name}`)) {
+                                    seenNamesForCount.add(k);
                                 }
                             });
 
-                            const count = applicable.length;
+                            const count = seenNamesForCount.size;
                             const classAllocs = (allAllocations || []).filter(a => a.className.toLowerCase().trim() === cls.toLowerCase().trim());
-                            const unassigned = applicable.filter(subj => {
-                                const alloc = classAllocs.find(a => a.subjectName.toLowerCase().trim() === subj.name.toLowerCase().trim());
+                            const unassigned = [...seenNamesForCount].filter(name => {
+                                const alloc = classAllocs.find(a => a.subjectName.toLowerCase().trim() === name);
                                 return !alloc || alloc.status === 'unassigned' || !alloc.teacherId;
                             }).length;
+
                             const isSelected = selectedClass === cls;
                             return (
                                 <button
