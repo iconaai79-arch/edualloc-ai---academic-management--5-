@@ -98,20 +98,40 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     ], []);
 
     const classList = useMemo(() => {
+        const classMap = new Map<string, { id: string; name: string }>();
+
+        const addCl = (id: string, name: string) => {
+            const key = name.toLowerCase().trim();
+            if (!classMap.has(key)) {
+                classMap.set(key, { id, name });
+            }
+        };
+
         if (academicLevels && academicLevels.length > 0) {
-            return academicLevels.map(lvl => ({
-                id: lvl.id,
-                name: lvl.name
-            }));
+            academicLevels.forEach(lvl => addCl(lvl.id, lvl.name));
         }
         if (courses && courses.length > 0) {
-            return courses.map(c => ({
-                id: c.id,
-                name: c.name
-            }));
+            courses.forEach(c => addCl(c.id, c.name));
         }
-        return defaultClasses;
-    }, [academicLevels, courses, defaultClasses]);
+
+        if (users && users.length > 0) {
+            users.forEach(u => {
+                const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
+                const stream = (u as any).stream || (u as any).streamName || (u as any).stream_name;
+                if (cl && stream) {
+                    const fullName = `${cl.trim()} ${stream.trim()}`;
+                    const id = `cls_${fullName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+                    addCl(id, fullName);
+                }
+            });
+        }
+
+        if (classMap.size === 0) {
+            defaultClasses.forEach(c => addCl(c.id, c.name));
+        }
+
+        return Array.from(classMap.values());
+    }, [academicLevels, courses, users, defaultClasses]);
 
     const [activeClassId, setActiveClassId] = useState<string>('form_3');
     const [activeCommentClassId, setActiveCommentClassId] = useState<string>('form_3');

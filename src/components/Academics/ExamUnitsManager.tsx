@@ -107,7 +107,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [newExamStartDate, setNewExamStartDate] = useState('2026-07-26');
     const [newExamSubmissionDate, setNewExamSubmissionDate] = useState('2026-08-05');
 
-    // Dynamically compute current registered classes/grades from courses and registered students
+    // Dynamically compute current registered classes/grades and class+stream combinations
     const registeredClasses = useMemo(() => {
         const classSet = new Set<string>();
 
@@ -119,23 +119,63 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             });
         }
 
-        // 2. From registered student users
+        // 2. From academicLevels prop
+        if (academicLevels && academicLevels.length > 0) {
+            academicLevels.forEach(l => {
+                const name = typeof l === 'string' ? l : (l.name || l.title || l.code);
+                if (name) classSet.add(name);
+            });
+        }
+
+        // 3. From registered student users (includes base classes and class+stream)
         if (users && users.length > 0) {
             users.forEach(u => {
                 const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
                 if (cl && typeof cl === 'string' && cl.trim()) {
                     classSet.add(cl.trim());
                 }
+                const stream = (u as any).stream || (u as any).streamName || (u as any).stream_name;
+                if (cl && typeof cl === 'string' && stream && typeof stream === 'string' && stream.trim()) {
+                    classSet.add(`${cl.trim()} ${stream.trim()}`);
+                }
             });
         }
 
-        // 3. Fallback defaults if no courses or users registered yet
+        // 4. From currentInstitution object (classes, streamDefinitions, streams)
+        if (currentInstitution) {
+            const instClasses = (currentInstitution as any).classes || (currentInstitution as any).courses;
+            if (Array.isArray(instClasses)) {
+                instClasses.forEach((c: any) => {
+                    const name = typeof c === 'string' ? c : (c.name || c.title);
+                    if (name) classSet.add(name);
+                });
+            }
+
+            const streamDefs: string[] = (currentInstitution as any).streamDefinitions || (currentInstitution as any).streams || [];
+            const effectiveStreams = streamDefs.length > 0 ? streamDefs : ['East', 'West', 'North', 'South', 'Central'];
+
+            // Attach stream names to base classes
+            const baseList = Array.from(classSet);
+            baseList.forEach(base => {
+                const baseLower = base.toLowerCase();
+                const alreadyHasStream = effectiveStreams.some(s => baseLower.endsWith(s.toLowerCase()));
+                if (!alreadyHasStream) {
+                    effectiveStreams.forEach(s => {
+                        if (s && s.trim()) {
+                            classSet.add(`${base} ${s.trim()}`);
+                        }
+                    });
+                }
+            });
+        }
+
+        // 5. Fallback defaults if empty
         if (classSet.size === 0) {
-            ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central', 'Grade 10 Central'].forEach(c => classSet.add(c));
+            ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central', 'Grade 1 Central'].forEach(c => classSet.add(c));
         }
 
         return Array.from(classSet);
-    }, [courses, users]);
+    }, [courses, academicLevels, users, currentInstitution]);
 
     // Step 2 Wizard States:
     const [targetStudentSearch, setTargetStudentSearch] = useState('');
@@ -502,7 +542,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         const matchedStudents = realStudents.filter(st => {
             const cl = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class;
-            return !cl || targetClasses.includes(cl);
+            const stream = (st as any).stream || (st as any).streamName || (st as any).stream_name;
+            const fullClassStream = cl && stream ? `${cl.trim()} ${stream.trim()}` : '';
+            return !cl || targetClasses.includes(cl) || (fullClassStream && targetClasses.includes(fullClassStream));
         });
 
         const studentCount = matchedStudents.length > 0 ? matchedStudents.length : targetClasses.length * 40;
