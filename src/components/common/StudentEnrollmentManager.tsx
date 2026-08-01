@@ -4329,8 +4329,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 (associatedUser?.phoneNumber || '').includes(searchTerm);
             
             const matchesStatus = statusFilter === 'All' || enr.status === statusFilter;
-            const matchesGrade = !gradeFilter || (enr.metadata?.gradeLevel || '') === gradeFilter;
-            const matchesStream = !streamFilter || (enr.metadata?.stream || '') === streamFilter;
+            const stGrade = (enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || '').trim().toLowerCase();
+            const matchesGrade = !gradeFilter || stGrade === gradeFilter.trim().toLowerCase();
+            
+            const stStream = (enr.metadata?.stream || (associatedUser as any)?.stream || (associatedUser as any)?.streamName || (associatedUser as any)?.stream_name || '').trim().toLowerCase();
+            const matchesStream = !streamFilter || stStream === streamFilter.trim().toLowerCase();
             
             return matchesSearch && matchesStatus && matchesGrade && matchesStream;
         });
@@ -4354,7 +4357,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 (u.phoneNumber || '').includes(searchTerm);
             return isTeacher && matchesSearch;
         });
-    }, [users, searchTerm]);
+    }, [users, searchTerm, teacherRoles]);
 
     // Filtered Support Staff
     const filteredSupportStaff = useMemo(() => {
@@ -4532,7 +4535,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
-    // Available Cohorts / Grade Levels
+    // Available Cohorts / Grade Levels — Only load registered grades
     const cohortsList = useMemo(() => {
         if (context === 'driving_school') {
             return [
@@ -4542,19 +4545,75 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 'Class C (Heavy Commercial)'
             ];
         } else {
-            const listFromLevels = (academicLevels || []).map(al => al.name).filter(Boolean);
-            const listFromEnrollments = (enrollments || []).map(e => e.metadata?.gradeLevel).filter(Boolean);
-            const listFromCourses = (courses || []).map(c => c.name).filter(Boolean);
+            const rawGrades: string[] = [];
 
-            const defaultGrades = [
+            // 1. From academicLevels
+            if (academicLevels && academicLevels.length > 0) {
+                academicLevels.forEach(al => {
+                    const name = typeof al === 'string' ? al : (al.name || (al as any).title || al.code);
+                    if (name && name.trim()) rawGrades.push(name.trim());
+                });
+            }
+
+            // 2. From courses
+            if (courses && courses.length > 0) {
+                courses.forEach(c => {
+                    const name = c.name || (c as any).title || c.code;
+                    if (name && name.trim()) rawGrades.push(name.trim());
+                });
+            }
+
+            // 3. From currentInstitution
+            if (currentInstitution) {
+                const instClasses = (currentInstitution as any).classes || (currentInstitution as any).courses;
+                if (Array.isArray(instClasses)) {
+                    instClasses.forEach((c: any) => {
+                        const name = typeof c === 'string' ? c : (c.name || c.title);
+                        if (name && name.trim()) rawGrades.push(name.trim());
+                    });
+                }
+            }
+
+            // 4. From registered student users
+            if (users && users.length > 0) {
+                users.forEach(u => {
+                    const cl = u.studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class || (u as any).metadata?.gradeLevel;
+                    if (cl && typeof cl === 'string' && cl.trim()) {
+                        rawGrades.push(cl.trim());
+                    }
+                });
+            }
+
+            // 5. From enrollments
+            if (enrollments && enrollments.length > 0) {
+                enrollments.forEach(e => {
+                    const cl = e.metadata?.gradeLevel || (e as any).classLevel || (e as any).studentClass;
+                    if (cl && typeof cl === 'string' && cl.trim()) {
+                        rawGrades.push(cl.trim());
+                    }
+                });
+            }
+
+            // If we have registered grades, normalize & deduplicate case-insensitively
+            if (rawGrades.length > 0) {
+                const seenMap = new Map<string, string>();
+                rawGrades.forEach(g => {
+                    const lower = g.toLowerCase();
+                    if (!seenMap.has(lower)) {
+                        seenMap.set(lower, g);
+                    }
+                });
+                return Array.from(seenMap.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+            }
+
+            // Fallback list ONLY when NO grades exist anywhere
+            return [
+                'PP1', 'PP2', 'Playgroup',
                 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-                'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4',
-                'PP1', 'PP2', 'Playgroup'
+                'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'
             ];
-
-            return Array.from(new Set([...listFromLevels, ...listFromEnrollments, ...listFromCourses, ...defaultGrades])).sort();
         }
-    }, [context, courses, academicLevels, enrollments]);
+    }, [context, courses, academicLevels, enrollments, users, currentInstitution]);
 
     // Available Streams fallback
     const streamsList = useMemo(() => {
