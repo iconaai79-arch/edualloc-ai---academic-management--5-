@@ -5,6 +5,8 @@ import { XIcon } from './icons/XIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { apiService } from '../services/apiService';
+import { isSubjectAssignedToClassStream } from './ClassSubjectAllocationModal';
 
 interface GradingSystemManagerProps {
     currentInstitution?: Institution | null;
@@ -172,6 +174,64 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
     });
 
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+    // DB subject_allocations — subjects added via LessonsAllocationManager without targetClasses set
+    const [dbAllocations, setDbAllocations] = useState<Array<{ className: string; subjectName: string; subjectCode?: string }>>([]);
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('subject_allocations', currentInstitution.id)
+                .then((recs: any[]) => {
+                    if (recs && recs.length > 0) {
+                        setDbAllocations(recs.map((r: any) => ({
+                            className: (r.className || '').trim(),
+                            subjectName: (r.subjectName || '').toLowerCase().trim(),
+                            subjectCode: r.subjectCode || ''
+                        })));
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
+    // Per-class subject resolver: two-source merge
+    // Source 1: subjects with targetClasses matching the class (CBC / explicit via ClassSubjectAllocationModal)
+    // Source 2: subjects added directly via LessonsAllocationManager (DB allocation records)
+    const getSubjectsForClass = useMemo(() => {
+        return (cName: string): Array<{ name: string; code: string }> => {
+            const seenNames = new Set<string>();
+            const result: Array<{ name: string; code: string }> = [];
+
+            // Source 1: targetClasses / CBC fallback
+            (subjects || []).forEach((s: any) => {
+                const sName = (s.name || s.title || '').trim();
+                const sNameKey = sName.toLowerCase();
+                if (sNameKey && !seenNames.has(sNameKey) && isSubjectAssignedToClassStream(s, cName, courses)) {
+                    seenNames.add(sNameKey);
+                    result.push({ name: sName, code: s.code || '' });
+                }
+            });
+
+            // Source 2: DB allocation records
+            const clsLower = cName.toLowerCase().trim();
+            dbAllocations
+                .filter(a => a.className.toLowerCase().trim() === clsLower)
+                .forEach(a => {
+                    if (a.subjectName && !seenNames.has(a.subjectName)) {
+                        seenNames.add(a.subjectName);
+                        // Try to get proper cased name and code from subjects prop
+                        const matched = (subjects || []).find((s: any) =>
+                            (s.name || '').toLowerCase().trim() === a.subjectName
+                        );
+                        result.push({
+                            name: matched?.name || a.subjectName,
+                            code: a.subjectCode || matched?.code || ''
+                        });
+                    }
+                });
+
+            return result;
+        };
+    }, [subjects, courses, dbAllocations]);
 
     // Sync saved data from currentInstitution AND dynamically populate configuredClasses nodes
     useEffect(() => {
@@ -436,8 +496,8 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
                                                         >
                                                             Overall
                                                         </div>
-                                                        {(subjects || []).map(s => {
-                                                            const subName = s.name || s.title || s;
+                                                        {getSubjectsForClass(cName).map(s => {
+                                                            const subName = s.name;
                                                             const subCode = s.code || '';
                                                             const subNodeId = `${classKey}_sub_${(subName || '').toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
                                                             return (
