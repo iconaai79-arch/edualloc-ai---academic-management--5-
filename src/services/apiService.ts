@@ -85,7 +85,8 @@ const PROTECTED_KEYS = new Set([
     'themeConfig', 'theme_config',
     'customTheme', 'custom_theme',
     'metadata',
-    'cpanelSettings', 'cpanel_settings'
+    'cpanelSettings', 'cpanel_settings',
+    'treeGradingNodes', 'tree_grading_nodes'
 ]);
 
 function toSnakeCase(obj: any): any {
@@ -889,6 +890,12 @@ export const apiService = {
                         };
                         inst.coopSettings = settings;
                     }
+                    const tNodes = inst.treeGradingNodes || inst.tree_grading_nodes;
+                    if (tNodes) {
+                        const parsed = typeof tNodes === 'string' ? JSON.parse(tNodes) : tNodes;
+                        inst.treeGradingNodes = parsed;
+                        inst.tree_grading_nodes = parsed;
+                    }
                 });
             }
             return finalResult;
@@ -988,6 +995,12 @@ export const apiService = {
                             institutionCode: settings.institutionCode || '',
                         };
                         inst.coopSettings = settings;
+                    }
+                    const tNodes = inst.treeGradingNodes || inst.tree_grading_nodes;
+                    if (tNodes) {
+                        const parsed = typeof tNodes === 'string' ? JSON.parse(tNodes) : tNodes;
+                        inst.treeGradingNodes = parsed;
+                        inst.tree_grading_nodes = parsed;
                     }
                 });
             }
@@ -1920,14 +1933,17 @@ export const apiService = {
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return apiService.fetchModuleRecords('institutions', institutionId); },
 
     async saveInstitution(inst: Institution): Promise<void> { 
-        const { countyId, moduleStates, coopConfig, coopSettings, ...rest } = inst as any;
+        const { countyId, moduleStates, coopConfig, coopSettings, treeGradingNodes, tree_grading_nodes, ...rest } = inst as any;
         const coop_settings = {
             ...(coopSettings || {}),
             ...(coopConfig || {})
         };
+        const finalTreeNodes = treeGradingNodes || tree_grading_nodes;
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
             coop_settings,
+            tree_grading_nodes: finalTreeNodes,
+            treeGradingNodes: finalTreeNodes,
             county_id: countyId
         }); 
     },

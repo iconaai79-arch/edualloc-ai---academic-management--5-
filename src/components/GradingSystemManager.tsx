@@ -417,16 +417,22 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
         }
         setSaveStatus('saving');
         try {
+            // Update local memory reference immediately
+            (currentInstitution as any).treeGradingNodes = gradingNodes;
+            (currentInstitution as any).tree_grading_nodes = gradingNodes;
+
             if (onUpdateInstitution) {
                 // Preferred path: use the parent-provided updater
                 await onUpdateInstitution(currentInstitution.id, {
-                    treeGradingNodes: gradingNodes
+                    treeGradingNodes: gradingNodes,
+                    tree_grading_nodes: gradingNodes
                 } as any);
             } else {
                 // Fallback: save directly via apiService when the prop chain is broken
                 await apiService.saveInstitution({
                     ...currentInstitution,
-                    treeGradingNodes: gradingNodes
+                    treeGradingNodes: gradingNodes,
+                    tree_grading_nodes: gradingNodes
                 } as any);
             }
             setSaveStatus('saved');
