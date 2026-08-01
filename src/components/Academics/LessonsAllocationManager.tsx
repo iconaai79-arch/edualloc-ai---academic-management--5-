@@ -193,7 +193,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         
         let found = false;
         const updatedAllocations = allocations.map(a => {
-            if (a.id === allocId || (classNameOverride && a.className === classNameOverride && a.subjectName === subjectNameOverride)) {
+            if (a.id === allocId || (classNameOverride && a.className.toLowerCase().trim() === classNameOverride.toLowerCase().trim() && a.subjectName.toLowerCase().trim() === (subjectNameOverride || '').toLowerCase().trim())) {
                 found = true;
                 return {
                     ...a,
@@ -221,7 +221,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         }
 
         setAllocations(updatedAllocations);
-        const targetRecord = updatedAllocations.find(a => a.id === allocId || (a.className === classNameOverride && a.subjectName === subjectNameOverride));
+        const targetRecord = updatedAllocations.find(a => a.id === allocId || (a.className.toLowerCase().trim() === (classNameOverride || '').toLowerCase().trim() && a.subjectName.toLowerCase().trim() === (subjectNameOverride || '').toLowerCase().trim()));
         if (targetRecord && currentInstitution?.id) {
             await apiService.saveModuleRecord('subject_allocations', targetRecord).catch(() => {});
         }
@@ -265,7 +265,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         e.preventDefault();
         const teacherObj = teacherUsers.find(t => t.id === modalTeacherId);
         const newRecord: SubjectAllocationRecord = {
-            id: `alloc_${Date.now()}`,
+            id: `alloc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
             institutionId: currentInstitution?.id || 'inst_1',
             className: modalClassName,
             subjectName: modalSubjectName,
@@ -276,11 +276,22 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             status: modalTeacherId ? 'allocated' : 'unassigned'
         };
 
-        const nextAllocations = [newRecord, ...allocations];
-        setAllocations(nextAllocations);
+        setAllocations(prev => {
+            const filtered = prev.filter(a => !(a.className.toLowerCase().trim() === modalClassName.toLowerCase().trim() && a.subjectName.toLowerCase().trim() === modalSubjectName.toLowerCase().trim()));
+            return [newRecord, ...filtered];
+        });
+
+        setRemovedFromClassKeys(prev => {
+            const next = new Set(prev);
+            next.delete(`${modalClassName}_${modalSubjectName}`);
+            return next;
+        });
+
         if (currentInstitution?.id) {
             await apiService.saveModuleRecord('subject_allocations', newRecord).catch(() => {});
         }
+
+        setSelectedClass(modalClassName);
 
         setIsAddAllocationModalOpen(false);
         setSaveToast(`Added allocation for ${modalSubjectName} in ${modalClassName}`);
@@ -576,8 +587,9 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                             });
 
                             const count = applicable.length;
+                            const classAllocs = (allAllocations || []).filter(a => a.className.toLowerCase().trim() === cls.toLowerCase().trim());
                             const unassigned = applicable.filter(subj => {
-                                const alloc = allocations.find(a => a.className === cls && a.subjectName.toLowerCase().trim() === subj.name.toLowerCase().trim());
+                                const alloc = classAllocs.find(a => a.subjectName.toLowerCase().trim() === subj.name.toLowerCase().trim());
                                 return !alloc || alloc.status === 'unassigned' || !alloc.teacherId;
                             }).length;
                             const isSelected = selectedClass === cls;
