@@ -127,7 +127,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (academicLevels && Array.isArray(academicLevels) && academicLevels.length > 0) {
             academicLevels.forEach(l => {
                 if (!l) return;
-                const name = typeof l === 'string' ? l : (l.name || l.title || l.code);
+                const name = typeof l === 'string' ? l : (l.name || (l as any).title || (l as any).code);
                 if (name && typeof name === 'string') classSet.add(name);
             });
         }
@@ -1237,10 +1237,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             </div>
                         )}
                     </div>
-                </div>
+                )}
             </div>
-        )}
-    </div>
+        </div>
 
             {/* MODAL 1: ADD NEW EXAM (STEP 1 & STEP 2) */}
             {isAddExamModalOpen && (
