@@ -200,10 +200,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     }, [props.institution?.id, props.currentUser?.role, cleanId]);
 
-    // Fetch records for all satellite branches when in multi-branch/group admin mode
+    // Fetch records for all satellite branches in multi-branch mode
     useEffect(() => {
-        const isGlobalAdmin = ['super_admin', 'group_admin', 'admin'].includes(props.currentUser?.role || '');
-        if (!isGlobalAdmin || branches.length === 0) return;
+        if (branches.length === 0) return;
 
         const currentInstClean = cleanId(props.institution?.id);
         const linkedInstIds = Array.from(new Set(
@@ -251,7 +250,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         };
 
         fetchAllBranchData();
-    }, [branches, props.institution?.id, props.currentUser?.role, cleanId]);
+    }, [branches, props.institution?.id, cleanId]);
 
     const mergedStudents = useMemo(() => {
         const map = new Map<string, any>();
@@ -333,6 +332,71 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         return ids;
     }, [selectedBranchId, branches, cleanId]);
+
+    // Explicitly query records for the selected branch whenever selectedBranchId changes
+    useEffect(() => {
+        if (!selectedBranchId || selectedBranchId === 'ALL') return;
+
+        const targetIds = Array.from(selectedBranchTargetIds || [selectedBranchId]);
+        if (targetIds.length === 0) return;
+
+        const fetchSelectedBranchData = async () => {
+            try {
+                const promises = targetIds.flatMap((targetId: string) => [
+                    apiService.fetchModuleRecords('users', targetId).catch(() => []),
+                    apiService.fetchModuleRecords('invoices', targetId).catch(() => []),
+                    apiService.fetchModuleRecords('receipts', targetId).catch(() => []),
+                    apiService.fetchModuleRecords('student_enrollments', targetId).catch(() => [])
+                ]);
+
+                const results = await Promise.all(promises);
+                const fetchedStudents: any[] = [];
+                const fetchedInvoices: any[] = [];
+                const fetchedReceipts: any[] = [];
+                const fetchedEnrollments: any[] = [];
+
+                for (let i = 0; i < results.length; i += 4) {
+                    fetchedStudents.push(...(results[i] || []));
+                    fetchedInvoices.push(...(results[i + 1] || []));
+                    fetchedReceipts.push(...(results[i + 2] || []));
+                    fetchedEnrollments.push(...(results[i + 3] || []));
+                }
+
+                if (fetchedStudents.length > 0) {
+                    setAllBranchStudents(prev => {
+                        const map = new Map(prev.map(s => [s.id, s]));
+                        fetchedStudents.forEach(s => map.set(s.id, s));
+                        return Array.from(map.values());
+                    });
+                }
+                if (fetchedInvoices.length > 0) {
+                    setAllBranchInvoices(prev => {
+                        const map = new Map(prev.map(inv => [inv.id, inv]));
+                        fetchedInvoices.forEach(inv => map.set(inv.id, inv));
+                        return Array.from(map.values());
+                    });
+                }
+                if (fetchedReceipts.length > 0) {
+                    setAllBranchReceipts(prev => {
+                        const map = new Map(prev.map(r => [r.id, r]));
+                        fetchedReceipts.forEach(r => map.set(r.id, r));
+                        return Array.from(map.values());
+                    });
+                }
+                if (fetchedEnrollments.length > 0) {
+                    setAllBranchEnrollments(prev => {
+                        const map = new Map(prev.map(e => [e.id || `${e.userId}_${e.institutionId}`, e]));
+                        fetchedEnrollments.forEach(e => map.set(e.id || `${e.userId}_${e.institutionId}`, e));
+                        return Array.from(map.values());
+                    });
+                }
+            } catch (err) {
+                console.warn('[FinanceManager] Error fetching selected branch records:', err);
+            }
+        };
+
+        fetchSelectedBranchData();
+    }, [selectedBranchId, selectedBranchTargetIds]);
 
     const matchesSelectedBranch = React.useCallback((item: any) => {
         if (!selectedBranchTargetIds) return true;
