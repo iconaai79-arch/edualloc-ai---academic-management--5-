@@ -97,7 +97,7 @@ export const isSubjectAssignedToClassStream = (
     const cLower = className.toLowerCase().trim();
 
     // 1. Explicit targetClasses / assignedClasses array on subject
-    const targetCls = subject.targetClasses || subject.assignedClasses || (subject as any).classes;
+    const targetCls = (subject as any).targetClasses || (subject as any).assignedClasses || (subject as any).classes;
     if (Array.isArray(targetCls)) {
         if (targetCls.length === 0) return false;
         const hasExplicitMatch = targetCls.some(c => {

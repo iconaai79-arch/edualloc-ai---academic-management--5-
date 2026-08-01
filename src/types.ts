@@ -671,6 +671,9 @@ export interface Subject {
     dedicatedRoomId?: string;
     shortName?: string;
     targetCourseLevelId?: string;
+    targetClasses?: string[];
+    assignedClasses?: string[];
+    classes?: string[];
 }
 
 export interface LevelSubjectMetadata {
