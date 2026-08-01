@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Institution, Subject, AcademicLevel, Course } from '../types';
+import type { Institution, Subject, AcademicLevel, Course, User } from '../types';
 import { GradingSystemManager } from './GradingSystemManager';
 import { PlusIcon } from './icons/PlusIcon';
 import { TrashIcon } from './icons/TrashIcon';
@@ -1272,7 +1272,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                                                             onChange={e => handleUpdateTeacherComment(rule.id, 'grade', e.target.value)}
                                                             className="w-full h-10 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500"
                                                         >
-                                                            {(availableGradesForActiveCommentClass.includes(rule.grade) ? availableGradesForActiveCommentClass : [rule.grade, ...availableGradesForActiveCommentClass]).map(g => (
+                                                            {(availableGradesForActiveCommentClass.includes(rule.grade) ? availableGradesForActiveCommentClass : [rule.grade, ...availableGradesForActiveCommentClass]).map((g: string) => (
                                                                 <option key={g} value={g}>{g}</option>
                                                             ))}
                                                         </select>

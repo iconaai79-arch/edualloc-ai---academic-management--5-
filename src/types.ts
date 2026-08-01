@@ -525,6 +525,7 @@ export interface Institution {
     address?: string;
     institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Beauty College' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency' | 'Restaurant';
     category?: string;
+    parentInstitutionId?: string;
     createdAt?: string;
     businessSubType?: string; // Legacy field, eventually merge with category
     slug?: string;

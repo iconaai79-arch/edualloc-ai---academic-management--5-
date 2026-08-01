@@ -288,6 +288,13 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const [selectedVehicle, setSelectedVehicle] = useState<TransportVehicle | null>(null);
     const [notes, setNotes] = useState('');
 
+    const filteredVehicles = React.useMemo(() => {
+        const query = searchTerm.toLowerCase();
+        return (vehicles || []).filter((v: TransportVehicle) => 
+            v && (v.plateNumber.toLowerCase().includes(query) || (v.model || '').toLowerCase().includes(query))
+        );
+    }, [vehicles, searchTerm]);
+
     // Parent State
     const [parentSearchTerm, setParentSearchTerm] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
