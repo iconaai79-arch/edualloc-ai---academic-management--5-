@@ -171,7 +171,6 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     // Map of subjectId -> set of classNames assigned
     const [assignments, setAssignments] = useState<Record<string, Set<string>>>(() => {
         const initial: Record<string, Set<string>> = {};
-        
         subjects.forEach(s => {
             const set = new Set<string>();
             classOptions.forEach(c => {
@@ -181,9 +180,26 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             });
             initial[s.id] = set;
         });
-
         return initial;
     });
+
+    // Re-sync assignments when subjects prop updates (e.g., after DB load populates targetClasses)
+    // Without this, the modal count stays stuck at the CBC fallback count from first render
+    useEffect(() => {
+        setAssignments(prev => {
+            const updated: Record<string, Set<string>> = { ...prev };
+            subjects.forEach(s => {
+                const set = new Set<string>();
+                classOptions.forEach(c => {
+                    if (isSubjectAssignedToClassStream(s, c, courses)) {
+                        set.add(c);
+                    }
+                });
+                updated[s.id] = set;
+            });
+            return updated;
+        });
+    }, [subjects, classOptions, courses]);
 
     useEffect(() => {
         if (classOptions.length > 0 && !selectedClass) {
