@@ -183,23 +183,58 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         return initial;
     });
 
-    // Re-sync assignments when subjects prop updates (e.g., after DB load populates targetClasses)
-    // Without this, the modal count stays stuck at the CBC fallback count from first render
+    // DB subject_allocations records — subjects added via LessonsAllocationManager may not have
+    // targetClasses set, so we fetch DB records to mark them as active in the toggle grid
+    const [dbAllocations, setDbAllocations] = useState<Array<{ className: string; subjectName: string }>>([]);
     useEffect(() => {
-        setAssignments(prev => {
-            const updated: Record<string, Set<string>> = { ...prev };
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('subject_allocations', currentInstitution.id)
+                .then((recs: any[]) => {
+                    if (recs && recs.length > 0) {
+                        setDbAllocations(recs.map((r: any) => ({
+                            className: (r.className || '').trim(),
+                            subjectName: (r.subjectName || '').toLowerCase().trim()
+                        })));
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
+    // Re-sync assignments when subjects/dbAllocations update
+    // Source 1: targetClasses / CBC fallback via isSubjectAssignedToClassStream
+    // Source 2: explicit DB subject_allocations records (subjects added via LessonsAllocationManager
+    //           without targetClasses being set)
+    useEffect(() => {
+        setAssignments(() => {
+            const updated: Record<string, Set<string>> = {};
             subjects.forEach(s => {
                 const set = new Set<string>();
+                // Source 1: targetClasses / CBC rules
                 classOptions.forEach(c => {
                     if (isSubjectAssignedToClassStream(s, c, courses)) {
                         set.add(c);
                     }
                 });
+                // Source 2: DB allocation records matched by subject name
+                if (dbAllocations.length > 0) {
+                    const subjectNameKey = (s.name || '').toLowerCase().trim();
+                    dbAllocations.forEach(alloc => {
+                        if (alloc.subjectName === subjectNameKey && alloc.className) {
+                            // Only add if subject doesn't have an explicit empty targetClasses
+                            // (empty targetClasses = user removed it; undefined = never set via modal)
+                            const hasExplicitEmpty = Array.isArray((s as any).targetClasses) && (s as any).targetClasses.length === 0;
+                            if (!hasExplicitEmpty) {
+                                set.add(alloc.className);
+                            }
+                        }
+                    });
+                }
                 updated[s.id] = set;
             });
             return updated;
         });
-    }, [subjects, classOptions, courses]);
+    }, [subjects, classOptions, courses, dbAllocations]);
 
     useEffect(() => {
         if (classOptions.length > 0 && !selectedClass) {
