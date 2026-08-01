@@ -63,7 +63,11 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
         return type === 'primary' || type === 'primary_school' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
     }, [currentInstitution]);
 
-    const activeDefaultDefinitions = isPrimarySchool ? defaultCbeDefinitions : defaultDefinitions;
+    // Memoized so array identity is stable — prevents the sync useEffect from re-running on every render
+    const activeDefaultDefinitions = useMemo(
+        () => isPrimarySchool ? defaultCbeDefinitions : defaultDefinitions,
+        [isPrimarySchool]
+    );
 
     // Dynamically compute configured classes from all available sources
     const configuredClasses = useMemo(() => {
@@ -268,7 +272,7 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
 
             return base;
         });
-    }, [currentInstitution, configuredClasses, isPrimarySchool, activeDefaultDefinitions]);
+    }, [currentInstitution, configuredClasses, isPrimarySchool]);
 
     const activeNode = useMemo(() => {
         if (gradingNodes[selectedNodeId]) return gradingNodes[selectedNodeId];
@@ -282,7 +286,7 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             type: 'root' as const,
             definitions: activeDefaultDefinitions
         };
-    }, [gradingNodes, selectedNodeId, configuredClasses, isPrimarySchool, activeDefaultDefinitions]);
+    }, [gradingNodes, selectedNodeId, configuredClasses, isPrimarySchool]);
 
     const toggleExpand = (key: string) => {
         setExpandedNodes(prev => ({ ...prev, [key]: !prev[key] }));
