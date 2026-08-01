@@ -1004,9 +1004,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         </div>
                                     </div>
                                 </div>
+                            </div>
 
-                        {/* Top KPI Stat Cards matching screenshot */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {/* Top KPI Stat Cards matching screenshot */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="p-6 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 text-center space-y-1">
                                 <h3 className="text-3xl font-black text-blue-600">{activeExam?.studentsEnrolled || 0}</h3>
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">STUDENTS ENROLLED</p>
@@ -1063,11 +1064,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     ))}
                                 </div>
                             </div>
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Bottom Subtabs & Marks Entry Progress Panel */}
-                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-sm">
+                        {/* Bottom Subtabs & Marks Entry Progress Panel */}
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-sm">
                         {/* Subtabs Bar */}
                         <div className="flex space-x-6 border-b border-slate-200 dark:border-slate-800">
                             <button
@@ -1208,8 +1209,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             </div>
                         )}
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+        </div>
+
         </div>
 
             {/* MODAL 1: ADD NEW EXAM (STEP 1 & STEP 2) */}
