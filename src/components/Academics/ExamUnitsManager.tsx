@@ -511,12 +511,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const inProgressExams = useMemo(() => exams.filter(e => e.status === 'in_progress'), [exams]);
     const publishedExams = useMemo(() => exams.filter(e => e.status === 'published'), [exams]);
 
-    // Group published exams by year
+    // Group published exams by year (only include years with at least 1 published exam)
     const publishedByYear = useMemo(() => {
-        const groups: Record<number, ExamUnitRecord[]> = { 2026: [], 2025: [], 2024: [], 2023: [], 2022: [], 2020: [] };
+        const groups: Record<number, ExamUnitRecord[]> = {};
         publishedExams.forEach(e => {
-            if (!groups[e.year]) groups[e.year] = [];
-            groups[e.year].push(e);
+            if (e.year) {
+                if (!groups[e.year]) groups[e.year] = [];
+                groups[e.year].push(e);
+            }
         });
         return groups;
     }, [publishedExams]);
@@ -877,45 +879,54 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             PUBLISHED EXAMS
                         </div>
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {Object.entries(publishedByYear).map(([yearStr, list]) => {
-                                const yearNum = parseInt(yearStr);
-                                const isExp = expandedYears[yearNum];
-                                return (
-                                    <div key={yearNum} className="space-y-0.5">
-                                        <div
-                                            onClick={() => setExpandedYears(prev => ({ ...prev, [yearNum]: !prev[yearNum] }))}
-                                            className="px-4 py-3 cursor-pointer text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-slate-50 flex items-center justify-between"
-                                        >
-                                            <span>{yearNum} ({list.length})</span>
-                                            {isExp ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
-                                        </div>
+                            {Object.keys(publishedByYear).length === 0 ? (
+                                <div className="p-4 text-center text-xs font-bold text-slate-400 dark:text-slate-500">
+                                    No published exams
+                                </div>
+                            ) : (
+                                Object.entries(publishedByYear)
+                                    .filter(([_, list]) => list.length > 0)
+                                    .sort(([a], [b]) => Number(b) - Number(a))
+                                    .map(([yearStr, list]) => {
+                                        const yearNum = parseInt(yearStr);
+                                        const isExp = expandedYears[yearNum] ?? true;
+                                        return (
+                                            <div key={yearNum} className="space-y-0.5">
+                                                <div
+                                                    onClick={() => setExpandedYears(prev => ({ ...prev, [yearNum]: !prev[yearNum] }))}
+                                                    className="px-4 py-3 cursor-pointer text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between"
+                                                >
+                                                    <span>{yearNum} ({list.length})</span>
+                                                    {isExp ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
+                                                </div>
 
-                                        {isExp && list.length > 0 && (
-                                            <div className="pl-4 space-y-0.5 bg-slate-50/50 dark:bg-slate-950/40 divide-y divide-slate-100">
-                                                {list.map(exam => {
-                                                    const isSelected = selectedExamId === exam.id;
-                                                    return (
-                                                        <div
-                                                            key={exam.id}
-                                                            onClick={() => setSelectedExamId(exam.id)}
-                                                            className={`p-3 cursor-pointer transition-all ${
-                                                                isSelected
-                                                                    ? 'bg-blue-600 text-white font-bold'
-                                                                    : 'hover:bg-slate-100 text-slate-800 dark:text-slate-200'
-                                                            }`}
-                                                        >
-                                                            <h5 className="text-xs font-bold uppercase">{exam.name}</h5>
-                                                            <p className={`text-[9px] uppercase font-bold tracking-wider ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
-                                                                {exam.term} • {exam.type} • {exam.studentsEnrolled} students
-                                                            </p>
-                                                        </div>
-                                                    );
-                                                })}
+                                                {isExp && list.length > 0 && (
+                                                    <div className="pl-4 space-y-0.5 bg-slate-50/50 dark:bg-slate-950/40 divide-y divide-slate-100 dark:divide-slate-800">
+                                                        {list.map(exam => {
+                                                            const isSelected = selectedExamId === exam.id;
+                                                            return (
+                                                                <div
+                                                                    key={exam.id}
+                                                                    onClick={() => setSelectedExamId(exam.id)}
+                                                                    className={`p-3 cursor-pointer transition-all ${
+                                                                        isSelected
+                                                                            ? 'bg-blue-600 text-white font-bold'
+                                                                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
+                                                                    }`}
+                                                                >
+                                                                    <h5 className="text-xs font-bold uppercase">{exam.name}</h5>
+                                                                    <p className={`text-[9px] uppercase font-bold tracking-wider ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
+                                                                        {exam.term} • {exam.type} • {exam.studentsEnrolled} students
+                                                                    </p>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                        );
+                                    })
+                            )}
                         </div>
                     </div>
                 </div>
