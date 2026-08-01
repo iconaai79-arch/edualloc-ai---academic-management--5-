@@ -173,7 +173,7 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
         return initialNodes;
     });
 
-    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
     // DB subject_allocations — subjects added via LessonsAllocationManager without targetClasses set
     const [dbAllocations, setDbAllocations] = useState<Array<{ className: string; subjectName: string; subjectCode?: string }>>([]);
@@ -373,18 +373,30 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
 
     // Save changes
     const handleSaveGradingNodes = async () => {
-        if (!currentInstitution || !onUpdateInstitution) return;
+        if (!currentInstitution) {
+            alert('No institution context found. Please refresh and try again.');
+            return;
+        }
         setSaveStatus('saving');
         try {
-            await onUpdateInstitution(currentInstitution.id, {
-                treeGradingNodes: gradingNodes
-            } as any);
-
+            if (onUpdateInstitution) {
+                // Preferred path: use the parent-provided updater
+                await onUpdateInstitution(currentInstitution.id, {
+                    treeGradingNodes: gradingNodes
+                } as any);
+            } else {
+                // Fallback: save directly via apiService when the prop chain is broken
+                await apiService.saveInstitution({
+                    ...currentInstitution,
+                    treeGradingNodes: gradingNodes
+                } as any);
+            }
             setSaveStatus('saved');
             setTimeout(() => setSaveStatus('idle'), 2500);
         } catch (err) {
             console.error('[GradingSystemManager] Failed to save grading systems:', err);
-            setSaveStatus('idle');
+            setSaveStatus('error');
+            setTimeout(() => setSaveStatus('idle'), 3000);
         }
     };
 
@@ -406,7 +418,7 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
                     disabled={saveStatus === 'saving'}
                     className="px-6 py-2.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all disabled:opacity-50"
                 >
-                    {saveStatus === 'saving' ? 'Saving Grading Rules...' : saveStatus === 'saved' ? 'Grading System Saved!' : 'Save Grading Boundaries'}
+                    {saveStatus === 'saving' ? 'Saving Grading Rules...' : saveStatus === 'saved' ? '✓ Grading System Saved!' : saveStatus === 'error' ? '✗ Save Failed — Retry' : 'Save Grading Boundaries'}
                 </button>
             </div>
 
