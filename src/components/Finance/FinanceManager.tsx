@@ -274,7 +274,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return ids;
     }, [selectedBranchId, branches]);
 
-    const matchesSelectedBranch = useCallback((item: any) => {
+    const matchesSelectedBranch = React.useCallback((item: any) => {
         if (!selectedBranchTargetIds) return true;
         if (!item) return false;
         const bId = item.branchId || item.branch_id || item.institutionBranchId || item.metadata?.branchId || item.metadata?.branch_id;
