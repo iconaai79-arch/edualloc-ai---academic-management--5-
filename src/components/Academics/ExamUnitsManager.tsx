@@ -184,10 +184,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
 
     useEffect(() => {
-        if (registeredClasses.length > 0 && selectedClasses.length === 0) {
+        if (registeredClasses.length > 0 && selectedClasses.length === 0 && !isAddExamModalOpen) {
             setSelectedClasses(registeredClasses);
         }
-    }, [registeredClasses]);
+    }, [registeredClasses, isAddExamModalOpen]);
     const isPrimarySchool = useMemo(() => {
         const type = (currentInstitution?.institutionType || '').toLowerCase();
         const name = (currentInstitution?.name || '').toLowerCase();
@@ -543,13 +543,25 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const realStudents = users.filter(u => u.role === 'student');
 
         const matchedStudents = realStudents.filter(st => {
-            const cl = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class;
-            const stream = (st as any).stream || (st as any).streamName || (st as any).stream_name;
-            const fullClassStream = cl && stream ? `${cl.trim()} ${stream.trim()}` : '';
-            return !cl || targetClasses.includes(cl) || (fullClassStream && targetClasses.includes(fullClassStream));
+            const cl = ((st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '').trim();
+            if (!cl) return false;
+            
+            const stream = ((st as any).stream || (st as any).streamName || (st as any).stream_name || '').trim();
+            const fullClassStream = cl && stream ? `${cl} ${stream}` : '';
+
+            const targetLowerList = targetClasses.map(c => c.toLowerCase().trim());
+            const clLower = cl.toLowerCase();
+            const fullLower = fullClassStream.toLowerCase();
+
+            return targetLowerList.some(targetLower => {
+                return targetLower === clLower || 
+                       targetLower === fullLower || 
+                       fullLower.startsWith(targetLower) ||
+                       clLower.startsWith(targetLower);
+            });
         });
 
-        const studentCount = matchedStudents.length > 0 ? matchedStudents.length : targetClasses.length * 40;
+        const studentCount = matchedStudents.length > 0 ? matchedStudents.length : Math.max(1, targetClasses.length * 35);
         const newExamId = `exam_${Date.now()}`;
 
         const newExam: ExamUnitRecord = {
@@ -1256,8 +1268,28 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
                                     />
 
-                                    {/* Target Classes Selector */}
-                                    <div className="flex flex-wrap gap-2 pt-1 max-h-36 overflow-y-auto">
+                                    {/* Target Classes Selector with Select All / Clear All */}
+                                    <div className="flex justify-between items-center pt-1">
+                                        <span className="text-[11px] font-medium text-slate-500">Classes Sitting Exam ({selectedClasses.length} selected)</span>
+                                        <div className="flex gap-2 text-xs">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedClasses(registeredClasses)}
+                                                className="text-[11px] font-bold text-blue-600 hover:underline"
+                                            >
+                                                Select All
+                                            </button>
+                                            <span className="text-slate-300">|</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedClasses([])}
+                                                className="text-[11px] font-bold text-slate-500 hover:underline"
+                                            >
+                                                Clear All
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 pt-1 max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-800 p-2 rounded-lg">
                                         {registeredClasses.map(cName => {
                                             const isSelected = selectedClasses.includes(cName);
                                             return (
