@@ -43,6 +43,7 @@ interface ExamUnitsManagerProps {
     assessments?: Assessment[];
     marks?: AssessmentMark[];
     courses?: Course[];
+    academicLevels?: AcademicLevel[];
     onAddAssessment?: (assessment: any) => void;
     onUpdateAssessment?: (id: string, data: any) => void;
 }
@@ -53,7 +54,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     users = [],
     assessments = [],
     marks = [],
-    courses = []
+    courses = [],
+    academicLevels = []
 }) => {
     // Storage Key Helper
     const instId = currentInstitution?.id || 'default_inst';

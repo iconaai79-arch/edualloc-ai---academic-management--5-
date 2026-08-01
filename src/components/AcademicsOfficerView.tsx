@@ -529,6 +529,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         assessments={assessments}
                         marks={marks}
                         courses={courses}
+                        academicLevels={academicLevels}
                     />
                 </div>
             )}
