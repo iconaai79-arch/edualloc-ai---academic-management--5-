@@ -202,34 +202,62 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     }, [currentInstitution]);
 
     // Re-sync assignments when subjects/dbAllocations update
-    // Source 1: targetClasses / CBC fallback via isSubjectAssignedToClassStream
-    // Source 2: explicit DB subject_allocations records (subjects added via LessonsAllocationManager
-    //           without targetClasses being set)
+    // Priority 1: Explicit targetClasses / assignedClasses array on subject
+    // Priority 2: DB subject_allocations records from Lessons & Allocation Manager
+    // Priority 3: Grade-level applicability fallback rules
     useEffect(() => {
         setAssignments(() => {
             const updated: Record<string, Set<string>> = {};
-            subjects.forEach(s => {
-                const set = new Set<string>();
-                // Source 1: targetClasses / CBC rules
-                classOptions.forEach(c => {
-                    if (isSubjectAssignedToClassStream(s, c, courses)) {
-                        set.add(c);
+            
+            // Build map of DB allocations per class name (case-insensitive)
+            const dbAllocationsByClass: Record<string, Set<string>> = {};
+            if (dbAllocations && dbAllocations.length > 0) {
+                dbAllocations.forEach(alloc => {
+                    const cKey = (alloc.className || '').trim().toLowerCase();
+                    const sKey = (alloc.subjectName || '').toLowerCase().trim();
+                    if (cKey && sKey) {
+                        if (!dbAllocationsByClass[cKey]) dbAllocationsByClass[cKey] = new Set();
+                        dbAllocationsByClass[cKey].add(sKey);
                     }
                 });
-                // Source 2: DB allocation records matched by subject name
-                if (dbAllocations.length > 0) {
-                    const subjectNameKey = (s.name || '').toLowerCase().trim();
-                    dbAllocations.forEach(alloc => {
-                        if (alloc.subjectName === subjectNameKey && alloc.className) {
-                            // Only add if subject doesn't have an explicit empty targetClasses
-                            // (empty targetClasses = user removed it; undefined = never set via modal)
-                            const hasExplicitEmpty = Array.isArray((s as any).targetClasses) && (s as any).targetClasses.length === 0;
-                            if (!hasExplicitEmpty) {
-                                set.add(alloc.className);
-                            }
+            }
+
+            subjects.forEach(s => {
+                const set = new Set<string>();
+                const sNameLower = (s.name || '').toLowerCase().trim();
+                const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
+
+                classOptions.forEach(c => {
+                    const cKey = (c || '').trim();
+                    const cLower = cKey.toLowerCase();
+                    
+                    // Case A: Explicit targetClasses array defined on subject
+                    if (Array.isArray(targetCls) && targetCls.length > 0) {
+                        const hasExplicitMatch = targetCls.some(tc => {
+                            const cleanTC = (tc || '').toLowerCase().trim();
+                            return cleanTC === cLower || cLower.startsWith(cleanTC) || cleanTC.startsWith(cLower);
+                        });
+                        if (hasExplicitMatch) {
+                            set.add(cKey);
                         }
-                    });
-                }
+                        return;
+                    }
+
+                    // Case B: DB allocations exist for this specific class (from Lessons & Allocation)
+                    const classDbSet = dbAllocationsByClass[cLower];
+                    if (classDbSet && classDbSet.size > 0) {
+                        if (classDbSet.has(sNameLower)) {
+                            set.add(cKey);
+                        }
+                        return;
+                    }
+
+                    // Case C: Fallback to standard grade-level applicability rules
+                    if (isSubjectAssignedToClassStream(s, cKey, courses)) {
+                        set.add(cKey);
+                    }
+                });
+
                 updated[s.id] = set;
             });
             return updated;
