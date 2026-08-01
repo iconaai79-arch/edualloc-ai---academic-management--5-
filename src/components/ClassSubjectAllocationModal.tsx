@@ -270,16 +270,36 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         }
     }, [classOptions, selectedClass]);
 
+    // Deduplicate subjects by ID or Name/Code combination to prevent subject replication
+    const deduplicatedSubjects = useMemo(() => {
+        const seen = new Set<string>();
+        const unique: Subject[] = [];
+        (localSubjects || []).forEach(s => {
+            if (!s) return;
+            const sName = (s.name || '').toLowerCase().trim();
+            const sCode = (s.code || '').toLowerCase().trim();
+            const key = s.id ? `id_${s.id}` : `${sCode}__${sName}`;
+            const nameCodeKey = `${sCode}__${sName}`;
+
+            if (!seen.has(key) && (!sName || !seen.has(nameCodeKey))) {
+                seen.add(key);
+                if (nameCodeKey && sName) seen.add(nameCodeKey);
+                unique.push(s);
+            }
+        });
+        return unique;
+    }, [localSubjects]);
+
     const filteredSubjects = useMemo(() => {
-        if (!searchQuery.trim()) return localSubjects;
+        if (!searchQuery.trim()) return deduplicatedSubjects;
         const q = searchQuery.toLowerCase();
-        return localSubjects.filter(s => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q));
-    }, [localSubjects, searchQuery]);
+        return deduplicatedSubjects.filter(s => (s.name || '').toLowerCase().includes(q) || (s.code || '').toLowerCase().includes(q));
+    }, [deduplicatedSubjects, searchQuery]);
 
     // Count assigned subjects for selectedClass
     const assignedCountForSelectedClass = useMemo(() => {
-        return localSubjects.filter(s => assignments[s.id]?.has(selectedClass)).length;
-    }, [localSubjects, assignments, selectedClass]);
+        return deduplicatedSubjects.filter(s => assignments[s.id]?.has(selectedClass)).length;
+    }, [deduplicatedSubjects, assignments, selectedClass]);
 
     const handleToggleSubject = async (subjectId: string) => {
         const currentSet = new Set(assignments[subjectId] || []);
@@ -599,7 +619,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                         <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/40 rounded-2xl border border-indigo-100 dark:border-indigo-800">
                             <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block">Active for {selectedClass}</span>
                             <span className="text-lg font-black text-indigo-700 dark:text-indigo-300">
-                                {assignedCountForSelectedClass} / {localSubjects.length} Subjects
+                                {assignedCountForSelectedClass} / {deduplicatedSubjects.length} Subjects
                             </span>
                         </div>
 
