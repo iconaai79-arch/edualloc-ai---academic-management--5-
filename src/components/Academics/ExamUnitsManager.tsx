@@ -82,6 +82,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     });
 
     const [selectedExamId, setSelectedExamId] = useState<string>('exam_1');
+
+    const activeExam = useMemo(() => {
+        return exams.find(e => e.id === selectedExamId) || exams[0];
+    }, [exams, selectedExamId]);
+
     const [activeSubTab, setActiveSubTab] = useState<'progress' | 'irregularities' | 'history'>('progress');
     const [isActionsOpen, setIsActionsOpen] = useState(false);
     const [isAddExamModalOpen, setIsAddExamModalOpen] = useState(false);
@@ -535,10 +540,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             setTimeout(() => setSaveToastMessage(null), 4000);
         }, 300);
     };
-
-    const activeExam = useMemo(() => {
-        return exams.find(e => e.id === selectedExamId) || exams[0];
-    }, [exams, selectedExamId]);
 
     const inProgressExams = useMemo(() => exams.filter(e => e.status === 'in_progress'), [exams]);
     const publishedExams = useMemo(() => exams.filter(e => e.status === 'published'), [exams]);
