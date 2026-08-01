@@ -211,7 +211,71 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         { id: 'tp_11', subject: 'Physics', paperName: 'Paper 1 (Theory)', maxInputScore: 80, convertToHundred: true, enabled: true }
     ]);
 
+    // Sync tested paper configurations from institution exam configs, localStorage, or subjects
     useEffect(() => {
+        // 1. Try loading from localStorage first
+        try {
+            const savedLocal = localStorage.getItem(`eduai_tested_papers_${instId}`);
+            if (savedLocal) {
+                const parsed = JSON.parse(savedLocal);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setTestedPaperConfigs(parsed);
+                    return;
+                }
+            }
+        } catch(e) {}
+
+        // 2. Try loading from currentInstitution.classExamConfigs or class_exam_configs
+        const savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
+        if (savedConfigs && Array.isArray(savedConfigs) && savedConfigs.length > 0) {
+            const paperList: TestedPaperConfig[] = [];
+            const seenKey = new Set<string>();
+
+            savedConfigs.forEach(cConfig => {
+                if (cConfig.subjects && Array.isArray(cConfig.subjects)) {
+                    cConfig.subjects.forEach((sConfig: any) => {
+                        const sName = sConfig.subjectName || sConfig.subjectId || sConfig.name;
+                        if (sConfig.papers && Array.isArray(sConfig.papers)) {
+                            sConfig.papers.forEach((p: any) => {
+                                const key = `${sName}__${p.name || 'Paper 1'}`;
+                                if (!seenKey.has(key)) {
+                                    seenKey.add(key);
+                                    paperList.push({
+                                        id: p.id || `tp_${Date.now()}_${paperList.length}`,
+                                        subject: sName,
+                                        paperName: p.name || 'Paper 1',
+                                        maxInputScore: p.maxScore || 100,
+                                        convertToHundred: true,
+                                        enabled: true
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+
+            if (paperList.length > 0) {
+                setTestedPaperConfigs(paperList);
+                return;
+            }
+        }
+
+        // 3. Try loading from subjects prop if available
+        if (subjects && subjects.length > 0) {
+            const paperList: TestedPaperConfig[] = subjects.map((sub, idx) => ({
+                id: `sub_tp_${sub.id || idx}`,
+                subject: sub.name || (sub as any).title,
+                paperName: 'Paper 1',
+                maxInputScore: 100,
+                convertToHundred: true,
+                enabled: true
+            }));
+            setTestedPaperConfigs(paperList);
+            return;
+        }
+
+        // 4. Default fallback: Primary vs Secondary defaults
         if (isPrimarySchool) {
             setTestedPaperConfigs([
                 { id: 'cbe_1', subject: 'Mathematics Activities', paperName: 'Paper 1 (Numeracy & Logic)', maxInputScore: 100, convertToHundred: true, enabled: true },
@@ -226,7 +290,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 { id: 'cbe_10', subject: 'Physical & Health Education (PHE)', paperName: 'Paper 1 (Fitness & Sports)', maxInputScore: 100, convertToHundred: true, enabled: true }
             ]);
         }
-    }, [isPrimarySchool]);
+    }, [currentInstitution, subjects, instId, isPrimarySchool]);
     const [useCustomRanking, setUseCustomRanking] = useState(false);
     const [rankingScope, setRankingScope] = useState<'overall' | 'per_class'>('overall');
     const [customRankingCriteria, setCustomRankingCriteria] = useState<'Points' | 'Total Marks' | 'Mean Score'>('Points');
@@ -1664,7 +1728,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
                                 <button
                                     type="button"
-                                    onClick={() => setIsPapersModalOpen(false)}
+                                    onClick={() => {
+                                        try {
+                                            localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(testedPaperConfigs));
+                                        } catch(e) {}
+                                        setIsPapersModalOpen(false);
+                                    }}
                                     className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-md transition-all"
                                 >
                                     Save Papers Configuration ({testedPaperConfigs.filter(p => p.enabled).length} Active)
