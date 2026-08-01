@@ -98,7 +98,8 @@ export const isSubjectAssignedToClassStream = (
 
     // 1. Explicit targetClasses / assignedClasses array on subject
     const targetCls = subject.targetClasses || subject.assignedClasses || (subject as any).classes;
-    if (Array.isArray(targetCls) && targetCls.length > 0) {
+    if (Array.isArray(targetCls)) {
+        if (targetCls.length === 0) return false;
         const hasExplicitMatch = targetCls.some(c => {
             const cleanC = (c || '').toLowerCase().trim();
             return cleanC === cLower ||
@@ -108,7 +109,7 @@ export const isSubjectAssignedToClassStream = (
                    (cleanC.includes('upper primary') && /\b(grade|std|class)\s*[4-6]\b/i.test(className)) ||
                    (cleanC.includes('junior secondary') && /\b(grade|std|class)\s*[7-9]\b/i.test(className));
         });
-        if (hasExplicitMatch) return true;
+        return hasExplicitMatch;
     }
 
     // 2. Course level assignments (e.g. course levels matching className)
@@ -265,9 +266,22 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 onUpdateSubject(s.id, { targetClasses: targetClassesArr, assignedClasses: targetClassesArr } as any);
             }
             if (currentInstitution?.id) {
-                await apiService.saveSubject({ ...s, targetClasses: targetClassesArr } as Subject).catch(() => {});
+                await apiService.saveSubject({ ...s, targetClasses: targetClassesArr, assignedClasses: targetClassesArr } as Subject).catch(() => {});
             }
         }
+
+        if (currentInstitution?.id) {
+            const existingDbAllocations = await apiService.fetchModuleRecords<any>('subject_allocations', currentInstitution.id).catch(() => []);
+            const matchingAllocations = (existingDbAllocations || []).filter((a: any) => 
+                a.className === selectedClass || (a.className || '').toLowerCase().trim() === selectedClass.toLowerCase().trim()
+            );
+            for (const alloc of matchingAllocations) {
+                if (alloc.id) {
+                    await apiService.deleteModuleRecord('subject_allocations', alloc.id).catch(() => {});
+                }
+            }
+        }
+
         setToastMessage(`Removed all subjects from ${selectedClass}`);
         setTimeout(() => setToastMessage(null), 3000);
     };

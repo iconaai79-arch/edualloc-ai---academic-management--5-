@@ -157,7 +157,24 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     }, [subjects, courses]);
 
     const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>([]);
-    const [removedFromClassKeys, setRemovedFromClassKeys] = useState<Set<string>>(new Set());
+    const [removedFromClassKeys, setRemovedFromClassKeys] = useState<Set<string>>(() => {
+        try {
+            const raw = localStorage.getItem('eduai_removed_allocation_keys');
+            return raw ? new Set(JSON.parse(raw)) : new Set();
+        } catch {
+            return new Set();
+        }
+    });
+
+    const updateRemovedKeys = useCallback((updater: (prev: Set<string>) => Set<string>) => {
+        setRemovedFromClassKeys(prev => {
+            const next = updater(prev);
+            try {
+                localStorage.setItem('eduai_removed_allocation_keys', JSON.stringify(Array.from(next)));
+            } catch {}
+            return next;
+        });
+    }, []);
 
     // Sync selectedClass and modalClassName when classOptions resolves
     useEffect(() => {
@@ -281,7 +298,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             return [newRecord, ...filtered];
         });
 
-        setRemovedFromClassKeys(prev => {
+        updateRemovedKeys(prev => {
             const next = new Set(prev);
             next.delete(`${modalClassName}_${modalSubjectName}`);
             return next;
@@ -304,7 +321,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         if (!confirmDelete) return;
 
         const key = `${alloc.className}_${alloc.subjectName}`;
-        setRemovedFromClassKeys(prev => {
+        updateRemovedKeys(prev => {
             const next = new Set(prev);
             next.add(key);
             return next;
