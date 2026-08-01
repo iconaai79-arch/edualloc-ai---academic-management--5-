@@ -83,6 +83,11 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     academicLevels = [],
     courses = []
 }) => {
+    const isPrimarySchool = useMemo(() => {
+        const type = (currentInstitution?.institutionType || '').toLowerCase();
+        const name = (currentInstitution?.name || '').toLowerCase();
+        return type === 'primary' || type === 'primary_school' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
+    }, [currentInstitution]);
     const [activeSubTab, setActiveSubTab] = useState<'exam_papers' | 'grading_system' | 'teachers_comments' | 'students_ranking' | 'others'>('exam_papers');
 
     // Default classes list if no academic levels or courses passed
@@ -748,6 +753,154 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         });
     };
 
+    // Auto-generate Class Teacher and School Head remarks based on Grading System
+    const handleAutoGenerateTeacherComments = (forAllClasses = false) => {
+        const DEFAULT_REMARKS: Record<string, { teacher: string; head: string }> = {
+            'A': {
+                teacher: 'Excellent performance! Consistently displays exceptional academic proficiency and dedication.',
+                head: 'An outstanding result. Maintain this exemplary standard of academic excellence.'
+            },
+            'A-': {
+                teacher: 'Very impressive results. Demonstrates strong understanding and commitment to learning.',
+                head: 'Commendable performance. Keep striving for the top position.'
+            },
+            'B+': {
+                teacher: 'Good performance. Shows great potential and active participation in class.',
+                head: 'Very good result. Focus on target areas to achieve an A grade.'
+            },
+            'B': {
+                teacher: 'Good effort demonstrated. Meets expected competencies across most learning areas.',
+                head: 'Satisfactory performance. Consistent effort will yield even higher results.'
+            },
+            'B-': {
+                teacher: 'Fair performance with room for improvement. Encouraged to increase revision hours.',
+                head: 'Steady progress shown. Put in extra effort to reach high achievement levels.'
+            },
+            'C+': {
+                teacher: 'Average performance. Needs to show more consistency and concentration.',
+                head: 'Average work. Additional revision and focus required next term.'
+            },
+            'C': {
+                teacher: 'Fair result. Approaching expected standards; requires more practice and focus.',
+                head: 'Fair attempt. Must put in more effort to achieve higher proficiency.'
+            },
+            'C-': {
+                teacher: 'Below average. Must dedicate more time to studies and seek teacher guidance.',
+                head: 'Fair result. Needs closer supervision and academic support.'
+            },
+            'D+': {
+                teacher: 'Weak performance. Requires serious academic intervention and consistent effort.',
+                head: 'Below expected standard. Needs immediate academic attention.'
+            },
+            'D': {
+                teacher: 'Unsatisfactory performance. Falls below expectations; extra tuition recommended.',
+                head: 'Poor performance. Requires intensive remedial support and regular monitoring.'
+            },
+            'D-': {
+                teacher: 'Very weak result. Serious effort and remedial assistance required immediately.',
+                head: 'Unsatisfactory. Parent/teacher consultation required to address weakness.'
+            },
+            'E': {
+                teacher: 'Critical condition. Needs total dedication, remedial lessons, and close monitoring.',
+                head: 'Unacceptable performance. Immediate academic intervention required.'
+            },
+            'EE': {
+                teacher: 'Exceeding Expectations. Demonstrates exceptional mastery of core competencies.',
+                head: 'Outstanding achievement. Keep up the high level of competency.'
+            },
+            'ME': {
+                teacher: 'Meeting Expectations. Shows clear understanding of required skills and concepts.',
+                head: 'Good progress. Continue working hard to achieve mastery.'
+            },
+            'AE': {
+                teacher: 'Approaching Expectations. Basic understanding shown; needs extra practice.',
+                head: 'Needs encouragement and additional support to reach expectations.'
+            },
+            'BE': {
+                teacher: 'Below Expectations. Needs targeted remedial support and continuous guidance.',
+                head: 'Requires urgent intervention and structured learning assistance.'
+            }
+        };
+
+        const treeNodes = (currentInstitution as any)?.treeGradingNodes || (currentInstitution as any)?.tree_grading_nodes;
+        const targetClasses = forAllClasses ? classList : classList.filter(c => c.id === activeCommentClassId);
+
+        if (targetClasses.length === 0) return;
+
+        setClassComments(prev => {
+            const updated = [...prev];
+
+            targetClasses.forEach((cObj) => {
+                const cId = cObj.id;
+                const cName = cObj.name;
+                const classKey = `class_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_overall`;
+                
+                let gradeList: Array<{ grade: string; comment?: string }> = [];
+                
+                if (treeNodes && treeNodes[classKey]?.definitions?.length > 0) {
+                    gradeList = treeNodes[classKey].definitions;
+                } else if (treeNodes && treeNodes['root_main']?.definitions?.length > 0) {
+                    gradeList = treeNodes['root_main'].definitions;
+                } else {
+                    const fallbackGrades = isPrimarySchool
+                        ? ['EE', 'ME', 'AE', 'BE']
+                        : ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E'];
+                    gradeList = fallbackGrades.map(g => ({ grade: g }));
+                }
+
+                const rules: ClassTeacherCommentRule[] = gradeList.map((gObj, gIdx) => {
+                    const gCode = (gObj.grade || 'B').trim();
+                    const pre = DEFAULT_REMARKS[gCode] || DEFAULT_REMARKS['B'];
+                    const customComment = gObj.comment && !['EXCELLENT', 'VERY GOOD', 'GOOD', 'AVERAGE', 'PUT MORE EFFORT', 'POOR', 'VERY POOR'].includes(gObj.comment.toUpperCase())
+                        ? `${gObj.comment}. `
+                        : '';
+
+                    return {
+                        id: `r_auto_${cId}_${gIdx}_${Date.now()}`,
+                        grade: gCode,
+                        classTeacherComment: `${customComment}${pre.teacher}`,
+                        schoolHeadComment: `${customComment}${pre.head}`
+                    };
+                });
+
+                const existingIdx = updated.findIndex(c => c.classId === cId);
+                if (existingIdx >= 0) {
+                    updated[existingIdx] = {
+                        ...updated[existingIdx],
+                        className: cName,
+                        rules: rules
+                    };
+                } else {
+                    updated.push({
+                        classId: cId,
+                        className: cName,
+                        rules: rules
+                    });
+                }
+            });
+
+            return updated;
+        });
+    };
+
+    // Available grades for active comment class
+    const availableGradesForActiveCommentClass = useMemo(() => {
+        const treeNodes = (currentInstitution as any)?.treeGradingNodes || (currentInstitution as any)?.tree_grading_nodes;
+        const activeClassObj = classList.find(c => c.id === activeCommentClassId);
+        const cName = activeClassObj?.name || '';
+        const classKey = `class_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_overall`;
+        
+        if (treeNodes && treeNodes[classKey]?.definitions?.length > 0) {
+            return treeNodes[classKey].definitions.map((g: any) => g.grade);
+        }
+        if (treeNodes && treeNodes['root_main']?.definitions?.length > 0) {
+            return treeNodes['root_main'].definitions.map((g: any) => g.grade);
+        }
+        return isPrimarySchool
+            ? ['EE', 'ME', 'AE', 'BE']
+            : ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E'];
+    }, [currentInstitution, activeCommentClassId, classList, isPrimarySchool]);
+
     // Update Ranking Rule for a Class
     const handleUpdateRankingRule = (cId: string, cName: string, field: keyof ClassRankingConfig, value: any) => {
         setClassRankingConfigs(prev => {
@@ -1017,17 +1170,35 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
 
                         {/* Right Panel Table */}
                         <div className="md:col-span-3 space-y-4">
-                            <div className="flex justify-between items-center pb-2">
+                            <div className="flex flex-wrap justify-between items-center gap-2 pb-2">
                                 <h3 className="font-black text-xs uppercase text-slate-900 dark:text-white tracking-wider">
                                     {activeClassComments.className.toUpperCase()} REMARKS SETUP
                                 </h3>
-                                <button
-                                    type="button"
-                                    onClick={handleAddTeacherCommentRule}
-                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all border border-slate-300 dark:border-slate-700 flex items-center gap-1.5"
-                                >
-                                    <PlusIcon className="w-3.5 h-3.5" /> Add New Comment
-                                </button>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleAutoGenerateTeacherComments(false)}
+                                        className="px-3.5 py-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-all flex items-center gap-1.5 cursor-pointer"
+                                        title="Auto-populate remarks for this class based on the Grading System"
+                                    >
+                                        <SparklesIcon className="w-3.5 h-3.5" /> Auto-Generate (Active Class)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleAutoGenerateTeacherComments(true)}
+                                        className="px-3.5 py-2 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-lg text-xs font-bold hover:bg-purple-100 transition-all flex items-center gap-1.5 cursor-pointer"
+                                        title="Auto-populate remarks for all classes based on the Grading System"
+                                    >
+                                        <SparklesIcon className="w-3.5 h-3.5" /> Auto-Generate (All Classes)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddTeacherCommentRule}
+                                        className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all border border-slate-300 dark:border-slate-700 flex items-center gap-1.5"
+                                    >
+                                        <PlusIcon className="w-3.5 h-3.5" /> Add New Comment
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Table Matching Screenshot */}
@@ -1052,7 +1223,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                                                             onChange={e => handleUpdateTeacherComment(rule.id, 'grade', e.target.value)}
                                                             className="w-full h-10 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500"
                                                         >
-                                                            {['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E'].map(g => (
+                                                            {(availableGradesForActiveCommentClass.includes(rule.grade) ? availableGradesForActiveCommentClass : [rule.grade, ...availableGradesForActiveCommentClass]).map(g => (
                                                                 <option key={g} value={g}>{g}</option>
                                                             ))}
                                                         </select>
