@@ -217,18 +217,31 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     // Sync tested paper configurations EXACTLY as added in Exam Papers Settings (currentInstitution.classExamConfigs)
     useEffect(() => {
+        const targetClasses = (isAddExamModalOpen && selectedClasses && selectedClasses.length > 0)
+            ? selectedClasses
+            : (activeExam?.classes && activeExam.classes.length > 0 ? activeExam.classes : [selectedClassFilter]);
+
+        const normalizeClassStr = (str: string) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
         // 1. Primary Source: Exact configurations from Exam Papers Settings (currentInstitution.classExamConfigs / class_exam_configs)
         const savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
         if (savedConfigs && Array.isArray(savedConfigs) && savedConfigs.length > 0) {
             const paperList: TestedPaperConfig[] = [];
             const seenKey = new Set<string>();
 
-            // Filter by selectedClasses if specified, otherwise include all configured classes
-            const activeConfigs = (selectedClasses && selectedClasses.length > 0)
-                ? savedConfigs.filter(c => selectedClasses.some(sc => sc.toLowerCase().includes((c.className || c.classId || '').toLowerCase())))
+            // Filter strictly by targetClasses
+            const activeConfigs = (targetClasses && targetClasses.length > 0)
+                ? savedConfigs.filter(c => {
+                    if (!c) return false;
+                    const cnNorm = normalizeClassStr(c.className || c.classId || '');
+                    return targetClasses.some(tc => {
+                        const tcNorm = normalizeClassStr(tc);
+                        return tcNorm === cnNorm || tcNorm.includes(cnNorm) || cnNorm.includes(tcNorm);
+                    });
+                })
                 : savedConfigs;
 
-            const targetConfigs = activeConfigs.length > 0 ? activeConfigs : savedConfigs;
+            const targetConfigs = activeConfigs;
 
             targetConfigs.forEach(cConfig => {
                 if (!cConfig) return;
@@ -277,9 +290,17 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             }
         } catch(e) {}
 
-        // 3. Fallback: Generate paper components from subjects prop
+        // 3. Fallback: Generate paper components from subjects prop, filtered by class applicability
         if (subjects && Array.isArray(subjects) && subjects.length > 0) {
-            const paperList: TestedPaperConfig[] = subjects.filter(Boolean).map((sub, idx) => ({
+            const applicableSubjects = subjects.filter(sub => {
+                if (!sub) return false;
+                const subName = sub.name || (sub as any).title || '';
+                const subCode = sub.code || '';
+                return targetClasses.some(tc => isSubjectApplicableToClass({ name: subName, code: subCode }, tc));
+            });
+
+            const subsToUse = applicableSubjects.length > 0 ? applicableSubjects : subjects;
+            const paperList: TestedPaperConfig[] = subsToUse.filter(Boolean).map((sub, idx) => ({
                 id: `sub_tp_${sub?.id || idx}`,
                 subject: sub?.name || (sub as any)?.title || 'Subject',
                 paperName: 'Paper 1',
