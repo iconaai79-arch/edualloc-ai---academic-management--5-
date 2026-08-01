@@ -1237,10 +1237,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             </div>
                         )}
                     </div>
-                </div>
-            </>
-        )}
-    </div>
+                </React.Fragment>
+            )}
+        </div>
 
             {/* MODAL 1: ADD NEW EXAM (STEP 1 & STEP 2) */}
             {isAddExamModalOpen && (
