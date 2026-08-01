@@ -206,11 +206,11 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
                 const rawTimetable = await generateExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], lecturers, Array.isArray(rooms) ? rooms : [], examPeriod, (courseSizes || new Map()), (examTimetableSettings || {} as any));
                 await onExamTimetableGenerated(rawTimetable, (activeAcademicYear?.id || ""), (activeSemester?.id || ""));
-                onLogAction?.(`Generated AI exam timetable for ${activeSemester.name} (${activeAcademicYear.name})`);
+                onLogAction?.(`Generated AI exam timetable for ${activeSemester?.name || 'Term'} (${activeAcademicYear?.name || 'Year'})`);
             } else {
                 const standardEntries = generateStandardExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], Array.isArray(users) ? users : [], Array.isArray(rooms) ? rooms : [], activeSemester, (examTimetableSettings || {} as any));
                 await onExamTimetableGenerated(standardEntries, (activeAcademicYear?.id || ""), (activeSemester?.id || ""));
-                onLogAction?.(`Generated standard exam timetable for ${activeSemester.name} (${activeAcademicYear.name})`);
+                onLogAction?.(`Generated standard exam timetable for ${activeSemester?.name || 'Term'} (${activeAcademicYear?.name || 'Year'})`);
             }
         } catch (err: any) {
             setError(err.message || "An error occurred during generation.");
@@ -449,11 +449,11 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                                     <div>
                                         <p className="font-semibold text-slate-900 dark:text-white">Ready to generate for:</p>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400">{activeSemester?.name} ({activeAcademicYear?.name})</p>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">{activeSemester?.name || 'Current Term'} ({activeAcademicYear?.name || 'Current Year'})</p>
                                         <div className="text-sm text-slate-500 dark:text-slate-400">
                                             {activeSemester?.sessions?.map(session => (
-                                                session.examPeriods?.map(examPeriod => (
-                                                    <div key={examPeriod.id}>- {session.name} / {examPeriod.name}: {examPeriod.startDate} to {examPeriod.endDate}</div>
+                                                session?.examPeriods?.map(examPeriod => (
+                                                    <div key={examPeriod?.id || Math.random()}>- {session?.name || 'Session'} / {examPeriod?.name || 'Period'}: {examPeriod?.startDate} to {examPeriod?.endDate}</div>
                                                 ))
                                             ))}
                                         </div>
@@ -493,7 +493,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                     className="form-select"
                                 >
                                     <option value="all">All Departments</option>
-                                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                    {(departments || []).map(d => d ? <option key={d.id} value={d.id}>{d.name || d.id}</option> : null)}
                                 </select>
                             </div>
                             <div className="flex items-center gap-2">
