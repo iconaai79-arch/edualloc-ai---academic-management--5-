@@ -178,7 +178,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         return allUsers.filter((u: any) => {
             const uBranchId = u.branchId || u.branch_id || u.institutionBranchId || u.metadata?.branchId || u.metadata?.branch_id;
-            return !uBranchId || uBranchId === effectiveBranchId;
+            const uInstId = u.institutionId || u.institution_id;
+            return uBranchId === effectiveBranchId || uInstId === effectiveBranchId;
         });
     }, [props.users, props.currentUser, selectedBranchId]);
 

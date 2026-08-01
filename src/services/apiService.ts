@@ -66,8 +66,8 @@ export const initSupabaseClient = (url?: string, key?: string) => {
 initSupabaseClient();
 
 // Module-level session user cache so branch auto-attach works without a React context
-let _sessionUser: { branchId?: string; branch_id?: string; role?: string } | null = null;
-export const setSessionUser = (user: { branchId?: string; branch_id?: string; role?: string } | null) => {
+let _sessionUser: { institutionId?: string; branchId?: string; branch_id?: string; role?: string } | null = null;
+export const setSessionUser = (user: { institutionId?: string; branchId?: string; branch_id?: string; role?: string } | null) => {
     _sessionUser = user;
 };
 

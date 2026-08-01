@@ -153,8 +153,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let q = supabase.from(moduleName).select(getStrParam(select) || '*');
             
             // Apply tenancy filter
-            // Skip tenancy filter for super admins OR for public modules (unless a specific institution is requested)
-            const shouldSkipTenancy = (user?.role === 'super_admin') || (isPublicModule && !getStrParam(queryInstitutionId));
+            // Skip tenancy filter for super admins, group admins, explicit institution queries, OR for public modules
+            const targetInstParam = getStrParam(queryInstitutionId);
+            const isGroupOrSuperAdmin = user?.role === 'super_admin' || user?.role === 'group_admin';
+            const shouldSkipTenancy = isGroupOrSuperAdmin || Boolean(targetInstParam) || (isPublicModule && !targetInstParam);
 
             if (user && !shouldSkipTenancy) {
                 const isCounty = user.role?.startsWith('county_');
@@ -198,7 +200,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (getStrParam(id)) q = q.eq('id', getStrParam(id));
-            if (getStrParam(queryInstitutionId) && !isTableWithoutInstitutionId(moduleName)) q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', getStrParam(queryInstitutionId));
+            if (targetInstParam && !isTableWithoutInstitutionId(moduleName)) {
+                q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
+            } else if (isGroupOrSuperAdmin && user?.role === 'group_admin' && !targetInstParam && !isTableWithoutInstitutionId(moduleName)) {
+                q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', user.institutionId);
+            }
             if (getStrParam(queryCountyId)) q = q.eq('county_id', getStrParam(queryCountyId));
 
             // Custom filters from other query params

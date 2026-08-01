@@ -206,13 +206,18 @@ export const App: React.FC = () => {
     // Sync currentUser to the apiService module-level cache for branch auto-attach
     useEffect(() => {
         if (currentUser) {
-            setSessionUser({ branchId: (currentUser as any).branchId, branch_id: (currentUser as any).branch_id, role: currentUser.role as string });
+            setSessionUser({
+                institutionId: currentUser.institutionId,
+                branchId: (currentUser as any).branchId,
+                branch_id: (currentUser as any).branch_id,
+                role: currentUser.role as string
+            });
             setImpersonatedRole(null);
             setSelectedRole(null);
         } else {
             setSessionUser(null);
         }
-    }, [currentUser?.id]);
+    }, [currentUser?.id, currentUser?.institutionId, (currentUser as any)?.branchId, (currentUser as any)?.branch_id]);
 
     // Handle 401 session-expiry events fired by apiService when token refresh fails
     useEffect(() => {
