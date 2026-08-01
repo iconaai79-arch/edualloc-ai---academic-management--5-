@@ -389,7 +389,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         includeNonRankingInAnalysis: false
     });
 
-    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
     // Sync saved configuration from institution
     useEffect(() => {
@@ -559,21 +559,48 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
 
     // Save handler
     const handleSaveAllExamConfigs = async () => {
-        if (!currentInstitution || !onUpdateInstitution) return;
+        if (!currentInstitution) {
+            alert('No institution context found. Please refresh and try again.');
+            return;
+        }
         setSaveStatus('saving');
         try {
-            await onUpdateInstitution(currentInstitution.id, {
+            // Update local memory reference immediately
+            (currentInstitution as any).classExamConfigs = classConfigs;
+            (currentInstitution as any).class_exam_configs = classConfigs;
+            (currentInstitution as any).classTeacherCommentsConfig = classComments;
+            (currentInstitution as any).class_teacher_comments_config = classComments;
+            (currentInstitution as any).classRankingConfigs = classRankingConfigs;
+            (currentInstitution as any).class_ranking_configs = classRankingConfigs;
+            (currentInstitution as any).othersExamSettings = othersSettings;
+            (currentInstitution as any).others_exam_settings = othersSettings;
+
+            const payloadData = {
                 classExamConfigs: classConfigs,
+                class_exam_configs: classConfigs,
                 classTeacherCommentsConfig: classComments,
+                class_teacher_comments_config: classComments,
                 classRankingConfigs: classRankingConfigs,
-                othersExamSettings: othersSettings
-            } as any);
+                class_ranking_configs: classRankingConfigs,
+                othersExamSettings: othersSettings,
+                others_exam_settings: othersSettings
+            };
+
+            if (onUpdateInstitution) {
+                await onUpdateInstitution(currentInstitution.id, payloadData as any);
+            } else {
+                await apiService.saveInstitution({
+                    ...currentInstitution,
+                    ...payloadData
+                } as any);
+            }
 
             setSaveStatus('saved');
             setTimeout(() => setSaveStatus('idle'), 2500);
         } catch (err) {
             console.error('[ExamConfigManager] Error saving exam configuration:', err);
-            setSaveStatus('idle');
+            setSaveStatus('error');
+            setTimeout(() => setSaveStatus('idle'), 3000);
         }
     };
 
@@ -1111,7 +1138,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                                     disabled={saveStatus === 'saving'}
                                     className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all disabled:opacity-50"
                                 >
-                                    {saveStatus === 'saving' ? 'Saving Exam Papers...' : 'Save Exam Papers Config'}
+                                    {saveStatus === 'saving' ? 'Saving Exam Papers...' : saveStatus === 'saved' ? '✓ Exam Papers Saved!' : saveStatus === 'error' ? '✗ Save Failed — Retry' : 'Save Exam Papers Config'}
                                 </button>
                             </div>
                         </div>
@@ -1286,7 +1313,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                                     disabled={saveStatus === 'saving'}
                                     className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all disabled:opacity-50"
                                 >
-                                    {saveStatus === 'saving' ? 'Saving Comments...' : 'Save Teacher Comments Config'}
+                                    {saveStatus === 'saving' ? 'Saving Comments...' : saveStatus === 'saved' ? '✓ Comments Saved!' : saveStatus === 'error' ? '✗ Save Failed — Retry' : 'Save Teacher Comments Config'}
                                 </button>
                             </div>
                         </div>
@@ -1376,7 +1403,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                             disabled={saveStatus === 'saving'}
                             className="px-8 py-3 bg-blue-400 hover:bg-blue-600 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all disabled:opacity-50"
                         >
-                            {saveStatus === 'saving' ? 'Saving...' : 'Save Changes'}
+                            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? '✓ Changes Saved!' : saveStatus === 'error' ? '✗ Save Failed — Retry' : 'Save Changes'}
                         </button>
                     </div>
                 </div>
@@ -1525,7 +1552,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                             disabled={saveStatus === 'saving'}
                             className="px-8 py-3 bg-blue-400 hover:bg-blue-600 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all disabled:opacity-50"
                         >
-                            {saveStatus === 'saving' ? 'Saving...' : 'Save Changes'}
+                            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? '✓ Changes Saved!' : saveStatus === 'error' ? '✗ Save Failed — Retry' : 'Save Changes'}
                         </button>
                     </div>
                 </div>

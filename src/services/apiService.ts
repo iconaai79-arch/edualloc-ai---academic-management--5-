@@ -86,7 +86,11 @@ const PROTECTED_KEYS = new Set([
     'customTheme', 'custom_theme',
     'metadata',
     'cpanelSettings', 'cpanel_settings',
-    'treeGradingNodes', 'tree_grading_nodes'
+    'treeGradingNodes', 'tree_grading_nodes',
+    'classExamConfigs', 'class_exam_configs',
+    'classTeacherCommentsConfig', 'class_teacher_comments_config',
+    'classRankingConfigs', 'class_ranking_configs',
+    'othersExamSettings', 'others_exam_settings'
 ]);
 
 function toSnakeCase(obj: any): any {
@@ -896,6 +900,30 @@ export const apiService = {
                         inst.treeGradingNodes = parsed;
                         inst.tree_grading_nodes = parsed;
                     }
+                    const cConfigs = inst.classExamConfigs || inst.class_exam_configs;
+                    if (cConfigs) {
+                        const parsed = typeof cConfigs === 'string' ? JSON.parse(cConfigs) : cConfigs;
+                        inst.classExamConfigs = parsed;
+                        inst.class_exam_configs = parsed;
+                    }
+                    const cComments = inst.classTeacherCommentsConfig || inst.class_teacher_comments_config;
+                    if (cComments) {
+                        const parsed = typeof cComments === 'string' ? JSON.parse(cComments) : cComments;
+                        inst.classTeacherCommentsConfig = parsed;
+                        inst.class_teacher_comments_config = parsed;
+                    }
+                    const cRankings = inst.classRankingConfigs || inst.class_ranking_configs;
+                    if (cRankings) {
+                        const parsed = typeof cRankings === 'string' ? JSON.parse(cRankings) : cRankings;
+                        inst.classRankingConfigs = parsed;
+                        inst.class_ranking_configs = parsed;
+                    }
+                    const oSettings = inst.othersExamSettings || inst.others_exam_settings;
+                    if (oSettings) {
+                        const parsed = typeof oSettings === 'string' ? JSON.parse(oSettings) : oSettings;
+                        inst.othersExamSettings = parsed;
+                        inst.others_exam_settings = parsed;
+                    }
                 });
             }
             return finalResult;
@@ -1001,6 +1029,30 @@ export const apiService = {
                         const parsed = typeof tNodes === 'string' ? JSON.parse(tNodes) : tNodes;
                         inst.treeGradingNodes = parsed;
                         inst.tree_grading_nodes = parsed;
+                    }
+                    const cConfigs = inst.classExamConfigs || inst.class_exam_configs;
+                    if (cConfigs) {
+                        const parsed = typeof cConfigs === 'string' ? JSON.parse(cConfigs) : cConfigs;
+                        inst.classExamConfigs = parsed;
+                        inst.class_exam_configs = parsed;
+                    }
+                    const cComments = inst.classTeacherCommentsConfig || inst.class_teacher_comments_config;
+                    if (cComments) {
+                        const parsed = typeof cComments === 'string' ? JSON.parse(cComments) : cComments;
+                        inst.classTeacherCommentsConfig = parsed;
+                        inst.class_teacher_comments_config = parsed;
+                    }
+                    const cRankings = inst.classRankingConfigs || inst.class_ranking_configs;
+                    if (cRankings) {
+                        const parsed = typeof cRankings === 'string' ? JSON.parse(cRankings) : cRankings;
+                        inst.classRankingConfigs = parsed;
+                        inst.class_ranking_configs = parsed;
+                    }
+                    const oSettings = inst.othersExamSettings || inst.others_exam_settings;
+                    if (oSettings) {
+                        const parsed = typeof oSettings === 'string' ? JSON.parse(oSettings) : oSettings;
+                        inst.othersExamSettings = parsed;
+                        inst.others_exam_settings = parsed;
                     }
                 });
             }
@@ -1933,17 +1985,30 @@ export const apiService = {
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return apiService.fetchModuleRecords('institutions', institutionId); },
 
     async saveInstitution(inst: Institution): Promise<void> { 
-        const { countyId, moduleStates, coopConfig, coopSettings, treeGradingNodes, tree_grading_nodes, ...rest } = inst as any;
+        const { countyId, moduleStates, coopConfig, coopSettings, treeGradingNodes, tree_grading_nodes, classExamConfigs, class_exam_configs, classTeacherCommentsConfig, class_teacher_comments_config, classRankingConfigs, class_ranking_configs, othersExamSettings, others_exam_settings, ...rest } = inst as any;
         const coop_settings = {
             ...(coopSettings || {}),
             ...(coopConfig || {})
         };
         const finalTreeNodes = treeGradingNodes || tree_grading_nodes;
+        const finalClassConfigs = classExamConfigs || class_exam_configs;
+        const finalCommentsConfig = classTeacherCommentsConfig || class_teacher_comments_config;
+        const finalRankingConfigs = classRankingConfigs || class_ranking_configs;
+        const finalOthersSettings = othersExamSettings || others_exam_settings;
+
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
             coop_settings,
             tree_grading_nodes: finalTreeNodes,
             treeGradingNodes: finalTreeNodes,
+            class_exam_configs: finalClassConfigs,
+            classExamConfigs: finalClassConfigs,
+            class_teacher_comments_config: finalCommentsConfig,
+            classTeacherCommentsConfig: finalCommentsConfig,
+            class_ranking_configs: finalRankingConfigs,
+            classRankingConfigs: finalRankingConfigs,
+            others_exam_settings: finalOthersSettings,
+            othersExamSettings: finalOthersSettings,
             county_id: countyId
         }); 
     },
