@@ -187,10 +187,10 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     // Filtered student rows
     const filteredBroadsheetRows = useMemo(() => {
         return sampleStudents.filter(r => {
-            const matchesStream = selectedStream === 'all' || r.student.studentClass?.includes(selectedStream);
+            const matchesStream = selectedStream === 'all' || r.student?.studentClass?.includes(selectedStream);
             const matchesQuery = !searchQuery.trim() ||
-                r.student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (r.student.admissionNo && r.student.admissionNo.toLowerCase().includes(searchQuery.toLowerCase()));
+                (r.student?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (r.student?.admissionNo && (r.student.admissionNo || '').toLowerCase().includes(searchQuery.toLowerCase()));
             return matchesStream && matchesQuery;
         });
     }, [sampleStudents, selectedStream, searchQuery]);

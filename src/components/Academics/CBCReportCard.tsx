@@ -39,17 +39,17 @@ export const CBCReportCard: React.FC<CBCReportCardProps> = ({
                 <div className="space-y-4">
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-xl">
-                            {institution.name.charAt(0)}
+                            {(institution?.name || 'S').charAt(0)}
                         </div>
                         <div>
-                            <h2 className="text-2xl font-black text-slate-900 tracking-tighter uppercase">{institution.name}</h2>
+                            <h2 className="text-2xl font-black text-slate-900 tracking-tighter uppercase">{institution?.name || 'ACADEMIC INSTITUTION'}</h2>
                             <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">CBC Academic Progress Report</p>
                         </div>
                     </div>
                     <div className="flex gap-8 items-end">
                         <div>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Learner's Name</p>
-                            <p className="text-xl font-black text-slate-900 tracking-tight">{student.name}</p>
+                            <p className="text-xl font-black text-slate-900 tracking-tight">{student?.name || 'Learner'}</p>
                         </div>
                         <div>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assessment Level</p>
