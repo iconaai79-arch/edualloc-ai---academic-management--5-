@@ -115,24 +115,27 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const classSet = new Set<string>();
 
         // 1. From courses prop
-        if (courses && courses.length > 0) {
+        if (courses && Array.isArray(courses) && courses.length > 0) {
             courses.forEach(c => {
+                if (!c) return;
                 const name = c.name || (c as any).title || c.code;
-                if (name) classSet.add(name);
+                if (name && typeof name === 'string') classSet.add(name);
             });
         }
 
         // 2. From academicLevels prop
-        if (academicLevels && academicLevels.length > 0) {
+        if (academicLevels && Array.isArray(academicLevels) && academicLevels.length > 0) {
             academicLevels.forEach(l => {
+                if (!l) return;
                 const name = typeof l === 'string' ? l : (l.name || l.title || l.code);
-                if (name) classSet.add(name);
+                if (name && typeof name === 'string') classSet.add(name);
             });
         }
 
         // 3. From registered student users (includes base classes and class+stream)
         if (users && users.length > 0) {
             users.forEach(u => {
+                if (!u) return;
                 const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
                 if (cl && typeof cl === 'string' && cl.trim()) {
                     classSet.add(cl.trim());
@@ -149,8 +152,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const instClasses = (currentInstitution as any).classes || (currentInstitution as any).courses;
             if (Array.isArray(instClasses)) {
                 instClasses.forEach((c: any) => {
+                    if (!c) return;
                     const name = typeof c === 'string' ? c : (c.name || c.title);
-                    if (name) classSet.add(name);
+                    if (name && typeof name === 'string') classSet.add(name);
                 });
             }
 
@@ -227,19 +231,24 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const targetConfigs = activeConfigs.length > 0 ? activeConfigs : savedConfigs;
 
             targetConfigs.forEach(cConfig => {
+                if (!cConfig) return;
                 if (cConfig.subjects && Array.isArray(cConfig.subjects)) {
                     cConfig.subjects.forEach((sConfig: any) => {
+                        if (!sConfig) return;
                         const sName = sConfig.subjectName || sConfig.subjectId || sConfig.name;
+                        if (!sName || typeof sName !== 'string') return;
                         if (sConfig.papers && Array.isArray(sConfig.papers)) {
                             sConfig.papers.forEach((p: any) => {
-                                const key = `${sName.trim()}__${(p.name || 'Paper 1').trim()}`;
+                                if (!p) return;
+                                const pName = typeof p === 'string' ? p : (p.name || 'Paper 1');
+                                const key = `${sName.trim()}__${String(pName).trim()}`;
                                 if (!seenKey.has(key)) {
                                     seenKey.add(key);
                                     paperList.push({
-                                        id: p.id || `tp_${sName}_${p.name}`,
+                                        id: (typeof p === 'object' && p?.id) ? p.id : `tp_${sName}_${pName}`,
                                         subject: sName.trim(),
-                                        paperName: p.name || 'Paper 1',
-                                        maxInputScore: p.maxScore ?? 100,
+                                        paperName: String(pName),
+                                        maxInputScore: (typeof p === 'object' && p?.maxScore !== undefined) ? p.maxScore : 100,
                                         convertToHundred: true,
                                         enabled: true
                                     });
@@ -269,10 +278,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         } catch(e) {}
 
         // 3. Fallback: Generate paper components from subjects prop
-        if (subjects && subjects.length > 0) {
-            const paperList: TestedPaperConfig[] = subjects.map((sub, idx) => ({
-                id: `sub_tp_${sub.id || idx}`,
-                subject: sub.name || (sub as any).title,
+        if (subjects && Array.isArray(subjects) && subjects.length > 0) {
+            const paperList: TestedPaperConfig[] = subjects.filter(Boolean).map((sub, idx) => ({
+                id: `sub_tp_${sub?.id || idx}`,
+                subject: sub?.name || (sub as any)?.title || 'Subject',
                 paperName: 'Paper 1',
                 maxInputScore: 100,
                 convertToHundred: true,
