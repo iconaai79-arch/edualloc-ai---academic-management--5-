@@ -2482,7 +2482,7 @@ export const apiService = {
         }
         return { success_count, fail_count };
     },
-    async initiatePayment(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', amount: number, phoneNumber: string, metadata?: any, config?: any) {
+    async initiatePayment(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'equity' | 'im', amount: number, phoneNumber: string, metadata?: any, config?: any) {
         const formattedPhone = formatPhoneNumber(phoneNumber);
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live payments require an active backend." };
@@ -2551,7 +2551,7 @@ export const apiService = {
         }
     },
 
-    async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'kcb', checkoutRequestId: string, config?: any) {
+    async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'kcb' | 'equity' | 'im', checkoutRequestId: string, config?: any) {
         try {
             const token = await apiService.getAuthToken();
             const systemConfig = apiService.getActiveConfig();

@@ -1513,7 +1513,7 @@ export interface MpesaTransaction {
     status: TransactionStatus;
     metadata?: any;
     checkoutRequestId?: string;
-    provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba';
+    provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'equity' | 'im';
     paymentMethod: 'stk_push' | 'paybill' | 'till' | 'wallet' | 'direct_debit' | 'bank_transfer' | 'qr_code';
     referenceId?: string;
 }

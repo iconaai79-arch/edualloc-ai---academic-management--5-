@@ -1009,6 +1009,10 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                         required
                                     >
                                         <option value="MPESA">MPESA</option>
+                                        <option value="Equity Bank">Equity Bank</option>
+                                        <option value="I&M Bank">I&amp;M Bank</option>
+                                        <option value="KCB Bank">KCB Bank</option>
+                                        <option value="NCBA Bank">NCBA Bank</option>
                                         <option value="Bank Transfer">Bank Transfer</option>
                                         <option value="Cash">Cash</option>
                                         <option value="Cheque">Cheque</option>

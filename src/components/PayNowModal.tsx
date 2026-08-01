@@ -33,7 +33,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [payerName, setPayerName] = useState('');
     const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'quarterly' | 'yearly' | 'forced'>(forceAmount !== undefined ? 'forced' : 'monthly');
-    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
+    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'equity' | 'im'>('mpesa');
     const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa']);
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
@@ -252,6 +252,26 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                                         <span className="text-[10px] font-black uppercase">NCBA Bank</span>
                                     </button>
                                 )}
+                                {enabledGateways.includes('equity') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setProvider('equity')}
+                                        className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${provider === 'equity' ? 'border-red-700 bg-red-50/50 dark:bg-red-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                    >
+                                        <div className="w-8 h-8 bg-red-700 rounded flex items-center justify-center text-white text-[7px] font-black shadow-lg">EQT</div>
+                                        <span className="text-[10px] font-black uppercase">Equity Bank</span>
+                                    </button>
+                                )}
+                                {enabledGateways.includes('im') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setProvider('im')}
+                                        className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${provider === 'im' ? 'border-blue-700 bg-blue-50/50 dark:bg-blue-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                    >
+                                        <div className="w-8 h-8 bg-blue-700 rounded flex items-center justify-center text-white text-[7px] font-black shadow-lg">I&M</div>
+                                        <span className="text-[10px] font-black uppercase">I&amp;M Bank</span>
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -315,6 +335,8 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                         {provider === 'airtel' && <div className="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white text-[7px] font-black">A</div>}
                         {provider === 'intasend' && <div className="w-5 h-5 bg-emerald-600 rounded flex items-center justify-center text-white text-[7px] font-black">IS</div>}
                         {provider === 'ncba' && <NcbaIcon className="w-5 h-5" />}
+                        {provider === 'equity' && <div className="w-5 h-5 bg-red-700 rounded flex items-center justify-center text-white text-[7px] font-black">EQT</div>}
+                        {provider === 'im' && <div className="w-5 h-5 bg-blue-700 rounded flex items-center justify-center text-white text-[7px] font-black">I&M</div>}
                         PAY KES {(selectedPlan === 'monthly' ? monthlyPrice : selectedPlan === 'quarterly' ? quarterlyPrice : selectedPlan === 'yearly' ? yearlyPrice : forceAmount || 0)?.toLocaleString()}
                     </button>
                     <button

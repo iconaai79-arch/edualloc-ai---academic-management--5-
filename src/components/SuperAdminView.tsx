@@ -5290,7 +5290,9 @@ Please change it after login.`;
                                                 {[
                                                     { id: 'mpesa', name: 'Safaricom M-Pesa', icon: MpesaIcon, color: 'text-green-600', bg: 'bg-green-50' },
                                                     { id: 'airtel', name: 'Airtel Money', icon: CreditCardIcon, color: 'text-red-500', bg: 'bg-red-50' },
-                                                    { id: 'intasend', name: 'Intasend (Card/Airtel)', icon: CreditCardIcon, color: 'text-indigo-600', bg: 'bg-indigo-50' }
+                                                    { id: 'intasend', name: 'Intasend (Card/Airtel)', icon: CreditCardIcon, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                                                    { id: 'equity', name: 'Equity Bank Biller', icon: CreditCardIcon, color: 'text-red-700', bg: 'bg-red-50' },
+                                                    { id: 'im', name: 'I&M Bank Collections', icon: CreditCardIcon, color: 'text-blue-700', bg: 'bg-blue-50' },
                                                 ].map(gw => (
                                                     <div 
                                                         key={gw.id}
