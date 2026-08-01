@@ -164,15 +164,41 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     useEffect(() => {
         if (props.institution?.id) {
             const isGlobalAdmin = ['super_admin', 'group_admin', 'admin'].includes(props.currentUser?.role || '');
-            const fetchPromise = isGlobalAdmin
-                ? apiService.fetchModuleRecords('branches').catch(() => [])
-                : apiService.fetchModuleRecords('branches', props.institution.id).catch(() => []);
+            
+            apiService.fetchModuleRecords('branches', props.institution.id)
+                .then(async (instBranches: any[]) => {
+                    let allBrs = instBranches || [];
+                    
+                    if (isGlobalAdmin) {
+                        const allSysBrs = await apiService.fetchModuleRecords('branches').catch(() => []);
+                        const instIdClean = cleanId(props.institution.id);
+                        const parentInstClean = cleanId(props.institution.parentInstitutionId);
 
-            fetchPromise.then((list: any[]) => {
-                setBranches(list || []);
-            });
+                        const relevantBrs = (allSysBrs || []).filter((b: any) => {
+                            const bInstClean = cleanId(b.institution_id || b.institutionId);
+                            const bLinkedClean = cleanId(b.linked_institution_id || b.linkedInstitutionId);
+                            const bIdClean = cleanId(b.id);
+                            return (
+                                bInstClean === instIdClean ||
+                                bLinkedClean === instIdClean ||
+                                bIdClean === instIdClean ||
+                                (parentInstClean && (bInstClean === parentInstClean || bLinkedClean === parentInstClean || bIdClean === parentInstClean))
+                            );
+                        });
+
+                        const combinedMap = new Map<string, any>();
+                        [...allBrs, ...relevantBrs].forEach((b: any) => {
+                            const key = b.id || b.linked_institution_id || b.linkedInstitutionId;
+                            if (key && !combinedMap.has(key)) combinedMap.set(key, b);
+                        });
+                        allBrs = Array.from(combinedMap.values());
+                    }
+
+                    setBranches(allBrs);
+                })
+                .catch(() => {});
         }
-    }, [props.institution?.id, props.currentUser?.role]);
+    }, [props.institution?.id, props.currentUser?.role, cleanId]);
 
     // Fetch records for all satellite branches when in multi-branch/group admin mode
     useEffect(() => {
@@ -318,6 +344,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         if (instId && (selectedBranchTargetIds.has(instId) || selectedBranchTargetIds.has(cleanId(instId)))) return true;
         return false;
     }, [selectedBranchTargetIds, cleanId]);
+
+    const displayBranches = useMemo(() => {
+        const seenKeys = new Set<string>();
+        const result: any[] = [];
+
+        (branches || []).forEach((b: any) => {
+            const rawName = (b.name || '').trim();
+            const bCleanId = cleanId(b.linked_institution_id || b.linkedInstitutionId || b.id);
+            const key = `${rawName.toLowerCase()}_${bCleanId}`;
+
+            if (!seenKeys.has(key) && !seenKeys.has(bCleanId)) {
+                seenKeys.add(key);
+                seenKeys.add(bCleanId);
+                result.push(b);
+            }
+        });
+        return result;
+    }, [branches, cleanId]);
 
     // Branch User Isolation for System Users
     const filteredUsersByBranch = useMemo(() => {
@@ -5477,7 +5521,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             )}
                         </div>
                         {/* Branch Selector Dropdown */}
-                        {(props.currentUser?.role === 'super_admin' || props.currentUser?.role === 'group_admin') && branches.length > 0 && (
+                        {(props.currentUser?.role === 'super_admin' || props.currentUser?.role === 'group_admin') && displayBranches.length > 0 && (
                             <div className="flex items-center gap-2 px-4 border-l border-slate-100 dark:border-slate-800">
                                 <select
                                     value={selectedBranchId}
@@ -5485,7 +5529,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/50 text-slate-700 dark:text-slate-200 text-[11px] font-black uppercase tracking-widest px-3 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
                                 >
                                     <option value="ALL">All Branches</option>
-                                    {branches.map((b: any) => (
+                                    {displayBranches.map((b: any) => (
                                         <option key={b.id} value={b.id}>{b.name}</option>
                                     ))}
                                 </select>
@@ -14571,7 +14615,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <h2 className="text-2xl md:text-3xl font-black tracking-tight">Institutional System Users</h2>
                                     <p className="text-xs text-indigo-200/80 font-medium mt-1">Manage staff, finance officers, bursars, and branch system users with strict branch access controls.</p>
                                 </div>
-                                {branches.length > 0 && (
+                                {displayBranches.length > 0 && (
                                     <div className="bg-white/10 border border-white/20 p-3 rounded-2xl backdrop-blur-md flex items-center gap-3">
                                         <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200 whitespace-nowrap">Branch Filter:</span>
                                         <select
@@ -14580,7 +14624,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             className="bg-slate-950/80 text-white font-bold text-xs px-3 py-1.5 rounded-xl border border-indigo-400/40 focus:outline-none"
                                         >
                                             <option value="ALL">🌐 All Branches ({props.users?.length || 0} Users)</option>
-                                            {branches.map((b: any) => (
+                                            {displayBranches.map((b: any) => (
                                                 <option key={b.id} value={b.id}>🏢 {b.name}</option>
                                             ))}
                                         </select>
