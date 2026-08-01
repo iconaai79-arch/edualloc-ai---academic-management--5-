@@ -2866,7 +2866,7 @@ Please change it after login.`;
                                                             <button
                                                                 onClick={() => {
                                                                     setManagingEquityFor(inst);
-                                                                    setTenantEquityConfig(inst.equityConfig || { billerCode: '', apiKey: '', secretKey: '' });
+                                                                    setTenantEquityConfig({ billerCode: inst.equityConfig?.billerCode || '', apiKey: inst.equityConfig?.apiKey || '', secretKey: inst.equityConfig?.secretKey || '' });
                                                                 }}
                                                                 className="flex items-center gap-1 text-red-600 hover:text-red-900 font-black text-[10px] uppercase tracking-tighter bg-red-50 px-2 py-1 rounded-lg"
                                                             >
