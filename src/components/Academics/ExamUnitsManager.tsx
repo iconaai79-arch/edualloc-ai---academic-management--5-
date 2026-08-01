@@ -13,6 +13,7 @@ import { TrashIcon } from '../icons/TrashIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
+import { isSubjectApplicableToClass } from '../ClassSubjectAllocationModal';
 
 export interface ExamUnitRecord {
     id: string;
@@ -442,7 +443,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const classStudents = broadsheetStudentRows.filter(s => (s.class || '').toLowerCase() === cName.toLowerCase() || (s.class || '').includes(cName));
             const classEnrollment = classStudents.length > 0 ? classStudents.length : Math.round((activeExam?.studentsEnrolled || 60) / Math.max(1, activeExamClasses.length)) || 50;
 
-            const papers = subjectList.map((subName, sIdx) => {
+            const classSubjects = subjectList.filter(subName => isSubjectApplicableToClass({ name: subName }, cName));
+            const activeClassSubjects = classSubjects.length > 0 ? classSubjects : subjectList;
+
+            const papers = activeClassSubjects.map((subName, sIdx) => {
                 const fieldKey = subName.toLowerCase().includes('math') ? 'mathP1' :
                                  subName.toLowerCase().includes('eng') ? 'engP1' :
                                  subName.toLowerCase().includes('kisw') ? 'kiswP1' :
@@ -562,6 +566,38 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         });
 
         const studentCount = matchedStudents.length > 0 ? matchedStudents.length : Math.max(1, targetClasses.length * 35);
+
+        // EDIT EXISTING EXAM CASE
+        if (isEditingExam && activeExam) {
+            const updatedExam: ExamUnitRecord = {
+                ...activeExam,
+                name: newExamName.trim(),
+                term: newTerm.toUpperCase(),
+                type: newExamTypeRadio.toUpperCase(),
+                year: parseInt(newAcademicYear) || activeExam.year,
+                studentsEnrolled: studentCount,
+                classes: targetClasses
+            };
+
+            setExams(prev => {
+                const nextExams = prev.map(e => e.id === activeExam.id ? updatedExam : e);
+                try {
+                    localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
+                } catch(e) {}
+                return nextExams;
+            });
+
+            if (currentInstitution?.id) {
+                await apiService.saveModuleRecord('exam_units', updatedExam).catch(() => {});
+            }
+
+            setIsEditingExam(false);
+            setIsAddExamModalOpen(false);
+            setWizardStep(1);
+            setSaveToastMessage(`✨ Updated "${updatedExam.name}" for ${targetClasses.length} selected classes!`);
+            setTimeout(() => setSaveToastMessage(null), 4000);
+            return;
+        }
         const newExamId = `exam_${Date.now()}`;
 
         const newExam: ExamUnitRecord = {
@@ -668,7 +704,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <button
                     type="button"
-                    onClick={() => setIsAddExamModalOpen(true)}
+                    onClick={() => {
+                        setIsEditingExam(false);
+                        setNewExamName('');
+                        setSelectedClasses(registeredClasses);
+                        setWizardStep(1);
+                        setIsAddExamModalOpen(true);
+                    }}
                     className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center gap-2"
                 >
                     <PlusIcon className="w-4 h-4 stroke-[3]" /> Add Exam
@@ -802,6 +844,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                         setNewExamName(activeExam.name);
                                                         setNewTerm(activeExam.term);
                                                         setNewAcademicYear(activeExam.year.toString());
+                                                        setSelectedClasses(activeExam.classes || registeredClasses);
                                                         setWizardStep(1);
                                                         setIsAddExamModalOpen(true);
                                                     }}
@@ -1063,7 +1106,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         {/* Title Bar */}
                         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900">
                             <div>
-                                <h3 className="font-bold text-base text-slate-800 dark:text-white">Add exam</h3>
+                                <h3 className="font-bold text-base text-slate-800 dark:text-white">{isEditingExam ? 'Edit exam' : 'Add exam'}</h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Step {wizardStep} of 2</p>
                             </div>
                             <div className="flex items-center gap-3 text-slate-400">
@@ -1508,7 +1551,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         onClick={handleCreateExam}
                                         className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded shadow-sm transition-all"
                                     >
-                                        Save & Create Exam
+                                        {isEditingExam ? 'Save & Update Exam' : 'Save & Create Exam'}
                                     </button>
                                 )}
                                 <button
