@@ -74,6 +74,7 @@ interface ExamConfigManagerProps {
     subjects?: Subject[];
     academicLevels?: AcademicLevel[];
     courses?: Course[];
+    users?: User[];
 }
 
 export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
@@ -81,7 +82,8 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     onUpdateInstitution,
     subjects = [],
     academicLevels = [],
-    courses = []
+    courses = [],
+    users = []
 }) => {
     const isPrimarySchool = useMemo(() => {
         const type = (currentInstitution?.institutionType || '').toLowerCase();
