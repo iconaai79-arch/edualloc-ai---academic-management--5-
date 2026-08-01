@@ -472,10 +472,24 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     }, [classComments, activeCommentClassId, classList]);
 
     // Helper to get total paper count for a class
+    // Falls back to counting auto-populated subjects (1 paper each) if no saved config exists
     const getClassPaperCount = (cId: string): number => {
         const conf = classConfigs.find(c => c.classId === cId);
-        if (!conf) return 0;
-        return conf.subjects.reduce((sum, s) => sum + s.papers.length, 0);
+        if (conf) return conf.subjects.reduce((sum, s) => sum + s.papers.length, 0);
+
+        // No saved config — count subjects allocated to this class (each gets 1 auto paper)
+        const classObj = classList.find(c => c.id === cId);
+        if (!classObj || !subjects || subjects.length === 0) return 0;
+        const seenNames = new Set<string>();
+        let count = 0;
+        subjects.forEach(s => {
+            const k = (s.name || '').toLowerCase().trim();
+            if (k && !seenNames.has(k) && isSubjectAssignedToClassStream(s, classObj.name, courses)) {
+                seenNames.add(k);
+                count++;
+            }
+        });
+        return count;
     };
 
     // Helper to get total teacher comment rules count for a class
