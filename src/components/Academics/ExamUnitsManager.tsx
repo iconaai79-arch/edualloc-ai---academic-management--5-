@@ -922,12 +922,39 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
                 {/* Right Main Panel: Active Selected Exam Dashboard */}
                 <div className="lg:col-span-3 space-y-6">
-                    {/* Header Controls & Exam Title */}
-                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-sm">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
-                            <h2 className="font-black text-lg text-slate-900 dark:text-white uppercase tracking-tight">
-                                {activeExam.name}
-                            </h2>
+                    {!activeExam ? (
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center shadow-sm space-y-4">
+                            <SparklesIcon className="w-12 h-12 text-blue-500 mx-auto opacity-50" />
+                            <h3 className="text-base font-bold text-slate-800 dark:text-white uppercase tracking-tight">No Exam Selected</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                                {exams.length === 0 
+                                    ? "No exams created yet for this institution. Click '+ Add Exam' to set up your first exam unit."
+                                    : "Select an exam from the list on the left to view its performance dashboard."}
+                            </p>
+                            {exams.length === 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsEditingExam(false);
+                                        setNewExamName('');
+                                        setSelectedClasses(registeredClasses);
+                                        setWizardStep(1);
+                                        setIsAddExamModalOpen(true);
+                                    }}
+                                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all inline-flex items-center gap-2"
+                                >
+                                    <PlusIcon className="w-4 h-4 stroke-[3]" /> Add New Exam
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            {/* Header Controls & Exam Title */}
+                            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-sm">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+                                    <h2 className="font-black text-lg text-slate-900 dark:text-white uppercase tracking-tight">
+                                        {activeExam.name}
+                                    </h2>
 
                             <div className="flex items-center gap-3 relative">
                                 <button
@@ -1010,17 +1037,17 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         {/* Top KPI Stat Cards matching screenshot */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="p-6 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 text-center space-y-1">
-                                <h3 className="text-3xl font-black text-blue-600">{activeExam.studentsEnrolled}</h3>
+                                <h3 className="text-3xl font-black text-blue-600">{activeExam?.studentsEnrolled || 0}</h3>
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">STUDENTS ENROLLED</p>
                             </div>
 
                             <div className="p-6 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 text-center space-y-1">
-                                <h3 className="text-3xl font-black text-red-500">{activeExam.missingMarks.toLocaleString()}</h3>
+                                <h3 className="text-3xl font-black text-red-500">{(activeExam?.missingMarks || 0).toLocaleString()}</h3>
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">MISSING MARKS</p>
                             </div>
 
                             <div className="p-6 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 text-center space-y-1">
-                                <h3 className="text-3xl font-black text-emerald-500">{activeExam.submittedPercent}%</h3>
+                                <h3 className="text-3xl font-black text-emerald-500">{activeExam?.submittedPercent || 0}%</h3>
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">OF MARKS SUBMITTED</p>
                             </div>
                         </div>
@@ -1192,7 +1219,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         {activeSubTab === 'irregularities' && (
                             <div className="space-y-4 py-6 text-center text-slate-400">
                                 <SparklesIcon className="w-10 h-10 mx-auto opacity-30 text-amber-500" />
-                                <p className="text-xs font-bold uppercase tracking-wider">No exam irregularities or malpractice cases reported for {activeExam.name}.</p>
+                                <p className="text-xs font-bold uppercase tracking-wider">No exam irregularities or malpractice cases reported for {activeExam?.name || 'this exam'}.</p>
                             </div>
                         )}
 
@@ -1200,7 +1227,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         {activeSubTab === 'history' && (
                             <div className="space-y-3 text-xs font-medium text-slate-600 dark:text-slate-400">
                                 <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg flex justify-between">
-                                    <span>Created assessment `{activeExam.name}`</span>
+                                    <span>Created assessment `{activeExam?.name || 'Exam'}`</span>
                                     <span className="text-slate-400">Today at 08:30 AM</span>
                                 </div>
                                 <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg flex justify-between">
@@ -1211,7 +1238,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         )}
                     </div>
                 </div>
-            </div>
+            </>
+        )}
+    </div>
 
             {/* MODAL 1: ADD NEW EXAM (STEP 1 & STEP 2) */}
             {isAddExamModalOpen && (
@@ -1820,7 +1849,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                     {selectedSubjectFilter === 'all' 
-                                        ? `Viewing full multi-subject broadsheet for ${activeExam.name}. Select a subject from the list or dropdown below to enter & edit raw marks.`
+                                        ? `Viewing full multi-subject broadsheet for ${activeExam?.name || 'this exam'}. Select a subject from the list or dropdown below to enter & edit raw marks.`
                                         : `Type or edit raw marks for ${selectedSubjectFilter} below. Total raw scores and grades calculate live automatically.`}
                                 </p>
                             </div>
