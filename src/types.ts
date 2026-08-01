@@ -575,6 +575,7 @@ export interface Institution {
     intasendConfig?: IntasendConfig;
     ncbaConfig?: NcbaConfig;
     kcbConfig?: KcbConfig;
+    equityConfig?: EquityConfig;
     imConfig?: ImConfig;
     googleDriveConfig?: GoogleDriveConfig;
     farmerSmsBillingEnabled?: boolean;
@@ -1058,6 +1059,13 @@ export interface ImConfig {
     apiKey?: string;
     callbackUsername?: string;
     callbackSecret?: string;
+}
+
+export interface EquityConfig {
+    billerCode?: string;
+    apiKey?: string;
+    secretKey?: string;
+    environment?: 'sandbox' | 'production';
 }
 
 export interface CoopB2bConfig {

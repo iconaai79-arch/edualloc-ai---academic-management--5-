@@ -31,6 +31,8 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
 import { KcbIcon } from './icons/KcbIcon';
 import { CoopIcon } from './icons/CoopIcon';
+import { EquityIcon } from './icons/EquityIcon';
+import { ImBankIcon } from './icons/ImBankIcon';
 import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { ChartPieIcon } from './icons/ChartPieIcon';
@@ -676,6 +678,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [tenantKcbConfig, setTenantKcbConfig] = useState<KcbConfig>({ appKey: '', appSecret: '', environment: 'sandbox' });
     const [managingCoopFor, setManagingCoopFor] = useState<Institution | null>(null);
     const [tenantCoopConfig, setTenantCoopConfig] = useState<CoopB2bConfig>({ serviceName: '', connectionID: '', connectionPassword: '', institutionCode: '' });
+    const [managingEquityFor, setManagingEquityFor] = useState<Institution | null>(null);
+    const [tenantEquityConfig, setTenantEquityConfig] = useState<{ billerCode: string; apiKey: string; secretKey: string }>({ billerCode: '', apiKey: '', secretKey: '' });
+    const [managingImFor, setManagingImFor] = useState<Institution | null>(null);
+    const [tenantImConfig, setTenantImConfig] = useState<{ apiKey: string; callbackUser: string; callbackSecret: string }>({ apiKey: '', callbackUser: '', callbackSecret: '' });
     const [tenantModulePricing, setTenantModulePricing] = useState<Record<string, { monthly?: number; yearly?: number }>>({});
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
@@ -2856,6 +2862,26 @@ Please change it after login.`;
                                                             >
                                                                 <CoopIcon className="w-3 h-3" />
                                                                 Coop
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setManagingEquityFor(inst);
+                                                                    setTenantEquityConfig(inst.equityConfig || { billerCode: '', apiKey: '', secretKey: '' });
+                                                                }}
+                                                                className="flex items-center gap-1 text-red-600 hover:text-red-900 font-black text-[10px] uppercase tracking-tighter bg-red-50 px-2 py-1 rounded-lg"
+                                                            >
+                                                                <EquityIcon className="w-3 h-3" />
+                                                                Equity
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setManagingImFor(inst);
+                                                                    setTenantImConfig((inst as any).imConfig || { apiKey: '', callbackUser: '', callbackSecret: '' });
+                                                                }}
+                                                                className="flex items-center gap-1 text-blue-600 hover:text-blue-900 font-black text-[10px] uppercase tracking-tighter bg-blue-50 px-2 py-1 rounded-lg"
+                                                            >
+                                                                <ImBankIcon className="w-3 h-3" />
+                                                                I&M
                                                             </button>
                                                             <button
                                                                 onClick={() => {
@@ -7630,6 +7656,152 @@ Please change it after login.`;
                                 className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-teal-100/50 dark:shadow-none transition-all active:scale-95"
                             >
                                 {isSavingTenantConfig ? 'Saving…' : 'Save Co-op Config'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Equity Bank Integration Modal ── */}
+            {managingEquityFor && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setManagingEquityFor(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-red-50/50 dark:bg-red-900/10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-2xl">
+                                    <EquityIcon className="w-6 h-6 text-red-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-red-900 dark:text-red-200">Equity Bank Biller Integration</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{managingEquityFor.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setManagingEquityFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Biller Code / Institution Code</label>
+                                    <input
+                                        type="text"
+                                        value={tenantEquityConfig.billerCode}
+                                        onChange={e => setTenantEquityConfig({ ...tenantEquityConfig, billerCode: e.target.value })}
+                                        className="form-input text-red-600 font-mono text-lg font-black"
+                                        placeholder="e.g. EQ_BILLER_001"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">API Key</label>
+                                    <input
+                                        type="text"
+                                        value={tenantEquityConfig.apiKey}
+                                        onChange={e => setTenantEquityConfig({ ...tenantEquityConfig, apiKey: e.target.value })}
+                                        className="form-input"
+                                        placeholder="Enter Equity API Key"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Secret Key</label>
+                                    <input
+                                        type="password"
+                                        value={tenantEquityConfig.secretKey}
+                                        onChange={e => setTenantEquityConfig({ ...tenantEquityConfig, secretKey: e.target.value })}
+                                        className="form-input"
+                                        placeholder="Enter Equity Secret Key"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                            <button onClick={() => setManagingEquityFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                            <button
+                                disabled={isSavingTenantConfig}
+                                onClick={async () => {
+                                    if (!managingEquityFor || !props.onUpdateInstitution) return;
+                                    setIsSavingTenantConfig(true);
+                                    try {
+                                        await props.onUpdateInstitution(managingEquityFor.id, { equityConfig: tenantEquityConfig } as any);
+                                        setManagingEquityFor(null);
+                                    } finally {
+                                        setIsSavingTenantConfig(false);
+                                    }
+                                }}
+                                className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-red-100/50 dark:shadow-none transition-all active:scale-95"
+                            >
+                                {isSavingTenantConfig ? 'Saving…' : 'Save Equity Config'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── I&M Bank Integration Modal ── */}
+            {managingImFor && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setManagingImFor(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-blue-50/50 dark:bg-blue-900/10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-2xl">
+                                    <ImBankIcon className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-blue-900 dark:text-blue-200">I&M Bank Collections Integration</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{managingImFor.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setManagingImFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">API Key (x-api-key)</label>
+                                    <input
+                                        type="text"
+                                        value={tenantImConfig.apiKey}
+                                        onChange={e => setTenantImConfig({ ...tenantImConfig, apiKey: e.target.value })}
+                                        className="form-input text-blue-600 font-mono text-lg font-black"
+                                        placeholder="Enter I&M API Key"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Callback Username</label>
+                                    <input
+                                        type="text"
+                                        value={tenantImConfig.callbackUser}
+                                        onChange={e => setTenantImConfig({ ...tenantImConfig, callbackUser: e.target.value })}
+                                        className="form-input"
+                                        placeholder="Basic Auth Username"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Callback Secret</label>
+                                    <input
+                                        type="password"
+                                        value={tenantImConfig.callbackSecret}
+                                        onChange={e => setTenantImConfig({ ...tenantImConfig, callbackSecret: e.target.value })}
+                                        className="form-input"
+                                        placeholder="Basic Auth Password/Secret"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                            <button onClick={() => setManagingImFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                            <button
+                                disabled={isSavingTenantConfig}
+                                onClick={async () => {
+                                    if (!managingImFor || !props.onUpdateInstitution) return;
+                                    setIsSavingTenantConfig(true);
+                                    try {
+                                        await props.onUpdateInstitution(managingImFor.id, { imConfig: tenantImConfig } as any);
+                                        setManagingImFor(null);
+                                    } finally {
+                                        setIsSavingTenantConfig(false);
+                                    }
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-100/50 dark:shadow-none transition-all active:scale-95"
+                            >
+                                {isSavingTenantConfig ? 'Saving…' : 'Save I&M Config'}
                             </button>
                         </div>
                     </div>
