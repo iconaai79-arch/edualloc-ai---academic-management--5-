@@ -344,6 +344,8 @@ export interface User {
     createdAt?: string;
     admissionNumber?: string;
     admission_number?: string;
+    admissionNo?: string;
+    studentClass?: string;
     branchId?: string;
     branch_id?: string;
     permissions?: string[];
@@ -708,6 +710,7 @@ export interface Course {
 export interface AcademicLevel {
     id: string;
     name: string;
+    code?: string;
     institutionId: string;
 }
 
@@ -1259,6 +1262,7 @@ export interface Assessment {
     status: 'Draft' | 'In Progress' | 'Published' | 'Graded';
     year?: number;
     term?: number;
+    academicYearId?: string;
     curriculumType?: 'Standard' | 'CBC';
     isInternal?: boolean; // If true, only visible to teachers/admins
     institutionId: string;
