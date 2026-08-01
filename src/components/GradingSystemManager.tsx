@@ -237,12 +237,23 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
         };
     }, [subjects, courses, dbAllocations]);
 
-    // Sync saved data from currentInstitution AND dynamically populate configuredClasses nodes
+    const loadedInstIdRef = React.useRef<string | null>(null);
+
+    // Sync saved data from currentInstitution ONCE when institution ID changes, without wiping local edits on re-render
     useEffect(() => {
+        const instId = currentInstitution?.id || 'default';
         const savedNodes = (currentInstitution as any)?.treeGradingNodes;
         
+        if (loadedInstIdRef.current !== instId) {
+            loadedInstIdRef.current = instId;
+            if (savedNodes && Object.keys(savedNodes).length > 0) {
+                setGradingNodes(savedNodes);
+                return;
+            }
+        }
+
         setGradingNodes(prev => {
-            const base = (savedNodes && Object.keys(savedNodes).length > 0) ? { ...savedNodes } : { ...prev };
+            const base = { ...prev };
             
             if (!base['root_main']) {
                 base['root_main'] = {
@@ -272,21 +283,45 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
 
             return base;
         });
-    }, [currentInstitution, configuredClasses, isPrimarySchool]);
+    }, [currentInstitution?.id, isPrimarySchool]);
 
-    const activeNode = useMemo(() => {
+    // Active Node memoized helper
+    const activeNode = useMemo((): TreeGradingNode => {
         if (gradingNodes[selectedNodeId]) return gradingNodes[selectedNodeId];
-        const firstClassKey = configuredClasses[0] ? `class_${configuredClasses[0].toLowerCase().replace(/[^a-z0-9]/g, '_')}_overall` : null;
-        if (firstClassKey && gradingNodes[firstClassKey]) return gradingNodes[firstClassKey];
-        if (gradingNodes['root_main']) return gradingNodes['root_main'];
-        return Object.values(gradingNodes)[0] || {
-            id: 'root_main',
-            label: 'Main grading system (default)',
-            title: `MAIN DEFAULT GRADING SYSTEM (${isPrimarySchool ? 'CBE 4-Level' : '8-4-4 12-Point'})`,
-            type: 'root' as const,
+        
+        let label = 'Grading System';
+        let title = 'GRADING SYSTEM';
+        let type: 'root' | 'class' | 'overall' | 'subject' = 'overall';
+
+        if (selectedNodeId === 'root_main') {
+            label = 'Main grading system (default)';
+            title = `MAIN DEFAULT GRADING SYSTEM (${isPrimarySchool ? 'CBE 4-Level' : '8-4-4 12-Point'})`;
+            type = 'root';
+        } else if (selectedNodeId.endsWith('_overall')) {
+            const classPart = selectedNodeId.replace(/^class_/, '').replace(/_overall$/, '').replace(/_/g, ' ');
+            label = `${classPart.toUpperCase()} Overall`;
+            title = `${classPart.toUpperCase()} OVERALL GRADING SYSTEM`;
+            type = 'overall';
+        } else if (selectedNodeId.includes('_sub_')) {
+            const parts = selectedNodeId.split('_sub_');
+            const subPart = parts[1] ? parts[1].replace(/_/g, ' ') : 'Subject';
+            label = subPart.toUpperCase();
+            title = `${subPart.toUpperCase()} GRADING SYSTEM`;
+            type = 'subject';
+        } else if (selectedNodeId.startsWith('node_custom_')) {
+            label = 'Custom Grading System';
+            title = 'CUSTOM GRADING SYSTEM';
+            type = 'overall';
+        }
+
+        return {
+            id: selectedNodeId,
+            label,
+            title,
+            type,
             definitions: activeDefaultDefinitions
         };
-    }, [gradingNodes, selectedNodeId, configuredClasses, isPrimarySchool]);
+    }, [gradingNodes, selectedNodeId, isPrimarySchool, activeDefaultDefinitions]);
 
     const toggleExpand = (key: string) => {
         setExpandedNodes(prev => ({ ...prev, [key]: !prev[key] }));
@@ -295,10 +330,8 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
     // Grade row value changes
     const handleGradeRowChange = (gradeId: string, field: keyof GradeDefinition, value: any) => {
         setGradingNodes(prev => {
-            const target = prev[selectedNodeId] || prev['node_f3_101'];
-            if (!target) return prev;
-
-            const updatedDefs = target.definitions.map(g => {
+            const currentNode = prev[selectedNodeId] || activeNode;
+            const updatedDefs = currentNode.definitions.map(g => {
                 if (g.id === gradeId) {
                     return { ...g, [field]: value };
                 }
@@ -308,7 +341,8 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             return {
                 ...prev,
                 [selectedNodeId]: {
-                    ...target,
+                    ...currentNode,
+                    id: selectedNodeId,
                     definitions: updatedDefs
                 }
             };
@@ -327,13 +361,13 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
         };
 
         setGradingNodes(prev => {
-            const target = prev[selectedNodeId] || prev['node_f3_101'];
-            if (!target) return prev;
+            const currentNode = prev[selectedNodeId] || activeNode;
             return {
                 ...prev,
                 [selectedNodeId]: {
-                    ...target,
-                    definitions: [...target.definitions, newGradeObj]
+                    ...currentNode,
+                    id: selectedNodeId,
+                    definitions: [...currentNode.definitions, newGradeObj]
                 }
             };
         });
@@ -342,19 +376,19 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
     // Delete grade row
     const handleDeleteGradeRow = (gradeId: string) => {
         setGradingNodes(prev => {
-            const target = prev[selectedNodeId] || prev['node_f3_101'];
-            if (!target) return prev;
+            const currentNode = prev[selectedNodeId] || activeNode;
             return {
                 ...prev,
                 [selectedNodeId]: {
-                    ...target,
-                    definitions: target.definitions.filter(g => g.id !== gradeId)
+                    ...currentNode,
+                    id: selectedNodeId,
+                    definitions: currentNode.definitions.filter(g => g.id !== gradeId)
                 }
             };
         });
     };
 
-    // Add New Grading System handler
+    // Add New Custom Grading System handler
     const handleAddNewGradingSystem = () => {
         const name = prompt('Enter New Grading System Name:');
         if (!name || !name.trim()) return;
@@ -365,7 +399,7 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             label: name.trim(),
             title: name.trim().toUpperCase(),
             type: 'overall',
-            definitions: defaultDefinitions
+            definitions: [...activeDefaultDefinitions]
         };
 
         setGradingNodes(prev => ({
@@ -450,16 +484,32 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
                         <button
                             type="button"
                             onClick={() => {
-                                if (confirm('Are you sure you want to delete this grading system node?')) {
+                                if (selectedNodeId === 'root_main') {
+                                    if (confirm('Reset Main Default Grading System boundaries to standard defaults?')) {
+                                        setGradingNodes(prev => ({
+                                            ...prev,
+                                            root_main: {
+                                                id: 'root_main',
+                                                label: 'Main grading system (default)',
+                                                title: `MAIN DEFAULT GRADING SYSTEM (${isPrimarySchool ? 'CBE 4-Level' : '8-4-4 12-Point'})`,
+                                                type: 'root',
+                                                definitions: [...activeDefaultDefinitions]
+                                            }
+                                        }));
+                                    }
+                                    return;
+                                }
+
+                                if (confirm(`Are you sure you want to delete "${activeNode.label}" grading system node?`)) {
                                     setGradingNodes(prev => {
                                         const copy = { ...prev };
                                         delete copy[selectedNodeId];
                                         return copy;
                                     });
-                                    setSelectedNodeId('node_f3_101');
+                                    setSelectedNodeId('root_main');
                                 }
                             }}
-                            className="py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-center"
+                            className="py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-red-600 dark:text-red-400 font-bold text-xs rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 transition-all text-center"
                         >
                             Delete
                         </button>
@@ -536,6 +586,28 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
                                 </div>
                             )}
                         </div>
+
+                        {/* Custom Grading Systems section if any custom systems created */}
+                        {Object.values(gradingNodes).some(n => n.id.startsWith('node_custom_')) && (
+                            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-1">
+                                <div className="font-bold text-[11px] uppercase tracking-wider text-slate-500 px-1 pb-1">
+                                    Custom Grading Systems
+                                </div>
+                                {Object.values(gradingNodes)
+                                    .filter(n => n.id.startsWith('node_custom_'))
+                                    .map(cn => (
+                                        <div
+                                            key={cn.id}
+                                            onClick={() => setSelectedNodeId(cn.id)}
+                                            className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
+                                                selectedNodeId === cn.id ? 'bg-blue-600 text-white font-bold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200/50'
+                                            }`}
+                                        >
+                                            {cn.label}
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -559,8 +631,9 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
                                     setGradingNodes(prev => ({
                                         ...prev,
                                         [selectedNodeId]: {
-                                            ...(prev[selectedNodeId] || activeNode),
-                                            definitions: defaultCbeDefinitions
+                                            ...activeNode,
+                                            id: selectedNodeId,
+                                            definitions: [...defaultCbeDefinitions]
                                         }
                                     }));
                                 }}
@@ -576,8 +649,9 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
                                     setGradingNodes(prev => ({
                                         ...prev,
                                         [selectedNodeId]: {
-                                            ...(prev[selectedNodeId] || activeNode),
-                                            definitions: defaultDefinitions
+                                            ...activeNode,
+                                            id: selectedNodeId,
+                                            definitions: [...defaultDefinitions]
                                         }
                                     }));
                                 }}
