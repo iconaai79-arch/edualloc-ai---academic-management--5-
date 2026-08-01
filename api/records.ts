@@ -200,7 +200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (getStrParam(id)) q = q.eq('id', getStrParam(id));
-            if (targetInstParam && !isTableWithoutInstitutionId(moduleName)) {
+            if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
                 q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
             } else if (isGroupOrSuperAdmin && user?.role === 'group_admin' && !targetInstParam && !isTableWithoutInstitutionId(moduleName)) {
                 q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', user.institutionId);

@@ -154,6 +154,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Branch filtering states for multi-branch/multi-institution support
     const [branches, setBranches] = useState<any[]>([]);
     const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL');
+    const [allBranchStudents, setAllBranchStudents] = useState<any[]>([]);
+    const [allBranchInvoices, setAllBranchInvoices] = useState<any[]>([]);
+    const [allBranchReceipts, setAllBranchReceipts] = useState<any[]>([]);
 
     useEffect(() => {
         if (props.institution?.id) {
@@ -164,6 +167,74 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 .catch(() => {});
         }
     }, [props.institution?.id]);
+
+    // Fetch records for all satellite branches when in multi-branch/group admin mode
+    useEffect(() => {
+        const isGlobalAdmin = ['super_admin', 'group_admin', 'admin'].includes(props.currentUser?.role || '');
+        if (!isGlobalAdmin || branches.length === 0) return;
+
+        const linkedInstIds = branches
+            .map((b: any) => b.linked_institution_id || b.linkedInstitutionId || b.id)
+            .filter((id: string) => id && id !== props.institution?.id);
+
+        if (linkedInstIds.length === 0) return;
+
+        const fetchAllBranchData = async () => {
+            try {
+                const promises = linkedInstIds.flatMap((instId: string) => [
+                    apiService.fetchModuleRecords('users', instId).catch(() => []),
+                    apiService.fetchModuleRecords('invoices', instId).catch(() => []),
+                    apiService.fetchModuleRecords('receipts', instId).catch(() => [])
+                ]);
+
+                const results = await Promise.all(promises);
+                const extraStudents: any[] = [];
+                const extraInvoices: any[] = [];
+                const extraReceipts: any[] = [];
+
+                for (let i = 0; i < results.length; i += 3) {
+                    extraStudents.push(...(results[i] || []));
+                    extraInvoices.push(...(results[i + 1] || []));
+                    extraReceipts.push(...(results[i + 2] || []));
+                }
+
+                setAllBranchStudents(extraStudents);
+                setAllBranchInvoices(extraInvoices);
+                setAllBranchReceipts(extraReceipts);
+            } catch (err) {
+                console.warn('[FinanceManager] Error loading multi-branch records:', err);
+            }
+        };
+
+        fetchAllBranchData();
+    }, [branches, props.institution?.id, props.currentUser?.role]);
+
+    const mergedStudents = useMemo(() => {
+        const map = new Map<string, any>();
+        (props.students || []).forEach((s: any) => map.set(s.id, s));
+        allBranchStudents.forEach((s: any) => {
+            if (!map.has(s.id)) map.set(s.id, s);
+        });
+        return Array.from(map.values());
+    }, [props.students, allBranchStudents]);
+
+    const mergedInvoices = useMemo(() => {
+        const map = new Map<string, any>();
+        (props.invoices || []).forEach((inv: any) => map.set(inv.id, inv));
+        allBranchInvoices.forEach((inv: any) => {
+            if (!map.has(inv.id)) map.set(inv.id, inv);
+        });
+        return Array.from(map.values());
+    }, [props.invoices, allBranchInvoices]);
+
+    const mergedReceipts = useMemo(() => {
+        const map = new Map<string, any>();
+        (props.receipts || []).forEach((rec: any) => map.set(rec.id, rec));
+        allBranchReceipts.forEach((rec: any) => {
+            if (!map.has(rec.id)) map.set(rec.id, rec);
+        });
+        return Array.from(map.values());
+    }, [props.receipts, allBranchReceipts]);
 
     // Branch User Isolation for System Users
     const filteredUsersByBranch = useMemo(() => {
@@ -185,9 +256,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // Translate DS structures to standard Dashboard Invoice models dynamically
     const mappedInvoices = useMemo(() => {
-        const baseInvoices = (props.invoices || []).filter((inv: any) => {
+        const baseInvoices = mergedInvoices.filter((inv: any) => {
             const invNo = inv.invoiceNumber || inv.invoice_number;
-            const branchMatches = selectedBranchId === 'ALL' || (inv.branchId || inv.branch_id) === selectedBranchId;
+            const invBranchId = inv.branchId || inv.branch_id;
+            const invInstId = inv.institutionId || inv.institution_id;
+            const branchMatches = selectedBranchId === 'ALL' || invBranchId === selectedBranchId || invInstId === selectedBranchId;
             return !invNo?.startsWith('REMEDIAL-') && branchMatches;
         });
         if (!isDrivingSchool) return baseInvoices;
@@ -208,15 +281,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             status: dsInv.status === 'Fully Paid' ? 'paid' as const : 'pending' as const,
             studentId: dsInv.studentId
         }));
-    }, [props.invoices, dsInvoices, isDrivingSchool, selectedBranchId]);
+    }, [mergedInvoices, dsInvoices, isDrivingSchool, selectedBranchId]);
 
     // Translate DS payments to standard Dashboard Receipt models dynamically
     const mappedReceipts = useMemo(() => {
-        const baseReceipts = (props.receipts || []).filter((r: any) => {
+        const baseReceipts = mergedReceipts.filter((r: any) => {
             const invId = r.invoiceId || r.invoice_id;
-            const branchMatches = selectedBranchId === 'ALL' || (r.branchId || r.branch_id) === selectedBranchId;
+            const rBranchId = r.branchId || r.branch_id;
+            const rInstId = r.institutionId || r.institution_id;
+            const branchMatches = selectedBranchId === 'ALL' || rBranchId === selectedBranchId || rInstId === selectedBranchId;
             if (invId) {
-                const targetInvoice = props.invoices.find((i: any) => i.id === invId);
+                const targetInvoice = mergedInvoices.find((i: any) => i.id === invId);
                 const invNo = (targetInvoice as any)?.invoiceNumber || (targetInvoice as any)?.invoice_number;
                 if (invNo?.startsWith('REMEDIAL-')) return false;
             }
@@ -235,7 +310,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             invoiceId: dsPay.invoiceId,
             studentId: dsPay.studentId
         }));
-    }, [props.receipts, dsPayments, isDrivingSchool, props.invoices, selectedBranchId]);
+    }, [mergedReceipts, dsPayments, isDrivingSchool, mergedInvoices, selectedBranchId]);
 
     // Reports sub-tab states
     const [stmtStudentId, setStmtStudentId] = useState('');
@@ -1184,9 +1259,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [searchBalances, balanceClassFilter, balanceStatusFilter, balanceSortOption, balancesPerPage]);
 
     const studentFinanceData = useMemo(() => {
-        const filteredStudents = props.students.filter(s => 
-            selectedBranchId === 'ALL' || (s.branchId || s.branch_id) === selectedBranchId
-        );
+        const filteredStudents = mergedStudents.filter(s => {
+            if (selectedBranchId === 'ALL') return true;
+            const sBranchId = s.branchId || s.branch_id || s.institutionBranchId;
+            const sInstId = s.institutionId || s.institution_id;
+            return sBranchId === selectedBranchId || sInstId === selectedBranchId;
+        });
         return filteredStudents.map(s => {
             const enrollment = enrollments.find(e => e.userId === s.id);
             const adm = studentAdmissionNumber(s);
@@ -1253,7 +1331,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             };
         });
-    }, [props.students, mappedInvoices, mappedReceipts, enrollments, openingBalancesMap, selectedBranchId]);
+    }, [mergedStudents, mappedInvoices, mappedReceipts, enrollments, openingBalancesMap, selectedBranchId]);
 
     const availableClassesForBalances = useMemo(() => {
         const classesSet = new Set<string>();
