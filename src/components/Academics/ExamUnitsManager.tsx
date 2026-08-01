@@ -956,83 +956,54 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         {activeExam.name}
                                     </h2>
 
-                            <div className="flex items-center gap-3 relative">
-                                <button
-                                    type="button"
-                                    onClick={handleTogglePublish}
-                                    className="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg transition-all"
-                                >
-                                    {activeExam.status === 'published' ? 'Unpublish Exam' : 'Publish Exam'}
-                                </button>
+                                    <div className="flex items-center gap-3 relative">
+                                        <button
+                                            type="button"
+                                            onClick={handleTogglePublish}
+                                            className="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg transition-all"
+                                        >
+                                            {activeExam?.status === 'published' ? 'Unpublish Exam' : 'Publish Exam'}
+                                        </button>
 
-                                {/* Exam Actions Dropdown */}
-                                <div className="relative">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsActionsOpen(!isActionsOpen)}
-                                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center gap-1.5"
-                                    >
-                                        Exam Actions <ChevronDownIcon className="w-4 h-4 stroke-[2.5]" />
-                                    </button>
-
-                                    {isActionsOpen && (
-                                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl z-30 py-2 divide-y divide-slate-100 dark:divide-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 animate-scale-in">
-                                            <div className="py-1">
-                                                <button
-                                                    onClick={() => {
-                                                        setIsActionsOpen(false);
-                                                        setIsEditingExam(true);
-                                                        setNewExamName(activeExam.name);
-                                                        setNewTerm(activeExam.term);
-                                                        setNewAcademicYear(activeExam.year.toString());
-                                                        setSelectedClasses(activeExam.classes || registeredClasses);
-                                                        setWizardStep(1);
-                                                        setIsAddExamModalOpen(true);
-                                                    }}
-                                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
-                                                >
-                                                    <PencilIcon className="w-4 h-4 text-slate-400" /> Edit Exam
-                                                </button>
-                                                <button
-                                                    onClick={() => { setIsActionsOpen(false); setIsBroadsheetModalOpen(true); }}
-                                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
-                                                >
-                                                    <DocumentTextIcon className="w-4 h-4 text-slate-400" /> View Broadsheet
-                                                </button>
-                                                <button
-                                                    onClick={() => { setIsActionsOpen(false); setIsSendResultsModalOpen(true); }}
-                                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
-                                                >
-                                                    <PaperAirplaneIcon className="w-4 h-4 text-slate-400" /> Send Results
-                                                </button>
-                                            </div>
-                                            <div className="py-1">
-                                                <button
-                                                    onClick={() => { setIsActionsOpen(false); handleTogglePublish(); }}
-                                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-amber-600"
-                                                >
-                                                    {activeExam.status === 'published' ? 'Unpublish' : 'Publish'}
-                                                </button>
-                                                <button
-                                                    onClick={() => { setIsActionsOpen(false); alert('Invitation Accepted'); }}
-                                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800"
-                                                >
-                                                    Accept Invitation
-                                                </button>
-                                            </div>
-                                            <div className="py-1">
-                                                <button
-                                                    onClick={() => { setIsActionsOpen(false); handleDeleteExam(); }}
-                                                    className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2"
-                                                >
-                                                    <TrashIcon className="w-4 h-4" /> Delete
-                                                </button>
-                                            </div>
+                                        <div className="relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsActionsOpen(!isActionsOpen)}
+                                                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center gap-1.5"
+                                            >
+                                                Exam Actions <ChevronDownIcon className="w-4 h-4 stroke-[2.5]" />
+                                            </button>
+                                            {isActionsOpen && (
+                                                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl z-30 py-2 divide-y divide-slate-100 dark:divide-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 animate-scale-in">
+                                                    <div className="py-1">
+                                                        <button onClick={() => { setIsActionsOpen(false); setIsEditingExam(true); setNewExamName(activeExam.name); setNewTerm(activeExam.term); setNewAcademicYear(activeExam.year.toString()); setSelectedClasses(activeExam.classes || registeredClasses); setWizardStep(1); setIsAddExamModalOpen(true); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+                                                            <PencilIcon className="w-4 h-4 text-slate-400" /> Edit Exam
+                                                        </button>
+                                                        <button onClick={() => { setIsActionsOpen(false); setIsBroadsheetModalOpen(true); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+                                                            <DocumentTextIcon className="w-4 h-4 text-slate-400" /> View Broadsheet
+                                                        </button>
+                                                        <button onClick={() => { setIsActionsOpen(false); setIsSendResultsModalOpen(true); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+                                                            <PaperAirplaneIcon className="w-4 h-4 text-slate-400" /> Send Results
+                                                        </button>
+                                                    </div>
+                                                    <div className="py-1">
+                                                        <button onClick={() => { setIsActionsOpen(false); handleTogglePublish(); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-amber-600">
+                                                            {activeExam?.status === 'published' ? 'Unpublish' : 'Publish'}
+                                                        </button>
+                                                        <button onClick={() => { setIsActionsOpen(false); alert('Invitation Accepted'); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">
+                                                            Accept Invitation
+                                                        </button>
+                                                    </div>
+                                                    <div className="py-1">
+                                                        <button onClick={() => { setIsActionsOpen(false); handleDeleteExam(); }} className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2">
+                                                            <TrashIcon className="w-4 h-4" /> Delete
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
 
                         {/* Top KPI Stat Cards matching screenshot */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
