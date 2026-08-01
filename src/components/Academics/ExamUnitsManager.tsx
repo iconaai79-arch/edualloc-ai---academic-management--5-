@@ -221,27 +221,70 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             ? selectedClasses
             : (activeExam?.classes && activeExam.classes.length > 0 ? activeExam.classes : [selectedClassFilter]);
 
-        const normalizeClassStr = (str: string) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        let savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
+        if (!savedConfigs || !Array.isArray(savedConfigs) || savedConfigs.length === 0) {
+            try {
+                const savedLocalInst = localStorage.getItem(`eduai_class_exam_configs_${instId}`);
+                if (savedLocalInst) {
+                    const parsed = JSON.parse(savedLocalInst);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        savedConfigs = parsed;
+                    }
+                }
+            } catch(e) {}
+        }
+
+        const matchClassConfig = (c: any, targets: string[]) => {
+            if (!c) return false;
+            const cName = (c.className || c.name || '').toLowerCase().trim();
+            const rawClassId = (c.classId || c.id || '').toLowerCase().trim();
+            const cIdClean = rawClassId.replace(/^cls_/, '').replace(/_/g, ' ');
+
+            const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            const cnNorm = normalize(cName);
+            const cIdNorm = normalize(cIdClean);
+
+            return targets.some(tc => {
+                if (!tc) return false;
+                const tcClean = tc.toLowerCase().trim();
+                const tcNorm = normalize(tcClean);
+                const tcNoStream = tcClean.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                const tcNoStreamNorm = normalize(tcNoStream);
+
+                if (tcClean === cName || tcClean === cIdClean) return true;
+                if (tcNorm === cnNorm || tcNorm === cIdNorm) return true;
+                if (tcNoStreamNorm && (tcNoStreamNorm === cnNorm || tcNoStreamNorm === cIdNorm)) return true;
+
+                if (cnNorm && tcNorm.startsWith(cnNorm)) return true;
+                if (cIdNorm && tcNorm.startsWith(cIdNorm)) return true;
+                if (cnNorm && cnNorm.startsWith(tcNoStreamNorm)) return true;
+                if (cIdNorm && cIdNorm.startsWith(tcNoStreamNorm)) return true;
+
+                const isPg = (str: string) => str === 'pg' || str.includes('playgroup') || str.includes('play');
+                if (isPg(tcNorm) && (isPg(cnNorm) || isPg(cIdNorm))) return true;
+
+                const isPp1 = (str: string) => str === 'pp1' || str.includes('preprimary1');
+                if (isPp1(tcNorm) && (isPp1(cnNorm) || isPp1(cIdNorm))) return true;
+
+                const isPp2 = (str: string) => str === 'pp2' || str.includes('preprimary2');
+                if (isPp2(tcNorm) && (isPp2(cnNorm) || isPp2(cIdNorm))) return true;
+
+                return false;
+            });
+        };
 
         // 1. Primary Source: Exact configurations from Exam Papers Settings (currentInstitution.classExamConfigs / class_exam_configs)
-        const savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
         if (savedConfigs && Array.isArray(savedConfigs) && savedConfigs.length > 0) {
             const paperList: TestedPaperConfig[] = [];
             const seenKey = new Set<string>();
 
             // Filter strictly by targetClasses
             const activeConfigs = (targetClasses && targetClasses.length > 0)
-                ? savedConfigs.filter(c => {
-                    if (!c) return false;
-                    const cnNorm = normalizeClassStr(c.className || c.classId || '');
-                    return targetClasses.some(tc => {
-                        const tcNorm = normalizeClassStr(tc);
-                        return tcNorm === cnNorm || tcNorm.includes(cnNorm) || cnNorm.includes(tcNorm);
-                    });
-                })
+                ? savedConfigs.filter(c => matchClassConfig(c, targetClasses))
                 : savedConfigs;
 
-            const targetConfigs = activeConfigs;
+            const targetConfigs = activeConfigs.length > 0 ? activeConfigs : savedConfigs;
 
             targetConfigs.forEach(cConfig => {
                 if (!cConfig) return;
@@ -278,19 +321,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             }
         }
 
-        // 2. Secondary Source: LocalStorage override if user manually modified papers in this view
-        try {
-            const savedLocal = localStorage.getItem(`eduai_tested_papers_${instId}`);
-            if (savedLocal) {
-                const parsed = JSON.parse(savedLocal);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    setTestedPaperConfigs(parsed);
-                    return;
-                }
-            }
-        } catch(e) {}
-
-        // 3. Fallback: Generate paper components from subjects prop, filtered by class applicability
+        // 2. Secondary Source: Generate paper components from subjects prop, filtered by class applicability
         if (subjects && Array.isArray(subjects) && subjects.length > 0) {
             const applicableSubjects = subjects.filter(sub => {
                 if (!sub) return false;
@@ -299,20 +330,21 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 return targetClasses.some(tc => isSubjectApplicableToClass({ name: subName, code: subCode }, tc));
             });
 
-            const subsToUse = applicableSubjects.length > 0 ? applicableSubjects : subjects;
-            const paperList: TestedPaperConfig[] = subsToUse.filter(Boolean).map((sub, idx) => ({
-                id: `sub_tp_${sub?.id || idx}`,
-                subject: sub?.name || (sub as any)?.title || 'Subject',
-                paperName: 'Paper 1',
-                maxInputScore: 100,
-                convertToHundred: true,
-                enabled: true
-            }));
-            setTestedPaperConfigs(paperList);
-            return;
+            if (applicableSubjects.length > 0) {
+                const paperList: TestedPaperConfig[] = applicableSubjects.map((sub, idx) => ({
+                    id: `sub_tp_${sub?.id || idx}`,
+                    subject: sub?.name || (sub as any)?.title || 'Subject',
+                    paperName: 'Paper 1',
+                    maxInputScore: 100,
+                    convertToHundred: true,
+                    enabled: true
+                }));
+                setTestedPaperConfigs(paperList);
+                return;
+            }
         }
 
-        // 4. Default fallback: Primary vs Secondary curriculum defaults
+        // 3. Default fallback: Primary vs Secondary curriculum defaults
         if (isPrimarySchool) {
             setTestedPaperConfigs([
                 { id: 'cbe_1', subject: 'Mathematics Activities', paperName: 'Paper 1 (Numeracy & Logic)', maxInputScore: 100, convertToHundred: true, enabled: true },
@@ -327,7 +359,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 { id: 'cbe_10', subject: 'Physical & Health Education (PHE)', paperName: 'Paper 1 (Fitness & Sports)', maxInputScore: 100, convertToHundred: true, enabled: true }
             ]);
         }
-    }, [currentInstitution, subjects, instId, isPrimarySchool, selectedClasses]);
+    }, [currentInstitution, subjects, instId, isPrimarySchool, selectedClasses, selectedClassFilter, activeExam, isAddExamModalOpen, isPapersModalOpen]);
     const [useCustomRanking, setUseCustomRanking] = useState(false);
     const [rankingScope, setRankingScope] = useState<'overall' | 'per_class'>('overall');
     const [customRankingCriteria, setCustomRankingCriteria] = useState<'Points' | 'Total Marks' | 'Mean Score'>('Points');
