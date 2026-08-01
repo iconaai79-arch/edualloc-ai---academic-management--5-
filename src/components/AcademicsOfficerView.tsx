@@ -449,9 +449,9 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                                     <div>
                                         <p className="font-semibold text-slate-900 dark:text-white">Ready to generate for:</p>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400">{activeSemester.name} ({activeAcademicYear.name})</p>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">{activeSemester?.name} ({activeAcademicYear?.name})</p>
                                         <div className="text-sm text-slate-500 dark:text-slate-400">
-                                            {activeSemester.sessions?.map(session => (
+                                            {activeSemester?.sessions?.map(session => (
                                                 session.examPeriods?.map(examPeriod => (
                                                     <div key={examPeriod.id}>- {session.name} / {examPeriod.name}: {examPeriod.startDate} to {examPeriod.endDate}</div>
                                                 ))

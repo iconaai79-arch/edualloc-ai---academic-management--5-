@@ -66,9 +66,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [exams, setExams] = useState<ExamUnitRecord[]>(() => {
         try {
             const saved = localStorage.getItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`);
-            if (saved) {
+            if (saved !== null) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed)) return parsed;
             }
         } catch (e) {}
         return [
@@ -754,18 +754,31 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         });
     };
 
-    const handleDeleteExam = () => {
+    const handleDeleteExam = async () => {
+        if (!activeExam) return;
         if (confirm(`Are you sure you want to delete "${activeExam.name}"?`)) {
+            const targetId = activeExam.id;
             setExams(prev => {
-                const nextExams = prev.filter(e => e.id !== activeExam.id);
+                const nextExams = prev.filter(e => e.id !== targetId);
                 try {
                     localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
                 } catch(e) {}
                 if (nextExams.length > 0) {
                     setSelectedExamId(nextExams[0].id);
+                } else {
+                    setSelectedExamId('');
                 }
                 return nextExams;
             });
+
+            // Delete from database to prevent backend sync restoration
+            if (currentInstitution?.id) {
+                await apiService.deleteModuleRecord('exam_units', targetId).catch(() => {});
+                await apiService.deleteModuleRecord('exam_broadsheets', targetId).catch(() => {});
+            }
+
+            setSaveToastMessage(`🗑️ Deleted "${activeExam.name}".`);
+            setTimeout(() => setSaveToastMessage(null), 4000);
         }
     };
 
