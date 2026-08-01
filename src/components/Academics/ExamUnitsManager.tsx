@@ -948,7 +948,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             )}
                         </div>
                     ) : (
-                        <React.Fragment>
+                        <div className="space-y-6">
                             {/* Header Controls & Exam Title */}
                             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-sm">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
@@ -1238,7 +1238,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         )}
                     </div>
                 </div>
-            </React.Fragment>
+            </div>
         )}
     </div>
 
