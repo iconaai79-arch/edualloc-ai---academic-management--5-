@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import type { User, Course, Department, TimetableEntry, Subject, AllocationRequest, TimeOffRequest } from '../../types';
+import { isSuperAdminUser } from '../../types';
 import { SearchIcon as Search } from '../icons/SearchIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
@@ -175,8 +176,9 @@ export function TimetableUserDirectory({
     const displayUsers = useMemo(() => {
         const targetRoles = role === 'teacher' ? ['teacher', 'lecturer'] : ['student'];
         let filtered = allUsers.filter(u =>
-            targetRoles.includes(u.role) ||
-            (Array.isArray(u.roles) && u.roles.some(r => targetRoles.includes(r)))
+            ((targetRoles.includes(u.role) ||
+            (Array.isArray(u.roles) && u.roles.some(r => targetRoles.includes(r))))) &&
+            !isSuperAdminUser(u)
         );
 
         if (selectedCourseId !== 'all' && role === 'student') {

@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { isSuperAdminUser } from '../types';
 import type {
     User, Role, SmsConfig, Department, Unavailability, Course,
     CourseLevel, UserMappingField, StaffImportPreviewUser, Institution,
@@ -1061,7 +1062,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             list = (users || []).filter(u => {
-                if (!u) return false;
+                if (!u || isSuperAdminUser(u)) return false;
 
                 if (isSuperAdmin && institutionFilter !== 'all' && u.institutionId !== institutionFilter) {
                     return false;
@@ -1081,9 +1082,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             });
         } else {
             list = (users || []).filter(u => {
-                if (!u) return false;
+                if (!u || isSuperAdminUser(u)) return false;
                 if (activeTab === 'staff') {
-                    const baseFilter = u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead' && u.role !== 'visitor';
+                    const baseFilter = u.role !== 'student' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead' && u.role !== 'visitor';
                     if (targetIsPm && !isSuperAdmin) {
                         const pmStaffRoles = ['property_admin', 'admin', 'finance', 'finance_officer', 'security', 'reception', 'caretaker', 'driver'];
                         const instId = currentInstitution?.id || currentUser?.institutionId;

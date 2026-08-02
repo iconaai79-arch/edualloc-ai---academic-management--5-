@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback, lazy, Suspense } from 'react';
+import { isSuperAdminUser } from '../types';
 import type {
     Institution, User, Subject, Department, CompanyDetails, MpesaTransaction,
     Receipt, InvoiceItem, ActivityLog, Course, ExtensionRequest, Semester, DisciplineIncident,
@@ -2214,7 +2215,7 @@ Please change it after login.`;
                                     <UserIcon className="w-16 h-16" />
                                 </div>
                                 <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Teaching Assets</h3>
-                                <p className="text-5xl font-black text-emerald-500 tracking-tighter">{(props.users || []).filter(u => u.role === 'lecturer' || u.role === 'teacher').length}</p>
+                                <p className="text-5xl font-black text-emerald-500 tracking-tighter">{(props.users || []).filter(u => (u.role === 'lecturer' || u.role === 'teacher') && !isSuperAdminUser(u)).length}</p>
                             </div>
                         </div>
 
@@ -3802,7 +3803,7 @@ Please change it after login.`;
                                     marks={assessmentMarks}
                                     subjects={subjects}
                                     students={users.filter(u => u.role === 'student')}
-                                    teachers={users.filter(u => u.role === 'lecturer' || u.role === 'teacher')}
+                                    teachers={users.filter(u => (u.role === 'lecturer' || u.role === 'teacher') && !isSuperAdminUser(u))}
                                 />
                             </Suspense>
                         )}

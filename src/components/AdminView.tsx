@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
+import { isSuperAdminUser } from '../types';
 import type {
     User, Department, Subject, Building, Room, AllocationRequest,
     TimetableEntry, SmsConfig, EmailConfig, LetterheadConfig, TransportVehicle, TransportOnboarding, VehicleLog,
@@ -514,7 +515,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     // Today's attendance computations for Head Teacher / Principal dashboard
     const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
-    const teachersList = useMemo(() => (props.users || []).filter(u => u && (u.role === 'teacher' || u.role === 'lecturer')), [props.users]);
+    const teachersList = useMemo(() => (props.users || []).filter(u => u && (u.role === 'teacher' || u.role === 'lecturer') && !isSuperAdminUser(u)), [props.users]);
     const todayCheckInsList = useMemo(() => (props.teacherCheckIns || []).filter(c => c.checkInDate === todayStr), [props.teacherCheckIns, todayStr]);
 
     const totalTeachersCount = teachersList.length;

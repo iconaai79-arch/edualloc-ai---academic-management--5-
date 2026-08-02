@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { User, Subject, Course, Room, Department, AcademicYear, Semester, ExamTimetableEntry, TimetableSettings, Building, AcademicLevel, LetterheadConfig, EmailConfig, Institution, SmsConfig, ExamTimetableSettings, AllocationRequest, TimeOffRequest, TimetableEntry, Assessment, AssessmentMark, ActivityLog, DisciplineIncident } from '../types';
+import { isSuperAdminUser } from '../types';
 import { generateExamTimetable } from '../services/geminiService';
 import { generateExamTimetablePdf } from '../services/pdfService';
 import { StudentPromotionWizard } from './Academics/StudentPromotionWizard';
@@ -639,7 +640,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             </div>
                             <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
                                 <h4 className="font-black text-slate-900 mb-2 uppercase tracking-tighter">Teaching Staff</h4>
-                                <p className="text-3xl font-black text-slate-900">{users.filter(u => u.role === 'lecturer' || u.role === 'teacher').length}</p>
+                                <p className="text-3xl font-black text-slate-900">{users.filter(u => (u.role === 'lecturer' || u.role === 'teacher') && !isSuperAdminUser(u)).length}</p>
                                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Active Faculty</p>
                             </div>
                         </div>
@@ -685,7 +686,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     onClose={() => setIsWizardOpen(false)}
                     allocations={(props.allocations || []).filter(r => r.status === 'approved')}
                     subjects={subjects}
-                    lecturers={users.filter(u => u.role === 'lecturer' || u.role === 'teacher')}
+                    lecturers={users.filter(u => (u.role === 'lecturer' || u.role === 'teacher') && !isSuperAdminUser(u))}
                     rooms={rooms}
                     courses={courses}
                     timetableSettings={timetableSettings}

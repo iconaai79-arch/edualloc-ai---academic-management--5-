@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Institution, User, Subject, Course } from '../../types';
+import { isSuperAdminUser } from '../../types';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import { PencilIcon } from '../icons/PencilIcon';
@@ -121,7 +122,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
     // List of teachers
     const teacherUsers = useMemo(() => {
-        const list = users.filter(u => u.role === 'teacher' || u.role === 'lecturer' || u.role === 'admin' || u.role === 'academics_officer');
+        const list = users.filter(u => (u.role === 'teacher' || u.role === 'lecturer' || u.role === 'academics_officer') && !isSuperAdminUser(u));
         if (list.length > 0) return list;
         return [
             { id: 't_1', name: 'Mr. Justus (Maths)', email: 'justus@school.com', role: 'teacher' as const },

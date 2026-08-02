@@ -6002,3 +6002,15 @@ export interface BuildingVisitorAsset {
     verifiedAtExit?: boolean;
     createdAt?: string;
 }
+
+export const isSuperAdminUser = (u: any): boolean => {
+    if (!u) return false;
+    const r = String(u.role || '').toLowerCase().trim();
+    const e = String(u.email || '').toLowerCase().trim();
+    const n = String(u.name || '').toLowerCase().trim();
+    if (r === 'super_admin' || r === 'superadmin' || r === 'super_administrator' || r === 'superadministrator') return true;
+    if (u.isSuperAdmin === true || u.is_super_admin === true) return true;
+    if (e.includes('superadmin') || e.includes('super_admin')) return true;
+    if (n.includes('super admin') || n.includes('superadmin') || n === 'super admin') return true;
+    return false;
+};
