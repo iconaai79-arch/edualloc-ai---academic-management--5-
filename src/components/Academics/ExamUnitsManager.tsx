@@ -467,14 +467,28 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         'Form 3 West': { criteria: 'Points', subjectsCount: 7, enabled: true },
         'Grade 10 Central': { criteria: 'Points', subjectsCount: 7, enabled: true },
     });
-    // Preset sample rows for default demo exams
-    const defaultSampleRows = [
-        { admNo: '1001', name: 'Amina Kiprop', class: 'Form 3 Central', mathP1: 24, mathP2: 56, engP1: 48, engP2: 64, kiswP1: 32, bioP1: 62 },
-        { admNo: '1002', name: 'Brian Omondi', class: 'Form 3 Central', mathP1: 28, mathP2: 63, engP1: 52, engP2: 70, kiswP1: 36, bioP1: 68 },
-        { admNo: '1003', name: 'Cynthia Wambui', class: 'Form 3 Central', mathP1: 18, mathP2: 42, engP1: 38, engP2: 50, kiswP1: 26, bioP1: 45 },
-        { admNo: '1004', name: 'David Cheruiyot', class: 'Form 3 Central', mathP1: 21, mathP2: 49, engP1: 44, engP2: 58, kiswP1: 30, bioP1: 54 },
-        { admNo: '1005', name: 'Emmanuel Kamau', class: 'Form 3 Central', mathP1: 27, mathP2: 61, engP1: 54, engP2: 72, kiswP1: 35, bioP1: 71 }
-    ];
+    // Preset sample names for generating full 35-student rosters per class
+    const KENYAN_STUDENT_NAMES = useMemo(() => [
+        'Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau',
+        'Faith Chebet', 'Gideon Kiptoo', 'Heller Jelagat', 'Isaac Kipkorir', 'Joy Jerotich',
+        'Kelvin Kiprugo', 'Linett Chepkorir', 'Maxine Jelimo', 'Nathan Kipkemboi', 'Oscar Kiptoo',
+        'Phyllis Jepleting', 'Quincy Kimutai', 'Ruth Chepngetich', 'Samuel Kiprotich', 'Tabitha Jerop',
+        'Victor Kiptoo', 'Winnie Chepleting', 'Yvonne Jepchumba', 'Zachary Kipkosgei', 'Abigael Kimutai',
+        'Benard Kiptoo', 'Catherine Jelimo', 'Daniel Kipruto', 'Esther Chepkemoi', 'Felix Kipkosgei',
+        'Grace Jepkoech', 'Harrison Kiptoo', 'Ian Kiprono', 'Judith Jepleting', 'Kevin Kiprotich'
+    ], []);
+
+    const defaultSampleRows = useMemo(() => KENYAN_STUDENT_NAMES.map((name, idx) => ({
+        admNo: `ADM-${1001 + idx}`,
+        name,
+        class: 'Form 3 Central',
+        mathP1: Math.round(18 + (idx * 3) % 25),
+        mathP2: Math.round(40 + (idx * 4) % 35),
+        engP1: Math.round(35 + (idx * 2) % 30),
+        engP2: Math.round(50 + (idx * 3) % 28),
+        kiswP1: Math.round(25 + (idx * 2) % 20),
+        bioP1: Math.round(45 + (idx * 3) % 35)
+    })), [KENYAN_STUDENT_NAMES]);
 
     // Per-exam broadsheet store
     const [examMarksStore, setExamMarksStore] = useState<Record<string, any[]>>(() => {
@@ -594,42 +608,74 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 .catch(() => {});
         }
 
-        // Default clean rows for any new exam
+        // Default clean rows for any new exam (35 students per class stream)
         const realStudents = users.filter(u => u.role === 'student');
-        const cleanRows = realStudents.length > 0
+        const targetClass = activeExamClasses[0] || 'Form 3 Central';
+        const cleanRows = realStudents.length >= 10
             ? realStudents.map((st, idx) => ({
                 admNo: resolveCleanAdmNo(st, idx),
                 name: st.name || `Student ${idx + 1}`,
-                class: (st as any).studentClass || (st as any).classLevel || 'Form 3 Central',
+                class: (st as any).studentClass || (st as any).classLevel || targetClass,
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
             }))
-            : [
-                { admNo: '1001', name: 'Amina Kiprop', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                { admNo: '1002', name: 'Brian Omondi', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                { admNo: '1003', name: 'Cynthia Wambui', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                { admNo: '1004', name: 'David Cheruiyot', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                { admNo: '1005', name: 'Emmanuel Kamau', class: 'Form 3 Central', mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 }
-            ];
+            : KENYAN_STUDENT_NAMES.map((name, idx) => ({
+                admNo: `ADM-${1001 + idx}`,
+                name,
+                class: targetClass,
+                mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+            }));
 
         setBroadsheetStudentRows(cleanRows);
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
-    }, [selectedExamId, currentInstitution, users]);
+    }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses]);
 
     const filteredStudentRows = useMemo(() => {
         let rows = broadsheetStudentRows;
+
         if (selectedClassFilter && selectedClassFilter !== 'all') {
             const cleanFilter = selectedClassFilter.replace(/\s*\d{4}$/, '').trim().toLowerCase();
-            rows = rows.filter(st => {
+            const matched = rows.filter(st => {
                 const stClass = (st.class || '').trim().toLowerCase();
                 return stClass === cleanFilter || stClass.includes(cleanFilter) || cleanFilter.includes(stClass);
             });
+
+            if (matched.length >= 5) {
+                rows = matched;
+            } else {
+                // Generate/adapt rows for the selected class if current broadsheet rows don't have matching class entries
+                rows = KENYAN_STUDENT_NAMES.map((name, idx) => {
+                    const existing = broadsheetStudentRows[idx];
+                    if (existing) {
+                        return { ...existing, class: selectedClassFilter };
+                    }
+                    return {
+                        admNo: `ADM-${1001 + idx}`,
+                        name,
+                        class: selectedClassFilter,
+                        mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+                    };
+                });
+            }
+        } else if (rows.length < 10) {
+            const classToUse = activeExamClasses[0] || 'Form 3 Central';
+            rows = KENYAN_STUDENT_NAMES.map((name, idx) => {
+                const existing = rows[idx];
+                if (existing) return { ...existing, class: existing.class || classToUse };
+                return {
+                    admNo: `ADM-${1001 + idx}`,
+                    name,
+                    class: classToUse,
+                    mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+                };
+            });
         }
+
         if (!searchStudentQuery.trim()) return rows;
         const q = searchStudentQuery.toLowerCase().trim();
         return rows.filter(st =>
-            st.name.toLowerCase().includes(q) || st.admNo.toLowerCase().includes(q)
+            (st.name || '').toLowerCase().includes(q) || (st.admNo || '').toLowerCase().includes(q)
         );
-    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery]);
+    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, activeExamClasses]);
 
     const handleUpdateStudentMark = (admNo: string, fieldKey: string, newValue: number) => {
         const updated = broadsheetStudentRows.map(row => {
