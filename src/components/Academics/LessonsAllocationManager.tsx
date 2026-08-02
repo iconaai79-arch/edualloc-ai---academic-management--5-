@@ -137,10 +137,74 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         return ['Mathematics', 'English', 'Kiswahili', 'Biology', 'Chemistry', 'Physics', 'Geography', 'History', 'CRE', 'Computer Studies', 'Business Studies', 'Agriculture'];
     }, [subjects]);
 
+    const instId = currentInstitution?.id || 'default_inst';
+
+    // Persistent Class Allocations Store (configured in Manage Subjects per Class Stream)
+    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            }
+        } catch(e) {}
+        return (currentInstitution as any)?.classSubjectAllocations || {};
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => r.id === `alloc_${currentInstitution.id}` || r.institutionId === currentInstitution.id);
+                    if (match && match.allocations) {
+                        setClassAllocationsStore(prev => {
+                            const merged = { ...match.allocations, ...prev };
+                            try {
+                                localStorage.setItem(`eduai_class_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
     // Helper to get applicable subjects for any given class name
     const getApplicableSubjectsForClass = useCallback((clsName: string) => {
         if (!clsName) return [];
-        
+        const cClean = clsName.trim();
+        const cLower = cClean.toLowerCase();
+
+        // 1. Check persistent per-class allocation store configured in Manage Subjects per Class Stream
+        const storedAssignedIds = classAllocationsStore[cClean] ?? classAllocationsStore[cLower];
+        if (Array.isArray(storedAssignedIds)) {
+            if (storedAssignedIds.length === 0) return [];
+            const set = new Set(storedAssignedIds.map(id => String(id).toLowerCase().trim()));
+            return subjects.filter(s => {
+                const sId = (s.id || '').toLowerCase().trim();
+                const sName = (s.name || '').toLowerCase().trim();
+                const sCode = (s.code || '').toLowerCase().trim();
+                return set.has(sId) || set.has(sName) || (sCode && set.has(sCode));
+            });
+        }
+
+        // 2. Check explicit targetClasses / assignedClasses array on subject
+        if (subjects && subjects.length > 0) {
+            const explicitMatch = subjects.filter(s => {
+                const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
+                if (Array.isArray(targetCls)) {
+                    return targetCls.some((tc: string) => {
+                        const cleanTC = (tc || '').toLowerCase().trim();
+                        return cleanTC === cLower || cLower.startsWith(cleanTC) || cleanTC.startsWith(cLower);
+                    });
+                }
+                return false;
+            });
+            if (explicitMatch.length > 0) return explicitMatch;
+        }
+
+        // 3. Fallback to standard grade-level applicability rules
         if (subjects && subjects.length > 0) {
             const applicable = subjects.filter(s => isSubjectAssignedToClassStream(s, clsName, courses));
             if (applicable.length > 0) return applicable;
@@ -154,7 +218,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             { id: 'sub_soc', name: 'Social Studies', code: 'SST 101', periodsPerWeek: 4 },
             { id: 'sub_cre', name: 'Religious Education', code: 'CRE 101', periodsPerWeek: 3 }
         ];
-    }, [subjects, courses]);
+    }, [subjects, courses, classAllocationsStore]);
 
     const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>([]);
     const [removedFromClassKeys, setRemovedFromClassKeys] = useState<Set<string>>(() => {
