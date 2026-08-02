@@ -94,7 +94,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [isBroadsheetModalOpen, setIsBroadsheetModalOpen] = useState(false);
     const [isSendResultsModalOpen, setIsSendResultsModalOpen] = useState(false);
     const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
-    const [selectedClassFilter, setSelectedClassFilter] = useState<string>('Form 3 Central');
+    const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
     const [saveToastMessage, setSaveToastMessage] = useState<string | null>(null);
     const [isSavingMarks, setIsSavingMarks] = useState(false);
 
@@ -759,8 +759,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             alert('Please enter an exam title.');
             return;
         }
+        if (selectedClasses.length === 0) {
+            alert('Please select at least one class sitting this exam.');
+            return;
+        }
 
-        const targetClasses = selectedClasses.length > 0 ? selectedClasses : registeredClasses;
+        const targetClasses = selectedClasses;
         const realStudents = users.filter(u => u.role === 'student');
 
         const matchedStudents = realStudents.filter(st => {
