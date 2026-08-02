@@ -804,7 +804,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         setBroadsheetStudentRows(cleanRows);
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
         return;
-        }
 
         // Try loading from localStorage first for instant availability across refresh
         try {
