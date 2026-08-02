@@ -1,8 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
 import { PrinterIcon } from '../icons/PrinterIcon';
-import { ArrowDownTrayIcon } from '../icons/ArrowDownTrayIcon';
-import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
 interface OfficialResultSlipViewProps {
     assessments?: Assessment[];
