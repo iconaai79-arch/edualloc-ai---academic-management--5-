@@ -1059,12 +1059,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             } catch(e) {}
         }
 
+        const activeExamRows = (activeExam?.id && examMarksStore[activeExam.id]) ? examMarksStore[activeExam.id] : broadsheetStudentRows;
+
         return activeExamClasses.map((cName, cIdx) => {
             const cleanTC = cName.trim();
             const tcLower = cleanTC.toLowerCase();
             const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
-
-            const activeExamRows = (activeExam?.id && examMarksStore[activeExam.id]) ? examMarksStore[activeExam.id] : broadsheetStudentRows;
 
             const realStudentsForClass = allRealStudents.filter(st => {
                 const stClass = getStudentClass(st);
