@@ -209,6 +209,26 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [testedPaperConfigs, setTestedPaperConfigs] = useState<TestedPaperConfig[]>([]);
     const [syncedVersion, setSyncedVersion] = useState(0);
 
+    const deduplicatePapers = useCallback((list: TestedPaperConfig[]) => {
+        const seen = new Set<string>();
+        const unique: TestedPaperConfig[] = [];
+        list.forEach(p => {
+            if (!p || !p.subject || !p.subject.trim()) return;
+            const subNorm = p.subject.trim().toLowerCase();
+            const paperNorm = (p.paperName || 'Paper 1').trim().toLowerCase();
+            const key = `${subNorm}__${paperNorm}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                unique.push({
+                    ...p,
+                    subject: p.subject.trim(),
+                    paperName: (p.paperName || 'Paper 1').trim()
+                });
+            }
+        });
+        return unique;
+    }, []);
+
     // Synchronized listener for real-time cross-module updates across Lessons & Allocation, Exam Papers & Grading
     useEffect(() => {
         const handleSync = () => {
@@ -323,7 +343,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 });
 
                 if (paperList.length > 0) {
-                    setTestedPaperConfigs(paperList);
+                    setTestedPaperConfigs(deduplicatePapers(paperList));
                     return;
                 }
             }
@@ -377,7 +397,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         convertToHundred: true,
                         enabled: true
                     }));
-                    setTestedPaperConfigs(paperList);
+                    setTestedPaperConfigs(deduplicatePapers(paperList));
                     return;
                 }
             }
@@ -401,7 +421,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     convertToHundred: true,
                     enabled: true
                 }));
-                setTestedPaperConfigs(paperList);
+                setTestedPaperConfigs(deduplicatePapers(paperList));
                 return;
             }
         }
@@ -2178,7 +2198,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {testedPaperConfigs.map(tp => (
+                                        {deduplicatePapers(testedPaperConfigs).map(tp => (
                                             <tr key={tp.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                                                 <td className="px-4 py-2.5 font-bold text-slate-800 dark:text-slate-200">{tp.subject}</td>
                                                 <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 font-medium">{tp.paperName}</td>
@@ -2238,10 +2258,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         if (!pName) return;
                                         const maxScore = parseInt(prompt('Enter Max Raw Input Score (e.g. 50):', '50') || '50') || 50;
 
-                                        setTestedPaperConfigs(prev => [
+                                        setTestedPaperConfigs(prev => deduplicatePapers([
                                             ...prev,
                                             { id: `tp_${Date.now()}`, subject: subName, paperName: pName, maxInputScore: maxScore, convertToHundred: true, enabled: true }
-                                        ]);
+                                        ]));
                                     }}
                                     className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded transition-all flex items-center gap-1"
                                 >
@@ -2251,14 +2271,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => {
+                                        const cleanPapers = deduplicatePapers(testedPaperConfigs);
+                                        setTestedPaperConfigs(cleanPapers);
                                         try {
-                                            localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(testedPaperConfigs));
+                                            localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(cleanPapers));
                                         } catch(e) {}
                                         setIsPapersModalOpen(false);
                                     }}
                                     className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-md transition-all"
                                 >
-                                    Save Papers Configuration ({testedPaperConfigs.filter(p => p.enabled).length} Active)
+                                    Save Papers Configuration ({deduplicatePapers(testedPaperConfigs).filter(p => p.enabled).length} Active)
                                 </button>
                             </div>
                         </div>
