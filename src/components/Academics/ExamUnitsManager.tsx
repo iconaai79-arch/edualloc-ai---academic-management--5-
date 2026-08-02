@@ -537,6 +537,51 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         };
     });
 
+    // Dynamic Real Students State
+    const [allRealStudents, setAllRealStudents] = useState<User[]>(() => {
+        const fromProps = (users || []).filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+        if (fromProps.length > 0) return fromProps;
+        try {
+            const savedSt = localStorage.getItem(`eduai_students_${instId}`) || localStorage.getItem(`eduai_users_${instId}`);
+            if (savedSt) {
+                const parsed = JSON.parse(savedSt);
+                if (Array.isArray(parsed)) {
+                    const stOnly = parsed.filter(u => u && (u.role === 'student' || u.role === 'Student' || u.userType === 'student'));
+                    if (stOnly.length > 0) return stOnly;
+                }
+            }
+        } catch(e) {}
+        return [];
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            Promise.all([
+                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
+            ]).then(([stRecords, userRecords]) => {
+                const combined = [...(stRecords || []), ...(userRecords || [])];
+                const stOnly = combined.filter(u => u && (u.role === 'student' || u.role === 'Student' || u.userType === 'student' || u.studentClass));
+                if (stOnly.length > 0) {
+                    setAllRealStudents(prev => {
+                        const seen = new Set(prev.map(p => p.id));
+                        const unique = [...prev];
+                        stOnly.forEach(st => {
+                            if (st.id && !seen.has(st.id)) {
+                                seen.add(st.id);
+                                unique.push(st);
+                            }
+                        });
+                        try {
+                            localStorage.setItem(`eduai_students_${currentInstitution.id}`, JSON.stringify(unique));
+                        } catch(e) {}
+                        return unique;
+                    });
+                }
+            });
+        }
+    }, [currentInstitution]);
+
     // Broadsheet Spreadsheet State
     const [marksDisplayMode, setMarksDisplayMode] = useState<'raw' | 'converted' | 'dual'>('raw');
     const [broadsheetStudentRows, setBroadsheetStudentRows] = useState(defaultSampleRows);
@@ -639,14 +684,18 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 .catch(() => {});
         }
 
-        // Default clean rows for any new exam (35 students per class stream)
-        const realStudents = users.filter(u => u.role === 'student');
+        // Default clean rows for any new exam (uses real students if available, fallback demo if empty)
+        const activeStList = allRealStudents.length > 0
+            ? allRealStudents
+            : users.filter(u => u && (u.role === 'student' || u.role === 'Student' || (u as any).userType === 'student'));
+
         const targetClass = activeExamClasses[0] || 'Form 3 Central';
-        const cleanRows = realStudents.length >= 10
-            ? realStudents.map((st, idx) => ({
+
+        const cleanRows = activeStList.length > 0
+            ? activeStList.map((st, idx) => ({
                 admNo: resolveCleanAdmNo(st, idx),
                 name: st.name || `Student ${idx + 1}`,
-                class: (st as any).studentClass || (st as any).classLevel || targetClass,
+                class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || targetClass,
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
             }))
             : KENYAN_STUDENT_NAMES.map((name, idx) => ({
@@ -658,7 +707,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         setBroadsheetStudentRows(cleanRows);
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
-    }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses]);
+    }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses, allRealStudents]);
 
     const filteredStudentRows = useMemo(() => {
         let rows = broadsheetStudentRows;
@@ -670,35 +719,38 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 return stClass === cleanFilter || stClass.includes(cleanFilter) || cleanFilter.includes(stClass);
             });
 
-            if (matched.length >= 5) {
+            if (matched.length > 0) {
                 rows = matched;
             } else {
-                // Generate/adapt rows for the selected class if current broadsheet rows don't have matching class entries
-                rows = KENYAN_STUDENT_NAMES.map((name, idx) => {
-                    const existing = broadsheetStudentRows[idx];
-                    if (existing) {
-                        return { ...existing, class: selectedClassFilter };
-                    }
-                    return {
+                // Check if real students exist for this selected class
+                const realClassSt = allRealStudents.filter(st => {
+                    const stClass = ((st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '').trim().toLowerCase();
+                    return stClass === cleanFilter || stClass.includes(cleanFilter) || cleanFilter.includes(stClass);
+                });
+
+                if (realClassSt.length > 0) {
+                    rows = realClassSt.map((st, idx) => ({
+                        admNo: resolveCleanAdmNo(st, idx),
+                        name: st.name || `Student ${idx + 1}`,
+                        class: selectedClassFilter,
+                        mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+                    }));
+                } else if (allRealStudents.length > 0) {
+                    rows = allRealStudents.map((st, idx) => ({
+                        admNo: resolveCleanAdmNo(st, idx),
+                        name: st.name || `Student ${idx + 1}`,
+                        class: selectedClassFilter,
+                        mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+                    }));
+                } else {
+                    rows = KENYAN_STUDENT_NAMES.map((name, idx) => ({
                         admNo: `ADM-${1001 + idx}`,
                         name,
                         class: selectedClassFilter,
                         mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-                    };
-                });
+                    }));
+                }
             }
-        } else if (rows.length < 10) {
-            const classToUse = activeExamClasses[0] || 'Form 3 Central';
-            rows = KENYAN_STUDENT_NAMES.map((name, idx) => {
-                const existing = rows[idx];
-                if (existing) return { ...existing, class: existing.class || classToUse };
-                return {
-                    admNo: `ADM-${1001 + idx}`,
-                    name,
-                    class: classToUse,
-                    mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-                };
-            });
         }
 
         if (!searchStudentQuery.trim()) return rows;
@@ -706,7 +758,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return rows.filter(st =>
             (st.name || '').toLowerCase().includes(q) || (st.admNo || '').toLowerCase().includes(q)
         );
-    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, activeExamClasses]);
+    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents]);
 
     const handleUpdateStudentMark = (admNo: string, fieldKey: string, newValue: number) => {
         const updated = broadsheetStudentRows.map(row => {
