@@ -19,6 +19,7 @@ import { SubjectGradesDistributionDashboard } from './SubjectGradesDistributionD
 import { FuturisticReportCardView } from './FuturisticReportCardView';
 import { StudentProgressReportView } from './StudentProgressReportView';
 import { BroadsheetReportView } from './BroadsheetReportView';
+import { OfficialResultSlipView } from './OfficialResultSlipView';
 
 interface AcademicReportsHubProps {
     assessments?: Assessment[];
@@ -576,122 +577,16 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
                 {/* 4. RESULTS SLIPS */}
                 {activeSubTab === 'result_slips' && (
-                    <div className="space-y-8 animate-fade-in">
-                        {/* Selector Controls */}
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700">
-                            <div className="flex flex-wrap items-center gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Learner / Student</label>
-                                    <select 
-                                        value={selectedStudentId} 
-                                        onChange={e => setSelectedStudentId(e.target.value)} 
-                                        className="form-select text-xs font-bold text-indigo-600 dark:text-indigo-400"
-                                    >
-                                        {activeStudents.map(s => <option key={s.id} value={s.id}>{s.name} ({(s as any).admissionNo || (s as any).admission_no || (s as any).staffId || s.id})</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Assessment</label>
-                                    <select 
-                                        value={selectedAssessmentId} 
-                                        onChange={e => setSelectedAssessmentId(e.target.value)} 
-                                        className="form-select text-xs font-bold"
-                                    >
-                                        {assessments.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={() => window.print()}
-                                className="btn-primary px-6 py-3 text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-100"
-                            >
-                                <PrinterIcon className="w-4 h-4" /> Print Result Slip
-                            </button>
-                        </div>
-
-                        {/* Printable Result Slip Card */}
-                        <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100 max-w-3xl mx-auto space-y-8 no-print-bg">
-                            {/* Slip Header */}
-                            <div className="flex justify-between items-start border-b border-slate-100 pb-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center text-2xl font-black">
-                                        {(currentInstitution?.name || 'S').charAt(0)}
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{currentInstitution?.name || 'ACADEMIC INSTITUTION'}</h2>
-                                        <p className="text-xs font-black text-indigo-600 uppercase tracking-widest">OFFICIAL EXAM RESULT SLIP</p>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{activeAssessmentObj.title}</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase block">DATE OF ISSUE</span>
-                                    <span className="text-xs font-bold text-slate-800">{new Date().toLocaleDateString()}</span>
-                                </div>
-                            </div>
-
-                            {/* Student Details */}
-                            <div className="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs">
-                                <div>
-                                    <span className="text-[10px] font-black text-slate-400 uppercase block">STUDENT NAME</span>
-                                    <span className="font-black text-slate-900 uppercase">{activeStudentObj.name}</span>
-                                </div>
-                                <div>
-                                    <span className="text-[10px] font-black text-slate-400 uppercase block">ADMISSION NO</span>
-                                    <span className="font-mono font-bold text-slate-700">{(activeStudentObj as any).admissionNo || (activeStudentObj as any).admission_no || (activeStudentObj as any).staffId || activeStudentObj.id}</span>
-                                </div>
-                                <div>
-                                    <span className="text-[10px] font-black text-slate-400 uppercase block">CLASS STREAM</span>
-                                    <span className="font-black text-slate-900">{selectedClass || 'Form 3 Central'}</span>
-                                </div>
-                            </div>
-
-                            {/* Marks Table */}
-                            <div className="border border-slate-100 rounded-2xl overflow-hidden">
-                                <table className="w-full text-left text-xs">
-                                    <thead className="bg-slate-50">
-                                        <tr>
-                                            <th className="p-3 text-[10px] font-black uppercase text-slate-400">Subject</th>
-                                            <th className="p-3 text-[10px] font-black uppercase text-slate-400 text-center">Score (%)</th>
-                                            <th className="p-3 text-[10px] font-black uppercase text-slate-400 text-center">Grade</th>
-                                            <th className="p-3 text-[10px] font-black uppercase text-slate-400 text-right">Remarks</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {(subjects.length > 0 ? subjects : [
-                                            { id: '1', name: 'Mathematics' },
-                                            { id: '2', name: 'English' },
-                                            { id: '3', name: 'Kiswahili' },
-                                            { id: '4', name: 'Science / Biology' }
-                                        ]).map(sub => {
-                                            const score = 50 + (sub.name.length * 5) % 45;
-                                            const { grade, comment } = getGradeFromScore(score);
-                                            return (
-                                                <tr key={sub.id}>
-                                                    <td className="p-3 font-bold text-slate-800">{sub.name}</td>
-                                                    <td className="p-3 text-center font-black text-slate-900">{score}%</td>
-                                                    <td className="p-3 text-center font-black text-indigo-600">{grade}</td>
-                                                    <td className="p-3 text-right text-slate-500 font-medium">{comment}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Slip Footer Remarks */}
-                            <div className="pt-4 border-t border-slate-100 flex justify-between items-end">
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase">CLASS TEACHER COMMENT</p>
-                                    <p className="text-xs font-bold text-slate-800 mt-1 italic">"Consistent performance. Recommended for academic merit."</p>
-                                </div>
-                                <div className="text-right">
-                                    <div className="h-8 border-b-2 border-slate-900 w-36 mb-1 ml-auto" />
-                                    <p className="text-[10px] font-black text-slate-400 uppercase">PRINCIPAL STAMP & SIGNATURE</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <OfficialResultSlipView
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
                 )}
 
                 {/* 5. STUDENT PROGRESS REPORTS */}
