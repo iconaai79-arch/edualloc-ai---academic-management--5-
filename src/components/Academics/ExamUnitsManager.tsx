@@ -713,19 +713,96 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     // Dynamic Class Paper Progress Rows based on active exam & broadsheet rows
     const classPaperRows = useMemo(() => {
-        const activeSubjects = testedPaperConfigs.filter(p => p.enabled);
-        const subjectList = activeSubjects.length > 0
-            ? Array.from(new Set(activeSubjects.map(p => p.subject)))
-            : (subjects.length > 0 ? subjects.map(s => s.name || (s as any).title) : ['English', 'Kiswahili', 'MATHS', 'Biology', 'Chemistry', 'Physics']);
+        // 1. Get classAllocationsStore (Ground truth per-class subjects from Manage Subjects per Class Stream)
+        const activeClassAllocationsStore: Record<string, string[]> = (() => {
+            try {
+                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (saved) return JSON.parse(saved) || {};
+            } catch(e) {}
+            return (currentInstitution as any)?.classSubjectAllocations || {};
+        })();
+
+        // 2. Get savedConfigs (Exam Papers Settings)
+        let savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
+        if (!savedConfigs || !Array.isArray(savedConfigs) || savedConfigs.length === 0) {
+            try {
+                const savedLocalInst = localStorage.getItem(`eduai_class_exam_configs_${instId}`);
+                if (savedLocalInst) {
+                    const parsed = JSON.parse(savedLocalInst);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        savedConfigs = parsed;
+                    }
+                }
+            } catch(e) {}
+        }
 
         return activeExamClasses.map((cName, cIdx) => {
             const classStudents = broadsheetStudentRows.filter(s => (s.class || '').toLowerCase() === cName.toLowerCase() || (s.class || '').includes(cName));
             const classEnrollment = classStudents.length > 0 ? classStudents.length : Math.round((activeExam?.studentsEnrolled || 60) / Math.max(1, activeExamClasses.length)) || 50;
 
-            const classSubjects = subjectList.filter(subName => isSubjectApplicableToClass({ name: subName }, cName));
-            const activeClassSubjects = classSubjects.length > 0 ? classSubjects : subjectList;
+            const cleanTC = cName.trim();
+            const tcLower = cleanTC.toLowerCase();
+            const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
 
-            const papers = activeClassSubjects.map((subName, sIdx) => {
+            // Source A: Exact configured papers for cName in Exam Papers Settings (savedConfigs)
+            const cConfig = (savedConfigs && Array.isArray(savedConfigs))
+                ? savedConfigs.find(c => {
+                    if (!c) return false;
+                    const cn = (c.className || c.name || '').toLowerCase().trim();
+                    const cid = (c.classId || c.id || '').toLowerCase().trim();
+                    return cn === tcLower || cn === tcNoStream || cid === tcLower || cid === tcNoStream || tcLower.startsWith(cn);
+                })
+                : null;
+
+            let classPaperItems: { subject: string; paperName: string }[] = [];
+
+            if (cConfig && cConfig.subjects && Array.isArray(cConfig.subjects) && cConfig.subjects.length > 0) {
+                cConfig.subjects.forEach((sConfig: any) => {
+                    const sName = sConfig.subjectName || sConfig.subjectId || sConfig.name;
+                    if (!sName) return;
+                    if (sConfig.papers && Array.isArray(sConfig.papers) && sConfig.papers.length > 0) {
+                        sConfig.papers.forEach((p: any) => {
+                            const pName = typeof p === 'string' ? p : (p.name || 'Paper 1');
+                            classPaperItems.push({ subject: String(sName).trim(), paperName: String(pName) });
+                        });
+                    } else {
+                        classPaperItems.push({ subject: String(sName).trim(), paperName: 'Paper 1' });
+                    }
+                });
+            }
+
+            // Source B: Ground Truth Manage Subjects per Class Stream (classAllocationsStore)
+            if (classPaperItems.length === 0) {
+                const storeEntry = activeClassAllocationsStore[cleanTC] ?? activeClassAllocationsStore[tcLower] ?? activeClassAllocationsStore[tcNoStream];
+                if (Array.isArray(storeEntry) && storeEntry.length > 0) {
+                    const allocatedSet = new Set(storeEntry.map(id => String(id).toLowerCase().trim()));
+                    const matched = subjects.filter(s => {
+                        const sId = (s.id || '').toLowerCase().trim();
+                        const sName = (s.name || '').toLowerCase().trim();
+                        const sCode = (s.code || '').toLowerCase().trim();
+                        return allocatedSet.has(sId) || allocatedSet.has(sName) || (sCode && allocatedSet.has(sCode));
+                    });
+
+                    if (matched.length > 0) {
+                        classPaperItems = matched.map(s => ({ subject: s.name || (s as any).title, paperName: 'Paper 1' }));
+                    }
+                }
+            }
+
+            // Source C: Fallback to testedPaperConfigs or subjects matching cName level
+            if (classPaperItems.length === 0) {
+                const activeSubjects = testedPaperConfigs.filter(p => p.enabled);
+                if (activeSubjects.length > 0) {
+                    classPaperItems = activeSubjects.map(p => ({ subject: p.subject, paperName: p.paperName }));
+                } else if (subjects && subjects.length > 0) {
+                    const filtered = subjects.filter(s => isSubjectApplicableToClass({ name: s.name || (s as any).title, code: s.code }, cName));
+                    const targetList = filtered.length > 0 ? filtered : subjects;
+                    classPaperItems = targetList.map(s => ({ subject: s.name || (s as any).title, paperName: 'Paper 1' }));
+                }
+            }
+
+            const papers = classPaperItems.map((item, sIdx) => {
+                const subName = item.subject;
                 const fieldKey = subName.toLowerCase().includes('math') ? 'mathP1' :
                                  subName.toLowerCase().includes('eng') ? 'engP1' :
                                  subName.toLowerCase().includes('kisw') ? 'kiswP1' :
@@ -739,12 +816,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     progress = activeExam.submittedPercent;
                 }
 
-                const teacherObj = users.find(u => (u.role === 'teacher' || (u.role as string) === 'instructor') && ((u as any).subject === subName || u.name));
+                const teacherObj = users.find(u => (u.role === 'teacher' || (u.role as string) === 'instructor') && ((u as any).subject === subName || (u as any).allocatedSubjects?.includes(subName) || u.name));
                 const teacherName = teacherObj ? teacherObj.name : `Subject Teacher`;
 
                 return {
                     id: `p_${cIdx}_${sIdx}`,
-                    subject: subName,
+                    subject: item.paperName && item.paperName !== 'Paper 1' && item.paperName !== 'Main paper' ? `${subName} (${item.paperName})` : subName,
                     teacher: teacherName,
                     enrollment: classEnrollment,
                     progress
@@ -764,7 +841,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 papers
             };
         });
-    }, [activeExamClasses, broadsheetStudentRows, testedPaperConfigs, subjects, users, activeExam]);
+    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users]);
 
     // Dynamic Teacher Progress
     const teacherProgressList = useMemo(() => {
