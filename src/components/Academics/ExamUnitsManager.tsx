@@ -760,6 +760,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return isStudentInTargetClasses(stClass, targetClasses);
         });
 
+        // 1. Check in-memory store
         if (examMarksStore[selectedExamId] && Array.isArray(examMarksStore[selectedExamId]) && examMarksStore[selectedExamId].length > 0) {
             const existingRows = examMarksStore[selectedExamId];
             const hasDemoDataOnly = existingRows.every(r => KENYAN_STUDENT_NAMES.includes(r.name));
@@ -780,6 +781,36 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return;
         }
 
+        // 2. Check localStorage
+        try {
+            const savedBroadsheet = localStorage.getItem(`eduai_exam_broadsheet_${selectedExamId}`);
+            if (savedBroadsheet) {
+                const parsed = JSON.parse(savedBroadsheet);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    const sanitized = sanitizeBroadsheetRows(parsed);
+                    setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
+                    setBroadsheetStudentRows(sanitized);
+                    return;
+                }
+            }
+        } catch(e) {}
+
+        // 3. Check DB
+        if (currentInstitution?.id && selectedExamId.startsWith('exam_')) {
+            apiService.fetchModuleRecords<any>('exam_broadsheets', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => r.id === selectedExamId || r.examId === selectedExamId);
+                    if (match && match.rows) {
+                        const sanitized = sanitizeBroadsheetRows(match.rows);
+                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
+                        setBroadsheetStudentRows(sanitized);
+                        return;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // 4. Default clean rows for target classes
         let cleanRows: any[] = [];
         if (matchingRealStudents.length > 0) {
             cleanRows = matchingRealStudents.map((st, idx) => ({
@@ -803,48 +834,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
         setBroadsheetStudentRows(cleanRows);
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
-        return;
-
-        // Try loading from localStorage first for instant availability across refresh
-        try {
-            const savedBroadsheet = localStorage.getItem(`eduai_exam_broadsheet_${selectedExamId}`);
-            if (savedBroadsheet) {
-                const parsed = JSON.parse(savedBroadsheet);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    const sanitized = sanitizeBroadsheetRows(parsed);
-                    setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
-                    setBroadsheetStudentRows(sanitized);
-                    return;
-                }
-            }
-        } catch(e) {}
-
-        // Fetch custom broadsheet for selected exam if exists
-        if (currentInstitution?.id && selectedExamId.startsWith('exam_')) {
-            apiService.fetchModuleRecords<any>('exam_broadsheets', currentInstitution.id)
-                .then(records => {
-                    const match = (records || []).find(r => r.id === selectedExamId || r.examId === selectedExamId);
-                    if (match && match.rows) {
-                        const sanitized = sanitizeBroadsheetRows(match.rows);
-                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
-                        setBroadsheetStudentRows(sanitized);
-                        return;
-                    }
-                })
-                .catch(() => {});
-        }
-
-        // Default clean rows for any new exam (uses real students for target classes if available)
-        const cleanRows = activeStListForExam.map((st, idx) => ({
-            admNo: resolveCleanAdmNo(st, idx),
-            name: st.name || `Student ${idx + 1}`,
-            class: getStudentClass(st) || targetClasses[0],
-            mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-        }));
-
-        setBroadsheetStudentRows(cleanRows);
-        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
-    }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass]);
+    }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass, sanitizeBroadsheetRows, resolveCleanAdmNo, examMarksStore]);
 
     const filteredStudentRows = useMemo(() => {
         const activeStList = allRealStudents.length > 0
