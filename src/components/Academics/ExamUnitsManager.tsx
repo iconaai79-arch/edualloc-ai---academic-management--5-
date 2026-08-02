@@ -266,14 +266,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 if (cnNorm && cnNorm.startsWith(tcNoStreamNorm)) return true;
                 if (cIdNorm && cIdNorm.startsWith(tcNoStreamNorm)) return true;
 
-                const isPg = (str: string) => str === 'pg' || str.includes('playgroup') || str.includes('play');
-                if (isPg(tcNorm) && (isPg(cnNorm) || isPg(cIdNorm))) return true;
+                const isPg = (str: string) => str.includes('pg') || str.includes('playgroup') || str.includes('play');
+                if ((isPg(tcNorm) || isPg(tcNoStreamNorm)) && (isPg(cnNorm) || isPg(cIdNorm))) return true;
 
-                const isPp1 = (str: string) => str === 'pp1' || str.includes('preprimary1');
-                if (isPp1(tcNorm) && (isPp1(cnNorm) || isPp1(cIdNorm))) return true;
+                const isPp1 = (str: string) => /\bpp\s*1\b/i.test(str) || str.includes('pp1') || str.includes('preprimary1');
+                if ((isPp1(tcNorm) || isPp1(tcNoStreamNorm)) && (isPp1(cnNorm) || isPp1(cIdNorm))) return true;
 
-                const isPp2 = (str: string) => str === 'pp2' || str.includes('preprimary2');
-                if (isPp2(tcNorm) && (isPp2(cnNorm) || isPp2(cIdNorm))) return true;
+                const isPp2 = (str: string) => /\bpp\s*2\b/i.test(str) || str.includes('pp2') || str.includes('preprimary2');
+                if ((isPp2(tcNorm) || isPp2(tcNoStreamNorm)) && (isPp2(cnNorm) || isPp2(cIdNorm))) return true;
 
                 return false;
             });
@@ -350,11 +350,20 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         // 3. Default fallback: Primary vs Secondary curriculum defaults based on target class level
+        const hasPrePrimaryTarget = targetClasses.some(tc => /\b(pp1|pp2|playgroup|nursery|kg)\b/i.test(tc) || tc.toLowerCase().includes('pp1') || tc.toLowerCase().includes('pp2') || tc.toLowerCase().includes('preprimary') || tc.toLowerCase().includes('pre-primary'));
         const hasLowerPrimaryTarget = targetClasses.some(tc => /\b(grade|std|standard|class)\s*[1-3]\b/i.test(tc) || tc.toLowerCase().includes('lower primary') || tc.toLowerCase().includes('grade 1') || tc.toLowerCase().includes('grade 2') || tc.toLowerCase().includes('grade 3'));
         const hasUpperPrimaryTarget = targetClasses.some(tc => /\b(grade|std|standard|class)\s*[4-6]\b/i.test(tc) || tc.toLowerCase().includes('upper primary'));
         const hasJSSTarget = targetClasses.some(tc => /\b(grade|std|standard|class)\s*[7-9]\b/i.test(tc) || tc.toLowerCase().includes('jss') || tc.toLowerCase().includes('junior'));
 
-        if (hasLowerPrimaryTarget) {
+        if (hasPrePrimaryTarget) {
+            setTestedPaperConfigs([
+                { id: 'cbe_pp_1', subject: 'Language Activities', paperName: 'Paper 1 (Language & Literacy)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_pp_2', subject: 'Mathematical Activities', paperName: 'Paper 1 (Numeracy & Logic)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_pp_3', subject: 'Environmental Activities', paperName: 'Paper 1 (Environment & Nature)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_pp_4', subject: 'Psychomotor & Creative Activities', paperName: 'Paper 1 (Art, Craft & Play)', maxInputScore: 100, convertToHundred: true, enabled: true },
+                { id: 'cbe_pp_5', subject: 'Religious Education Activities', paperName: 'Paper 1 (Spiritual & Values)', maxInputScore: 100, convertToHundred: true, enabled: true }
+            ]);
+        } else if (hasLowerPrimaryTarget) {
             setTestedPaperConfigs([
                 { id: 'cbe_lp_1', subject: 'Mathematics Activities', paperName: 'Paper 1 (Numeracy & Logic)', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_lp_2', subject: 'English Language Activities', paperName: 'Paper 1 (Language & Literacy)', maxInputScore: 100, convertToHundred: true, enabled: true },
