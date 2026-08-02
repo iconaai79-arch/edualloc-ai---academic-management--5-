@@ -688,27 +688,59 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return '';
     }, []);
 
-    // Helper to resolve clean human-readable student admission numbers
-    const resolveCleanAdmNo = (st: any, idx: number) => {
-        const candidate = st.admissionNumber || st.admission_number || st.admNo || st.admissionNo || st.regNo || st.registrationNumber || st.studentId;
-        if (candidate && typeof candidate === 'string' && !candidate.startsWith('usr_') && !candidate.startsWith('user_') && candidate.trim().length > 0) {
-            return candidate.trim();
+    // Helper to resolve clean human-readable student admission numbers across all schema types (numeric, string, metadata)
+    const resolveCleanAdmNo = useCallback((st: any, idx: number) => {
+        if (!st) return `ADM-${1001 + idx}`;
+        const rawCandidate = 
+            st.admissionNumber ?? 
+            st.admission_number ?? 
+            st.admNo ?? 
+            st.admissionNo ?? 
+            st.regNo ?? 
+            st.registrationNumber ?? 
+            st.studentId ?? 
+            st.staffId ?? 
+            st.metadata?.admissionNumber ?? 
+            st.metadata?.admission_number ?? 
+            st.metadata?.admNo ?? 
+            st.metadata?.admissionNo ?? 
+            st.metadata?.regNo ?? 
+            st.user?.admissionNumber ?? 
+            st.user?.metadata?.admissionNumber;
+
+        if (rawCandidate !== undefined && rawCandidate !== null) {
+            const strVal = String(rawCandidate).trim();
+            if (strVal.length > 0 && !strVal.startsWith('usr_') && !strVal.startsWith('user_')) {
+                return strVal;
+            }
         }
         return `ADM-${1001 + idx}`;
-    };
+    }, []);
 
-    // Helper to sanitize any loaded broadsheet rows that might contain raw user IDs (usr_...) as admNo
-    const sanitizeBroadsheetRows = (rows: any[]) => {
+    // Helper to sanitize any loaded broadsheet rows with real student admission numbers
+    const sanitizeBroadsheetRows = useCallback((rows: any[]) => {
         if (!Array.isArray(rows)) return rows;
+        const realStList = allRealStudents.length > 0
+            ? allRealStudents
+            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+
         return rows.map((row, idx) => {
+            const matchedSt = realStList.find(u =>
+                (u.name && row.name && u.name.toLowerCase().trim() === row.name.toLowerCase().trim()) ||
+                u.id === row.admNo ||
+                (u as any).admissionNumber === row.admNo ||
+                (u as any).admNo === row.admNo
+            );
+
+            if (matchedSt) {
+                return { ...row, admNo: resolveCleanAdmNo(matchedSt, idx) };
+            }
             if (!row.admNo || typeof row.admNo !== 'string' || row.admNo.startsWith('usr_') || row.admNo.startsWith('user_')) {
-                const matchedSt = users.find(u => u.name?.toLowerCase() === row.name?.toLowerCase() || u.id === row.admNo);
-                const cleanAdm = matchedSt ? resolveCleanAdmNo(matchedSt, idx) : `ADM-${1001 + idx}`;
-                return { ...row, admNo: cleanAdm };
+                return { ...row, admNo: resolveCleanAdmNo(row, idx) };
             }
             return row;
         });
-    };
+    }, [allRealStudents, users, resolveCleanAdmNo]);
 
     // Update broadsheet rows whenever selectedExamId changes
     useEffect(() => {
