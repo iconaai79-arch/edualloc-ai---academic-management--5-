@@ -462,6 +462,89 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         });
     }, [classList, classRankingConfigs]);
 
+    const instId = currentInstitution?.id || 'default_inst';
+
+    // Persistent Class Allocations Store (configured in Manage Subjects per Class Stream)
+    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            }
+        } catch(e) {}
+        return (currentInstitution as any)?.classSubjectAllocations || {};
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => r.id === `alloc_${currentInstitution.id}` || r.institutionId === currentInstitution.id);
+                    if (match && match.allocations) {
+                        setClassAllocationsStore(prev => {
+                            const merged = { ...match.allocations, ...prev };
+                            try {
+                                localStorage.setItem(`eduai_class_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
+    // Helper to get applicable subjects for any given class name
+    const getApplicableSubjectsForClass = useCallback((clsName: string) => {
+        if (!clsName) return [];
+        const cClean = clsName.trim();
+        const cLower = cClean.toLowerCase();
+
+        // 1. Persistent Per-Class Allocations Store (from Manage Subjects per Class Stream)
+        const storedAssignedIds = classAllocationsStore[cClean] ?? classAllocationsStore[cLower];
+        if (Array.isArray(storedAssignedIds)) {
+            if (storedAssignedIds.length === 0) return [];
+            const set = new Set(storedAssignedIds.map(id => String(id).toLowerCase().trim()));
+            return subjects.filter(s => {
+                const sId = (s.id || '').toLowerCase().trim();
+                const sName = (s.name || '').toLowerCase().trim();
+                const sCode = (s.code || '').toLowerCase().trim();
+                return set.has(sId) || set.has(sName) || (sCode && set.has(sCode));
+            });
+        }
+
+        // 2. Explicit targetClasses / assignedClasses array on subject
+        if (subjects && subjects.length > 0) {
+            const explicitMatch = subjects.filter(s => {
+                const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
+                if (Array.isArray(targetCls)) {
+                    return targetCls.some((tc: string) => {
+                        const cleanTC = (tc || '').toLowerCase().trim();
+                        return cleanTC === cLower || cLower.startsWith(cleanTC) || cleanTC.startsWith(cLower);
+                    });
+                }
+                return false;
+            });
+            if (explicitMatch.length > 0) return explicitMatch;
+        }
+
+        // 3. DB Allocations fallback
+        const dbSet = new Set(dbAllocations.filter(a => (a.className || '').toLowerCase().trim() === cLower).map(a => (a.subjectName || '').toLowerCase().trim()));
+        if (dbSet.size > 0) {
+            const matched = subjects.filter(s => dbSet.has((s.name || '').toLowerCase().trim()));
+            if (matched.length > 0) return matched;
+        }
+
+        // 4. Standard grade-level applicability rules fallback
+        if (subjects && subjects.length > 0) {
+            const applicable = subjects.filter(s => isSubjectAssignedToClassStream(s, clsName, courses));
+            if (applicable.length > 0) return applicable;
+        }
+
+        return [];
+    }, [subjects, courses, dbAllocations, classAllocationsStore]);
+
     // Active class configuration helper for Exam Papers
     // If no saved config exists for the active class, auto-populate from allocated subjects
     const activeClassConfig = useMemo(() => {
@@ -474,46 +557,20 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
             const seenNames = new Set<string>();
             const autoSubjects: ClassSubjectConfig[] = [];
 
-            // Source 1: subjects with targetClasses including this class (CBC / explicit assignment)
-            if (className && subjects && subjects.length > 0) {
-                const allocatedForClass = subjects.filter(s =>
-                    isSubjectAssignedToClassStream(s, className, courses)
-                );
-                allocatedForClass.forEach(s => {
-                    const nameKey = (s.name || '').toLowerCase().trim();
-                    if (nameKey && !seenNames.has(nameKey)) {
-                        seenNames.add(nameKey);
-                        autoSubjects.push({
-                            id: `auto_${s.id}_${activeClassId}`,
-                            subjectId: s.id,
-                            subjectCode: s.code || s.name.substring(0, 4).toUpperCase(),
-                            subjectName: s.name.toUpperCase(),
-                            papers: [{ id: `auto_paper_${s.id}_${activeClassId}`, name: 'Main paper', maxScore: 100 }]
-                        });
-                    }
-                });
-            }
-
-            // Source 2: subjects added directly as DB allocation records (e.g. via LessonsAllocationManager)
-            if (className) {
-                const clsLower = className.toLowerCase().trim();
-                dbAllocations
-                    .filter(a => (a.className || '').toLowerCase().trim() === clsLower)
-                    .forEach(a => {
-                        const nameKey = (a.subjectName || '').toLowerCase().trim();
-                        if (nameKey && !seenNames.has(nameKey)) {
-                            seenNames.add(nameKey);
-                            const matchedSubj = subjects.find(s => (s.name || '').toLowerCase().trim() === nameKey);
-                            autoSubjects.push({
-                                id: `auto_db_${nameKey}_${activeClassId}`,
-                                subjectId: matchedSubj?.id || a.subjectId || nameKey,
-                                subjectCode: a.subjectCode || matchedSubj?.code || nameKey.substring(0, 4).toUpperCase(),
-                                subjectName: a.subjectName.toUpperCase(),
-                                papers: [{ id: `auto_db_paper_${nameKey}_${activeClassId}`, name: 'Main paper', maxScore: 100 }]
-                            });
-                        }
+            const applicableForClass = getApplicableSubjectsForClass(className);
+            applicableForClass.forEach(s => {
+                const nameKey = (s.name || '').toLowerCase().trim();
+                if (nameKey && !seenNames.has(nameKey)) {
+                    seenNames.add(nameKey);
+                    autoSubjects.push({
+                        id: `auto_${s.id}_${activeClassId}`,
+                        subjectId: s.id,
+                        subjectCode: s.code || s.name.substring(0, 4).toUpperCase(),
+                        subjectName: s.name.toUpperCase(),
+                        papers: [{ id: `auto_paper_${s.id}_${activeClassId}`, name: 'Main paper', maxScore: 100 }]
                     });
-            }
+                }
+            });
 
             found = {
                 classId: activeClassId,
@@ -522,7 +579,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
             };
         }
         return found;
-    }, [classConfigs, activeClassId, classList, subjects, courses, dbAllocations]);
+    }, [classConfigs, activeClassId, classList, getApplicableSubjectsForClass]);
 
     // Active class comments helper for Teacher Comments
     const activeClassComments = useMemo(() => {
@@ -544,32 +601,10 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         const conf = classConfigs.find(c => c.classId === cId);
         if (conf) return conf.subjects.reduce((sum, s) => sum + s.papers.length, 0);
 
-        // No saved config — count unique subjects across both sources (targetClasses + DB allocations)
         const classObj = classList.find(c => c.id === cId);
         if (!classObj) return 0;
-        const clsName = classObj.name;
-        const clsLower = clsName.toLowerCase().trim();
-        const seenNames = new Set<string>();
-
-        // Source 1: subjects with targetClasses matching this class
-        if (subjects && subjects.length > 0) {
-            subjects.forEach(s => {
-                const k = (s.name || '').toLowerCase().trim();
-                if (k && !seenNames.has(k) && isSubjectAssignedToClassStream(s, clsName, courses)) {
-                    seenNames.add(k);
-                }
-            });
-        }
-
-        // Source 2: DB allocation records for this class
-        dbAllocations
-            .filter(a => (a.className || '').toLowerCase().trim() === clsLower)
-            .forEach(a => {
-                const k = (a.subjectName || '').toLowerCase().trim();
-                if (k && !seenNames.has(k)) seenNames.add(k);
-            });
-
-        return seenNames.size;
+        const applicable = getApplicableSubjectsForClass(classObj.name);
+        return applicable.length;
     };
 
     // Helper to get total teacher comment rules count for a class
