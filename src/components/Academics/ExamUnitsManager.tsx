@@ -1057,13 +1057,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             });
 
             const realStudentsForClass = allRealStudents.filter(st => {
-                const stClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '';
+                const stClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || (st as any).courseLevelId || (st as any).academicLevel || (st as any).grade || (st as any).currentClass || (st as any).gradeLevel || (st as any).level || '';
                 return isStudentInTargetClasses(stClass, [cName]);
             });
 
             const targetStudents = classStudents.length > 0
                 ? classStudents
-                : (realStudentsForClass.length > 0 ? realStudentsForClass : activeExamRows);
+                : realStudentsForClass;
 
             const classEnrollment = targetStudents.length;
 
