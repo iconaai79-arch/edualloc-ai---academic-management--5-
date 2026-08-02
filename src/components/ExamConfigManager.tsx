@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Institution, Subject, AcademicLevel, Course, User } from '../types';
 import { GradingSystemManager } from './GradingSystemManager';
 import { PlusIcon } from './icons/PlusIcon';
@@ -558,7 +558,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
             const autoSubjects: ClassSubjectConfig[] = [];
 
             const applicableForClass = getApplicableSubjectsForClass(className);
-            applicableForClass.forEach(s => {
+            applicableForClass.forEach((s: Subject) => {
                 const nameKey = (s.name || '').toLowerCase().trim();
                 if (nameKey && !seenNames.has(nameKey)) {
                     seenNames.add(nameKey);
