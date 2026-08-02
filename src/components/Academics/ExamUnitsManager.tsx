@@ -1107,12 +1107,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             const classStudents = activeExamRows.filter(s => {
                 const stClass = s.class || '';
-                return isStudentInTargetClasses(stClass, [cName]) && stClass.toLowerCase().trim() === cName.toLowerCase().trim();
+                return isStudentInTargetClasses(stClass, [cName]);
             });
 
             const targetStudents = realStudentsForClass.length > 0
                 ? realStudentsForClass
-                : classStudents;
+                : (classStudents.length > 0
+                    ? classStudents
+                    : (activeExamClasses.length === 1 && broadsheetStudentRows.length > 0 ? broadsheetStudentRows : []));
 
             const classEnrollment = targetStudents.length;
 
