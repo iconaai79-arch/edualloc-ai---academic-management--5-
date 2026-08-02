@@ -530,11 +530,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 if (parsed && typeof parsed === 'object') return parsed;
             }
         } catch(e) {}
-        return {
-            'exam_1': defaultSampleRows,
-            'exam_2': defaultSampleRows,
-            'exam_3': defaultSampleRows
-        };
+        return {};
     });
 
     // Dynamic Real Students State
@@ -650,8 +646,29 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     useEffect(() => {
         if (!selectedExamId) return;
 
-        if (examMarksStore[selectedExamId]) {
-            setBroadsheetStudentRows(sanitizeBroadsheetRows(examMarksStore[selectedExamId]));
+        const activeStList = allRealStudents.length > 0
+            ? allRealStudents
+            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+
+        if (examMarksStore[selectedExamId] && Array.isArray(examMarksStore[selectedExamId]) && examMarksStore[selectedExamId].length > 0) {
+            const existingRows = examMarksStore[selectedExamId];
+            const hasDemoDataOnly = existingRows.every(r => KENYAN_STUDENT_NAMES.includes(r.name));
+
+            // If real students are available and store only contains sample demo names, replace with real students
+            if (activeStList.length > 0 && hasDemoDataOnly) {
+                const targetClass = activeExamClasses[0] || 'Form 3 Central';
+                const cleanRows = activeStList.map((st, idx) => ({
+                    admNo: resolveCleanAdmNo(st, idx),
+                    name: st.name || `Student ${idx + 1}`,
+                    class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || targetClass,
+                    mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+                }));
+                setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
+                setBroadsheetStudentRows(cleanRows);
+                return;
+            }
+
+            setBroadsheetStudentRows(sanitizeBroadsheetRows(existingRows));
             return;
         }
 
@@ -685,17 +702,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         // Default clean rows for any new exam (uses real students if available, fallback demo if empty)
-        const activeStList = allRealStudents.length > 0
-            ? allRealStudents
-            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
-
         const targetClass = activeExamClasses[0] || 'Form 3 Central';
 
         const cleanRows = activeStList.length > 0
             ? activeStList.map((st, idx) => ({
                 admNo: resolveCleanAdmNo(st, idx),
                 name: st.name || `Student ${idx + 1}`,
-                class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || targetClass,
+                class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || targetClass,
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
             }))
             : KENYAN_STUDENT_NAMES.map((name, idx) => ({
@@ -710,7 +723,21 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses, allRealStudents]);
 
     const filteredStudentRows = useMemo(() => {
+        const activeStList = allRealStudents.length > 0
+            ? allRealStudents
+            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+
         let rows = broadsheetStudentRows;
+
+        // If broadsheetStudentRows currently contains demo names ONLY, and real students ARE available, swap to real students!
+        if (activeStList.length > 0 && rows.length > 0 && rows.every(r => KENYAN_STUDENT_NAMES.includes(r.name))) {
+            rows = activeStList.map((st, idx) => ({
+                admNo: resolveCleanAdmNo(st, idx),
+                name: st.name || `Student ${idx + 1}`,
+                class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || selectedClassFilter || 'Class 1',
+                mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+            }));
+        }
 
         if (selectedClassFilter && selectedClassFilter !== 'all') {
             const cleanFilter = selectedClassFilter.replace(/\s*\d{4}$/, '').trim().toLowerCase();
@@ -723,7 +750,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 rows = matched;
             } else {
                 // Check if real students exist for this selected class
-                const realClassSt = allRealStudents.filter(st => {
+                const realClassSt = activeStList.filter(st => {
                     const stClass = ((st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '').trim().toLowerCase();
                     return stClass === cleanFilter || stClass.includes(cleanFilter) || cleanFilter.includes(stClass);
                 });
@@ -735,8 +762,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         class: selectedClassFilter,
                         mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
                     }));
-                } else if (allRealStudents.length > 0) {
-                    rows = allRealStudents.map((st, idx) => ({
+                } else if (activeStList.length > 0) {
+                    rows = activeStList.map((st, idx) => ({
                         admNo: resolveCleanAdmNo(st, idx),
                         name: st.name || `Student ${idx + 1}`,
                         class: selectedClassFilter,
@@ -758,7 +785,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return rows.filter(st =>
             (st.name || '').toLowerCase().includes(q) || (st.admNo || '').toLowerCase().includes(q)
         );
-    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents]);
+    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users]);
 
     const handleUpdateStudentMark = (admNo: string, fieldKey: string, newValue: number) => {
         const updated = broadsheetStudentRows.map(row => {
