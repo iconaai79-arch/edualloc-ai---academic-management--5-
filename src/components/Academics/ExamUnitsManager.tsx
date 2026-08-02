@@ -644,10 +644,72 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (activeExam?.classes && activeExam.classes.length > 0) {
             return activeExam.classes;
         }
+        if (selectedClasses && selectedClasses.length > 0) {
+            return selectedClasses;
+        }
         const classesFromRows = Array.from(new Set((broadsheetStudentRows || []).map(r => r.class).filter(Boolean)));
         if (classesFromRows.length > 0) return classesFromRows;
-        return registeredClasses;
-    }, [activeExam, broadsheetStudentRows, registeredClasses]);
+        return registeredClasses.length > 0 ? [registeredClasses[0]] : [];
+    }, [activeExam, selectedClasses, broadsheetStudentRows, registeredClasses]);
+
+    // Compute applicable subjects ONLY for selectedClassFilter (or all active exam classes if selectedClassFilter === 'all')
+    const modalAvailableSubjects = useMemo(() => {
+        const targetClass = (selectedClassFilter && selectedClassFilter !== 'all')
+            ? selectedClassFilter
+            : (activeExamClasses[0] || '');
+
+        // 1. Check classAllocationsStore (from Manage Subjects per Class Stream)
+        const activeClassAllocationsStore: Record<string, string[]> = (() => {
+            try {
+                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (saved) return JSON.parse(saved) || {};
+            } catch(e) {}
+            return (currentInstitution as any)?.classSubjectAllocations || {};
+        })();
+
+        if (targetClass) {
+            const cleanTC = targetClass.trim();
+            const tcLower = cleanTC.toLowerCase();
+            const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
+
+            const storeEntry = activeClassAllocationsStore[cleanTC] ?? activeClassAllocationsStore[tcLower] ?? activeClassAllocationsStore[tcNoStream];
+            if (Array.isArray(storeEntry) && storeEntry.length > 0) {
+                const allocatedSet = new Set(storeEntry.map(id => String(id).toLowerCase().trim()));
+                const matched = subjects.filter(s => {
+                    const sId = (s.id || '').toLowerCase().trim();
+                    const sName = (s.name || '').toLowerCase().trim();
+                    const sCode = (s.code || '').toLowerCase().trim();
+                    return allocatedSet.has(sId) || allocatedSet.has(sName) || (sCode && allocatedSet.has(sCode));
+                }).map(s => s.name || (s as any).title);
+
+                if (matched.length > 0) {
+                    return Array.from(new Set(matched));
+                }
+            }
+        }
+
+        // 2. Fall back to testedPaperConfigs filtered by targetClass / applicability
+        const activeTested = testedPaperConfigs.filter(p => p.enabled).map(p => p.subject);
+        if (activeTested.length > 0) {
+            if (!targetClass) return Array.from(new Set(activeTested));
+            const filteredTested = activeTested.filter(subName => isSubjectApplicableToClass({ name: subName }, targetClass));
+            if (filteredTested.length > 0) return Array.from(new Set(filteredTested));
+            return Array.from(new Set(activeTested));
+        }
+
+        // 3. Fall back to subjects filtered by isSubjectApplicableToClass
+        if (subjects && Array.isArray(subjects) && subjects.length > 0) {
+            if (!targetClass) return subjects.map(s => s.name || (s as any).title);
+            const filtered = subjects.filter(s => {
+                const subName = s.name || (s as any).title || '';
+                const subCode = s.code || '';
+                return isSubjectApplicableToClass({ name: subName, code: subCode }, targetClass);
+            }).map(s => s.name || (s as any).title);
+            if (filtered.length > 0) return Array.from(new Set(filtered));
+        }
+
+        return ['Mathematics', 'English', 'Kiswahili'];
+    }, [selectedClassFilter, activeExamClasses, instId, currentInstitution, subjects, testedPaperConfigs]);
 
     // Dynamic Class Paper Progress Rows based on active exam & broadsheet rows
     const classPaperRows = useMemo(() => {
@@ -2000,10 +2062,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         className="bg-transparent text-xs font-bold text-slate-900 dark:text-white border-none focus:outline-none cursor-pointer"
                                     >
                                         <option value="all">All Subjects (Full Broadsheet)</option>
-                                        {Array.from(new Set([
-                                            ...testedPaperConfigs.filter(p => p.enabled).map(p => p.subject),
-                                            ...(subjects || []).map(s => s.name || (s as any).title)
-                                        ])).filter(Boolean).map(subName => (
+                                        {modalAvailableSubjects.map(subName => (
                                             <option key={subName} value={subName}>{subName}</option>
                                         ))}
                                     </select>
