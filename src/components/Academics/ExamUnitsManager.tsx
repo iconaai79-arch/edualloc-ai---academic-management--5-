@@ -1408,7 +1408,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         // Save to Database
         if (currentInstitution?.id) {
             await apiService.saveModuleRecord('exam_units', newExam).catch(() => {});
-            await apiService.saveModuleRecord('exam_broadsheets', { id: newExamId, examId: newExamId, rows: freshRows, institutionId: currentInstitution.id }).catch(() => {});
+            await apiService.saveModuleRecord('exam_broadsheets', { id: newExamId, examId: newExamId, rows: freshRows, institutionId: currentInstitution.id, institution_id: currentInstitution.id }).catch(() => {});
         }
 
         setSaveToastMessage(`✨ Created "${newExam.name}" cleanly for ${targetClasses.length} registered classes!`);
