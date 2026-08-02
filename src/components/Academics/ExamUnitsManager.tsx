@@ -518,10 +518,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
                 .then(records => {
-                    const match = (records || []).find(r => r.id === `broadsheets_${currentInstitution.id}` || r.moduleName === 'exam_broadsheets');
-                    if (match && match.stateData) {
+                    const match = (records || []).find(r => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
+                    const storeData = match?.settings || match?.stateData || match?.data;
+                    if (storeData && typeof storeData === 'object') {
                         setExamMarksStore(prev => {
-                            const merged = { ...match.stateData, ...prev };
+                            const merged = { ...storeData, ...prev };
                             try {
                                 localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
                             } catch(e) {}
@@ -652,8 +653,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (currentInstitution?.id) {
             await apiService.saveModuleRecord('institution_module_states', {
                 id: `broadsheets_${currentInstitution.id}`,
+                institution_id: currentInstitution.id,
                 institutionId: currentInstitution.id,
-                moduleName: 'exam_broadsheets',
+                module_id: 'exam_broadsheets',
+                moduleId: 'exam_broadsheets',
+                module_name: 'Exam Broadsheets',
+                moduleName: 'Exam Broadsheets',
+                status: 'active',
+                settings: updatedStore,
                 stateData: updatedStore
             }).catch(() => {});
         }
