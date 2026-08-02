@@ -26,6 +26,8 @@ export interface ExamUnitRecord {
     studentsEnrolled: number; // e.g. 361
     missingMarks: number; // e.g. 4354
     classes?: string[]; // Registered/target classes for this exam
+    institution_id?: string;
+    institutionId?: string;
 }
 
 export interface TestedPaperConfig {
@@ -1317,7 +1319,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 type: newExamTypeRadio.toUpperCase(),
                 year: parseInt(newAcademicYear) || activeExam.year,
                 studentsEnrolled: studentCount,
-                classes: targetClasses
+                classes: targetClasses,
+                institution_id: currentInstitution?.id,
+                institutionId: currentInstitution?.id
             };
 
             setExams(prev => {
@@ -1351,7 +1355,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             submittedPercent: 0,
             studentsEnrolled: studentCount,
             missingMarks: studentCount * (testedPaperConfigs.filter(p => p.enabled).length || 7),
-            classes: targetClasses
+            classes: targetClasses,
+            institution_id: currentInstitution?.id,
+            institutionId: currentInstitution?.id
         };
 
         // Construct clean zeroed marks rows for each target class in the new exam
