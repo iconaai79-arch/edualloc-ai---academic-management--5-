@@ -222,9 +222,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     // Sync tested paper configurations EXACTLY as added in Exam Papers Settings (currentInstitution.classExamConfigs)
     useEffect(() => {
-        const targetClasses = (isAddExamModalOpen && selectedClasses && selectedClasses.length > 0)
+        const targetClasses = isAddExamModalOpen
             ? selectedClasses
             : (activeExam?.classes && activeExam.classes.length > 0 ? activeExam.classes : [selectedClassFilter]);
+
+        if (isAddExamModalOpen && targetClasses.length === 0) {
+            setTestedPaperConfigs([]);
+            return;
+        }
 
         let savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
         if (!savedConfigs || !Array.isArray(savedConfigs) || savedConfigs.length === 0) {
