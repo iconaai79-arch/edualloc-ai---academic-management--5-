@@ -687,7 +687,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         // Default clean rows for any new exam (uses real students if available, fallback demo if empty)
         const activeStList = allRealStudents.length > 0
             ? allRealStudents
-            : users.filter(u => u && (u.role === 'student' || u.role === 'Student' || (u as any).userType === 'student'));
+            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
 
         const targetClass = activeExamClasses[0] || 'Form 3 Central';
 
