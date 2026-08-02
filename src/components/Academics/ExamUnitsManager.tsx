@@ -1064,6 +1064,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const tcLower = cleanTC.toLowerCase();
             const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
 
+            const activeExamRows = (activeExam?.id && examMarksStore[activeExam.id]) ? examMarksStore[activeExam.id] : broadsheetStudentRows;
+
             const realStudentsForClass = allRealStudents.filter(st => {
                 const stClass = getStudentClass(st);
                 return isStudentInTargetClasses(stClass, [cName]);
@@ -1157,7 +1159,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
                 let progress = 0;
                 if (targetStudents.length > 0) {
-                    const enteredCount = targetStudents.filter(st => {
+                    const enteredCount = targetStudents.filter((st: any) => {
                         return candidateKeys.some(k => (st as any)[k] !== undefined && (st as any)[k] !== null && Number((st as any)[k]) > 0);
                     }).length;
                     progress = parseFloat(((enteredCount / targetStudents.length) * 100).toFixed(2));
