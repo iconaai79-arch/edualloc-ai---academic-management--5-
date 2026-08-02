@@ -1052,11 +1052,18 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             const activeExamRows = (activeExam?.id && examMarksStore[activeExam.id]) ? examMarksStore[activeExam.id] : broadsheetStudentRows;
             const classStudents = activeExamRows.filter(s => {
-                const stClass = (s.class || '').trim().toLowerCase();
-                return stClass === tcLower || stClass === tcNoStream || stClass.includes(tcLower) || tcLower.includes(stClass);
+                const stClass = s.class || '';
+                return isStudentInTargetClasses(stClass, [cName]);
             });
-            const targetStudents = classStudents.length > 0 ? classStudents : activeExamRows;
-            const classEnrollment = targetStudents.length > 0 ? targetStudents.length : Math.round((activeExam?.studentsEnrolled || 60) / Math.max(1, activeExamClasses.length)) || 50;
+
+            const realStudentsForClass = allRealStudents.filter(st => {
+                const stClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '';
+                return isStudentInTargetClasses(stClass, [cName]);
+            });
+
+            const classEnrollment = classStudents.length > 0
+                ? classStudents.length
+                : (realStudentsForClass.length > 0 ? realStudentsForClass.length : (activeExam?.studentsEnrolled || 0));
 
             // Source A: Exact configured papers for cName in Exam Papers Settings (savedConfigs)
             const cConfig = (savedConfigs && Array.isArray(savedConfigs))
@@ -1241,28 +1248,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         const targetClasses = selectedClasses;
-        const realStudents = users.filter(u => u.role === 'student');
+        const realStudents = allRealStudents.length > 0
+            ? allRealStudents
+            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
 
         const matchedStudents = realStudents.filter(st => {
             const cl = ((st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '').trim();
-            if (!cl) return false;
-            
-            const stream = ((st as any).stream || (st as any).streamName || (st as any).stream_name || '').trim();
-            const fullClassStream = cl && stream ? `${cl} ${stream}` : '';
-
-            const targetLowerList = targetClasses.map(c => c.toLowerCase().trim());
-            const clLower = cl.toLowerCase();
-            const fullLower = fullClassStream.toLowerCase();
-
-            return targetLowerList.some(targetLower => {
-                return targetLower === clLower || 
-                       targetLower === fullLower || 
-                       fullLower.startsWith(targetLower) ||
-                       clLower.startsWith(targetLower);
-            });
+            return isStudentInTargetClasses(cl, targetClasses);
         });
 
-        const studentCount = matchedStudents.length > 0 ? matchedStudents.length : Math.max(1, targetClasses.length * 35);
+        const studentCount = matchedStudents.length;
 
         // EDIT EXISTING EXAM CASE
         if (isEditingExam && activeExam) {
@@ -1488,8 +1483,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                             <div key={yearNum} className="space-y-0.5">
                                                 <div
                                                     onClick={() => setExpandedYears(prev => ({ ...prev, [yearNum]: !prev[yearNum] }))}
-                                                    className="px-4 py-3 cursor-pointer text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between"
-                                                >
                                                     <span>{yearNum} ({list.length})</span>
                                                     {isExp ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
                                                 </div>
@@ -1536,21 +1529,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     ? "No exams created yet for this institution. Click '+ Add Exam' to set up your first exam unit."
                                     : "Select an exam from the list on the left to view its performance dashboard."}
                             </p>
-                            {exams.length === 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsEditingExam(false);
-                                        setNewExamName('');
-                                        setSelectedClasses((selectedClassFilter && selectedClassFilter !== 'all') ? [selectedClassFilter] : (registeredClasses.length > 0 ? [registeredClasses[0]] : []));
-                                        setWizardStep(1);
-                                        setIsAddExamModalOpen(true);
-                                    }}
-                                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all inline-flex items-center gap-2"
-                                >
-                                    <PlusIcon className="w-4 h-4 stroke-[3]" /> Add New Exam
-                                </button>
-                            )}
                         </div>
                     ) : (
                         <div className="space-y-6">
@@ -1595,9 +1573,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                         <button onClick={() => { setIsActionsOpen(false); handleTogglePublish(); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-amber-600">
                                                             {activeExam?.status === 'published' ? 'Unpublish' : 'Publish'}
                                                         </button>
-                                                        <button onClick={() => { setIsActionsOpen(false); alert('Invitation Accepted'); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">
-                                                            Accept Invitation
-                                                        </button>
                                                     </div>
                                                     <div className="py-1">
                                                         <button onClick={() => { setIsActionsOpen(false); handleDeleteExam(); }} className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2">
@@ -1614,12 +1589,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             {/* Top KPI Stat Cards matching screenshot */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="p-6 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 text-center space-y-1">
-                                    <h3 className="text-3xl font-black text-blue-600">{activeExam?.studentsEnrolled || 0}</h3>
+                                    <h3 className="text-3xl font-black text-blue-600">{activeExamTotalEnrollment}</h3>
                                     <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">STUDENTS ENROLLED</p>
                                 </div>
 
                                 <div className="p-6 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 text-center space-y-1">
-                                    <h3 className="text-3xl font-black text-red-500">{(activeExam?.missingMarks || 0).toLocaleString()}</h3>
+                                    <h3 className="text-3xl font-black text-red-500">{activeExamMissingMarks.toLocaleString()}</h3>
                                     <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">MISSING MARKS</p>
                                 </div>
 
