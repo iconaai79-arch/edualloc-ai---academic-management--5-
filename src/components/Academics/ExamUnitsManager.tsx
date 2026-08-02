@@ -206,21 +206,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     const [isPapersModalOpen, setIsPapersModalOpen] = useState(false);
     // Tested Papers Configuration State:
-    const [testedPaperConfigs, setTestedPaperConfigs] = useState<TestedPaperConfig[]>([
-        { id: 'tp_1', subject: 'Mathematics', paperName: 'Paper 1', maxInputScore: 30, convertToHundred: true, enabled: true },
-        { id: 'tp_2', subject: 'Mathematics', paperName: 'Paper 2', maxInputScore: 70, convertToHundred: true, enabled: true },
-        { id: 'tp_3', subject: 'English', paperName: 'Paper 1 (Functional Skills)', maxInputScore: 60, convertToHundred: true, enabled: true },
-        { id: 'tp_4', subject: 'English', paperName: 'Paper 2 (Comprehension)', maxInputScore: 80, convertToHundred: true, enabled: true },
-        { id: 'tp_5', subject: 'English', paperName: 'Paper 3 (Creative Writing)', maxInputScore: 40, convertToHundred: true, enabled: true },
-        { id: 'tp_6', subject: 'Kiswahili', paperName: 'Insha (Paper 1)', maxInputScore: 40, convertToHundred: true, enabled: true },
-        { id: 'tp_7', subject: 'Kiswahili', paperName: 'Lugha (Paper 2)', maxInputScore: 80, convertToHundred: true, enabled: true },
-        { id: 'tp_8', subject: 'Biology', paperName: 'Paper 1 (Theory)', maxInputScore: 80, convertToHundred: true, enabled: true },
-        { id: 'tp_9', subject: 'Biology', paperName: 'Paper 2 (Practical)', maxInputScore: 40, convertToHundred: true, enabled: true },
-        { id: 'tp_10', subject: 'Chemistry', paperName: 'Paper 1 (Theory)', maxInputScore: 80, convertToHundred: true, enabled: true },
-        { id: 'tp_11', subject: 'Physics', paperName: 'Paper 1 (Theory)', maxInputScore: 80, convertToHundred: true, enabled: true }
-    ]);
+    const [testedPaperConfigs, setTestedPaperConfigs] = useState<TestedPaperConfig[]>([]);
 
-    // Sync tested paper configurations EXACTLY as added in Exam Papers Settings (currentInstitution.classExamConfigs)
+    // Sync tested paper configurations EXACTLY as added in Manage Subjects per Class Stream or Exam Papers Settings
     useEffect(() => {
         const targetClasses = isAddExamModalOpen
             ? selectedClasses
@@ -229,6 +217,60 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (isAddExamModalOpen && targetClasses.length === 0) {
             setTestedPaperConfigs([]);
             return;
+        }
+
+        // 0. Primary Source: Ground Truth Persistent Per-Class Allocations Store (Manage Subjects per Class Stream)
+        const activeClassAllocationsStore: Record<string, string[]> = (() => {
+            try {
+                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (saved) return JSON.parse(saved) || {};
+            } catch(e) {}
+            return (currentInstitution as any)?.classSubjectAllocations || {};
+        })();
+
+        if (targetClasses.length > 0) {
+            const allocatedSubjectIds = new Set<string>();
+            let hasClassStoreEntry = false;
+
+            targetClasses.forEach(tc => {
+                const cleanTC = tc.trim();
+                const tcLower = cleanTC.toLowerCase();
+                const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
+
+                const storeEntry = activeClassAllocationsStore[cleanTC] ?? activeClassAllocationsStore[tcLower] ?? activeClassAllocationsStore[tcNoStream];
+                if (Array.isArray(storeEntry)) {
+                    hasClassStoreEntry = true;
+                    storeEntry.forEach(id => allocatedSubjectIds.add(String(id).toLowerCase().trim()));
+                }
+            });
+
+            if (hasClassStoreEntry) {
+                if (allocatedSubjectIds.size === 0) {
+                    setTestedPaperConfigs([]);
+                    return;
+                }
+
+                // Filter subjects that match the allocated IDs
+                const matchedSubjects = subjects.filter(s => {
+                    const sId = (s.id || '').toLowerCase().trim();
+                    const sName = (s.name || '').toLowerCase().trim();
+                    const sCode = (s.code || '').toLowerCase().trim();
+                    return allocatedSubjectIds.has(sId) || allocatedSubjectIds.has(sName) || (sCode && allocatedSubjectIds.has(sCode));
+                });
+
+                if (matchedSubjects.length > 0) {
+                    const paperList: TestedPaperConfig[] = matchedSubjects.map((sub, idx) => ({
+                        id: `alloc_tp_${sub?.id || idx}`,
+                        subject: sub?.name || 'Subject',
+                        paperName: 'Paper 1',
+                        maxInputScore: 100,
+                        convertToHundred: true,
+                        enabled: true
+                    }));
+                    setTestedPaperConfigs(paperList);
+                    return;
+                }
+            }
         }
 
         let savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
