@@ -214,7 +214,56 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         }
     }, [currentInstitution]);
 
-    // Re-sync assignments when subjects/dbAllocations update
+    const instId = currentInstitution?.id || 'default_inst';
+    const classAllocKey = `eduai_class_subject_allocations_${instId}`;
+
+    // Allocations store: Record<className, string[] (array of active subjectIds or subjectNames)>
+    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${currentInstitution?.id || 'default_inst'}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            }
+        } catch(e) {}
+        return (currentInstitution as any)?.classSubjectAllocations || {};
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => r.id === `alloc_${currentInstitution.id}` || r.institutionId === currentInstitution.id);
+                    if (match && match.allocations) {
+                        setClassAllocationsStore(prev => {
+                            const merged = { ...match.allocations, ...prev };
+                            try {
+                                localStorage.setItem(`eduai_class_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
+    const saveClassAllocationsStore = async (updatedStore: Record<string, string[]>) => {
+        setClassAllocationsStore(updatedStore);
+        try {
+            localStorage.setItem(classAllocKey, JSON.stringify(updatedStore));
+        } catch(e) {}
+        if (currentInstitution?.id) {
+            await apiService.saveModuleRecord('class_subject_allocations', {
+                id: `alloc_${currentInstitution.id}`,
+                institutionId: currentInstitution.id,
+                allocations: updatedStore
+            }).catch(() => {});
+        }
+    };
+
+    // Re-sync assignments when subjects/dbAllocations/classAllocationsStore update
+    // Priority 0: Ground Truth Persistent Per-Class Store (classAllocationsStore)
     // Priority 1: Explicit targetClasses / assignedClasses array on subject
     // Priority 2: DB subject_allocations records from Lessons & Allocation Manager
     // Priority 3: Grade-level applicability fallback rules
@@ -238,12 +287,22 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             (localSubjects && localSubjects.length > 0 ? localSubjects : subjects).forEach(s => {
                 const set = new Set<string>();
                 const sNameLower = (s.name || '').toLowerCase().trim();
+                const sCodeLower = (s.code || '').toLowerCase().trim();
                 const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
 
                 classOptions.forEach(c => {
                     const cKey = (c || '').trim();
                     const cLower = cKey.toLowerCase();
                     
+                    // Case 0: Ground Truth Persistent Per-Class Store
+                    const storedAssignedIds = classAllocationsStore[cKey] ?? classAllocationsStore[cLower];
+                    if (Array.isArray(storedAssignedIds)) {
+                        if (storedAssignedIds.includes(s.id) || storedAssignedIds.includes(sNameLower) || (sCodeLower && storedAssignedIds.includes(sCodeLower))) {
+                            set.add(cKey);
+                        }
+                        return;
+                    }
+
                     // Case A: Explicit targetClasses array defined on subject (even if empty [])
                     if (Array.isArray(targetCls)) {
                         const hasExplicitMatch = targetCls.some(tc => {
@@ -275,7 +334,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             });
             return updated;
         });
-    }, [subjects, localSubjects, classOptions, courses, dbAllocations]);
+    }, [subjects, localSubjects, classOptions, courses, dbAllocations, classAllocationsStore]);
 
     useEffect(() => {
         if (classOptions.length > 0 && !selectedClass) {
@@ -316,7 +375,8 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
 
     const handleToggleSubject = async (subjectId: string) => {
         const currentSet = new Set(assignments[subjectId] || []);
-        if (currentSet.has(selectedClass)) {
+        const isCurrentlyAssigned = currentSet.has(selectedClass);
+        if (isCurrentlyAssigned) {
             currentSet.delete(selectedClass);
         } else {
             currentSet.add(selectedClass);
@@ -341,6 +401,18 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 await apiService.saveSubject(updatedData as Subject).catch(() => {});
             }
         }
+
+        // Calculate and save exact active subject IDs for selectedClass to persistent store
+        const activeIdsForSelectedClass = localSubjects
+            .filter(s => s.id === subjectId ? !isCurrentlyAssigned : (assignments[s.id]?.has(selectedClass) ?? false))
+            .map(s => s.id);
+
+        const updatedStore = {
+            ...classAllocationsStore,
+            [selectedClass]: activeIdsForSelectedClass,
+            [selectedClass.toLowerCase().trim()]: activeIdsForSelectedClass
+        };
+        saveClassAllocationsStore(updatedStore);
     };
 
     const handleSelectAll = async () => {
@@ -357,6 +429,14 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             return { ...s, targetClasses: targetClassesArr, assignedClasses: targetClassesArr };
         });
         setLocalSubjects(updatedLocal);
+
+        const allIds = localSubjects.map(s => s.id);
+        const updatedStore = {
+            ...classAllocationsStore,
+            [selectedClass]: allIds,
+            [selectedClass.toLowerCase().trim()]: allIds
+        };
+        saveClassAllocationsStore(updatedStore);
 
         for (const s of updatedLocal) {
             const targetClassesArr = s.targetClasses || [];
@@ -385,6 +465,13 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             return { ...s, targetClasses: targetClassesArr, assignedClasses: targetClassesArr };
         });
         setLocalSubjects(updatedLocal);
+
+        const updatedStore = {
+            ...classAllocationsStore,
+            [selectedClass]: [],
+            [selectedClass.toLowerCase().trim()]: []
+        };
+        saveClassAllocationsStore(updatedStore);
 
         for (const s of updatedLocal) {
             const targetClassesArr = s.targetClasses || [];
@@ -427,6 +514,14 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             next[s.id] = targetSet;
         });
         setAssignments(next);
+
+        const sourceIds = classAllocationsStore[copyFromClass] || classAllocationsStore[copyFromClass.toLowerCase().trim()] || localSubjects.filter(s => assignments[s.id]?.has(copyFromClass)).map(s => s.id);
+        const updatedStore = {
+            ...classAllocationsStore,
+            [selectedClass]: [...sourceIds],
+            [selectedClass.toLowerCase().trim()]: [...sourceIds]
+        };
+        saveClassAllocationsStore(updatedStore);
 
         for (const s of localSubjects) {
             const targetClassesArr = Array.from(next[s.id]);
