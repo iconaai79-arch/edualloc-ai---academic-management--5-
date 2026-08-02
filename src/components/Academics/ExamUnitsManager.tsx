@@ -477,10 +477,19 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     ];
 
     // Per-exam broadsheet store
-    const [examMarksStore, setExamMarksStore] = useState<Record<string, any[]>>({
-        'exam_1': defaultSampleRows,
-        'exam_2': defaultSampleRows,
-        'exam_3': defaultSampleRows
+    const [examMarksStore, setExamMarksStore] = useState<Record<string, any[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            }
+        } catch(e) {}
+        return {
+            'exam_1': defaultSampleRows,
+            'exam_2': defaultSampleRows,
+            'exam_3': defaultSampleRows
+        };
     });
 
     // Broadsheet Spreadsheet State
@@ -488,7 +497,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [broadsheetStudentRows, setBroadsheetStudentRows] = useState(defaultSampleRows);
     const [searchStudentQuery, setSearchStudentQuery] = useState('');
 
-    // Fetch saved exams from DB on mount
+    // Fetch saved exams and broadsheets from DB on mount
     useEffect(() => {
         if (currentInstitution?.id) {
             apiService.fetchModuleRecords<ExamUnitRecord>('exam_units', currentInstitution.id)
@@ -506,6 +515,21 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     }
                 })
                 .catch(err => console.log('Using default exam units:', err));
+
+            apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => r.id === `broadsheets_${currentInstitution.id}` || r.moduleName === 'exam_broadsheets');
+                    if (match && match.stateData) {
+                        setExamMarksStore(prev => {
+                            const merged = { ...match.stateData, ...prev };
+                            try {
+                                localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => {});
         }
     }, [currentInstitution]);
 
@@ -619,11 +643,24 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     const handleSaveSubjectMarks = async (subjectName: string) => {
         setIsSavingMarks(true);
-        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: broadsheetStudentRows }));
+        const updatedStore = { ...examMarksStore, [selectedExamId]: broadsheetStudentRows };
+        setExamMarksStore(updatedStore);
+        try {
+            localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(updatedStore));
+        } catch(e) {}
         
         if (currentInstitution?.id) {
-            await apiService.saveModuleRecord('exam_broadsheets', { id: selectedExamId, examId: selectedExamId, rows: broadsheetStudentRows, institutionId: currentInstitution.id }).catch(() => {});
+            await apiService.saveModuleRecord('institution_module_states', {
+                id: `broadsheets_${currentInstitution.id}`,
+                institutionId: currentInstitution.id,
+                moduleName: 'exam_broadsheets',
+                stateData: updatedStore
+            }).catch(() => {});
         }
+
+        try {
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'marks', instId } }));
+        } catch(e) {}
 
         setTimeout(() => {
             setIsSavingMarks(false);
