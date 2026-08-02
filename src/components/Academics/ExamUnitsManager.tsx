@@ -664,7 +664,26 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     // Comprehensive helper to resolve student class name across all schema variations
     const getStudentClass = useCallback((st: any): string => {
         if (!st) return '';
-        const candidate = st.studentClass || st.classLevel || st.class_name || st.class || st.courseLevelId || st.className || st.academicLevel || st.grade || st.currentClass || st.gradeLevel || st.level || st.courseId || '';
+        const candidate = 
+            st.studentClass || 
+            st.classLevel || 
+            st.class_name || 
+            st.className || 
+            st.class || 
+            st.courseLevelId || 
+            st.academicLevel || 
+            st.grade || 
+            st.currentClass || 
+            st.gradeLevel || 
+            st.level || 
+            st.courseId || 
+            st.metadata?.studentClass ||
+            st.metadata?.classLevel ||
+            st.metadata?.className ||
+            st.metadata?.class ||
+            st.metadata?.courseLevelId ||
+            st.metadata?.grade ||
+            '';
         if (typeof candidate === 'string') return candidate.trim();
         return '';
     }, []);
@@ -789,24 +808,21 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 : activeStList;
 
             if (matchedReal.length > 0 && targetClasses.length > 0) {
-                const matchedSet = new Set(matchedReal.map((st, idx) => resolveCleanAdmNo(st, idx)));
-                const matchedNames = new Set(matchedReal.map(st => (st.name || '').toLowerCase().trim()));
-
-                const rowsForClass = rows.filter(r => {
-                    const rClass = r.class || '';
-                    return isStudentInTargetClasses(rClass, targetClasses) || matchedSet.has(r.admNo) || matchedNames.has((r.name || '').toLowerCase().trim());
-                });
-
-                if (rowsForClass.length > 0 && !rowsForClass.every(r => KENYAN_STUDENT_NAMES.includes(r.name))) {
-                    rows = rowsForClass;
-                } else {
-                    rows = matchedReal.map((st, idx) => ({
-                        admNo: resolveCleanAdmNo(st, idx),
+                // Map matchedReal strictly to their existing broadsheet row or create clean rows
+                rows = matchedReal.map((st, idx) => {
+                    const adm = resolveCleanAdmNo(st, idx);
+                    const nameLower = (st.name || '').toLowerCase().trim();
+                    const existingRow = broadsheetStudentRows.find(r => r.admNo === adm || (r.name || '').toLowerCase().trim() === nameLower);
+                    if (existingRow) {
+                        return { ...existingRow, class: getStudentClass(st) || targetClasses[0] };
+                    }
+                    return {
+                        admNo: adm,
                         name: st.name || `Student ${idx + 1}`,
-                        class: getStudentClass(st) || (targetClasses[0] || 'Class 1'),
+                        class: getStudentClass(st) || targetClasses[0],
                         mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-                    }));
-                }
+                    };
+                });
             } else if (targetClasses.length > 0) {
                 rows = rows.filter(r => isStudentInTargetClasses(r.class || '', targetClasses));
             }
@@ -1048,20 +1064,19 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const tcLower = cleanTC.toLowerCase();
             const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
 
-            const activeExamRows = (activeExam?.id && examMarksStore[activeExam.id]) ? examMarksStore[activeExam.id] : broadsheetStudentRows;
+            const realStudentsForClass = allRealStudents.filter(st => {
+                const stClass = getStudentClass(st);
+                return isStudentInTargetClasses(stClass, [cName]);
+            });
+
             const classStudents = activeExamRows.filter(s => {
                 const stClass = s.class || '';
-                return isStudentInTargetClasses(stClass, [cName]);
+                return isStudentInTargetClasses(stClass, [cName]) && stClass.toLowerCase().trim() === cName.toLowerCase().trim();
             });
 
-            const realStudentsForClass = allRealStudents.filter(st => {
-                const stClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || (st as any).courseLevelId || (st as any).academicLevel || (st as any).grade || (st as any).currentClass || (st as any).gradeLevel || (st as any).level || '';
-                return isStudentInTargetClasses(stClass, [cName]);
-            });
-
-            const targetStudents = classStudents.length > 0
-                ? classStudents
-                : realStudentsForClass;
+            const targetStudents = realStudentsForClass.length > 0
+                ? realStudentsForClass
+                : classStudents;
 
             const classEnrollment = targetStudents.length;
 
