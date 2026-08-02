@@ -235,7 +235,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 });
             }
 
-            subjects.forEach(s => {
+            (localSubjects && localSubjects.length > 0 ? localSubjects : subjects).forEach(s => {
                 const set = new Set<string>();
                 const sNameLower = (s.name || '').toLowerCase().trim();
                 const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
@@ -244,8 +244,8 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                     const cKey = (c || '').trim();
                     const cLower = cKey.toLowerCase();
                     
-                    // Case A: Explicit targetClasses array defined on subject
-                    if (Array.isArray(targetCls) && targetCls.length > 0) {
+                    // Case A: Explicit targetClasses array defined on subject (even if empty [])
+                    if (Array.isArray(targetCls)) {
                         const hasExplicitMatch = targetCls.some(tc => {
                             const cleanTC = (tc || '').toLowerCase().trim();
                             return cleanTC === cLower || cLower.startsWith(cleanTC) || cleanTC.startsWith(cLower);
@@ -275,7 +275,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             });
             return updated;
         });
-    }, [subjects, classOptions, courses, dbAllocations]);
+    }, [subjects, localSubjects, classOptions, courses, dbAllocations]);
 
     useEffect(() => {
         if (classOptions.length > 0 && !selectedClass) {
@@ -332,6 +332,8 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         const subj = localSubjects.find(s => s.id === subjectId);
         if (subj) {
             const updatedData = { ...subj, targetClasses: targetClassesArr, assignedClasses: targetClassesArr };
+            setLocalSubjects(prev => prev.map(s => s.id === subjectId ? (updatedData as Subject) : s));
+
             if (onUpdateSubject) {
                 onUpdateSubject(subjectId, { targetClasses: targetClassesArr, assignedClasses: targetClassesArr } as any);
             }
@@ -350,13 +352,19 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         });
         setAssignments(next);
 
-        for (const s of localSubjects) {
-            const targetClassesArr = Array.from(next[s.id]);
+        const updatedLocal = localSubjects.map(s => {
+            const targetClassesArr = Array.from(next[s.id] || []);
+            return { ...s, targetClasses: targetClassesArr, assignedClasses: targetClassesArr };
+        });
+        setLocalSubjects(updatedLocal);
+
+        for (const s of updatedLocal) {
+            const targetClassesArr = s.targetClasses || [];
             if (onUpdateSubject) {
                 onUpdateSubject(s.id, { targetClasses: targetClassesArr, assignedClasses: targetClassesArr } as any);
             }
             if (currentInstitution?.id) {
-                await apiService.saveSubject({ ...s, targetClasses: targetClassesArr } as Subject).catch(() => {});
+                await apiService.saveSubject(s as Subject).catch(() => {});
             }
         }
         setToastMessage(`Assigned all ${localSubjects.length} subjects to ${selectedClass}`);
@@ -372,13 +380,19 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         });
         setAssignments(next);
 
-        for (const s of localSubjects) {
-            const targetClassesArr = Array.from(next[s.id]);
+        const updatedLocal = localSubjects.map(s => {
+            const targetClassesArr = Array.from(next[s.id] || []);
+            return { ...s, targetClasses: targetClassesArr, assignedClasses: targetClassesArr };
+        });
+        setLocalSubjects(updatedLocal);
+
+        for (const s of updatedLocal) {
+            const targetClassesArr = s.targetClasses || [];
             if (onUpdateSubject) {
                 onUpdateSubject(s.id, { targetClasses: targetClassesArr, assignedClasses: targetClassesArr } as any);
             }
             if (currentInstitution?.id) {
-                await apiService.saveSubject({ ...s, targetClasses: targetClassesArr, assignedClasses: targetClassesArr } as Subject).catch(() => {});
+                await apiService.saveSubject(s as Subject).catch(() => {});
             }
         }
 
