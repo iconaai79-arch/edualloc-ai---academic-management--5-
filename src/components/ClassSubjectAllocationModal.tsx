@@ -69,16 +69,19 @@ export const isSubjectApplicableToClass = (
     }
 
     // 2. Pre-Primary (PP1, PP2, Playgroup, Nursery, KG)
-    const isPPSubject = code.endsWith('-PP') || name.includes('pre-primary') || desc.includes('pre-primary') || desc.includes('pp1') || desc.includes('pp2') || desc.includes('playgroup') || (name.includes('activities') && (name.includes('language') || name.includes('mathematical') || name.includes('environmental') || name.includes('psychomotor') || name.includes('religious')));
+    const isPPSubject = code.endsWith('-PP') || name.includes('pre-primary') || desc.includes('pre-primary') || desc.includes('pp1') || desc.includes('pp2') || desc.includes('playgroup') || (name.includes('activities') && (name.includes('psychomotor') || desc.includes('pre-primary') || code.includes('PP')));
 
     if (isPPSubject) return isPPClass;
     if (isPPClass) return isPPSubject;
 
     // 3. Lower Primary (Grade 1 - 3)
-    const isLPSubject = code.endsWith('-LP') || desc.includes('lower primary') || desc.includes('grade 1-3') || desc.includes('grade 1 - 3') || (name.includes('activities') && !name.includes('pre-primary'));
+    const isLPSubject = code.endsWith('-LP') || desc.includes('lower primary') || desc.includes('grade 1-3') || desc.includes('grade 1 - 3') || (name.includes('activities') && !name.includes('pre-primary')) || name.includes('hygiene & nutrition') || name.includes('movement & creative');
 
     if (isLPSubject) return isLPClass;
-    if (isLPClass && (code.endsWith('-UP') || code.endsWith('-JSS') || desc.includes('upper primary') || desc.includes('junior secondary') || desc.includes('jss'))) return false;
+    if (isLPClass) {
+        if (code.endsWith('-UP') || code.endsWith('-JSS') || code.endsWith('-SEC') || desc.includes('upper primary') || desc.includes('junior secondary') || desc.includes('jss') || desc.includes('secondary')) return false;
+        if (name === 'chemistry' || name === 'physics' || name === 'biology' || name === 'history' || name === 'geography' || name === 'computer studies' || name === 'business studies') return false;
+    }
 
     // 4. Upper Primary (Grade 4 - 6)
     const isUPSubject = code.endsWith('-UP') || desc.includes('upper primary') || desc.includes('grade 4-6') || desc.includes('grade 4 - 6') || name.includes('science & technology') || name.includes('social studies');
