@@ -301,11 +301,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 sConfig.papers.forEach((p: any) => {
                                     if (!p) return;
                                     const pName = typeof p === 'string' ? p : (p.name || 'Paper 1');
-                                    const key = `${sName.trim()}__${String(pName).trim()}`;
+                                    const key = `${sName.trim().toLowerCase()}__${String(pName).trim().toLowerCase()}`;
                                     if (!seenKey.has(key)) {
                                         seenKey.add(key);
                                         paperList.push({
-                                            id: (typeof p === 'object' && p?.id) ? p.id : `tp_${sName}_${pName}`,
+                                            id: (typeof p === 'object' && p?.id) ? p.id : `tp_${sName.trim()}_${pName}`,
                                             subject: sName.trim(),
                                             paperName: String(pName),
                                             maxInputScore: (typeof p === 'object' && p?.maxScore !== undefined) ? p.maxScore : 100,
@@ -881,7 +881,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     onClick={() => {
                         setIsEditingExam(false);
                         setNewExamName('');
-                        setSelectedClasses(registeredClasses);
+                        setSelectedClasses((selectedClassFilter && selectedClassFilter !== 'all') ? [selectedClassFilter] : (registeredClasses.length > 0 ? [registeredClasses[0]] : []));
                         setWizardStep(1);
                         setIsAddExamModalOpen(true);
                     }}
@@ -1006,7 +1006,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     onClick={() => {
                                         setIsEditingExam(false);
                                         setNewExamName('');
-                                        setSelectedClasses(registeredClasses);
+                                        setSelectedClasses((selectedClassFilter && selectedClassFilter !== 'all') ? [selectedClassFilter] : (registeredClasses.length > 0 ? [registeredClasses[0]] : []));
                                         setWizardStep(1);
                                         setIsAddExamModalOpen(true);
                                     }}
