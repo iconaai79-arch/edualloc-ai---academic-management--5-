@@ -54,7 +54,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     // Exam & Year states
     const [expandedYear, setExpandedYear] = useState<string>('2026');
     const [selectedExamId, setSelectedExamId] = useState<string>(assessments[0]?.id || 'exam_midterm_1');
-    const [selectedYearGroup, setSelectedYearGroup] = useState<string>('Form 3');
+    const [selectedYearGroup, setSelectedYearGroup] = useState<string>('');
     const [selectedStream, setSelectedStream] = useState<string>('all');
 
     // Search student in broadsheet
@@ -163,6 +163,84 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             count: activeStudents.length || 477
         };
     }, [allExamsList, selectedExamId, activeStudents]);
+
+    // Dynamic List of Year Group Options
+    const yearGroupOptions = useMemo(() => {
+        const set = new Set<string>();
+
+        // 1. Classes assigned to selectedExamObj
+        if (selectedExamObj) {
+            const exClasses = (selectedExamObj as any).classes || (selectedExamObj as any).targetClasses || [(selectedExamObj as any).class];
+            if (Array.isArray(exClasses)) {
+                exClasses.forEach((c: any) => {
+                    if (c && typeof c === 'string' && c.trim()) {
+                        const clean = c.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                        set.add(clean);
+                        set.add(c.trim());
+                    }
+                });
+            }
+        }
+
+        // 2. Registered Classes in Institution
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
+                if (name) set.add(name);
+            });
+        }
+
+        if (activeStudents && activeStudents.length > 0) {
+            activeStudents.forEach(u => {
+                const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    const clean = cl.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                    set.add(clean);
+                    set.add(cl.trim());
+                }
+            });
+        }
+
+        try {
+            const savedClasses = localStorage.getItem(`eduai_registered_classes_${instId}`);
+            if (savedClasses) {
+                const parsed = JSON.parse(savedClasses);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(c => {
+                        const clean = c.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                        set.add(clean);
+                        set.add(c.trim());
+                    });
+                }
+            }
+        } catch(e) {}
+
+        if (set.size === 0) {
+            if (isPrimarySchool) {
+                ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'PP1', 'PP2'].forEach(c => set.add(c));
+            } else {
+                ['Form 1', 'Form 2', 'Form 3', 'Form 4'].forEach(c => set.add(c));
+            }
+        }
+
+        return Array.from(set);
+    }, [selectedExamObj, courses, activeStudents, instId, isPrimarySchool]);
+
+    // Auto-sync selectedYearGroup when active exam changes
+    useEffect(() => {
+        if (selectedExamObj) {
+            const exClasses = (selectedExamObj as any).classes || (selectedExamObj as any).targetClasses || [(selectedExamObj as any).class];
+            if (Array.isArray(exClasses) && exClasses.length > 0 && exClasses[0]) {
+                const firstCl = String(exClasses[0]).trim();
+                const cleanCl = firstCl.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                setSelectedYearGroup(cleanCl || firstCl);
+                return;
+            }
+        }
+        if (yearGroupOptions.length > 0 && !yearGroupOptions.includes(selectedYearGroup)) {
+            setSelectedYearGroup(yearGroupOptions[0]);
+        }
+    }, [selectedExamId, selectedExamObj, yearGroupOptions]);
 
     // Active subjects for broadsheet columns
     const broadsheetSubjects = useMemo(() => {
@@ -620,12 +698,9 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                     onChange={e => setSelectedYearGroup(e.target.value)}
                                     className="form-select text-xs font-bold text-indigo-600 dark:text-indigo-400"
                                 >
-                                    <option value="Form 1">Form 1</option>
-                                    <option value="Form 2">Form 2</option>
-                                    <option value="Form 3">Form 3</option>
-                                    <option value="Form 4">Form 4</option>
-                                    <option value="Grade 4">Grade 4</option>
-                                    <option value="Grade 7">Grade 7</option>
+                                    {yearGroupOptions.map(cls => (
+                                        <option key={cls} value={cls}>{cls}</option>
+                                    ))}
                                 </select>
                             </div>
 
