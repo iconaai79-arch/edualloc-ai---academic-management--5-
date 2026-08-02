@@ -51,29 +51,42 @@ export const isSubjectApplicableToClass = (
     const name = (subject.name || '').toLowerCase().trim();
     const desc = (subject.description || '').toLowerCase().trim();
 
-    // 1. Pre-Primary (PP1, PP2, Playgroup, Nursery, KG)
     const isPPClass = cLower.includes('pp1') || cLower.includes('pp2') || cLower.includes('pp 1') || cLower.includes('pp 2') || cLower.includes('playgroup') || cLower.includes('nursery') || cLower.includes('kindergarten') || cLower.includes('kg') || cLower === 'pp';
+    const isLPClass = /\b(grade|std|standard|class)\s*[1-3]\b/i.test(className) || cLower.includes('lower primary') || cLower === 'g1' || cLower === 'g2' || cLower === 'g3';
+    const isUPClass = /\b(grade|std|standard|class)\s*[4-6]\b/i.test(className) || cLower.includes('upper primary') || cLower === 'g4' || cLower === 'g5' || cLower === 'g6';
+    const isJSSClass = /\b(grade|std|standard|class)\s*[7-9]\b/i.test(className) || cLower.includes('jss') || cLower.includes('junior') || cLower === 'g7' || cLower === 'g8' || cLower === 'g9';
+
+    // 1. High School / Secondary pure sciences & KCSE papers are NEVER applicable to Primary (PP, LP, UP)
+    const isSecondaryOnlySubject =
+        code.endsWith('-SEC') || code.endsWith('-HS') || code.endsWith('-KCSE') ||
+        name.includes('chemistry') || name.includes('physics') || name.includes('biology') ||
+        name.includes('history') || name.includes('geography') || name.includes('business studies') ||
+        name.includes('computer studies') || name.includes('paper 1') || name.includes('paper 2') || name.includes('paper 3') ||
+        desc.includes('secondary') || desc.includes('kcse') || desc.includes('form 1') || desc.includes('form 2') || desc.includes('form 3') || desc.includes('form 4');
+
+    if ((isPPClass || isLPClass || isUPClass) && isSecondaryOnlySubject) {
+        return false;
+    }
+
+    // 2. Pre-Primary (PP1, PP2, Playgroup, Nursery, KG)
     const isPPSubject = code.endsWith('-PP') || name.includes('pre-primary') || desc.includes('pre-primary') || desc.includes('pp1') || desc.includes('pp2') || desc.includes('playgroup') || (name.includes('activities') && (name.includes('language') || name.includes('mathematical') || name.includes('environmental') || name.includes('psychomotor') || name.includes('religious')));
 
     if (isPPSubject) return isPPClass;
     if (isPPClass) return isPPSubject;
 
-    // 2. Lower Primary (Grade 1 - 3)
-    const isLPClass = /\b(grade|std|standard|class)\s*[1-3]\b/i.test(className) || cLower.includes('lower primary') || cLower === 'g1' || cLower === 'g2' || cLower === 'g3';
-    const isLPSubject = code.endsWith('-LP') || desc.includes('lower primary') || desc.includes('grade 1-3') || desc.includes('grade 1 - 3');
+    // 3. Lower Primary (Grade 1 - 3)
+    const isLPSubject = code.endsWith('-LP') || desc.includes('lower primary') || desc.includes('grade 1-3') || desc.includes('grade 1 - 3') || (name.includes('activities') && !name.includes('pre-primary'));
 
     if (isLPSubject) return isLPClass;
     if (isLPClass && (code.endsWith('-UP') || code.endsWith('-JSS') || desc.includes('upper primary') || desc.includes('junior secondary') || desc.includes('jss'))) return false;
 
-    // 3. Upper Primary (Grade 4 - 6)
-    const isUPClass = /\b(grade|std|standard|class)\s*[4-6]\b/i.test(className) || cLower.includes('upper primary') || cLower === 'g4' || cLower === 'g5' || cLower === 'g6';
-    const isUPSubject = code.endsWith('-UP') || desc.includes('upper primary') || desc.includes('grade 4-6') || desc.includes('grade 4 - 6');
+    // 4. Upper Primary (Grade 4 - 6)
+    const isUPSubject = code.endsWith('-UP') || desc.includes('upper primary') || desc.includes('grade 4-6') || desc.includes('grade 4 - 6') || name.includes('science & technology') || name.includes('social studies');
 
     if (isUPSubject) return isUPClass;
     if (isUPClass && (code.endsWith('-PP') || code.endsWith('-LP') || code.endsWith('-JSS') || desc.includes('pre-primary') || desc.includes('lower primary') || desc.includes('junior secondary') || desc.includes('jss'))) return false;
 
-    // 4. Junior Secondary / JSS (Grade 7 - 9)
-    const isJSSClass = /\b(grade|std|standard|class)\s*[7-9]\b/i.test(className) || cLower.includes('jss') || cLower.includes('junior') || cLower === 'g7' || cLower === 'g8' || cLower === 'g9';
+    // 5. Junior Secondary / JSS (Grade 7 - 9)
     const isJSSSubject = code.endsWith('-JSS') || code === 'INT-SCI' || code === 'PRE-TECH' || code === 'HEALTH-ED' || code === 'LIFE-SKILLS' || code === 'ARTS-SPORTS' || desc.includes('junior') || desc.includes('jss') || desc.includes('grade 7-9') || desc.includes('grade 7 - 9');
 
     if (isJSSSubject) return isJSSClass;
@@ -84,7 +97,7 @@ export const isSubjectApplicableToClass = (
         return false;
     }
 
-    // Default: General subjects apply to all Primary and Secondary classes
+    // Default: General subjects apply if not excluded above
     return true;
 };
 
