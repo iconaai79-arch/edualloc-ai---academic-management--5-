@@ -1061,9 +1061,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 return isStudentInTargetClasses(stClass, [cName]);
             });
 
-            const classEnrollment = classStudents.length > 0
-                ? classStudents.length
-                : (realStudentsForClass.length > 0 ? realStudentsForClass.length : (activeExam?.studentsEnrolled || 0));
+            const targetStudents = classStudents.length > 0
+                ? classStudents
+                : (realStudentsForClass.length > 0 ? realStudentsForClass : activeExamRows);
+
+            const classEnrollment = targetStudents.length;
 
             // Source A: Exact configured papers for cName in Exam Papers Settings (savedConfigs)
             const cConfig = (savedConfigs && Array.isArray(savedConfigs))
@@ -1402,6 +1404,47 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             setTimeout(() => setSaveToastMessage(null), 4000);
         }
     };
+
+    // Dynamic total enrollment for active exam unit
+    const activeExamTotalEnrollment = useMemo(() => {
+        const activeStList = allRealStudents.length > 0
+            ? allRealStudents
+            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+
+        const targetClasses = activeExamClasses.length > 0 ? activeExamClasses : [];
+        if (targetClasses.length > 0) {
+            const matched = activeStList.filter(st => {
+                const stClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '';
+                return isStudentInTargetClasses(stClass, targetClasses);
+            });
+            if (matched.length > 0) return matched.length;
+        }
+
+        if (broadsheetStudentRows.length > 0 && !broadsheetStudentRows.every(r => KENYAN_STUDENT_NAMES.includes(r.name))) {
+            return broadsheetStudentRows.length;
+        }
+
+        return activeExam?.studentsEnrolled || 0;
+    }, [allRealStudents, users, activeExamClasses, isStudentInTargetClasses, broadsheetStudentRows, KENYAN_STUDENT_NAMES, activeExam]);
+
+    // Dynamic missing marks count for active exam unit
+    const activeExamMissingMarks = useMemo(() => {
+        if (!activeExam) return 0;
+        const totalPapers = classPaperRows.reduce((acc, c) => acc + c.papers.length, 0);
+        const totalStudents = activeExamTotalEnrollment;
+        const totalPossibleMarksEntries = totalStudents * (totalPapers || 1);
+
+        let enteredCount = 0;
+        classPaperRows.forEach(c => {
+            c.papers.forEach(p => {
+                const progPct = p.progress || 0;
+                enteredCount += Math.round((progPct / 100) * c.enrollment);
+            });
+        });
+
+        const missing = totalPossibleMarksEntries - enteredCount;
+        return Math.max(0, missing);
+    }, [activeExam, classPaperRows, activeExamTotalEnrollment]);
 
     return (
         <div className="space-y-6 animate-fade-in max-w-7xl">
