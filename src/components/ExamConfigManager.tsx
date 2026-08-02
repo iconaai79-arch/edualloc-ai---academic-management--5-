@@ -495,6 +495,21 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         }
     }, [currentInstitution]);
 
+    // Synchronized listener for real-time cross-module updates
+    useEffect(() => {
+        const handleSync = () => {
+            try {
+                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && typeof parsed === 'object') setClassAllocationsStore(parsed);
+                }
+            } catch(e) {}
+        };
+        window.addEventListener('eduai_academics_synced', handleSync);
+        return () => window.removeEventListener('eduai_academics_synced', handleSync);
+    }, [instId]);
+
     // Helper to get applicable subjects for any given class name
     const getApplicableSubjectsForClass = useCallback((clsName: string) => {
         if (!clsName) return [];
@@ -672,6 +687,10 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                     ...payloadData
                 } as any);
             }
+
+            try {
+                window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'papers', instId: currentInstitution.id } }));
+            } catch(e) {}
 
             setSaveStatus('saved');
             setTimeout(() => setSaveStatus('idle'), 2500);

@@ -260,6 +260,9 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 allocations: updatedStore
             }).catch(() => {});
         }
+        try {
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'allocations', instId } }));
+        } catch(e) {}
     };
 
     // Re-sync assignments when subjects/dbAllocations/classAllocationsStore update

@@ -435,6 +435,11 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
                     tree_grading_nodes: gradingNodes
                 } as any);
             }
+            try {
+                localStorage.setItem(`eduai_tree_grading_nodes_${currentInstitution.id}`, JSON.stringify(gradingNodes));
+                window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'grading', instId: currentInstitution.id } }));
+            } catch(e) {}
+
             setSaveStatus('saved');
             setTimeout(() => setSaveStatus('idle'), 2500);
         } catch (err) {

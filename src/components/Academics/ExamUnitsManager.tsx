@@ -207,6 +207,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [isPapersModalOpen, setIsPapersModalOpen] = useState(false);
     // Tested Papers Configuration State:
     const [testedPaperConfigs, setTestedPaperConfigs] = useState<TestedPaperConfig[]>([]);
+    const [syncedVersion, setSyncedVersion] = useState(0);
+
+    // Synchronized listener for real-time cross-module updates across Lessons & Allocation, Exam Papers & Grading
+    useEffect(() => {
+        const handleSync = () => {
+            setSyncedVersion(prev => prev + 1);
+        };
+        window.addEventListener('eduai_academics_synced', handleSync);
+        return () => window.removeEventListener('eduai_academics_synced', handleSync);
+    }, []);
 
     // Sync tested paper configurations EXACTLY as added in Manage Subjects per Class Stream or Exam Papers Settings
     useEffect(() => {
@@ -445,7 +455,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 { id: 'jss_9', subject: 'Religious Education (CRE/IRE)', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true }
             ]);
         }
-    }, [currentInstitution, subjects, instId, isPrimarySchool, selectedClasses, selectedClassFilter, activeExam, isAddExamModalOpen, isPapersModalOpen]);
+    }, [currentInstitution, subjects, instId, isPrimarySchool, selectedClasses, selectedClassFilter, activeExam, isAddExamModalOpen, isPapersModalOpen, syncedVersion]);
     const [useCustomRanking, setUseCustomRanking] = useState(false);
     const [rankingScope, setRankingScope] = useState<'overall' | 'per_class'>('overall');
     const [customRankingCriteria, setCustomRankingCriteria] = useState<'Points' | 'Total Marks' | 'Mean Score'>('Points');
@@ -753,6 +763,41 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             { label: `${subName}`, key: `subj_${sClean}_p1`, maxScore: 100 }
         ];
     }, [testedPaperConfigs]);
+
+    // Dynamic Grade Calculator querying treeGradingNodes (Grading Systems)
+    const calculateGradeFromScore = useCallback((pctNum: number, clsName?: string) => {
+        let treeNodes = (currentInstitution as any)?.treeGradingNodes || (currentInstitution as any)?.tree_grading_nodes;
+        if (!treeNodes) {
+            try {
+                const saved = localStorage.getItem(`eduai_tree_grading_nodes_${instId}`);
+                if (saved) treeNodes = JSON.parse(saved);
+            } catch(e) {}
+        }
+        let scaleDefinitions: any[] | null = null;
+
+        if (treeNodes && typeof treeNodes === 'object') {
+            const cleanC = (clsName || selectedClassFilter || '').toLowerCase().trim();
+            const classKey = `class_${cleanC.replace(/[^a-z0-9]/g, '_')}_overall`;
+            if (treeNodes[classKey]?.definitions?.length > 0) {
+                scaleDefinitions = treeNodes[classKey].definitions;
+            } else if (treeNodes['root_main']?.definitions?.length > 0) {
+                scaleDefinitions = treeNodes['root_main'].definitions;
+            }
+        }
+
+        if (scaleDefinitions && scaleDefinitions.length > 0) {
+            const sorted = [...scaleDefinitions].sort((a: any, b: any) => (b.minScore ?? 0) - (a.minScore ?? 0));
+            const matched = sorted.find((d: any) => pctNum >= (d.minScore ?? 0));
+            if (matched && matched.grade) return matched.grade;
+        }
+
+        const isCBEClass = /\b(grade|std|standard|pp1|pp2|playgroup|nursery)\b/i.test(clsName || selectedClassFilter || '');
+        if (isCBEClass || isPrimarySchool) {
+            return pctNum >= 80 ? 'EE' : pctNum >= 60 ? 'ME' : pctNum >= 40 ? 'AE' : 'BE';
+        }
+
+        return pctNum >= 80 ? 'A' : pctNum >= 75 ? 'A-' : pctNum >= 70 ? 'B+' : pctNum >= 65 ? 'B' : pctNum >= 60 ? 'B-' : pctNum >= 55 ? 'C+' : pctNum >= 50 ? 'C' : pctNum >= 45 ? 'C-' : pctNum >= 40 ? 'D+' : pctNum >= 35 ? 'D' : pctNum >= 30 ? 'D-' : 'E';
+    }, [currentInstitution, instId, selectedClassFilter, isPrimarySchool]);
 
     // Dynamic Class Paper Progress Rows based on active exam & broadsheet rows
     const classPaperRows = useMemo(() => {
@@ -2257,7 +2302,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                     <th className="px-4 py-3 text-center w-24">Status</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
+                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
                                                 {filteredStudentRows.map((st, stIndex) => {
                                                     const papers = getSubjectPapers(selectedSubjectFilter);
 
@@ -2265,7 +2310,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                     const maxTotal = papers.reduce((sum: number, p: any) => sum + p.maxScore, 0);
                                                     const convertedPct = maxTotal > 0 ? ((rawTotal / maxTotal) * 100).toFixed(1) : '0.0';
                                                     const pctNum = parseFloat(convertedPct);
-                                                    const grade = pctNum >= 80 ? 'A' : pctNum >= 75 ? 'A-' : pctNum >= 70 ? 'B+' : pctNum >= 65 ? 'B' : pctNum >= 60 ? 'B-' : pctNum >= 50 ? 'C+' : 'C';
+                                                    const grade = calculateGradeFromScore(pctNum, selectedClassFilter);
 
                                                     return (
                                                         <tr key={st.admNo} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors">
