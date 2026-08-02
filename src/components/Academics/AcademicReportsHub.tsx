@@ -53,6 +53,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
     courses = [],
     academicLevels = []
 }) => {
+    const [activeSubTab, setActiveSubTab] = useState<ReportSubTab>('exam_analysis');
     const instId = currentInstitution?.id || 'default_inst';
 
     // Dynamic state for exam_units created in Exam Units Manager
