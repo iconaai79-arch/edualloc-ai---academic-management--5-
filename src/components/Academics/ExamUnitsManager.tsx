@@ -661,6 +661,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         });
     }, []);
 
+    // Comprehensive helper to resolve student class name across all schema variations
+    const getStudentClass = useCallback((st: any): string => {
+        if (!st) return '';
+        const candidate = st.studentClass || st.classLevel || st.class_name || st.class || st.courseLevelId || st.className || st.academicLevel || st.grade || st.currentClass || st.gradeLevel || st.level || st.courseId || '';
+        if (typeof candidate === 'string') return candidate.trim();
+        return '';
+    }, []);
+
     // Helper to resolve clean human-readable student admission numbers
     const resolveCleanAdmNo = (st: any, idx: number) => {
         const candidate = st.admissionNumber || st.admission_number || st.admNo || st.admissionNo || st.regNo || st.registrationNumber || st.studentId;
@@ -695,7 +703,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         // Filter real students strictly for this active exam's target classes
         const matchingRealStudents = activeStList.filter(st => {
-            const stClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '';
+            const stClass = getStudentClass(st);
             return isStudentInTargetClasses(stClass, targetClasses);
         });
 
@@ -710,7 +718,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const cleanRows = activeStListForExam.map((st, idx) => ({
                     admNo: resolveCleanAdmNo(st, idx),
                     name: st.name || `Student ${idx + 1}`,
-                    class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || targetClasses[0],
+                    class: getStudentClass(st) || targetClasses[0],
                     mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
                 }));
                 setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
@@ -752,23 +760,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         // Default clean rows for any new exam (uses real students for target classes if available)
-        const cleanRows = activeStListForExam.length > 0
-            ? activeStListForExam.map((st, idx) => ({
-                admNo: resolveCleanAdmNo(st, idx),
-                name: st.name || `Student ${idx + 1}`,
-                class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || targetClasses[0],
-                mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-            }))
-            : KENYAN_STUDENT_NAMES.map((name, idx) => ({
-                admNo: `ADM-${1001 + idx}`,
-                name,
-                class: targetClasses[0],
-                mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-            }));
+        const cleanRows = activeStListForExam.map((st, idx) => ({
+            admNo: resolveCleanAdmNo(st, idx),
+            name: st.name || `Student ${idx + 1}`,
+            class: getStudentClass(st) || targetClasses[0],
+            mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+        }));
 
         setBroadsheetStudentRows(cleanRows);
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
-    }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses, allRealStudents, isStudentInTargetClasses]);
+    }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass]);
 
     const filteredStudentRows = useMemo(() => {
         const activeStList = allRealStudents.length > 0
@@ -782,35 +783,32 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         let rows = broadsheetStudentRows;
 
         if (activeStList.length > 0) {
-            // Filter real students strictly for target classes (selected filter or exam's registered classes)
+            // Find real students strictly enrolled in targetClasses
             const matchedReal = targetClasses.length > 0
-                ? activeStList.filter(st => {
-                    const stClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '';
-                    return isStudentInTargetClasses(stClass, targetClasses);
-                })
+                ? activeStList.filter(st => isStudentInTargetClasses(getStudentClass(st), targetClasses))
                 : activeStList;
 
-            const finalRealList = matchedReal.length > 0 ? matchedReal : activeStList;
+            if (matchedReal.length > 0 && targetClasses.length > 0) {
+                const matchedSet = new Set(matchedReal.map((st, idx) => resolveCleanAdmNo(st, idx)));
+                const matchedNames = new Set(matchedReal.map(st => (st.name || '').toLowerCase().trim()));
 
-            const hasDemoOnly = rows.length > 0 && rows.every(r => KENYAN_STUDENT_NAMES.includes(r.name));
-
-            // If rows are demo names, or if filtered class doesn't match current rows, build from finalRealList
-            if (hasDemoOnly || targetClasses.length > 0) {
                 const rowsForClass = rows.filter(r => {
                     const rClass = r.class || '';
-                    return targetClasses.length === 0 || isStudentInTargetClasses(rClass, targetClasses);
+                    return isStudentInTargetClasses(rClass, targetClasses) || matchedSet.has(r.admNo) || matchedNames.has((r.name || '').toLowerCase().trim());
                 });
 
-                if (rowsForClass.length > 0 && !hasDemoOnly) {
+                if (rowsForClass.length > 0 && !rowsForClass.every(r => KENYAN_STUDENT_NAMES.includes(r.name))) {
                     rows = rowsForClass;
                 } else {
-                    rows = finalRealList.map((st, idx) => ({
+                    rows = matchedReal.map((st, idx) => ({
                         admNo: resolveCleanAdmNo(st, idx),
                         name: st.name || `Student ${idx + 1}`,
-                        class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || (targetClasses[0] || 'Class 1'),
+                        class: getStudentClass(st) || (targetClasses[0] || 'Class 1'),
                         mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
                     }));
                 }
+            } else if (targetClasses.length > 0) {
+                rows = rows.filter(r => isStudentInTargetClasses(r.class || '', targetClasses));
             }
         }
 
@@ -819,7 +817,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return rows.filter(st =>
             (st.name || '').toLowerCase().includes(q) || (st.admNo || '').toLowerCase().includes(q)
         );
-    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses]);
+    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass]);
 
     const handleUpdateStudentMark = (admNo: string, fieldKey: string, newValue: number) => {
         const updated = broadsheetStudentRows.map(row => {
@@ -1414,7 +1412,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const targetClasses = activeExamClasses.length > 0 ? activeExamClasses : [];
         if (targetClasses.length > 0) {
             const matched = activeStList.filter(st => {
-                const stClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '';
+                const stClass = getStudentClass(st);
                 return isStudentInTargetClasses(stClass, targetClasses);
             });
             if (matched.length > 0) return matched.length;
@@ -1425,7 +1423,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         return activeExam?.studentsEnrolled || 0;
-    }, [allRealStudents, users, activeExamClasses, isStudentInTargetClasses, broadsheetStudentRows, KENYAN_STUDENT_NAMES, activeExam]);
+    }, [allRealStudents, users, activeExamClasses, isStudentInTargetClasses, broadsheetStudentRows, KENYAN_STUDENT_NAMES, activeExam, getStudentClass]);
 
     // Dynamic missing marks count for active exam unit
     const activeExamMissingMarks = useMemo(() => {
