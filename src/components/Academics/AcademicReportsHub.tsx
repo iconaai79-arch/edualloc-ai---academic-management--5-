@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import type { Assessment, AssessmentMark, User, Subject, ActivityLog, Institution, Course, AcademicLevel } from '../../types';
+import { apiService } from '../../services/apiService';
 import { ChartPieIcon } from '../icons/ChartPieIcon';
 import { GridIcon } from '../icons/GridIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
@@ -108,8 +109,8 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
         const propConverted = (assessments || []).map(a => ({
             id: a.id,
-            title: a.title || a.name || 'Assessment',
-            name: a.title || a.name || 'Assessment',
+            title: a.title || (a as any).name || 'Assessment',
+            name: a.title || (a as any).name || 'Assessment',
             type: a.type || 'CAT',
             term: a.term || 'TERM 1',
             year: String(a.year || 2026),

@@ -117,8 +117,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
         const propConverted = (assessments || []).map(a => ({
             id: a.id,
-            title: a.title || a.name || 'Assessment',
-            name: a.title || a.name || 'Assessment',
+            title: a.title || (a as any).name || 'Assessment',
+            name: a.title || (a as any).name || 'Assessment',
             type: a.type || 'CAT',
             term: a.term || 'TERM 1',
             year: String(a.year || 2026),
