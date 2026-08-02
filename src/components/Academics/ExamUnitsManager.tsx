@@ -1318,11 +1318,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
 
         const matchedStudents = realStudents.filter(st => {
-            const cl = ((st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '').trim();
+            const cl = getStudentClass(st);
             return isStudentInTargetClasses(cl, targetClasses);
         });
 
-        const studentCount = matchedStudents.length;
+        const studentCount = matchedStudents.length > 0 ? matchedStudents.length : broadsheetStudentRows.length;
 
         // EDIT EXISTING EXAM CASE
         if (isEditingExam && activeExam) {
