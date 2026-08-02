@@ -535,16 +535,23 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return {};
     });
 
+    // Helper to identify student records across all schema types
+    const isStudentUser = useCallback((u: any) => {
+        if (!u) return false;
+        const r = String(u.role || u.userType || u.type || '').toLowerCase().trim();
+        return r === 'student' || r === 'student_enrollment' || Boolean(u.studentClass) || Boolean(u.admissionNumber) || Boolean(u.courseLevelId) || Boolean(u.metadata?.studentClass);
+    }, []);
+
     // Dynamic Real Students State
     const [allRealStudents, setAllRealStudents] = useState<User[]>(() => {
-        const fromProps = (users || []).filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+        const fromProps = (users || []).filter(isStudentUser);
         if (fromProps.length > 0) return fromProps;
         try {
             const savedSt = localStorage.getItem(`eduai_students_${instId}`) || localStorage.getItem(`eduai_users_${instId}`);
             if (savedSt) {
                 const parsed = JSON.parse(savedSt);
                 if (Array.isArray(parsed)) {
-                    const stOnly = parsed.filter(u => u && (u.role === 'student' || u.role === 'Student' || u.userType === 'student'));
+                    const stOnly = parsed.filter(isStudentUser);
                     if (stOnly.length > 0) return stOnly;
                 }
             }
@@ -552,14 +559,33 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return [];
     });
 
+    // Update real students whenever users prop arrives or changes
+    useEffect(() => {
+        const fromProps = (users || []).filter(isStudentUser);
+        if (fromProps.length > 0) {
+            setAllRealStudents(prev => {
+                const seen = new Set(prev.map(p => p.id));
+                const unique = [...prev];
+                fromProps.forEach(st => {
+                    if (st.id && !seen.has(st.id)) {
+                        seen.add(st.id);
+                        unique.push(st);
+                    }
+                });
+                return unique;
+            });
+        }
+    }, [users, isStudentUser]);
+
     useEffect(() => {
         if (currentInstitution?.id) {
             Promise.all([
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
-            ]).then(([stRecords, userRecords]) => {
-                const combined = [...(stRecords || []), ...(userRecords || [])];
-                const stOnly = combined.filter(u => u && (u.role === 'student' || u.role === 'Student' || u.userType === 'student' || u.studentClass));
+            ]).then(([enrRecords, stRecords, userRecords]) => {
+                const combined = [...(enrRecords || []), ...(stRecords || []), ...(userRecords || [])];
+                const stOnly = combined.filter(isStudentUser);
                 if (stOnly.length > 0) {
                     setAllRealStudents(prev => {
                         const seen = new Set(prev.map(p => p.id));
@@ -578,7 +604,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 }
             });
         }
-    }, [currentInstitution]);
+    }, [currentInstitution, isStudentUser]);
 
     // Broadsheet Spreadsheet State
     const [marksDisplayMode, setMarksDisplayMode] = useState<'raw' | 'converted' | 'dual'>('raw');
