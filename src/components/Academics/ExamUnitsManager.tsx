@@ -620,6 +620,47 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
     }, [currentInstitution]);
 
+    // Robust helper to match a student's class against target class(es) for an exam unit
+    const isStudentInTargetClasses = useCallback((stClassRaw: string, targetClasses: string[]): boolean => {
+        if (!stClassRaw || !targetClasses || targetClasses.length === 0) return false;
+        const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const stClean = stClassRaw.toLowerCase().trim();
+        const stNorm = normalize(stClean);
+
+        return targetClasses.some(tc => {
+            if (!tc) return false;
+            const tcClean = tc.toLowerCase().trim();
+            const tcNorm = normalize(tcClean);
+            const tcNoStream = tcClean.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d]|\d{4})$/i, '').trim();
+            const tcNoStreamNorm = normalize(tcNoStream);
+
+            if (stClean === tcClean || stNorm === tcNorm) return true;
+            if (tcNoStreamNorm && (stClean === tcNoStream || stNorm === tcNoStreamNorm)) return true;
+            if (stNorm.includes(tcNorm) || tcNorm.includes(stNorm)) return true;
+            if (tcNoStreamNorm && (stNorm.includes(tcNoStreamNorm) || tcNoStreamNorm.includes(stNorm))) return true;
+
+            const isPg = (s: string) => s.includes('pg') || s.includes('playgroup') || s.includes('play');
+            if (isPg(stNorm) && isPg(tcNorm)) return true;
+
+            const isPp1 = (s: string) => /\bpp\s*1\b/i.test(s) || s.includes('pp1') || s.includes('preprimary1');
+            if (isPp1(stNorm) && isPp1(tcNorm)) return true;
+
+            const isPp2 = (s: string) => /\bpp\s*2\b/i.test(s) || s.includes('pp2') || s.includes('preprimary2');
+            if (isPp2(stNorm) && isPp2(tcNorm)) return true;
+
+            const isG1 = (s: string) => /\b(grade|std|class)\s*1\b/i.test(s) || s.includes('grade1') || s === 'g1';
+            if (isG1(stNorm) && isG1(tcNorm)) return true;
+
+            const isG2 = (s: string) => /\b(grade|std|class)\s*2\b/i.test(s) || s.includes('grade2') || s === 'g2';
+            if (isG2(stNorm) && isG2(tcNorm)) return true;
+
+            const isG3 = (s: string) => /\b(grade|std|class)\s*3\b/i.test(s) || s.includes('grade3') || s === 'g3';
+            if (isG3(stNorm) && isG3(tcNorm)) return true;
+
+            return false;
+        });
+    }, []);
+
     // Helper to resolve clean human-readable student admission numbers
     const resolveCleanAdmNo = (st: any, idx: number) => {
         const candidate = st.admissionNumber || st.admission_number || st.admNo || st.admissionNo || st.regNo || st.registrationNumber || st.studentId;
@@ -650,17 +691,26 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             ? allRealStudents
             : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
 
+        const targetClasses = activeExamClasses.length > 0 ? activeExamClasses : ['Form 3 Central'];
+
+        // Filter real students strictly for this active exam's target classes
+        const matchingRealStudents = activeStList.filter(st => {
+            const stClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '';
+            return isStudentInTargetClasses(stClass, targetClasses);
+        });
+
+        const activeStListForExam = matchingRealStudents.length > 0 ? matchingRealStudents : activeStList;
+
         if (examMarksStore[selectedExamId] && Array.isArray(examMarksStore[selectedExamId]) && examMarksStore[selectedExamId].length > 0) {
             const existingRows = examMarksStore[selectedExamId];
             const hasDemoDataOnly = existingRows.every(r => KENYAN_STUDENT_NAMES.includes(r.name));
 
             // If real students are available and store only contains sample demo names, replace with real students
             if (activeStList.length > 0 && hasDemoDataOnly) {
-                const targetClass = activeExamClasses[0] || 'Form 3 Central';
-                const cleanRows = activeStList.map((st, idx) => ({
+                const cleanRows = activeStListForExam.map((st, idx) => ({
                     admNo: resolveCleanAdmNo(st, idx),
                     name: st.name || `Student ${idx + 1}`,
-                    class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || targetClass,
+                    class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || targetClasses[0],
                     mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
                 }));
                 setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
@@ -701,79 +751,63 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 .catch(() => {});
         }
 
-        // Default clean rows for any new exam (uses real students if available, fallback demo if empty)
-        const targetClass = activeExamClasses[0] || 'Form 3 Central';
-
-        const cleanRows = activeStList.length > 0
-            ? activeStList.map((st, idx) => ({
+        // Default clean rows for any new exam (uses real students for target classes if available)
+        const cleanRows = activeStListForExam.length > 0
+            ? activeStListForExam.map((st, idx) => ({
                 admNo: resolveCleanAdmNo(st, idx),
                 name: st.name || `Student ${idx + 1}`,
-                class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || targetClass,
+                class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || targetClasses[0],
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
             }))
             : KENYAN_STUDENT_NAMES.map((name, idx) => ({
                 admNo: `ADM-${1001 + idx}`,
                 name,
-                class: targetClass,
+                class: targetClasses[0],
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
             }));
 
         setBroadsheetStudentRows(cleanRows);
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
-    }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses, allRealStudents]);
+    }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses, allRealStudents, isStudentInTargetClasses]);
 
     const filteredStudentRows = useMemo(() => {
         const activeStList = allRealStudents.length > 0
             ? allRealStudents
             : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
 
+        const targetClasses = (selectedClassFilter && selectedClassFilter !== 'all')
+            ? [selectedClassFilter]
+            : (activeExamClasses.length > 0 ? activeExamClasses : []);
+
         let rows = broadsheetStudentRows;
 
-        // If broadsheetStudentRows currently contains demo names ONLY, and real students ARE available, swap to real students!
-        if (activeStList.length > 0 && rows.length > 0 && rows.every(r => KENYAN_STUDENT_NAMES.includes(r.name))) {
-            rows = activeStList.map((st, idx) => ({
-                admNo: resolveCleanAdmNo(st, idx),
-                name: st.name || `Student ${idx + 1}`,
-                class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || selectedClassFilter || 'Class 1',
-                mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-            }));
-        }
+        if (activeStList.length > 0) {
+            // Filter real students strictly for target classes (selected filter or exam's registered classes)
+            const matchedReal = targetClasses.length > 0
+                ? activeStList.filter(st => {
+                    const stClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '';
+                    return isStudentInTargetClasses(stClass, targetClasses);
+                })
+                : activeStList;
 
-        if (selectedClassFilter && selectedClassFilter !== 'all') {
-            const cleanFilter = selectedClassFilter.replace(/\s*\d{4}$/, '').trim().toLowerCase();
-            const matched = rows.filter(st => {
-                const stClass = (st.class || '').trim().toLowerCase();
-                return stClass === cleanFilter || stClass.includes(cleanFilter) || cleanFilter.includes(stClass);
-            });
+            const finalRealList = matchedReal.length > 0 ? matchedReal : activeStList;
 
-            if (matched.length > 0) {
-                rows = matched;
-            } else {
-                // Check if real students exist for this selected class
-                const realClassSt = activeStList.filter(st => {
-                    const stClass = ((st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '').trim().toLowerCase();
-                    return stClass === cleanFilter || stClass.includes(cleanFilter) || cleanFilter.includes(stClass);
+            const hasDemoOnly = rows.length > 0 && rows.every(r => KENYAN_STUDENT_NAMES.includes(r.name));
+
+            // If rows are demo names, or if filtered class doesn't match current rows, build from finalRealList
+            if (hasDemoOnly || targetClasses.length > 0) {
+                const rowsForClass = rows.filter(r => {
+                    const rClass = r.class || '';
+                    return targetClasses.length === 0 || isStudentInTargetClasses(rClass, targetClasses);
                 });
 
-                if (realClassSt.length > 0) {
-                    rows = realClassSt.map((st, idx) => ({
-                        admNo: resolveCleanAdmNo(st, idx),
-                        name: st.name || `Student ${idx + 1}`,
-                        class: selectedClassFilter,
-                        mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-                    }));
-                } else if (activeStList.length > 0) {
-                    rows = activeStList.map((st, idx) => ({
-                        admNo: resolveCleanAdmNo(st, idx),
-                        name: st.name || `Student ${idx + 1}`,
-                        class: selectedClassFilter,
-                        mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-                    }));
+                if (rowsForClass.length > 0 && !hasDemoOnly) {
+                    rows = rowsForClass;
                 } else {
-                    rows = KENYAN_STUDENT_NAMES.map((name, idx) => ({
-                        admNo: `ADM-${1001 + idx}`,
-                        name,
-                        class: selectedClassFilter,
+                    rows = finalRealList.map((st, idx) => ({
+                        admNo: resolveCleanAdmNo(st, idx),
+                        name: st.name || `Student ${idx + 1}`,
+                        class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || (targetClasses[0] || 'Class 1'),
                         mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
                     }));
                 }
@@ -785,7 +819,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return rows.filter(st =>
             (st.name || '').toLowerCase().includes(q) || (st.admNo || '').toLowerCase().includes(q)
         );
-    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users]);
+    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses]);
 
     const handleUpdateStudentMark = (admNo: string, fieldKey: string, newValue: number) => {
         const updated = broadsheetStudentRows.map(row => {
