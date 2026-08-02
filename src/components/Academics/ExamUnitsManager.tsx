@@ -711,6 +711,49 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return ['Mathematics', 'English', 'Kiswahili'];
     }, [selectedClassFilter, activeExamClasses, instId, currentInstitution, subjects, testedPaperConfigs]);
 
+    // Helper to resolve papers and distinct unique property keys for any subject
+    const getSubjectPapers = useCallback((subName: string) => {
+        if (!subName) return [{ label: 'Paper 1', key: 'subj_p1', maxScore: 100 }];
+
+        // Check if testedPaperConfigs has specific papers for subName
+        const activeTested = testedPaperConfigs.filter(p => p.enabled && p.subject.toLowerCase().trim() === subName.toLowerCase().trim());
+        if (activeTested.length > 0) {
+            const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            return activeTested.map((p, idx) => {
+                const pClean = p.paperName ? p.paperName.toLowerCase().replace(/[^a-z0-9]/g, '_') : `p${idx + 1}`;
+                return {
+                    label: p.paperName ? `${subName} (${p.paperName})` : `${subName} Paper ${idx + 1}`,
+                    key: `subj_${sClean}_${pClean}`,
+                    maxScore: p.maxInputScore || 100
+                };
+            });
+        }
+
+        // Standard subject defaults
+        if (subName.toLowerCase().trim() === 'english') {
+            return [
+                { label: 'ENG Paper 1 (Functional)', key: 'engP1', maxScore: 60 },
+                { label: 'ENG Paper 2 (Comprehension)', key: 'engP2', maxScore: 80 }
+            ];
+        }
+        if (subName.toLowerCase().trim() === 'kiswahili') {
+            return [
+                { label: 'KISW Paper 1 (Insha)', key: 'kiswP1', maxScore: 40 }
+            ];
+        }
+        if (subName.toLowerCase().trim() === 'maths' || subName.toLowerCase().trim() === 'mathematics') {
+            return [
+                { label: 'MATH Paper 1', key: 'mathP1', maxScore: 100 }
+            ];
+        }
+
+        // Unique property key for any CBE/custom subject (e.g. English Language Activities)
+        const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        return [
+            { label: `${subName}`, key: `subj_${sClean}_p1`, maxScore: 100 }
+        ];
+    }, [testedPaperConfigs]);
+
     // Dynamic Class Paper Progress Rows based on active exam & broadsheet rows
     const classPaperRows = useMemo(() => {
         // 1. Get classAllocationsStore (Ground truth per-class subjects from Manage Subjects per Class Stream)
@@ -2202,17 +2245,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                     <th className="px-4 py-3 text-left">Student Name</th>
                                                     
                                                     {/* Dynamic Paper Header Columns */}
-                                                    {(selectedSubjectFilter === 'English' ? [
-                                                        { label: 'ENG Paper 1 (Functional)', key: 'engP1', maxScore: 60 },
-                                                        { label: 'ENG Paper 2 (Comprehension)', key: 'engP2', maxScore: 80 }
-                                                    ] : selectedSubjectFilter === 'Kiswahili' ? [
-                                                        { label: 'KISW Paper 1 (Insha)', key: 'kiswP1', maxScore: 40 }
-                                                    ] : (selectedSubjectFilter === 'MATHS' || selectedSubjectFilter === 'Mathematics') ? [
-                                                        { label: 'MATH Paper 1', key: 'mathP1', maxScore: 30 },
-                                                        { label: 'MATH Paper 2', key: 'mathP2', maxScore: 70 }
-                                                    ] : [
-                                                        { label: `${selectedSubjectFilter} Paper 1`, key: 'bioP1', maxScore: 80 }
-                                                    ]).map((paper, pIdx) => (
+                                                    {getSubjectPapers(selectedSubjectFilter).map((paper, pIdx) => (
                                                         <th key={pIdx} className="px-4 py-3 text-center bg-indigo-900/90 text-indigo-100 border-x border-indigo-800">
                                                             {paper.label} <span className="text-[10px] text-amber-300 font-bold">(/ {paper.maxScore})</span>
                                                         </th>
@@ -2226,17 +2259,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                             </thead>
                                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
                                                 {filteredStudentRows.map((st, stIndex) => {
-                                                    const papers = selectedSubjectFilter === 'English' ? [
-                                                        { key: 'engP1', maxScore: 60 },
-                                                        { key: 'engP2', maxScore: 80 }
-                                                    ] : selectedSubjectFilter === 'Kiswahili' ? [
-                                                        { key: 'kiswP1', maxScore: 40 }
-                                                    ] : (selectedSubjectFilter === 'MATHS' || selectedSubjectFilter === 'Mathematics') ? [
-                                                        { key: 'mathP1', maxScore: 30 },
-                                                        { key: 'mathP2', maxScore: 70 }
-                                                    ] : [
-                                                        { key: 'bioP1', maxScore: 80 }
-                                                    ];
+                                                    const papers = getSubjectPapers(selectedSubjectFilter);
 
                                                     const rawTotal = papers.reduce((sum, p) => sum + ((st as any)[p.key] || 0), 0);
                                                     const maxTotal = papers.reduce((sum, p) => sum + p.maxScore, 0);
@@ -2388,21 +2411,26 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                             </thead>
                                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
                                                 {filteredStudentRows.map((st) => {
-                                                    const rawTotal = st.mathP1 + st.mathP2 + st.engP1 + st.engP2 + st.kiswP1;
-                                                    const maxTotal = 30 + 70 + 60 + 80 + 40;
-                                                    const convertedPct = ((rawTotal / maxTotal) * 100).toFixed(1);
-                                                    const grade = parseFloat(convertedPct) >= 80 ? 'A' : parseFloat(convertedPct) >= 75 ? 'A-' : parseFloat(convertedPct) >= 70 ? 'B+' : 'B';
+                                                    const allPapers = modalAvailableSubjects.flatMap(subName => getSubjectPapers(subName));
+                                                    const rawTotal = allPapers.reduce((sum, sp) => sum + ((st as any)[sp.key] || 0), 0);
+                                                    const maxTotal = allPapers.reduce((sum, sp) => sum + sp.maxScore, 0);
+                                                    const convertedPct = maxTotal > 0 ? ((rawTotal / maxTotal) * 100).toFixed(1) : '0.0';
+                                                    const pctNum = parseFloat(convertedPct);
+                                                    const grade = pctNum >= 80 ? 'A' : pctNum >= 75 ? 'A-' : pctNum >= 70 ? 'B+' : pctNum >= 65 ? 'B' : pctNum >= 50 ? 'C+' : 'C';
 
                                                     return (
                                                         <tr key={st.admNo} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
                                                             <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">{st.admNo}</td>
                                                             <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
                                                             
-                                                            <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">{st.mathP1} <span className="text-[10px] text-slate-400 font-normal">/ 30</span></td>
-                                                            <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">{st.mathP2} <span className="text-[10px] text-slate-400 font-normal">/ 70</span></td>
-                                                            <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">{st.engP1} <span className="text-[10px] text-slate-400 font-normal">/ 60</span></td>
-                                                            <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">{st.engP2} <span className="text-[10px] text-slate-400 font-normal">/ 80</span></td>
-                                                            <td className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">{st.kiswP1} <span className="text-[10px] text-slate-400 font-normal">/ 40</span></td>
+                                                            {allPapers.map((sp, pIdx) => {
+                                                                const val = (st as any)[sp.key] ?? 0;
+                                                                return (
+                                                                    <td key={pIdx} className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">
+                                                                        {val} <span className="text-[10px] text-slate-400 font-normal">/ {sp.maxScore}</span>
+                                                                    </td>
+                                                                );
+                                                            })}
 
                                                             <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">{rawTotal} / {maxTotal}</td>
                                                             <td className="px-4 py-3 text-center font-mono font-bold text-emerald-600">{convertedPct}%</td>
