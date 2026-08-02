@@ -1043,6 +1043,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         });
     }, [classPaperRows]);
 
+    // Helper to dynamically resolve overall submitted percentage for any exam
+    const getExamSubmittedPercent = useCallback((examObj: ExamUnitRecord) => {
+        if (!examObj) return 0;
+        if (examObj.id === selectedExamId && classPaperRows.length > 0) {
+            const sum = classPaperRows.reduce((acc, c) => acc + c.overallProgress, 0);
+            return parseFloat((sum / classPaperRows.length).toFixed(1));
+        }
+        return examObj.submittedPercent || 0;
+    }, [selectedExamId, classPaperRows]);
+
     const handleCreateExam = async () => {
         if (!newExamName.trim()) {
             alert('Please enter an exam title.');
@@ -1272,7 +1282,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     >
                                         <h4 className="text-xs font-bold uppercase tracking-tight mb-1">{exam.name}</h4>
                                         <p className={`text-[10px] uppercase font-bold tracking-wider ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
-                                            {exam.term} • {exam.type} • {exam.submittedPercent}% submitted
+                                            {exam.term} • {exam.type} • {getExamSubmittedPercent(exam)}% submitted
                                         </p>
                                     </div>
                                 );
@@ -1437,7 +1447,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 </div>
 
                                 <div className="p-6 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 text-center space-y-1">
-                                    <h3 className="text-3xl font-black text-emerald-500">{activeExam?.submittedPercent || 0}%</h3>
+                                    <h3 className="text-3xl font-black text-emerald-500">{activeExam ? getExamSubmittedPercent(activeExam) : 0}%</h3>
                                     <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">OF MARKS SUBMITTED</p>
                                 </div>
                             </div>
