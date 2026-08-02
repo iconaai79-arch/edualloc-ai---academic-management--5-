@@ -869,12 +869,17 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         return activeExamClasses.map((cName, cIdx) => {
-            const classStudents = broadsheetStudentRows.filter(s => (s.class || '').toLowerCase() === cName.toLowerCase() || (s.class || '').includes(cName));
-            const classEnrollment = classStudents.length > 0 ? classStudents.length : Math.round((activeExam?.studentsEnrolled || 60) / Math.max(1, activeExamClasses.length)) || 50;
-
             const cleanTC = cName.trim();
             const tcLower = cleanTC.toLowerCase();
             const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
+
+            const activeExamRows = (activeExam?.id && examMarksStore[activeExam.id]) ? examMarksStore[activeExam.id] : broadsheetStudentRows;
+            const classStudents = activeExamRows.filter(s => {
+                const stClass = (s.class || '').trim().toLowerCase();
+                return stClass === tcLower || stClass === tcNoStream || stClass.includes(tcLower) || tcLower.includes(stClass);
+            });
+            const targetStudents = classStudents.length > 0 ? classStudents : activeExamRows;
+            const classEnrollment = targetStudents.length > 0 ? targetStudents.length : Math.round((activeExam?.studentsEnrolled || 60) / Math.max(1, activeExamClasses.length)) || 50;
 
             // Source A: Exact configured papers for cName in Exam Papers Settings (savedConfigs)
             const cConfig = (savedConfigs && Array.isArray(savedConfigs))
@@ -935,15 +940,28 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             const papers = classPaperItems.map((item, sIdx) => {
                 const subName = item.subject;
-                const fieldKey = subName.toLowerCase().includes('math') ? 'mathP1' :
-                                 subName.toLowerCase().includes('eng') ? 'engP1' :
-                                 subName.toLowerCase().includes('kisw') ? 'kiswP1' :
-                                 subName.toLowerCase().includes('bio') ? 'bioP1' : null;
+                const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const pClean = (item.paperName || 'paper 1').toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const exactKey = `subj_${sClean}_${pClean}`;
+                const fallbackKey1 = `subj_${sClean}_p1`;
+
+                const candidateKeys = [
+                    exactKey,
+                    fallbackKey1,
+                    subName.toLowerCase().includes('math') ? 'mathP1' : null,
+                    subName.toLowerCase().includes('math') ? 'mathP2' : null,
+                    subName.toLowerCase().includes('eng') ? 'engP1' : null,
+                    subName.toLowerCase().includes('eng') ? 'engP2' : null,
+                    subName.toLowerCase().includes('kisw') ? 'kiswP1' : null,
+                    subName.toLowerCase().includes('bio') ? 'bioP1' : null
+                ].filter(Boolean) as string[];
 
                 let progress = 0;
-                if (fieldKey && classStudents.length > 0) {
-                    const enteredCount = classStudents.filter(st => (st[fieldKey] || 0) > 0).length;
-                    progress = parseFloat(((enteredCount / classStudents.length) * 100).toFixed(2));
+                if (targetStudents.length > 0) {
+                    const enteredCount = targetStudents.filter(st => {
+                        return candidateKeys.some(k => (st as any)[k] !== undefined && (st as any)[k] !== null && Number((st as any)[k]) > 0);
+                    }).length;
+                    progress = parseFloat(((enteredCount / targetStudents.length) * 100).toFixed(2));
                 } else if (activeExam?.submittedPercent && activeExam.submittedPercent > 0) {
                     progress = activeExam.submittedPercent;
                 }
@@ -973,7 +991,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 papers
             };
         });
-    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users]);
+    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore]);
 
     // Dynamic Teacher Progress
     const teacherProgressList = useMemo(() => {
