@@ -545,10 +545,29 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         return [];
     }, [subjects, courses, dbAllocations, classAllocationsStore]);
 
+    // Robust class config finder that matches by classId or className
+    const findClassConfig = useCallback((cId: string) => {
+        const classObj = classList.find(c => c.id === cId);
+        const className = classObj?.name || '';
+        const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const targetIdNorm = norm(cId);
+        const targetNameNorm = norm(className);
+
+        return classConfigs.find(c => {
+            if (!c) return false;
+            const confIdNorm = norm(c.classId || '');
+            const confNameNorm = norm(c.className || '');
+            return (targetIdNorm && confIdNorm === targetIdNorm) ||
+                   (targetNameNorm && confNameNorm === targetNameNorm) ||
+                   (targetIdNorm && confNameNorm === targetIdNorm) ||
+                   (targetNameNorm && confIdNorm === targetNameNorm);
+        });
+    }, [classConfigs, classList]);
+
     // Active class configuration helper for Exam Papers
     // If no saved config exists for the active class, auto-populate from allocated subjects
     const activeClassConfig = useMemo(() => {
-        let found = classConfigs.find(c => c.classId === activeClassId);
+        let found = findClassConfig(activeClassId);
         if (!found) {
             const activeClassObj = classList.find(c => c.id === activeClassId);
             const className = activeClassObj?.name || '';
@@ -579,7 +598,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
             };
         }
         return found;
-    }, [classConfigs, activeClassId, classList, getApplicableSubjectsForClass]);
+    }, [findClassConfig, activeClassId, classList, getApplicableSubjectsForClass]);
 
     // Active class comments helper for Teacher Comments
     const activeClassComments = useMemo(() => {
@@ -598,8 +617,10 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     // Helper to get total paper count for a class
     // Falls back to counting auto-populated subjects (1 paper each) if no saved config exists
     const getClassPaperCount = (cId: string): number => {
-        const conf = classConfigs.find(c => c.classId === cId);
-        if (conf) return conf.subjects.reduce((sum, s) => sum + s.papers.length, 0);
+        const conf = findClassConfig(cId);
+        if (conf && conf.subjects && conf.subjects.length > 0) {
+            return conf.subjects.reduce((sum, s) => sum + (s.papers ? s.papers.length : 0), 0);
+        }
 
         const classObj = classList.find(c => c.id === cId);
         if (!classObj) return 0;

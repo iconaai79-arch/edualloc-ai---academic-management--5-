@@ -1,7 +1,7 @@
 
 
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import type { User, Subject, Course, Room, Department, AcademicYear, Semester, ExamTimetableEntry, TimetableSettings, Building, AcademicLevel, LetterheadConfig, EmailConfig, Institution, SmsConfig, ExamTimetableSettings, AllocationRequest, TimeOffRequest, TimetableEntry, Assessment, AssessmentMark, ActivityLog, DisciplineIncident } from '../types';
 import { isSuperAdminUser } from '../types';
 import { generateExamTimetable } from '../services/geminiService';

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Institution, Subject, User, Assessment, AssessmentMark, AcademicYear, Course, AcademicLevel } from '../../types';
 import { apiService } from '../../services/apiService';
 import { PlusIcon } from '../icons/PlusIcon';
@@ -2245,7 +2245,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                     <th className="px-4 py-3 text-left">Student Name</th>
                                                     
                                                     {/* Dynamic Paper Header Columns */}
-                                                    {getSubjectPapers(selectedSubjectFilter).map((paper, pIdx) => (
+                                                    {getSubjectPapers(selectedSubjectFilter).map((paper: any, pIdx: number) => (
                                                         <th key={pIdx} className="px-4 py-3 text-center bg-indigo-900/90 text-indigo-100 border-x border-indigo-800">
                                                             {paper.label} <span className="text-[10px] text-amber-300 font-bold">(/ {paper.maxScore})</span>
                                                         </th>
@@ -2261,8 +2261,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 {filteredStudentRows.map((st, stIndex) => {
                                                     const papers = getSubjectPapers(selectedSubjectFilter);
 
-                                                    const rawTotal = papers.reduce((sum, p) => sum + ((st as any)[p.key] || 0), 0);
-                                                    const maxTotal = papers.reduce((sum, p) => sum + p.maxScore, 0);
+                                                    const rawTotal = papers.reduce((sum: number, p: any) => sum + ((st as any)[p.key] || 0), 0);
+                                                    const maxTotal = papers.reduce((sum: number, p: any) => sum + p.maxScore, 0);
                                                     const convertedPct = maxTotal > 0 ? ((rawTotal / maxTotal) * 100).toFixed(1) : '0.0';
                                                     const pctNum = parseFloat(convertedPct);
                                                     const grade = pctNum >= 80 ? 'A' : pctNum >= 75 ? 'A-' : pctNum >= 70 ? 'B+' : pctNum >= 65 ? 'B' : pctNum >= 60 ? 'B-' : pctNum >= 50 ? 'C+' : 'C';
@@ -2273,7 +2273,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                             <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
                                                             
                                                             {/* Paper Editable Score Inputs */}
-                                                            {papers.map((paper, pIdx) => {
+                                                            {papers.map((paper: any, pIdx: number) => {
                                                                 const currentVal = (st as any)[paper.key] ?? 0;
                                                                 const inputId = `mark-input-${stIndex}-${pIdx}`;
                                                                 return (
