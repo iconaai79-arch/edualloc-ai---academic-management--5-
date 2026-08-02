@@ -490,6 +490,17 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         bioP1: Math.round(45 + (idx * 3) % 35)
     })), [KENYAN_STUDENT_NAMES]);
 
+    // Resolved Active Exam Classes
+    const activeExamClasses = useMemo(() => {
+        if (activeExam?.classes && activeExam.classes.length > 0) {
+            return activeExam.classes;
+        }
+        if (selectedClasses && selectedClasses.length > 0) {
+            return selectedClasses;
+        }
+        return registeredClasses.length > 0 ? [registeredClasses[0]] : ['Form 3 Central'];
+    }, [activeExam, selectedClasses, registeredClasses]);
+
     // Per-exam broadsheet store
     const [examMarksStore, setExamMarksStore] = useState<Record<string, any[]>>(() => {
         try {
@@ -738,19 +749,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     }, [publishedExams]);
 
     const [expandedYears, setExpandedYears] = useState<Record<number, boolean>>({ 2026: true, 2025: false });
-
-    // Resolved Active Exam Classes
-    const activeExamClasses = useMemo(() => {
-        if (activeExam?.classes && activeExam.classes.length > 0) {
-            return activeExam.classes;
-        }
-        if (selectedClasses && selectedClasses.length > 0) {
-            return selectedClasses;
-        }
-        const classesFromRows = Array.from(new Set((broadsheetStudentRows || []).map(r => r.class).filter(Boolean)));
-        if (classesFromRows.length > 0) return classesFromRows;
-        return registeredClasses.length > 0 ? [registeredClasses[0]] : [];
-    }, [activeExam, selectedClasses, broadsheetStudentRows, registeredClasses]);
 
     // Compute applicable subjects ONLY for selectedClassFilter (or all active exam classes if selectedClassFilter === 'all')
     const modalAvailableSubjects = useMemo(() => {
