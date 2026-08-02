@@ -52,10 +52,100 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
     courses = [],
     academicLevels = []
 }) => {
-    const [activeSubTab, setActiveSubTab] = useState<ReportSubTab>('exam_analysis');
-    
+    const instId = currentInstitution?.id || 'default_inst';
+
+    // Dynamic state for exam_units created in Exam Units Manager
+    const [savedExamUnits, setSavedExamUnits] = useState<any[]>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
+            if (saved) return JSON.parse(saved) || [];
+        } catch(e) {}
+        return [];
+    });
+
+    // Fetch exam_units from database on mount & listen to eduai_academics_synced
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('exam_units', currentInstitution.id)
+                .then(records => {
+                    if (records && records.length > 0) {
+                        setSavedExamUnits(prev => {
+                            const existingIds = new Set(prev.map(e => e.id));
+                            const newOnes = records.filter(r => !existingIds.has(r.id));
+                            const merged = [...newOnes, ...prev];
+                            try {
+                                localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+
+        const handleSync = () => {
+            try {
+                const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
+                if (saved) setSavedExamUnits(JSON.parse(saved) || []);
+            } catch(e) {}
+        };
+        window.addEventListener('eduai_academics_synced', handleSync);
+        return () => window.removeEventListener('eduai_academics_synced', handleSync);
+    }, [currentInstitution, instId]);
+
+    // Unified list of effective assessments combining exam_units and props.assessments
+    const effectiveAssessments = useMemo(() => {
+        const customConverted = savedExamUnits.map(e => ({
+            id: e.id,
+            title: e.name || e.title || 'Exam Unit',
+            name: e.name || e.title || 'Exam Unit',
+            type: e.type || 'CAT',
+            term: e.term || 'TERM 1',
+            year: String(e.year || 2026),
+            studentCount: e.studentsEnrolled || 40,
+            status: e.status || 'published'
+        }));
+
+        const propConverted = (assessments || []).map(a => ({
+            id: a.id,
+            title: a.title || a.name || 'Assessment',
+            name: a.title || a.name || 'Assessment',
+            type: a.type || 'CAT',
+            term: a.term || 'TERM 1',
+            year: String(a.year || 2026),
+            studentCount: (a as any).studentCount || (a as any).count || 40,
+            status: 'published'
+        }));
+
+        const combined = [...customConverted, ...propConverted];
+        const seen = new Set<string>();
+        const unique: any[] = [];
+        combined.forEach(item => {
+            if (item.id && !seen.has(item.id)) {
+                seen.add(item.id);
+                unique.push(item);
+            }
+        });
+
+        if (unique.length === 0) {
+            return [
+                { id: 'exam_1', title: 'Endterm 2 Exam 2026', type: 'END TERM', term: 'TERM 2', year: '2026', studentCount: 361, status: 'published' },
+                { id: 'exam_2', title: 'Kapseret Mock', type: 'END TERM', term: 'TERM 2', year: '2026', studentCount: 251, status: 'published' },
+                { id: 'exam_3', title: 'Mid Term 2 Exam', type: 'CAT', term: 'TERM 2', year: '2026', studentCount: 610, status: 'published' },
+            ];
+        }
+
+        return unique;
+    }, [savedExamUnits, assessments]);
+
     // Filters state
-    const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>(assessments[0]?.id || 'all');
+    const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>('');
+    useEffect(() => {
+        if (!selectedAssessmentId && effectiveAssessments.length > 0) {
+            setSelectedAssessmentId(effectiveAssessments[0].id);
+        }
+    }, [effectiveAssessments, selectedAssessmentId]);
+
     const [selectedClass, setSelectedClass] = useState<string>('');
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -358,7 +448,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
                 {activeSubTab === 'broadsheet' && (
                     <BroadsheetReportView
-                        assessments={assessments}
+                        assessments={effectiveAssessments}
                         marks={marks}
                         students={activeStudents}
                         users={users}
@@ -371,7 +461,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
                 {activeSubTab === 'student_progress' && (
                     <StudentProgressReportView
-                        assessments={assessments}
+                        assessments={effectiveAssessments}
                         marks={marks}
                         students={activeStudents}
                         users={users}
@@ -384,7 +474,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
                 {activeSubTab === 'report_cards' && (
                     <FuturisticReportCardView
-                        assessments={assessments}
+                        assessments={effectiveAssessments}
                         marks={marks}
                         students={activeStudents}
                         users={users}

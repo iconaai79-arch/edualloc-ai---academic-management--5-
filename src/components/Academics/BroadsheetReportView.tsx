@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
+import { apiService } from '../../services/apiService';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -61,17 +62,107 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [pageSize, setPageSize] = useState<number>(25);
 
+    const instId = currentInstitution?.id || 'default_inst';
+
+    // Dynamic state for exam_units created/published in Exam Units Manager
+    const [savedExamUnits, setSavedExamUnits] = useState<any[]>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
+            if (saved) return JSON.parse(saved) || [];
+        } catch(e) {}
+        return [];
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('exam_units', currentInstitution.id)
+                .then(records => {
+                    if (records && records.length > 0) {
+                        setSavedExamUnits(prev => {
+                            const existingIds = new Set(prev.map(e => e.id));
+                            const newOnes = records.filter(r => !existingIds.has(r.id));
+                            const merged = [...newOnes, ...prev];
+                            try {
+                                localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+
+        const handleSync = () => {
+            try {
+                const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
+                if (saved) setSavedExamUnits(JSON.parse(saved) || []);
+            } catch(e) {}
+        };
+        window.addEventListener('eduai_academics_synced', handleSync);
+        return () => window.removeEventListener('eduai_academics_synced', handleSync);
+    }, [currentInstitution, instId]);
+
+    // Unified list of all exams (combining props.assessments and savedExamUnits)
+    const allExamsList = useMemo(() => {
+        const customConverted = savedExamUnits.map(e => ({
+            id: e.id,
+            title: e.name || e.title || 'Exam Unit',
+            name: e.name || e.title || 'Exam Unit',
+            type: e.type || 'CAT',
+            term: e.term || 'TERM 1',
+            year: String(e.year || 2026),
+            count: e.studentsEnrolled || e.studentCount || 40,
+            status: e.status || 'published'
+        }));
+
+        const propConverted = (assessments || []).map(a => ({
+            id: a.id,
+            title: a.title || a.name || 'Assessment',
+            name: a.title || a.name || 'Assessment',
+            type: a.type || 'CAT',
+            term: a.term || 'TERM 1',
+            year: String(a.year || 2026),
+            count: (a as any).count || (a as any).studentCount || 40,
+            status: 'published'
+        }));
+
+        const combined = [...customConverted, ...propConverted];
+        const seen = new Set<string>();
+        const unique: typeof customConverted = [];
+        combined.forEach(item => {
+            if (item.id && !seen.has(item.id)) {
+                seen.add(item.id);
+                unique.push(item);
+            }
+        });
+
+        if (unique.length === 0) {
+            return [
+                { id: 'exam_1', title: 'Endterm 2 Exam 2026', name: 'Endterm 2 Exam 2026', year: '2026', term: 'TERM 2', type: 'END TERM', count: 361, status: 'published' },
+                { id: 'exam_2', title: 'Kapseret Mock', name: 'Kapseret Mock', year: '2026', term: 'TERM 2', type: 'END TERM', count: 251, status: 'published' },
+                { id: 'exam_3', title: 'Mid Term 2 Exam', name: 'Mid Term 2 Exam', year: '2026', term: 'TERM 2', type: 'CAT', count: 610, status: 'published' },
+                { id: 'exam_4', title: 'End Term Exam', name: 'End Term Exam', year: '2026', term: 'TERM 1', type: 'END TERM', count: 594, status: 'published' },
+                { id: 'exam_5', title: 'Mid Term Exam', name: 'Mid Term Exam', year: '2026', term: 'TERM 1', type: 'CAT', count: 477, status: 'published' },
+            ];
+        }
+
+        return unique;
+    }, [savedExamUnits, assessments]);
+
     // Active selected exam object
     const selectedExamObj = useMemo(() => {
-        return assessments.find(a => a.id === selectedExamId) || assessments[0] || {
+        const match = allExamsList.find(a => a.id === selectedExamId);
+        if (match) return match;
+        return allExamsList[0] || {
             id: 'exam_midterm_1',
             title: 'Mid Term Exam',
+            name: 'Mid Term Exam',
             type: 'CAT',
             term: 'TERM 1',
-            year: 2026,
-            studentCount: activeStudents.length || 477
+            year: '2026',
+            count: activeStudents.length || 477
         };
-    }, [assessments, selectedExamId, activeStudents]);
+    }, [allExamsList, selectedExamId, activeStudents]);
 
     // Active subjects for broadsheet columns
     const broadsheetSubjects = useMemo(() => {
@@ -113,8 +204,101 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         }
     };
 
-    // Sample student list for realistic broadsheet demo
+    // Load saved broadsheet store from Exam Units / institution_module_states
+    const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch(e) {}
+        return {};
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
+                    const storeData = match?.settings || match?.stateData || match?.data;
+                    if (storeData && typeof storeData === 'object') {
+                        setSavedBroadsheets(prev => {
+                            const merged = { ...storeData, ...prev };
+                            try {
+                                localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
+    // Student broadsheet list (combining real saved marks and fallback sample students)
     const sampleStudents = useMemo(() => {
+        const savedRows = savedBroadsheets[selectedExamId];
+        if (savedRows && Array.isArray(savedRows) && savedRows.length > 0) {
+            return savedRows.map((stRow, idx) => {
+                const subjectMarksMap: Record<string, { score: number; grade: string }> = {};
+                let total = 0;
+                let totalPts = 0;
+                let validCount = 0;
+
+                broadsheetSubjects.forEach(sub => {
+                    const subName = sub.name || (sub as any).title || '';
+                    const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                    const candidateKeys = [
+                        `subj_${sClean}_p1`,
+                        `subj_${sClean}_paper_1`,
+                        subName.toLowerCase().includes('math') ? 'mathP1' : null,
+                        subName.toLowerCase().includes('eng') ? 'engP1' : null,
+                        subName.toLowerCase().includes('kisw') ? 'kiswP1' : null,
+                        subName.toLowerCase().includes('bio') ? 'bioP1' : null
+                    ].filter(Boolean) as string[];
+
+                    let foundScore: number | null = null;
+                    for (const k of candidateKeys) {
+                        if (stRow[k] !== undefined && stRow[k] !== null) {
+                            foundScore = Number(stRow[k]);
+                            break;
+                        }
+                    }
+
+                    if (foundScore !== null && foundScore > 0) {
+                        const { grade, points } = getGradeInfo(foundScore);
+                        subjectMarksMap[sub.id] = { score: foundScore, grade };
+                        total += foundScore;
+                        totalPts += points;
+                        validCount++;
+                    }
+                });
+
+                const meanPts = validCount > 0 ? parseFloat((totalPts / validCount).toFixed(4)) : 0;
+                const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
+                const { grade: meanGrade } = getGradeInfo(meanScore);
+
+                return {
+                    student: {
+                        id: stRow.admNo || `st_${idx}`,
+                        name: stRow.name,
+                        admissionNo: stRow.admNo,
+                        studentClass: stRow.class
+                    },
+                    kcpe: 250 + (idx * 5) % 150,
+                    entry: 8,
+                    subjectMarksMap,
+                    total,
+                    meanScore,
+                    meanGrade,
+                    meanPts,
+                    vap: 1.5
+                };
+            }).sort((a, b) => b.total - a.total).map((r, idx) => ({
+                ...r,
+                overallPos: idx + 1,
+                streamPos: (idx % 5) + 1
+            }));
+        }
+
         const raw = activeStudents.length > 0 ? activeStudents : [
             { id: '2008', name: 'Maxine Jelimo', admissionNo: '2008', studentClass: '3 Central' },
             { id: '2244', name: 'Dennis Kiplagat', admissionNo: '2244', studentClass: '3 East' },
@@ -182,7 +366,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             overallPos: idx + 1,
             streamPos: (idx % 5) + 1
         }));
-    }, [activeStudents, broadsheetSubjects, isPrimarySchool]);
+    }, [activeStudents, broadsheetSubjects, isPrimarySchool, savedBroadsheets, selectedExamId]);
 
     // Filtered student rows
     const filteredBroadsheetRows = useMemo(() => {
@@ -263,23 +447,14 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
     // Exam History grouped by Year
     const examHistoryByYear = useMemo(() => {
-        const list = [
-            { id: 'exam_1', title: 'Endterm 2 Exam 2026', year: '2026', term: 'TERM 2', type: 'END TERM', count: 361 },
-            { id: 'exam_2', title: 'Kapseret Mock', year: '2026', term: 'TERM 2', type: 'END TERM', count: 251 },
-            { id: 'exam_3', title: 'Mid Term 2 Exam', year: '2026', term: 'TERM 2', type: 'CAT', count: 610 },
-            { id: 'exam_4', title: 'End Term Exam', year: '2026', term: 'TERM 1', type: 'END TERM', count: 594 },
-            { id: 'exam_5', title: 'Mid Term Exam', year: '2026', term: 'TERM 1', type: 'CAT', count: 477 },
-        ];
-
-        const groups: Record<string, typeof list> = {};
-        list.forEach(item => {
-            const yr = item.year || '2026';
+        const groups: Record<string, typeof allExamsList> = {};
+        allExamsList.forEach(item => {
+            const yr = String(item.year || '2026');
             if (!groups[yr]) groups[yr] = [];
             groups[yr].push(item);
         });
-
         return groups;
-    }, []);
+    }, [allExamsList]);
 
     // Left Navigation Items
     const navItems = [
