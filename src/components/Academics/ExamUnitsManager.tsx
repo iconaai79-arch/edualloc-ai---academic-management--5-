@@ -1483,7 +1483,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                             <div key={yearNum} className="space-y-0.5">
                                                 <div
                                                     onClick={() => setExpandedYears(prev => ({ ...prev, [yearNum]: !prev[yearNum] }))}
-                                                    <span>{yearNum} ({list.length})</span>
+                                                    className="px-4 py-3 cursor-pointer text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between"
+                                                >
                                                     {isExp ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
                                                 </div>
 
