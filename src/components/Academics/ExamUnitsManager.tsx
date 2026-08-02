@@ -760,27 +760,50 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return isStudentInTargetClasses(stClass, targetClasses);
         });
 
-        const activeStListForExam = matchingRealStudents.length > 0 ? matchingRealStudents : activeStList;
-
         if (examMarksStore[selectedExamId] && Array.isArray(examMarksStore[selectedExamId]) && examMarksStore[selectedExamId].length > 0) {
             const existingRows = examMarksStore[selectedExamId];
             const hasDemoDataOnly = existingRows.every(r => KENYAN_STUDENT_NAMES.includes(r.name));
 
             // If real students are available and store only contains sample demo names, replace with real students
-            if (activeStList.length > 0 && hasDemoDataOnly) {
-                const cleanRows = activeStListForExam.map((st, idx) => ({
+            if (matchingRealStudents.length > 0 && hasDemoDataOnly) {
+                const freshRows = matchingRealStudents.map((st, idx) => ({
                     admNo: resolveCleanAdmNo(st, idx),
                     name: st.name || `Student ${idx + 1}`,
                     class: getStudentClass(st) || targetClasses[0],
                     mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
                 }));
-                setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
-                setBroadsheetStudentRows(cleanRows);
-                return;
+                setBroadsheetStudentRows(freshRows);
+                setExamMarksStore(prev => ({ ...prev, [selectedExamId]: freshRows }));
+            } else {
+                setBroadsheetStudentRows(sanitizeBroadsheetRows(existingRows));
             }
-
-            setBroadsheetStudentRows(sanitizeBroadsheetRows(existingRows));
             return;
+        }
+
+        let cleanRows: any[] = [];
+        if (matchingRealStudents.length > 0) {
+            cleanRows = matchingRealStudents.map((st, idx) => ({
+                admNo: resolveCleanAdmNo(st, idx),
+                name: st.name || `Student ${idx + 1}`,
+                class: getStudentClass(st) || targetClasses[0],
+                mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+            }));
+        } else {
+            targetClasses.forEach((cName, cIdx) => {
+                const sampleNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau'];
+                sampleNames.forEach((sName, sIdx) => {
+                    cleanRows.push({
+                        admNo: `${1001 + (cIdx * 10) + sIdx}`,
+                        name: sName,
+                        class: cName,
+                        mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+                    });
+                });
+            });
+        }
+        setBroadsheetStudentRows(cleanRows);
+        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
+        return;
         }
 
         // Try loading from localStorage first for instant availability across refresh
@@ -1462,6 +1485,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     // Dynamic total enrollment for active exam unit
     const activeExamTotalEnrollment = useMemo(() => {
+        const totalFromClasses = classPaperRows.reduce((acc, cRow) => acc + (cRow.enrollment || 0), 0);
+        if (totalFromClasses > 0) return totalFromClasses;
+
         const activeStList = allRealStudents.length > 0
             ? allRealStudents
             : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
@@ -1475,12 +1501,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             if (matched.length > 0) return matched.length;
         }
 
-        if (broadsheetStudentRows.length > 0 && !broadsheetStudentRows.every(r => KENYAN_STUDENT_NAMES.includes(r.name))) {
-            return broadsheetStudentRows.length;
-        }
-
-        return activeExam?.studentsEnrolled || 0;
-    }, [allRealStudents, users, activeExamClasses, isStudentInTargetClasses, broadsheetStudentRows, KENYAN_STUDENT_NAMES, activeExam, getStudentClass]);
+        return activeExam?.studentsEnrolled || broadsheetStudentRows.length || 0;
+    }, [classPaperRows, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, broadsheetStudentRows, activeExam, getStudentClass]);
 
     // Dynamic missing marks count for active exam unit
     const activeExamMissingMarks = useMemo(() => {
