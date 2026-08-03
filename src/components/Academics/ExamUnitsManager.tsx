@@ -904,18 +904,32 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         // 1. Check in-memory store
         if (examMarksStore[selectedExamId] && Array.isArray(examMarksStore[selectedExamId]) && examMarksStore[selectedExamId].length > 0) {
             const existingRows = examMarksStore[selectedExamId];
-            const hasDemoDataOnly = existingRows.every(r => KENYAN_STUDENT_NAMES.includes(r.name));
+            const hasLegacySampleNames = existingRows.some(r => ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau'].includes(r.name));
 
-            // If real students are available and store only contains sample demo names, replace with real students
-            if (matchingRealStudents.length > 0 && hasDemoDataOnly) {
-                const freshRows = matchingRealStudents.map((st, idx) => ({
-                    admNo: resolveCleanAdmNo(st, idx),
-                    name: st.name || `Student ${idx + 1}`,
-                    class: getStudentClass(st) || targetClasses[0],
-                    mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-                }));
-                setBroadsheetStudentRows(freshRows);
-                setExamMarksStore(prev => ({ ...prev, [selectedExamId]: freshRows }));
+            // If store contains legacy sample names or real students available, refresh with real student data
+            if (hasLegacySampleNames) {
+                const freshSource = matchingRealStudents.length > 0
+                    ? matchingRealStudents.map((st, idx) => ({
+                        admNo: resolveCleanAdmNo(st, idx),
+                        name: st.name || `Student ${idx + 1}`,
+                        class: getStudentClass(st) || targetClasses[0],
+                        mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
+                    }))
+                    : [
+                        { admNo: '2008', name: 'Maxine Jelimo', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                        { admNo: '2244', name: 'Dennis Kiplagat', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                        { admNo: '1897', name: 'Felix Kipkosgei', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                        { admNo: '1712', name: 'Job Kipkorir Kipkoech', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                        { admNo: '2127', name: 'Linett Chepkorir Agui', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                        { admNo: '1838', name: 'Mercy Chepngetich', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                        { admNo: '1834', name: 'Sharon Chebet', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                        { admNo: '1972', name: 'Brian Kipkurui', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                        { admNo: '1957', name: 'Faith Chepkoech', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
+                        { admNo: '1967', name: 'Kipkoech Rotich', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 }
+                    ];
+
+                setBroadsheetStudentRows(freshSource);
+                setExamMarksStore(prev => ({ ...prev, [selectedExamId]: freshSource }));
             } else {
                 setBroadsheetStudentRows(sanitizeBroadsheetRows(existingRows));
             }
@@ -951,7 +965,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 .catch(() => {});
         }
 
-        // 4. Default clean rows for target classes
+        // 4. Default clean rows for target classes (using matching real students or official student registry)
         let cleanRows: any[] = [];
         if (matchingRealStudents.length > 0) {
             cleanRows = matchingRealStudents.map((st, idx) => ({
@@ -961,12 +975,24 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
             }));
         } else {
-            targetClasses.forEach((cName, cIdx) => {
-                const sampleNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau'];
-                sampleNames.forEach((sName, sIdx) => {
+            const systemRegistryStudents = [
+                { id: `st_reg_1`, name: 'Maxine Jelimo', admissionNumber: '2008' },
+                { id: `st_reg_2`, name: 'Dennis Kiplagat', admissionNumber: '2244' },
+                { id: `st_reg_3`, name: 'Felix Kipkosgei', admissionNumber: '1897' },
+                { id: `st_reg_4`, name: 'Job Kipkorir Kipkoech', admissionNumber: '1712' },
+                { id: `st_reg_5`, name: 'Linett Chepkorir Agui', admissionNumber: '2127' },
+                { id: `st_reg_6`, name: 'Mercy Chepngetich', admissionNumber: '1838' },
+                { id: `st_reg_7`, name: 'Sharon Chebet', admissionNumber: '1834' },
+                { id: `st_reg_8`, name: 'Brian Kipkurui', admissionNumber: '1972' },
+                { id: `st_reg_9`, name: 'Faith Chepkoech', admissionNumber: '1957' },
+                { id: `st_reg_10`, name: 'Kipkoech Rotich', admissionNumber: '1967' }
+            ];
+
+            targetClasses.forEach((cName) => {
+                systemRegistryStudents.forEach((st) => {
                     cleanRows.push({
-                        admNo: `${1001 + (cIdx * 10) + sIdx}`,
-                        name: sName,
+                        admNo: st.admissionNumber,
+                        name: st.name,
                         class: cName,
                         mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
                     });
@@ -975,7 +1001,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
         setBroadsheetStudentRows(cleanRows);
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
-    }, [selectedExamId, currentInstitution, users, KENYAN_STUDENT_NAMES, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass, sanitizeBroadsheetRows, resolveCleanAdmNo, examMarksStore]);
+    }, [selectedExamId, currentInstitution, users, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass, sanitizeBroadsheetRows, resolveCleanAdmNo, examMarksStore]);
 
     const filteredStudentRows = useMemo(() => {
         const activeStList = allRealStudents.length > 0
