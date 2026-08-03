@@ -235,10 +235,108 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     useEffect(() => {
         const handleSync = () => {
             setSyncedVersion(prev => prev + 1);
+            try {
+                const savedEx = localStorage.getItem(`eduai_student_subject_exemptions_${instId}`);
+                if (savedEx) {
+                    const parsed = JSON.parse(savedEx);
+                    if (parsed && typeof parsed === 'object') setStudentSubjectExemptions(parsed);
+                }
+            } catch(e) {}
         };
         window.addEventListener('eduai_academics_synced', handleSync);
         return () => window.removeEventListener('eduai_academics_synced', handleSync);
-    }, []);
+    }, [instId]);
+
+    // Persistent Student Exemptions Store (from Student Subject Enrollment Manager)
+    const [studentSubjectExemptions, setStudentSubjectExemptions] = useState<Record<string, boolean>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_student_subject_exemptions_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch(e) {}
+        return {};
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('student_subject_exemptions', currentInstitution.id)
+                .then(records => {
+                    if (records && records.length > 0) {
+                        const map: Record<string, boolean> = {};
+                        records.forEach(r => {
+                            if (r.key) map[r.key] = r.isExempted ?? true;
+                        });
+                        setStudentSubjectExemptions(prev => ({ ...map, ...prev }));
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
+    // Import Enrolled Class Subjects from Student Subject Enrollment Registry
+    const handleImportEnrolledSubjects = useCallback(() => {
+        const targetClasses = isAddExamModalOpen
+            ? selectedClasses
+            : (activeExam?.classes && activeExam.classes.length > 0 ? activeExam.classes : [selectedClassFilter]);
+
+        if (!targetClasses || targetClasses.length === 0) {
+            alert('Please select sitting class streams first.');
+            return;
+        }
+
+        const enrolledSubjectsSet = new Set<string>();
+
+        // 1. Gather allocated class subjects
+        const activeClassAllocationsStore: Record<string, string[]> = (() => {
+            try {
+                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (saved) return JSON.parse(saved) || {};
+            } catch(e) {}
+            return (currentInstitution as any)?.classSubjectAllocations || {};
+        })();
+
+        targetClasses.forEach(tc => {
+            const cleanTC = tc.trim();
+            const tcLower = cleanTC.toLowerCase();
+            const storeEntry = activeClassAllocationsStore[cleanTC] ?? activeClassAllocationsStore[tcLower];
+
+            if (Array.isArray(storeEntry) && storeEntry.length > 0) {
+                storeEntry.forEach(sNameOrId => {
+                    const matchedSub = (subjects || []).find(s => s.id === sNameOrId || s.name.toLowerCase().trim() === String(sNameOrId).toLowerCase().trim() || s.code.toLowerCase().trim() === String(sNameOrId).toLowerCase().trim());
+                    if (matchedSub) {
+                        enrolledSubjectsSet.add(matchedSub.name);
+                    } else if (typeof sNameOrId === 'string' && sNameOrId.length > 1) {
+                        enrolledSubjectsSet.add(sNameOrId);
+                    }
+                });
+            } else if (subjects && subjects.length > 0) {
+                const applicable = subjects.filter(s => isSubjectApplicableToClass({ name: s.name, code: s.code }, tc));
+                applicable.forEach(s => enrolledSubjectsSet.add(s.name));
+            }
+        });
+
+        if (enrolledSubjectsSet.size === 0) {
+            ['Mathematics', 'English', 'Kiswahili', 'Integrated Science', 'Social Studies', 'Religious Education'].forEach(s => enrolledSubjectsSet.add(s));
+        }
+
+        const importedPapers: TestedPaperConfig[] = Array.from(enrolledSubjectsSet).map((subName, idx) => ({
+            id: `enr_tp_${subName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${idx}`,
+            subject: subName,
+            paperName: 'Paper 1',
+            maxInputScore: 100,
+            convertToHundred: true,
+            enabled: true
+        }));
+
+        const deduplicated = deduplicatePapers(importedPapers);
+        setTestedPaperConfigs(deduplicated);
+
+        try {
+            localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(deduplicated));
+        } catch(e) {}
+
+        setSaveToastMessage(`Imported ${deduplicated.length} enrolled subject(s) from Student Registry`);
+        setTimeout(() => setSaveToastMessage(null), 3000);
+    }, [isAddExamModalOpen, selectedClasses, activeExam, selectedClassFilter, instId, currentInstitution, subjects, deduplicatePapers]);
 
     // Sync tested paper configurations EXACTLY as added in Manage Subjects per Class Stream or Exam Papers Settings
     useEffect(() => {
@@ -2187,19 +2285,28 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     </div>
                                 </div>
 
-                                {/* Section 2: Papers to Test Button */}
-                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                                {/* Section 2: Papers to Test Button & Import Enrolled Subjects */}
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                                     <div>
                                         <h4 className="text-xs font-bold text-slate-800 dark:text-white">Exam Papers</h4>
                                         <p className="text-[10px] text-slate-400">{testedPaperConfigs.filter(p => p.enabled).length} paper components configured for testing</p>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsPapersModalOpen(true)}
-                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-sm transition-all flex items-center gap-1.5"
-                                    >
-                                        <DocumentTextIcon className="w-4 h-4" /> Papers to Test
-                                    </button>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <button
+                                            type="button"
+                                            onClick={handleImportEnrolledSubjects}
+                                            className="px-3 py-2 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                        >
+                                            <SparklesIcon className="w-4 h-4 text-emerald-500" /> Use Enrolled Subjects
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsPapersModalOpen(true)}
+                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                                        >
+                                            <DocumentTextIcon className="w-4 h-4" /> Papers to Test
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Section 3: Unique Ranking Criteria */}
@@ -2471,26 +2578,35 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 </table>
                             </div>
 
-                            {/* Quick Add Custom Paper Component */}
-                            <div className="flex justify-between items-center pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const subName = prompt('Enter Subject Name (e.g. Computer Studies):', 'Computer Studies');
-                                        if (!subName) return;
-                                        const pName = prompt('Enter Paper Name (e.g. Paper 1 Practical):', 'Paper 1');
-                                        if (!pName) return;
-                                        const maxScore = parseInt(prompt('Enter Max Raw Input Score (e.g. 50):', '50') || '50') || 50;
+                            {/* Quick Add Custom Paper Component & Import Enrolled Subjects */}
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleImportEnrolledSubjects}
+                                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-xs rounded transition-all flex items-center gap-1 border border-emerald-200 dark:border-emerald-800 shadow-sm cursor-pointer"
+                                    >
+                                        <SparklesIcon className="w-3.5 h-3.5 text-emerald-500" /> Use Enrolled Subjects
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const subName = prompt('Enter Subject Name (e.g. Computer Studies):', 'Computer Studies');
+                                            if (!subName) return;
+                                            const pName = prompt('Enter Paper Name (e.g. Paper 1 Practical):', 'Paper 1');
+                                            if (!pName) return;
+                                            const maxScore = parseInt(prompt('Enter Max Raw Input Score (e.g. 50):', '50') || '50') || 50;
 
-                                        setTestedPaperConfigs(prev => deduplicatePapers([
-                                            ...prev,
-                                            { id: `tp_${Date.now()}`, subject: subName, paperName: pName, maxInputScore: maxScore, convertToHundred: true, enabled: true }
-                                        ]));
-                                    }}
-                                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded transition-all flex items-center gap-1"
-                                >
-                                    <PlusIcon className="w-3.5 h-3.5" /> Add Custom Paper Component
-                                </button>
+                                            setTestedPaperConfigs(prev => deduplicatePapers([
+                                                ...prev,
+                                                { id: `tp_${Date.now()}`, subject: subName, paperName: pName, maxInputScore: maxScore, convertToHundred: true, enabled: true }
+                                            ]));
+                                        }}
+                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded transition-all flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <PlusIcon className="w-3.5 h-3.5" /> Add Custom Paper Component
+                                    </button>
+                                </div>
 
                                 <button
                                     type="button"
