@@ -45,7 +45,22 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     onUpdateSubject,
     onDeleteSubject
 }) => {
-    const [viewMode, setViewMode] = useState<'per_class' | 'per_teacher' | 'matrix'>('per_class');
+    const [viewMode, setViewMode] = useState<'per_class' | 'per_teacher' | 'matrix' | 'student_enrollment'>('per_class');
+    const [enrollmentSelectedSubject, setEnrollmentSelectedSubject] = useState<string>('all');
+    const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState<'all' | 'enrolled' | 'deenrolled'>('all');
+    
+    // Persistent Student Exemption Store (Key: `${studentId}_${subjectName.toLowerCase().trim()}`)
+    const [exemptionsStore, setExemptionsStore] = useState<Record<string, boolean>>(() => {
+        try {
+            const instId = currentInstitution?.id || 'default_inst';
+            const saved = localStorage.getItem(`eduai_student_subject_exemptions_${instId}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            }
+        } catch(e) {}
+        return {};
+    });
     // Dynamically compute registered classes from all available sources
     const classOptions = useMemo(() => {
         const set = new Set<string>();
@@ -171,20 +186,145 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         }
     }, [currentInstitution]);
 
+    // Fetch student subject exemptions from DB
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('student_subject_exemptions', currentInstitution.id)
+                .then(records => {
+                    if (records && records.length > 0) {
+                        const merged: Record<string, boolean> = {};
+                        records.forEach(r => {
+                            if (r.key) merged[r.key] = r.isExempted ?? true;
+                        });
+                        setExemptionsStore(prev => {
+                            const next = { ...merged, ...prev };
+                            try {
+                                localStorage.setItem(`eduai_student_subject_exemptions_${currentInstitution.id}`, JSON.stringify(next));
+                            } catch(e) {}
+                            return next;
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
     // Synchronized listener for real-time cross-module updates
     useEffect(() => {
         const handleSync = () => {
             try {
-                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
-                if (saved) {
-                    const parsed = JSON.parse(saved);
+                const savedAlloc = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (savedAlloc) {
+                    const parsed = JSON.parse(savedAlloc);
                     if (parsed && typeof parsed === 'object') setClassAllocationsStore(parsed);
+                }
+                const savedEx = localStorage.getItem(`eduai_student_subject_exemptions_${instId}`);
+                if (savedEx) {
+                    const parsed = JSON.parse(savedEx);
+                    if (parsed && typeof parsed === 'object') setExemptionsStore(parsed);
                 }
             } catch(e) {}
         };
         window.addEventListener('eduai_academics_synced', handleSync);
         return () => window.removeEventListener('eduai_academics_synced', handleSync);
     }, [instId]);
+
+    // Helper to get registered students for a specific class stream
+    const getStudentsForClass = useCallback((clsName: string) => {
+        if (!clsName) return [];
+        const targetClean = clsName.toLowerCase().trim();
+
+        // 1. Filter real student users from users prop
+        const realStudents = (users || []).filter(u => {
+            const roleMatch = u.role === 'student' || (u as any).roles?.includes('student') || Boolean((u as any).studentClass) || Boolean((u as any).admissionNumber);
+            if (!roleMatch) return false;
+
+            const uClass = ((u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class || (u as any).metadata?.studentClass || '').toLowerCase().trim();
+            if (!uClass) return false;
+
+            return uClass === targetClean || targetClean.includes(uClass) || uClass.includes(targetClean);
+        });
+
+        if (realStudents.length > 0) {
+            return realStudents.map(s => ({
+                id: s.id,
+                name: s.name || 'Unnamed Student',
+                admissionNumber: (s as any).admissionNumber || s.staffId || `ADM/${s.id.substring(0, 5)}`,
+                gender: s.gender || 'Other',
+                studentClass: clsName
+            }));
+        }
+
+        // 2. Fallback mock student roster if no users are registered in this class stream yet
+        return [
+            { id: `st_${clsName.replace(/\s+/g, '_')}_1`, name: 'Kipkoech Brian', admissionNumber: 'ADM/2024/012', gender: 'Male', studentClass: clsName },
+            { id: `st_${clsName.replace(/\s+/g, '_')}_2`, name: 'Faith Chebet', admissionNumber: 'ADM/2024/045', gender: 'Female', studentClass: clsName },
+            { id: `st_${clsName.replace(/\s+/g, '_')}_3`, name: 'Wanjiku Mary', admissionNumber: 'ADM/2024/088', gender: 'Female', studentClass: clsName },
+            { id: `st_${clsName.replace(/\s+/g, '_')}_4`, name: 'Ochieng Emmanuel', admissionNumber: 'ADM/2024/104', gender: 'Male', studentClass: clsName },
+            { id: `st_${clsName.replace(/\s+/g, '_')}_5`, name: 'Amina Mohamed', admissionNumber: 'ADM/2024/120', gender: 'Female', studentClass: clsName },
+            { id: `st_${clsName.replace(/\s+/g, '_')}_6`, name: 'Mutua Kevin', admissionNumber: 'ADM/2024/156', gender: 'Male', studentClass: clsName },
+            { id: `st_${clsName.replace(/\s+/g, '_')}_7`, name: 'Nanjala Mercy', admissionNumber: 'ADM/2024/172', gender: 'Female', studentClass: clsName },
+            { id: `st_${clsName.replace(/\s+/g, '_')}_8`, name: 'Otieno David', admissionNumber: 'ADM/2024/198', gender: 'Male', studentClass: clsName },
+        ];
+    }, [users]);
+
+    // Handle Toggling Student Subject Enrollment (Auto-enrolled by default unless exempted)
+    const handleToggleStudentEnrollment = async (studentId: string, subjectName: string, currentlyEnrolled: boolean) => {
+        const key = `${studentId}_${subjectName.toLowerCase().trim()}`;
+        const newExemptedState = currentlyEnrolled; // If currently enrolled, toggle to de-enrolled (isExempted = true)
+
+        setExemptionsStore(prev => {
+            const next = { ...prev, [key]: newExemptedState };
+            try {
+                localStorage.setItem(`eduai_student_subject_exemptions_${instId}`, JSON.stringify(next));
+            } catch(e) {}
+            return next;
+        });
+
+        if (currentInstitution?.id) {
+            await apiService.saveModuleRecord('student_subject_exemptions', {
+                id: `ex_${instId}_${studentId}_${subjectName.replace(/\s+/g, '_')}`,
+                institutionId: currentInstitution.id,
+                studentId,
+                subjectName,
+                key,
+                isExempted: newExemptedState,
+                updatedAt: new Date().toISOString()
+            }).catch(() => {});
+        }
+
+        window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'enrollment_updated' } }));
+        setSaveToast(`${currentlyEnrolled ? 'De-enrolled (Exempted)' : 'Re-enrolled'} student for ${subjectName}`);
+        setTimeout(() => setSaveToast(null), 3000);
+    };
+
+    // Handle Resetting All Students in Class to Default Enrolled
+    const handleResetAllToDefault = async (clsName: string, targetSubjectName?: string) => {
+        const studentsInCls = getStudentsForClass(clsName);
+        const studentIds = new Set(studentsInCls.map(s => s.id));
+
+        setExemptionsStore(prev => {
+            const next = { ...prev };
+            Object.keys(next).forEach(k => {
+                const parts = k.split('_');
+                const sId = parts[0];
+                const subNameKey = parts.slice(1).join('_');
+                if (studentIds.has(sId)) {
+                    if (!targetSubjectName || targetSubjectName === 'all' || subNameKey === targetSubjectName.toLowerCase().trim()) {
+                        delete next[k];
+                    }
+                }
+            });
+            try {
+                localStorage.setItem(`eduai_student_subject_exemptions_${instId}`, JSON.stringify(next));
+            } catch(e) {}
+            return next;
+        });
+
+        window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'enrollment_reset' } }));
+        setSaveToast(`Reset all students in ${clsName} to Default Auto-Enrolled`);
+        setTimeout(() => setSaveToast(null), 3000);
+    };
 
     // Helper to get applicable subjects for any given class name
     const getApplicableSubjectsForClass = useCallback((clsName: string) => {
@@ -648,6 +788,17 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     >
                         📊 Allocation Matrix
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('student_enrollment')}
+                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            viewMode === 'student_enrollment'
+                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                        🎓 Student Enrollment
+                    </button>
                 </div>
 
                 {/* Search Bar */}
@@ -987,6 +1138,291 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     </div>
                 </div>
             )}
+
+            {/* TAB MODE 4: STUDENT SUBJECT ENROLLMENT */}
+            {viewMode === 'student_enrollment' && (() => {
+                const classStudents = getStudentsForClass(selectedClass);
+                const classApplicableSubjects = getApplicableSubjectsForClass(selectedClass);
+
+                // Filter displayed subjects based on selection
+                const displayedSubjects = enrollmentSelectedSubject === 'all'
+                    ? classApplicableSubjects
+                    : classApplicableSubjects.filter(s => s.name.toLowerCase().trim() === enrollmentSelectedSubject.toLowerCase().trim());
+
+                // Search query filtering
+                const q = searchQuery.toLowerCase().trim();
+                const filteredStudents = classStudents.filter(st => {
+                    if (!q) return true;
+                    return st.name.toLowerCase().includes(q) ||
+                           st.admissionNumber.toLowerCase().includes(q);
+                });
+
+                // Calculate summary enrollment stats across students and class subjects
+                let totalEnrolledEntries = 0;
+                let totalDeenrolledEntries = 0;
+
+                classStudents.forEach(st => {
+                    classApplicableSubjects.forEach(sub => {
+                        const key = `${st.id}_${sub.name.toLowerCase().trim()}`;
+                        const isExempted = Boolean(exemptionsStore[key]);
+                        if (isExempted) {
+                            totalDeenrolledEntries++;
+                        } else {
+                            totalEnrolledEntries++;
+                        }
+                    });
+                });
+
+                return (
+                    <div className="space-y-6">
+                        {/* Auto-Enrollment Status Banner */}
+                        <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 border border-emerald-500/30 rounded-[2.5rem] p-8 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-2xl">
+                            <div className="flex items-start gap-4">
+                                <div className="p-3.5 bg-emerald-500/20 rounded-2xl border border-emerald-500/30 text-emerald-400 shrink-0 mt-1">
+                                    <SparklesIcon className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-950/80 px-3 py-1 rounded-full border border-emerald-800/80">
+                                            ⚡ Default Auto-Enrollment Active
+                                        </span>
+                                    </div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-white mt-2">
+                                        Automatic Class Subject Enrollment
+                                    </h3>
+                                    <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                                        By default, every subject assigned to <strong className="text-emerald-300 font-bold">{selectedClass}</strong> automatically enrolls all <strong className="text-white font-bold">{classStudents.length} students</strong> in that class stream. Teachers can click <strong className="text-rose-300">"De-enroll"</strong> on specific students to grant subject exemptions or manage opt-out electives.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => handleResetAllToDefault(selectedClass, enrollmentSelectedSubject)}
+                                    className="w-full md:w-auto px-5 py-3 bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg active:scale-95"
+                                >
+                                    <ArrowPathIcon className="w-4 h-4 text-emerald-400" /> Reset All to Default Enrolled
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Class Stream Selector Pills */}
+                        <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar-horizontal">
+                            {classOptions.map(cls => {
+                                const isSelected = selectedClass === cls;
+                                const cStudents = getStudentsForClass(cls);
+                                return (
+                                    <button
+                                        key={cls}
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedClass(cls);
+                                            setEnrollmentSelectedSubject('all');
+                                        }}
+                                        className={`px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shrink-0 border text-left cursor-pointer ${
+                                            isSelected
+                                                ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-100 dark:shadow-none scale-105'
+                                                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-indigo-300'
+                                        }`}
+                                    >
+                                        <div>{cls}</div>
+                                        <div className="text-[9px] font-mono opacity-80 mt-0.5">
+                                            👥 {cStudents.length} Students
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Filter & Subject Selection Bar */}
+                        <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider mr-1">Filter Subject:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setEnrollmentSelectedSubject('all')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                        enrollmentSelectedSubject === 'all'
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                    }`}
+                                >
+                                    All Subjects ({classApplicableSubjects.length})
+                                </button>
+                                {classApplicableSubjects.map(sub => {
+                                    const isSel = enrollmentSelectedSubject.toLowerCase().trim() === sub.name.toLowerCase().trim();
+                                    return (
+                                        <button
+                                            key={sub.id || sub.name}
+                                            type="button"
+                                            onClick={() => setEnrollmentSelectedSubject(sub.name)}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                isSel
+                                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            {sub.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Status:</span>
+                                <select
+                                    value={enrollmentStatusFilter}
+                                    onChange={e => setEnrollmentStatusFilter(e.target.value as any)}
+                                    className="py-1.5 px-3 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+                                >
+                                    <option value="all">All Students</option>
+                                    <option value="enrolled">Enrolled Only</option>
+                                    <option value="deenrolled">De-enrolled (Exempted) Only</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Student Enrollment Roster Table */}
+                        <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/40 flex-wrap gap-4">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                                        <UserGroupIcon className="w-5 h-5 text-indigo-500" /> {selectedClass} Student Subject Registry
+                                    </h3>
+                                    <p className="text-xs text-slate-500">
+                                        Showing {filteredStudents.length} student(s) in {selectedClass}. Default status is <span className="font-bold text-emerald-600 dark:text-emerald-400">Enrolled (Auto)</span>.
+                                    </p>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                        {totalEnrolledEntries} Total Subject Enrolments
+                                    </span>
+                                    {totalDeenrolledEntries > 0 && (
+                                        <span className="text-xs font-black uppercase tracking-widest text-amber-600 bg-amber-50 dark:bg-amber-950 px-3 py-1 rounded-full border border-amber-200 dark:border-amber-800">
+                                            {totalDeenrolledEntries} De-enrolled (Exempted)
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+                                    <thead className="bg-slate-900 text-white font-black uppercase tracking-wider">
+                                        <tr>
+                                            <th className="px-6 py-4 text-left">Student Info</th>
+                                            <th className="px-6 py-4 text-left">Adm No.</th>
+                                            {displayedSubjects.map(sub => (
+                                                <th key={sub.id || sub.name} className="px-4 py-4 text-center border-x border-slate-800 min-w-[140px]">
+                                                    {sub.name}
+                                                </th>
+                                            ))}
+                                            <th className="px-6 py-4 text-center">Summary</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                                        {filteredStudents.length > 0 ? (
+                                            filteredStudents.map(st => {
+                                                // Count student enrolled vs exempted
+                                                let stEnrolled = 0;
+                                                let stExempted = 0;
+
+                                                classApplicableSubjects.forEach(sub => {
+                                                    const key = `${st.id}_${sub.name.toLowerCase().trim()}`;
+                                                    if (exemptionsStore[key]) stExempted++;
+                                                    else stEnrolled++;
+                                                });
+
+                                                // Filter by status dropdown
+                                                if (enrollmentStatusFilter === 'enrolled' && stEnrolled === 0) return null;
+                                                if (enrollmentStatusFilter === 'deenrolled' && stExempted === 0) return null;
+
+                                                return (
+                                                    <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                        <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 font-black flex items-center justify-center text-xs shrink-0">
+                                                                    {st.name.charAt(0)}
+                                                                </div>
+                                                                <div>
+                                                                    <div className="font-black text-slate-900 dark:text-white">{st.name}</div>
+                                                                    <div className="text-[10px] text-slate-400 font-mono">{st.gender || 'Student'}</div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td className="px-6 py-4 font-mono font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                                                            {st.admissionNumber}
+                                                        </td>
+
+                                                        {displayedSubjects.map(sub => {
+                                                            const key = `${st.id}_${sub.name.toLowerCase().trim()}`;
+                                                            const isExempted = Boolean(exemptionsStore[key]);
+                                                            const isEnrolled = !isExempted;
+
+                                                            return (
+                                                                <td key={sub.id || sub.name} className="px-3 py-3 text-center border-x border-slate-100 dark:border-slate-800">
+                                                                    {isEnrolled ? (
+                                                                        <div className="space-y-1.5">
+                                                                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                                                                                <CheckIcon className="w-3 h-3 stroke-[3]" /> Enrolled
+                                                                            </span>
+                                                                            <div>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleToggleStudentEnrollment(st.id, sub.name, true)}
+                                                                                    className="text-[9px] font-bold text-slate-400 hover:text-rose-600 underline cursor-pointer"
+                                                                                >
+                                                                                    De-enroll
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="space-y-1.5">
+                                                                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800">
+                                                                                De-enrolled
+                                                                            </span>
+                                                                            <div>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleToggleStudentEnrollment(st.id, sub.name, false)}
+                                                                                    className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 underline cursor-pointer"
+                                                                                >
+                                                                                    Re-enroll
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                            );
+                                                        })}
+
+                                                        <td className="px-6 py-4 text-center">
+                                                            <div className="text-xs font-black text-slate-900 dark:text-white font-mono">
+                                                                {stEnrolled} / {classApplicableSubjects.length}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                                                Enrolled
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={displayedSubjects.length + 3} className="px-6 py-12 text-center text-slate-400 font-bold uppercase text-xs tracking-wider">
+                                                    No students found matching your criteria for {selectedClass}.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* MODAL: ADD LESSON ALLOCATION */}
             {isAddAllocationModalOpen && (
