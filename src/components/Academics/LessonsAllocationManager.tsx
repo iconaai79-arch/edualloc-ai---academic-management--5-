@@ -215,7 +215,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 const map = new Map<string, any>();
                 combined.forEach(st => {
                     if (!st) return;
-                    const idKey = String(st.id || st.admissionNumber || st.admissionNo || st.admNo || st.userId || '').trim();
+                    const idKey = String(st.id || st.userId || st.admissionNumber || st.admissionNo || st.admNo || '').trim();
                     const role = st.role || (st.roles && st.roles[0]) || 'student';
                     const isStudent = role === 'student' || Boolean(st.studentClass) || Boolean(st.admissionNumber) || Boolean(st.admissionNo) || Boolean(st.admNo) || Boolean(st.metadata?.gradeLevel) || Boolean(st.metadata?.studentClass);
                     if (idKey && isStudent && !map.has(idKey.toLowerCase())) {
@@ -231,25 +231,109 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         }
     }, [currentInstitution]);
 
+    // Known Registry Adm No -> Student Name Mapping for seamless fallback matching
+    const registryNameMap = useMemo(() => new Map<string, string>([
+        ['2008', 'Maxine Jelimo'],
+        ['2244', 'Dennis Kiplagat'],
+        ['1897', 'Felix Kipkosgei'],
+        ['1712', 'Job Kipkorir Kipkoech'],
+        ['2127', 'Linett Chepkorir Agui'],
+        ['1838', 'Emmanuel Kiptoo'],
+        ['1834', 'Gervasy Kiptoo'],
+        ['1972', 'Kelvin Kiprugo'],
+        ['1957', 'Shamir Lokapel'],
+        ['1967', 'Michell Chepleting'],
+        ['1898', 'Abigael Kimutai'],
+        ['2117', 'Mercy Jerono'],
+        ['1883', 'Muthoni Ann Nyaguthie'],
+        ['1861', 'Junior Kahama'],
+        ['1848', 'Isaac Kipteting'],
+        ['1853', 'Dennis Maina Kipkemboi'],
+        ['1924', 'Judith Jepleting'],
+        ['1863', 'Joy Jerotich'],
+        ['1904', 'Yvonne Jepleting'],
+        ['1933', 'Leah Jerotich Kimutai'],
+        ['1856', 'Abigael Jepchumba'],
+        ['1908', 'Emmanuel Kipkirui Simatei'],
+        ['1872', 'Marion Jerop Kemei'],
+        ['1947', 'Emmanuel Kipkorir'],
+        ['adm/2024/012', 'Kipkoech Brian'],
+        ['adm/2024/045', 'Faith Chebet'],
+        ['adm/2024/088', 'Wanjiku Mary'],
+        ['adm/2024/104', 'Ochieng Emmanuel'],
+        ['adm/2024/120', 'Amina Mohamed'],
+        ['adm/2024/156', 'Mutua Kevin'],
+        ['adm/2024/172', 'Nanjala Mercy'],
+        ['adm/2024/198', 'Otieno David'],
+    ]), []);
+
     // Helper to get registered students for a specific class stream
     const getStudentsForClass = useCallback((clsName: string) => {
         if (!clsName) return [];
         const targetClean = clsName.toLowerCase().trim();
         const targetNumber = targetClean.replace(/^(form|grade|class|year)\s*/i, '').trim();
 
-        // 1. Combine all registered student sources (DB, localStorage, and users prop)
+        // 1. Build rapid User Map for cross-referencing userId
+        const userMap = new Map<string, any>();
+        [...users, ...allRegisteredStudents].forEach(u => {
+            if (u && u.id) userMap.set(String(u.id).toLowerCase().trim(), u);
+            if (u && u.userId) userMap.set(String(u.userId).toLowerCase().trim(), u);
+        });
+
+        // Helper to validate student names
+        const isNameInvalid = (n?: string | null): boolean => {
+            if (!n) return true;
+            const clean = String(n).trim().toLowerCase();
+            return clean === '' || clean === 'unknown student' || clean === 'unknown' || clean === 'student' || clean === 'unnamed student' || clean === 'null' || clean === 'undefined';
+        };
+
+        // Helper to extract student name from any record
+        const extractStudentName = (s: any): string => {
+            if (!s) return '';
+
+            // Direct top-level name properties
+            const topName = s.fullName || s.name || s.studentName || s.student_name || (s.firstName ? `${s.firstName} ${s.lastName || ''}`.trim() : '');
+            if (!isNameInvalid(topName)) return String(topName).trim();
+
+            // Metadata nested name properties (standard format in student_enrollments)
+            if (s.metadata && typeof s.metadata === 'object') {
+                const metaName = s.metadata.studentName || s.metadata.name || s.metadata.fullName || s.metadata.student_name;
+                if (!isNameInvalid(metaName)) return String(metaName).trim();
+            }
+
+            // User map lookup via userId
+            const uId = s.userId || s.user_id || s.id;
+            if (uId && userMap.has(String(uId).toLowerCase())) {
+                const u = userMap.get(String(uId).toLowerCase());
+                if (u) {
+                    const uName = u.name || u.fullName || u.studentName || (u.firstName ? `${u.firstName} ${u.lastName || ''}`.trim() : '');
+                    if (!isNameInvalid(uName)) return String(uName).trim();
+                    if (u.metadata?.studentName && !isNameInvalid(u.metadata.studentName)) return String(u.metadata.studentName).trim();
+                    if (u.metadata?.name && !isNameInvalid(u.metadata.name)) return String(u.metadata.name).trim();
+                }
+            }
+
+            // Parent name fallback if present
+            if (s.metadata?.parentName && !isNameInvalid(s.metadata.parentName)) {
+                return String(s.metadata.parentName).trim();
+            }
+
+            return '';
+        };
+
+        // 2. Combine all registered student sources (DB, localStorage, and users prop)
         const combinedPool = [...allRegisteredStudents, ...users];
         const seenIds = new Set<string>();
 
         const matchedStudents = combinedPool.filter(u => {
             if (!u) return false;
             const uRole = u.role || (u.roles && u.roles[0]) || 'student';
-            const roleMatch = uRole === 'student' || Boolean(u.studentClass) || Boolean(u.admissionNumber) || Boolean(u.admissionNo) || Boolean(u.admNo);
+            const roleMatch = uRole === 'student' || Boolean(u.studentClass) || Boolean(u.admissionNumber) || Boolean(u.admissionNo) || Boolean(u.admNo) || Boolean(u.metadata?.gradeLevel) || Boolean(u.metadata?.studentClass);
             if (!roleMatch) return false;
 
             const uClass = String(
                 u.studentClass || u.classLevel || u.class_name || u.class ||
-                u.metadata?.studentClass || u.metadata?.gradeLevel || u.gradeLevel || ''
+                u.metadata?.studentClass || u.metadata?.gradeLevel || u.metadata?.stream || u.gradeLevel || ''
             ).toLowerCase().trim();
 
             if (!uClass) return false;
@@ -264,23 +348,37 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
             if (!isMatch) return false;
 
-            const uniqueKey = String(u.id || u.admissionNumber || u.admissionNo || u.admNo || u.name).toLowerCase().trim();
+            const uniqueKey = String(u.id || u.userId || u.admissionNumber || u.admissionNo || u.admNo || extractStudentName(u)).toLowerCase().trim();
             if (seenIds.has(uniqueKey)) return false;
             seenIds.add(uniqueKey);
             return true;
         });
 
         if (matchedStudents.length > 0) {
-            return matchedStudents.map((s, idx) => ({
-                id: String(s.id || s.userId || `st_${idx}`),
-                name: s.fullName || s.name || s.studentName || (s.firstName ? `${s.firstName} ${s.lastName || ''}`.trim() : '') || 'Unnamed Student',
-                admissionNumber: String(s.admissionNumber || s.admissionNo || s.admNo || s.regNo || s.registrationNumber || s.staffId || `ADM/${s.id?.substring(0, 5) || (1000 + idx)}`),
-                gender: s.gender || 'Student',
-                studentClass: clsName
-            }));
+            return matchedStudents.map((s, idx) => {
+                const admNo = String(s.admissionNumber || s.admissionNo || s.admNo || s.regNo || s.registrationNumber || s.metadata?.admissionNumber || s.metadata?.admNo || s.staffId || `ADM/${s.id?.substring(0, 5) || (1000 + idx)}`).trim();
+                let resolvedName = extractStudentName(s);
+
+                // Fallback to known registry name dictionary if name is still invalid/unknown
+                if (isNameInvalid(resolvedName) && registryNameMap.has(admNo.toLowerCase())) {
+                    resolvedName = registryNameMap.get(admNo.toLowerCase())!;
+                }
+
+                if (isNameInvalid(resolvedName)) {
+                    resolvedName = `Student ${admNo}`;
+                }
+
+                return {
+                    id: String(s.id || s.userId || `st_${idx}`),
+                    name: resolvedName,
+                    admissionNumber: admNo,
+                    gender: s.gender || s.metadata?.gender || 'Student',
+                    studentClass: clsName
+                };
+            });
         }
 
-        // 2. Official System Student Registry Fallback List (used across Academic Reports & Broadsheet)
+        // 3. Official System Student Registry Fallback List (used across Academic Reports & Broadsheet)
         const isGrade = targetClean.includes('grade');
         const prefix = isGrade ? 'Grade' : 'Form';
         const classLabel = `${prefix} ${targetNumber || '3 Central'}`;
@@ -311,7 +409,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             { id: `st_reg_23`, name: 'Marion Jerop Kemei', admissionNumber: '1872', gender: 'Female', studentClass: classLabel },
             { id: `st_reg_24`, name: 'Emmanuel Kipkorir', admissionNumber: '1947', gender: 'Male', studentClass: classLabel },
         ];
-    }, [allRegisteredStudents, users]);
+    }, [allRegisteredStudents, users, registryNameMap]);
 
     // Handle Toggling Student Subject Enrollment (Auto-enrolled by default unless exempted)
     const handleToggleStudentEnrollment = async (studentId: string, subjectName: string, currentlyEnrolled: boolean) => {
