@@ -469,27 +469,26 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         setTimeout(() => setSaveToast(null), 3000);
     };
 
-    // Helper to get applicable subjects for any given class name
+    // Helper to get applicable subjects for any given class name (strictly deduplicated by subject name)
     const getApplicableSubjectsForClass = useCallback((clsName: string) => {
         if (!clsName) return [];
         const cClean = clsName.trim();
         const cLower = cClean.toLowerCase();
 
+        let rawList: any[] = [];
+
         // 1. Check persistent per-class allocation store configured in Manage Subjects per Class Stream
         const storedAssignedIds = classAllocationsStore[cClean] ?? classAllocationsStore[cLower];
-        if (Array.isArray(storedAssignedIds)) {
-            if (storedAssignedIds.length === 0) return [];
+        if (Array.isArray(storedAssignedIds) && storedAssignedIds.length > 0) {
             const set = new Set(storedAssignedIds.map(id => String(id).toLowerCase().trim()));
-            return subjects.filter(s => {
+            rawList = subjects.filter(s => {
                 const sId = (s.id || '').toLowerCase().trim();
                 const sName = (s.name || '').toLowerCase().trim();
                 const sCode = (s.code || '').toLowerCase().trim();
                 return set.has(sId) || set.has(sName) || (sCode && set.has(sCode));
             });
-        }
-
-        // 2. Check explicit targetClasses / assignedClasses array on subject
-        if (subjects && subjects.length > 0) {
+        } else if (subjects && subjects.length > 0) {
+            // 2. Check explicit targetClasses / assignedClasses array on subject
             const explicitMatch = subjects.filter(s => {
                 const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
                 if (Array.isArray(targetCls)) {
@@ -500,23 +499,43 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 }
                 return false;
             });
-            if (explicitMatch.length > 0) return explicitMatch;
+
+            if (explicitMatch.length > 0) {
+                rawList = explicitMatch;
+            } else {
+                // 3. Fallback to standard grade-level applicability rules
+                const applicable = subjects.filter(s => isSubjectAssignedToClassStream(s, clsName, courses));
+                if (applicable.length > 0) {
+                    rawList = applicable;
+                }
+            }
         }
 
-        // 3. Fallback to standard grade-level applicability rules
-        if (subjects && subjects.length > 0) {
-            const applicable = subjects.filter(s => isSubjectAssignedToClassStream(s, clsName, courses));
-            if (applicable.length > 0) return applicable;
+        if (rawList.length === 0) {
+            rawList = [
+                { id: 'sub_math', name: 'Mathematics', code: 'MATH 101', periodsPerWeek: 6 },
+                { id: 'sub_eng', name: 'English', code: 'ENGL 101', periodsPerWeek: 6 },
+                { id: 'sub_kisw', name: 'Kiswahili', code: 'KISW 101', periodsPerWeek: 5 },
+                { id: 'sub_sci', name: 'Integrated Science', code: 'SCI 101', periodsPerWeek: 5 },
+                { id: 'sub_soc', name: 'Social Studies', code: 'SST 101', periodsPerWeek: 4 },
+                { id: 'sub_cre', name: 'Religious Education', code: 'CRE 101', periodsPerWeek: 3 }
+            ];
         }
 
-        return [
-            { id: 'sub_math', name: 'Mathematics', code: 'MATH 101', periodsPerWeek: 6 },
-            { id: 'sub_eng', name: 'English', code: 'ENGL 101', periodsPerWeek: 6 },
-            { id: 'sub_kisw', name: 'Kiswahili', code: 'KISW 101', periodsPerWeek: 5 },
-            { id: 'sub_sci', name: 'Integrated Science', code: 'SCI 101', periodsPerWeek: 5 },
-            { id: 'sub_soc', name: 'Social Studies', code: 'SST 101', periodsPerWeek: 4 },
-            { id: 'sub_cre', name: 'Religious Education', code: 'CRE 101', periodsPerWeek: 3 }
-        ];
+        // Enforce strict deduplication by normalized subject name
+        const seenNames = new Set<string>();
+        const deduplicated: any[] = [];
+
+        rawList.forEach(s => {
+            if (!s || !s.name) return;
+            const normName = String(s.name).trim().toLowerCase();
+            if (!seenNames.has(normName)) {
+                seenNames.add(normName);
+                deduplicated.push(s);
+            }
+        });
+
+        return deduplicated;
     }, [subjects, courses, classAllocationsStore]);
 
     const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>([]);
