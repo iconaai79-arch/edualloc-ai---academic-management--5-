@@ -28,10 +28,28 @@ export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user
         ['head_teacher', 'hod', 'tto', 'dos', 'pastor', 'treasurer', 'landlord', 'hoi'].includes(user.role)
     ));
 
-    // Support both camelCase (transform) and snake_case (raw) from various backend versions
-    const customPrice = institution.customSubscriptionPrice || (institution as any).custom_subscription_price;
-    const monthlyPrice = customPrice?.monthly ?? companyDetails.subscriptionConfig.defaultMonthlyPrice;
-    const yearlyPrice = customPrice?.yearly ?? companyDetails.subscriptionConfig.defaultYearlyPrice;
+    // Support both camelCase (transform) and snake_case (raw) from various backend versions and custom pricing
+    const customPrice = institution.customSubscriptionPrice || (institution as any).custom_subscription_price || (institution as any).customPrice;
+    const monthlyPrice = customPrice?.monthly 
+        ?? (institution as any).monthlyPrice 
+        ?? (institution as any).monthly_price 
+        ?? (institution as any).subscriptionPrice 
+        ?? (institution as any).subscription_price
+        ?? (institution as any).subscriptionFee
+        ?? (institution as any).subscription_fee
+        ?? companyDetails.subscriptionConfig?.defaultMonthlyPrice
+        ?? 5000;
+
+    const quarterlyPrice = customPrice?.quarterly 
+        ?? (customPrice?.monthly ? customPrice.monthly * 3 : undefined) 
+        ?? companyDetails.subscriptionConfig?.defaultQuarterlyPrice 
+        ?? (monthlyPrice * 3);
+
+    const yearlyPrice = customPrice?.yearly 
+        ?? (institution as any).yearlyPrice 
+        ?? (institution as any).yearly_price 
+        ?? companyDetails.subscriptionConfig?.defaultYearlyPrice 
+        ?? (monthlyPrice * 12);
 
     const handlePayNow = (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]): Promise<TransactionStatus> => {
         return onAddTransaction({
@@ -67,14 +85,20 @@ export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user
                                             <p className="text-xs text-slate-500">Pay via M-Pesa to instantly restore academic services.</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
                                         <div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Your Account Ref.</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Your Account Ref.</p>
                                             <p className="font-mono text-lg font-black text-indigo-600 dark:text-indigo-400">{institution.institutionCode || institution.id.slice(-6).toUpperCase()}</p>
                                         </div>
+                                        <div className="text-left sm:text-center border-y sm:border-y-0 sm:border-x border-slate-100 dark:border-slate-700 py-2 sm:py-0">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Subscription Price</p>
+                                            <p className="font-mono text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                                KES {monthlyPrice ? Number(monthlyPrice).toLocaleString() : '5,000'}<span className="text-xs font-semibold text-slate-400">/mo</span>
+                                            </p>
+                                        </div>
                                         <div className="text-right">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Paybill</p>
-                                            <p className="font-mono text-lg font-black">{companyDetails.mpesaConfig.paybillNumber || '7654321'}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Paybill</p>
+                                            <p className="font-mono text-lg font-black">{companyDetails.mpesaConfig?.paybillNumber || '7654321'}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -131,6 +155,7 @@ export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user
                     onClose={() => setIsPayModalOpen(false)}
                     onPay={handlePayNow}
                     monthlyPrice={monthlyPrice}
+                    quarterlyPrice={quarterlyPrice}
                     yearlyPrice={yearlyPrice}
                     mpesaConfig={companyDetails.mpesaConfig}
                     institutionId={institution.id}

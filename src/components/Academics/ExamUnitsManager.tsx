@@ -83,6 +83,24 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         ];
     });
 
+    // DB fetch with safe catch fallback for exam_units
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<ExamUnitRecord>('exam_units', currentInstitution.id)
+                .then(records => {
+                    if (records && Array.isArray(records) && records.length > 0) {
+                        setExams(prev => {
+                            const map = new Map<string, ExamUnitRecord>();
+                            prev.forEach(e => map.set(e.id, e));
+                            records.forEach(r => map.set(r.id, { ...map.get(r.id), ...r }));
+                            return Array.from(map.values());
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
     const [selectedExamId, setSelectedExamId] = useState<string>('exam_1');
 
     const activeExam = useMemo(() => {
@@ -338,7 +356,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         setTimeout(() => setSaveToastMessage(null), 3000);
     }, [isAddExamModalOpen, selectedClasses, activeExam, selectedClassFilter, instId, currentInstitution, subjects, deduplicatePapers]);
 
-    // Sync tested paper configurations EXACTLY as added in Manage Subjects per Class Stream or Exam Papers Settings
+    // Sync tested paper configurations ALWAYS matching Manage Subjects per Class Stream (Lessons & Allocation)
     useEffect(() => {
         const targetClasses = isAddExamModalOpen
             ? selectedClasses
@@ -349,6 +367,61 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return;
         }
 
+        // 1. PRIMARY Authority: Persistent Per-Class Allocations Store (configured in Manage Subjects per Class Stream / Lessons & Allocation)
+        const activeClassAllocationsStore: Record<string, string[]> = (() => {
+            try {
+                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (saved) return JSON.parse(saved) || {};
+            } catch(e) {}
+            return (currentInstitution as any)?.classSubjectAllocations || {};
+        })();
+
+        if (targetClasses.length > 0) {
+            const allocatedSubjectIds = new Set<string>();
+            let hasClassStoreEntry = false;
+
+            targetClasses.forEach(tc => {
+                const cleanTC = tc.trim();
+                const tcLower = cleanTC.toLowerCase();
+                const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
+
+                const storeEntry = activeClassAllocationsStore[cleanTC] ?? activeClassAllocationsStore[tcLower] ?? activeClassAllocationsStore[tcNoStream];
+                if (Array.isArray(storeEntry) && storeEntry.length > 0) {
+                    hasClassStoreEntry = true;
+                    storeEntry.forEach(id => allocatedSubjectIds.add(String(id).toLowerCase().trim()));
+                }
+            });
+
+            if (hasClassStoreEntry) {
+                if (allocatedSubjectIds.size === 0) {
+                    setTestedPaperConfigs([]);
+                    return;
+                }
+
+                // Filter subjects matching allocated IDs / names from Lessons & Allocation
+                const matchedSubjects = subjects.filter(s => {
+                    const sId = (s.id || '').toLowerCase().trim();
+                    const sName = (s.name || '').toLowerCase().trim();
+                    const sCode = (s.code || '').toLowerCase().trim();
+                    return allocatedSubjectIds.has(sId) || allocatedSubjectIds.has(sName) || (sCode && allocatedSubjectIds.has(sCode));
+                });
+
+                if (matchedSubjects.length > 0) {
+                    const paperList: TestedPaperConfig[] = matchedSubjects.map((sub, idx) => ({
+                        id: `alloc_tp_${sub?.id || idx}`,
+                        subject: sub?.name || 'Subject',
+                        paperName: 'Paper 1',
+                        maxInputScore: 100,
+                        convertToHundred: true,
+                        enabled: true
+                    }));
+                    setTestedPaperConfigs(deduplicatePapers(paperList));
+                    return;
+                }
+            }
+        }
+
+        // 2. SECONDARY Authority: Configurations from Exam Papers Settings (currentInstitution.classExamConfigs / class_exam_configs)
         let savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
         if (!savedConfigs || !Array.isArray(savedConfigs) || savedConfigs.length === 0) {
             try {
@@ -402,12 +475,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             });
         };
 
-        // 1. Primary Source: Exact configurations from Exam Papers Settings (currentInstitution.classExamConfigs / class_exam_configs)
         if (savedConfigs && Array.isArray(savedConfigs) && savedConfigs.length > 0) {
             const paperList: TestedPaperConfig[] = [];
             const seenKey = new Set<string>();
 
-            // Filter strictly by targetClasses
             const activeConfigs = (targetClasses && targetClasses.length > 0)
                 ? savedConfigs.filter(c => matchClassConfig(c, targetClasses))
                 : [];
@@ -443,60 +514,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 });
 
                 if (paperList.length > 0) {
-                    setTestedPaperConfigs(deduplicatePapers(paperList));
-                    return;
-                }
-            }
-        }
-
-        // 2. Secondary Source: Persistent Per-Class Allocations Store (Manage Subjects per Class Stream)
-        const activeClassAllocationsStore: Record<string, string[]> = (() => {
-            try {
-                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
-                if (saved) return JSON.parse(saved) || {};
-            } catch(e) {}
-            return (currentInstitution as any)?.classSubjectAllocations || {};
-        })();
-
-        if (targetClasses.length > 0) {
-            const allocatedSubjectIds = new Set<string>();
-            let hasClassStoreEntry = false;
-
-            targetClasses.forEach(tc => {
-                const cleanTC = tc.trim();
-                const tcLower = cleanTC.toLowerCase();
-                const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
-
-                const storeEntry = activeClassAllocationsStore[cleanTC] ?? activeClassAllocationsStore[tcLower] ?? activeClassAllocationsStore[tcNoStream];
-                if (Array.isArray(storeEntry)) {
-                    hasClassStoreEntry = true;
-                    storeEntry.forEach(id => allocatedSubjectIds.add(String(id).toLowerCase().trim()));
-                }
-            });
-
-            if (hasClassStoreEntry) {
-                if (allocatedSubjectIds.size === 0) {
-                    setTestedPaperConfigs([]);
-                    return;
-                }
-
-                // Filter subjects that match the allocated IDs
-                const matchedSubjects = subjects.filter(s => {
-                    const sId = (s.id || '').toLowerCase().trim();
-                    const sName = (s.name || '').toLowerCase().trim();
-                    const sCode = (s.code || '').toLowerCase().trim();
-                    return allocatedSubjectIds.has(sId) || allocatedSubjectIds.has(sName) || (sCode && allocatedSubjectIds.has(sCode));
-                });
-
-                if (matchedSubjects.length > 0) {
-                    const paperList: TestedPaperConfig[] = matchedSubjects.map((sub, idx) => ({
-                        id: `alloc_tp_${sub?.id || idx}`,
-                        subject: sub?.name || 'Subject',
-                        paperName: 'Paper 1',
-                        maxInputScore: 100,
-                        convertToHundred: true,
-                        enabled: true
-                    }));
                     setTestedPaperConfigs(deduplicatePapers(paperList));
                     return;
                 }
