@@ -2538,6 +2538,25 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
                                     />
 
+                                    {/* Search result hint */}
+                                    {(() => {
+                                        const q = targetStudentSearch.trim().toLowerCase();
+                                        if (!q) return null;
+                                        // Find students matching adm no or name
+                                        const matchedStudents = allRealStudents.filter(u => {
+                                            const admNo = String((u as any).admissionNumber || (u as any).admNo || (u as any).adm_no || '').toLowerCase();
+                                            const name = String((u as any).fullName || (u as any).name || u.email || '').toLowerCase();
+                                            return admNo.includes(q) || name.includes(q);
+                                        });
+                                        if (matchedStudents.length === 0 && !registeredClasses.some(c => c.toLowerCase().includes(q))) {
+                                            return <p className="text-[11px] text-red-500 font-medium">No students or classes found matching "{targetStudentSearch}"</p>;
+                                        }
+                                        if (matchedStudents.length > 0) {
+                                            return <p className="text-[11px] text-blue-600 font-semibold">{matchedStudents.length} student{matchedStudents.length > 1 ? 's' : ''} found — their classes are highlighted below</p>;
+                                        }
+                                        return null;
+                                    })()}
+
                                     {/* Target Classes Selector with Select All / Clear All */}
                                     <div className="flex justify-between items-center pt-1">
                                         <span className="text-[11px] font-medium text-slate-500">Classes Sitting Exam ({selectedClasses.length} selected)</span>
@@ -2560,27 +2579,55 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap gap-2 pt-1 max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-800 p-2 rounded-lg">
-                                        {registeredClasses.map(cName => {
-                                            const isSelected = selectedClasses.includes(cName);
-                                            return (
-                                                <button
-                                                    key={cName}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setSelectedClasses(prev =>
-                                                            isSelected ? prev.filter(c => c !== cName) : [...prev, cName]
-                                                        );
-                                                    }}
-                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
-                                                        isSelected
-                                                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                                                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-                                                    }`}
-                                                >
-                                                    {isSelected ? '✓ ' : '+ '}{cName}
-                                                </button>
-                                            );
-                                        })}
+                                        {(() => {
+                                            const q = targetStudentSearch.trim().toLowerCase();
+                                            // Build set of classes that have a student matching the search
+                                            const studentMatchedClasses = new Set<string>();
+                                            if (q) {
+                                                allRealStudents.forEach(u => {
+                                                    const admNo = String((u as any).admissionNumber || (u as any).admNo || (u as any).adm_no || '').toLowerCase();
+                                                    const name = String((u as any).fullName || (u as any).name || u.email || '').toLowerCase();
+                                                    if (admNo.includes(q) || name.includes(q)) {
+                                                        const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
+                                                        if (cl) studentMatchedClasses.add(String(cl).trim());
+                                                    }
+                                                });
+                                            }
+                                            // Filter class chips: show classes matching query by name OR by student match
+                                            const visibleClasses = q
+                                                ? registeredClasses.filter(c => c.toLowerCase().includes(q) || studentMatchedClasses.has(c))
+                                                : registeredClasses;
+
+                                            if (visibleClasses.length === 0) {
+                                                return <p className="text-[11px] text-slate-400 italic px-1 py-2 w-full">No matching classes found</p>;
+                                            }
+
+                                            return visibleClasses.map(cName => {
+                                                const isSelected = selectedClasses.includes(cName);
+                                                const isStudentMatch = studentMatchedClasses.has(cName);
+                                                return (
+                                                    <button
+                                                        key={cName}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedClasses(prev =>
+                                                                isSelected ? prev.filter(c => c !== cName) : [...prev, cName]
+                                                            );
+                                                        }}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                                                            isSelected
+                                                                ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                                                                : isStudentMatch
+                                                                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-400 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400'
+                                                                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                                                        }`}
+                                                        title={isStudentMatch ? `A matching student is in ${cName}` : cName}
+                                                    >
+                                                        {isSelected ? '✓ ' : isStudentMatch ? '🎯 ' : '+ '}{cName}
+                                                    </button>
+                                                );
+                                            });
+                                        })()}
                                     </div>
                                 </div>
 
