@@ -186,21 +186,23 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             }
 
             const streamDefs: string[] = (currentInstitution as any).streamDefinitions || (currentInstitution as any).streams || [];
-            const effectiveStreams = streamDefs.length > 0 ? streamDefs : ['East', 'West', 'North', 'South', 'Central'];
 
-            // Attach stream names to base classes
-            const baseList = Array.from(classSet);
-            baseList.forEach(base => {
-                const baseLower = base.toLowerCase();
-                const alreadyHasStream = effectiveStreams.some(s => baseLower.endsWith(s.toLowerCase()));
-                if (!alreadyHasStream) {
-                    effectiveStreams.forEach(s => {
-                        if (s && s.trim()) {
-                            classSet.add(`${base} ${s.trim()}`);
-                        }
-                    });
-                }
-            });
+            // Only generate stream variants if the institution EXPLICITLY defines streams.
+            // Do NOT fall back to a hardcoded list — that would create fake classes.
+            if (streamDefs.length > 0) {
+                const baseList = Array.from(classSet);
+                baseList.forEach(base => {
+                    const baseLower = base.toLowerCase();
+                    const alreadyHasStream = streamDefs.some(s => baseLower.endsWith(s.toLowerCase()));
+                    if (!alreadyHasStream) {
+                        streamDefs.forEach(s => {
+                            if (s && s.trim()) {
+                                classSet.add(`${base} ${s.trim()}`);
+                            }
+                        });
+                    }
+                });
+            }
         }
 
         // 5. Fallback defaults if empty
