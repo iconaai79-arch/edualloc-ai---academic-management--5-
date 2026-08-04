@@ -1551,6 +1551,9 @@ export interface Invoice {
     dueDate: string;
     due_date: string;
     items: InvoiceItem[];
+    subtotal?: number;
+    taxRate?: number;
+    taxAmount?: number;
     totalAmount: number;
     status: 'paid' | 'pending' | 'overdue' | 'quote' | 'partial' | 'cancelled';
     studentId?: string;

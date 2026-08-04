@@ -142,6 +142,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         fetchEnrollments();
     }, [props.institution.id]);
 
+    const canEditOpeningBalances = useMemo(() => {
+        const uRole = String(props.currentUser?.role || (props.currentUser as any)?.userType || (props.currentUser as any)?.user_type || '').toLowerCase().trim();
+        const uRoles: string[] = Array.isArray((props.currentUser as any)?.roles)
+            ? (props.currentUser as any).roles.map((r: any) => String(r).toLowerCase().trim())
+            : [];
+        const allowed = ['director', 'managing_director', 'county_director', 'group_admin', 'school_group_admin', 'super_admin', 'principal', 'headteacher', 'headmaster', 'bursar', 'accountant', 'finance_officer', 'admin', 'administrator', 'school_admin'];
+        return allowed.includes(uRole) || uRoles.some(r => allowed.includes(r));
+    }, [props.currentUser]);
+
     // Driving School Mode States
     const [dsInvoices, setDsInvoices] = useState<any[]>([]);
     const [dsPayments, setDsPayments] = useState<any[]>([]);
@@ -786,6 +795,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     };
 
     const handleSaveOpeningBalances = async () => {
+        if (!canEditOpeningBalances) {
+            alert("Permission Denied: Only Director and Group Admin are authorized to edit opening balances.");
+            return;
+        }
         setIsSavingBalances(true);
         try {
             // Find all students whose opening balance was modified
@@ -8910,6 +8923,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         {/* Subtab content: Opening Balance */}
                         {settingsSubTab === 'opening_balance' && (
                             <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6 text-left">
+                                {!canEditOpeningBalances && (
+                                    <div className="bg-amber-50 dark:bg-amber-950/30 p-4 rounded-2xl border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center gap-2">
+                                        <ShieldCheckIcon className="w-5 h-5 text-amber-600 shrink-0" />
+                                        <span>Restricted Access: Opening balances are view-only. Editing or importing requires Director or Group Admin authorization.</span>
+                                    </div>
+                                )}
+
                                 <div className="flex flex-col md:flex-row justify-between gap-4">
                                     <div className="relative flex-1">
                                         <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
@@ -8932,17 +8952,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         ))}
                                     </select>
                                     <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => setShowImporter(true)}
-                                            className="px-5 py-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-650 hover:text-white transition-all flex items-center gap-2 border border-emerald-100 dark:border-emerald-900/50"
-                                        >
-                                            <ArrowUpTrayIcon className="w-4 h-4" />
-                                            Import Excel
-                                        </button>
+                                        {canEditOpeningBalances && (
+                                            <button 
+                                                onClick={() => setShowImporter(true)}
+                                                className="px-5 py-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-650 hover:text-white transition-all flex items-center gap-2 border border-emerald-100 dark:border-emerald-900/50 cursor-pointer"
+                                            >
+                                                <ArrowUpTrayIcon className="w-4 h-4" />
+                                                Import Excel
+                                            </button>
+                                        )}
                                         <button 
                                             onClick={handleSaveOpeningBalances}
-                                            disabled={isSavingBalances}
-                                            className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50"
+                                            disabled={isSavingBalances || !canEditOpeningBalances}
+                                            className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50 cursor-pointer"
                                         >
                                             {isSavingBalances ? 'Saving...' : 'Save Changes'}
                                         </button>
@@ -8975,12 +8997,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <input
                                                             type="number"
                                                             value={openingBalancesMap[student.id] || ''}
-                                                            onChange={(e) => setOpeningBalancesMap(prev => ({
-                                                                ...prev,
-                                                                [student.id]: Number(e.target.value)
-                                                            }))}
+                                                            disabled={!canEditOpeningBalances}
+                                                            onChange={(e) => {
+                                                                if (!canEditOpeningBalances) return;
+                                                                setOpeningBalancesMap(prev => ({
+                                                                    ...prev,
+                                                                    [student.id]: Number(e.target.value)
+                                                                }));
+                                                            }}
                                                             placeholder="0.00"
-                                                            className="w-full max-w-[150px] text-right px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white"
+                                                            className={`w-full max-w-[150px] text-right px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white ${!canEditOpeningBalances ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900' : ''}`}
                                                         />
                                                     </td>
                                                 </tr>

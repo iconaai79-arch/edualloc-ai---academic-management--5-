@@ -158,6 +158,8 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
 
     const institutionMap = useMemo(() => new Map<string, Institution>(institutions.map(i => [i.id, i])), [institutions]);
 
+    const [taxRate, setTaxRate] = useState<number>(0);
+
     const handleItemChange = (index: number, field: keyof InvoiceItem, value: string | number) => {
         const newItems = [...items];
         const item = { ...newItems[index], [field]: value };
@@ -174,7 +176,9 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
         if (items.length > 1) setItems(items.filter((_, i) => i !== index));
     };
 
-    const calculateTotal = () => items.reduce((sum, item) => sum + item.amount, 0);
+    const calculateSubtotal = () => items.reduce((sum, item) => sum + item.amount, 0);
+    const calculateTax = () => Math.round((calculateSubtotal() * taxRate) / 100);
+    const calculateTotal = () => calculateSubtotal() + calculateTax();
 
     const handleCancel = () => {
         setIsCreating(false);
@@ -182,6 +186,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
         setItems([{ description: 'Platform Subscription', quantity: 1, unitPrice: 0, amount: 0 }]);
         setSelectedInstId('');
         setDueDate('');
+        setTaxRate(0);
         setDocumentType('invoice');
     };
 
@@ -189,6 +194,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
         setEditingInvoice(inv);
         setDocumentType(inv.status === 'quote' ? 'quote' : 'invoice');
         setSelectedInstId(inv.institutionId);
+        setTaxRate((inv as any).taxRate || (inv as any).tax_rate || 0);
         
         let formattedDate = '';
         try {
@@ -225,6 +231,9 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                     institutionId: selectedInstId,
                     dueDate,
                     items,
+                    subtotal: calculateSubtotal(),
+                    taxRate: taxRate,
+                    taxAmount: calculateTax(),
                     totalAmount: calculateTotal(),
                     status: documentType === 'quote' ? 'quote' : (editingInvoice.status === 'quote' ? 'pending' : editingInvoice.status)
                 });
@@ -237,6 +246,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
         setItems([{ description: 'Platform Subscription', quantity: 1, unitPrice: 0, amount: 0 }]);
         setSelectedInstId('');
         setDueDate('');
+        setTaxRate(0);
         setDocumentType('invoice');
     };
 
@@ -479,9 +489,49 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                             </button>
                         </div>
 
+                        {/* Tax Controls & Totals */}
+                        <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-widest">
+                                    Tax / VAT Rate:
+                                </label>
+                                <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                    {[0, 16, 18].map(r => (
+                                        <button
+                                            key={r}
+                                            type="button"
+                                            onClick={() => setTaxRate(r)}
+                                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${taxRate === r ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-indigo-600'}`}
+                                        >
+                                            {r === 0 ? 'Exempt (0%)' : `${r}% VAT`}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <input
+                                        type="number"
+                                        value={taxRate}
+                                        onChange={e => setTaxRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                                        className="w-16 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold text-right outline-none dark:text-white"
+                                        placeholder="0"
+                                    />
+                                    <span className="text-xs font-bold text-slate-400">%</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-6 text-xs font-bold">
+                                <div className="text-slate-500">
+                                    Subtotal: <span className="font-extrabold text-slate-800 dark:text-white">KES {calculateSubtotal().toLocaleString()}</span>
+                                </div>
+                                <div className="text-slate-500">
+                                    Tax ({taxRate}%): <span className="font-extrabold text-indigo-600 dark:text-indigo-400">KES {calculateTax().toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
                             <div>
-                                <p className="text-xs text-slate-500">{documentType === 'quote' ? 'Quoted Amount' : 'Total Amount Due'}</p>
+                                <p className="text-xs text-slate-500">{documentType === 'quote' ? 'Total Quoted Amount' : 'Total Amount Due'}</p>
                                 <p className="text-2xl font-black text-slate-900 dark:text-white">KES {calculateTotal()?.toLocaleString()}</p>
                             </div>
                             <div className="flex gap-3">
@@ -616,8 +666,8 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                             {onUpdateInvoice && inv.status !== 'paid' && (
                                                 <button
                                                     onClick={() => startEditing(inv)}
-                                                    className="text-slate-400 hover:text-indigo-600 transition-colors"
-                                                    title="Edit Document"
+                                                    className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                                                    title={inv.status === 'quote' ? "Edit Quotation" : "Edit Invoice"}
                                                 >
                                                     <PencilIcon className="w-5 h-5" />
                                                 </button>

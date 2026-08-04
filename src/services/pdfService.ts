@@ -1150,20 +1150,31 @@ export const generateQuotePdfDataUri = async (
     doc.setLineWidth(0.3);
     doc.line(margin, finalY + 5, pageWidth - margin, finalY + 5);
 
+    const subtotal = (quote as any)?.subtotal !== undefined 
+        ? (quote as any).subtotal 
+        : (quote?.items || []).reduce((sum, item) => sum + (item.amount || 0), 0);
+    const taxRate = (quote as any)?.taxRate !== undefined ? (quote as any).taxRate : ((quote as any)?.tax_rate || 0);
+    const taxAmount = (quote as any)?.taxAmount !== undefined 
+        ? (quote as any).taxAmount 
+        : Math.round((subtotal * taxRate) / 100);
+    const finalTotal = (quote as any)?.totalAmount !== undefined && (quote as any)?.taxRate !== undefined 
+        ? (quote as any).totalAmount 
+        : (subtotal + taxAmount);
+
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(100, 116, 139); // Slate-500
     doc.text('SUBTOTAL ESTIMATE:', pageWidth - margin - 75, finalY + 12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(`KES ${(quote?.totalAmount || 0).toLocaleString()}.00`, pageWidth - margin, finalY + 12, { align: 'right' });
+    doc.text(`KES ${subtotal.toLocaleString()}.00`, pageWidth - margin, finalY + 12, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
-    doc.text('ESTIMATED TAX / VAT (0%):', pageWidth - margin - 75, finalY + 17);
+    doc.text(`ESTIMATED TAX / VAT (${taxRate}%):`, pageWidth - margin - 75, finalY + 17);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text('KES 0.00', pageWidth - margin, finalY + 17, { align: 'right' });
+    doc.text(`KES ${taxAmount.toLocaleString()}.00`, pageWidth - margin, finalY + 17, { align: 'right' });
 
     // Net total paid amount container box
     const totalBoxY = finalY + 21;
@@ -1173,8 +1184,8 @@ export const generateQuotePdfDataUri = async (
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9.5);
     doc.setTextColor(79, 70, 229); // Indigo-600 (Primary accent)
-    doc.text('TOTAL ESTIMATED TOTAL:', pageWidth - margin - 75, totalBoxY + 7);
-    doc.text(`KES ${(quote?.totalAmount || 0).toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
+    doc.text('TOTAL ESTIMATED AMOUNT:', pageWidth - margin - 75, totalBoxY + 7);
+    doc.text(`KES ${finalTotal.toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
 
     // Stamp / Authorized Signature
     const sigBaseY = pageHeight - 55;

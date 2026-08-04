@@ -19,6 +19,7 @@ import { TrashIcon } from './icons/TrashIcon';
 import { XIcon } from './icons/XIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { CheckIcon } from './icons/CheckIcon';
+import { PencilIcon } from './icons/PencilIcon';
 
 import { downloadQuotePdf, generateQuotePdfDataUri } from '../services/pdfService';
 import { sendEmailNotification } from '../services/emailService';
@@ -51,6 +52,7 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
     const [selectedRequestForQuote, setSelectedRequestForQuote] = useState<DemoRequest | null>(null);
     const [quoteItems, setQuoteItems] = useState<InvoiceItem[]>([]);
     const [quoteNumber, setQuoteNumber] = useState('');
+    const [taxRate, setTaxRate] = useState<number>(0);
     const [selectedModules, setSelectedModules] = useState<Record<string, boolean>>({
         academic: true,
         driving: false,
@@ -113,6 +115,23 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
             setPaymentRemarks('');
         }
     }, [selectedRequestForPayment]);
+
+    const handleOpenQuoteModal = (request: DemoRequest) => {
+        setSelectedRequestForQuote(request);
+        if (request.quoteItems && request.quoteItems.length > 0) {
+            setQuoteItems(request.quoteItems);
+        } else {
+            setQuoteItems([
+                { description: 'Core Platform Setup & Module License', quantity: 1, unitPrice: 25000, amount: 25000 },
+                { description: 'Staff Training & Onboarding (Virtual/On-site)', quantity: 1, unitPrice: 10000, amount: 10000 }
+            ]);
+        }
+        if ((request as any).quoteNumber) {
+            setQuoteNumber((request as any).quoteNumber);
+        } else {
+            setQuoteNumber(`QT-${Date.now().toString().slice(-6)}`);
+        }
+    };
 
     const handleModuleToggle = (moduleKey: string) => {
         const nextSelected = { ...selectedModules, [moduleKey]: !selectedModules[moduleKey] };
@@ -200,7 +219,10 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
     };
 
     const buildMockInvoiceAndInstitution = (request: DemoRequest) => {
-        const total = quoteItems.reduce((sum, item) => sum + item.amount, 0);
+        const subtotal = quoteItems.reduce((sum, item) => sum + item.amount, 0);
+        const taxAmount = Math.round((subtotal * taxRate) / 100);
+        const total = subtotal + taxAmount;
+
         const mockQuote: Invoice = {
             id: `q_${Date.now()}`,
             invoiceNumber: quoteNumber,
@@ -209,6 +231,9 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
             dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             items: quoteItems,
+            subtotal: subtotal,
+            taxRate: taxRate,
+            taxAmount: taxAmount,
             totalAmount: total,
             status: 'quote'
         };
@@ -560,14 +585,25 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                     {/* Quote Section */}
                                                     <div className="bg-white dark:bg-gray-800/80 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                                                        <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                                            <DocumentTextIcon className="w-5 h-5 text-indigo-500" />
-                                                            Quotation Details
-                                                        </h4>
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                                <DocumentTextIcon className="w-5 h-5 text-indigo-500" />
+                                                                Quotation Details
+                                                            </h4>
+                                                            {req.quoteAmount && (
+                                                                <button 
+                                                                    onClick={() => handleOpenQuoteModal(req)}
+                                                                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+                                                                    title="Edit Quotation"
+                                                                >
+                                                                    <PencilIcon className="w-3.5 h-3.5" /> Edit Quotation
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                         {req.quoteAmount ? (
                                                             <div className="space-y-4">
                                                                 <div className="flex justify-between items-center text-sm bg-indigo-50/50 dark:bg-indigo-950/20 p-2.5 rounded-lg border border-indigo-100/50 dark:border-indigo-900/30">
-                                                                    <span className="text-gray-500 dark:text-gray-400">Total Quotation Value:</span>
+                                                                    <span className="text-gray-500 dark:text-gray-400 font-semibold">Total Quotation Value:</span>
                                                                     <span className="font-extrabold text-indigo-700 dark:text-indigo-400 text-base">KES {req.quoteAmount.toLocaleString()}</span>
                                                                 </div>
                                                                 {req.quoteUrl && (
@@ -584,7 +620,15 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                                                                     </div>
                                                                 )}
                                                                 <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-                                                                    <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 mb-2">Quote Line Items:</div>
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">Quote Line Items:</span>
+                                                                        <button
+                                                                            onClick={() => handleOpenQuoteModal(req)}
+                                                                            className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                                                                        >
+                                                                            Edit Items & Pricing
+                                                                        </button>
+                                                                    </div>
                                                                     <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
                                                                         {req.quoteItems?.map((item, idx) => (
                                                                             <div key={idx} className="flex justify-between items-start text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/30 p-2 rounded border border-gray-100/50 dark:border-gray-800/30">
@@ -599,7 +643,7 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                                                             <div className="text-center py-6">
                                                                 <p className="text-sm text-gray-400 dark:text-gray-500">No quotation has been sent to this prospect yet.</p>
                                                                 <button 
-                                                                    onClick={() => setSelectedRequestForQuote(req)}
+                                                                    onClick={() => handleOpenQuoteModal(req)}
                                                                     className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm text-xs font-semibold"
                                                                 >
                                                                     <DocumentTextIcon className="w-3.5 h-3.5" /> Generate Quotation
@@ -834,18 +878,55 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                         </div>
 
                         {/* Footer Summary & Buttons */}
-                        <div className="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-2 bg-indigo-100/40 dark:bg-indigo-950/20 px-4 py-2.5 rounded-xl border border-indigo-100/50 dark:border-indigo-900/30">
-                                <span className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-bold">Total Estimated:</span>
-                                <span className="font-extrabold text-indigo-700 dark:text-indigo-400 text-lg">
-                                    KES {quoteItems.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}
-                                </span>
+                        <div className="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 flex flex-col gap-4">
+                            <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                {/* Tax Rate Controls */}
+                                <div className="flex items-center gap-3">
+                                    <label className="text-xs font-black uppercase text-gray-500 dark:text-gray-400 tracking-wider">
+                                        Tax / VAT Rate:
+                                    </label>
+                                    <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
+                                        {[0, 16, 18].map(r => (
+                                            <button
+                                                key={r}
+                                                type="button"
+                                                onClick={() => setTaxRate(r)}
+                                                className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${taxRate === r ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-indigo-600'}`}
+                                            >
+                                                {r === 0 ? 'Exempt (0%)' : `${r}% VAT`}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            value={taxRate}
+                                            onChange={e => setTaxRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                                            className="w-16 px-2 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs font-bold text-right outline-none dark:text-white focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="0"
+                                        />
+                                        <span className="text-xs font-bold text-gray-400">%</span>
+                                    </div>
+                                </div>
+
+                                {/* Financial Calculations */}
+                                <div className="flex items-center gap-6 text-xs font-bold">
+                                    <div className="text-gray-500 dark:text-gray-400">
+                                        Subtotal: <span className="font-extrabold text-gray-800 dark:text-white">KES {quoteItems.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}</span>
+                                    </div>
+                                    <div className="text-gray-500 dark:text-gray-400">
+                                        Tax ({taxRate}%): <span className="font-extrabold text-indigo-600 dark:text-indigo-400">KES {Math.round((quoteItems.reduce((sum, item) => sum + item.amount, 0) * taxRate) / 100).toLocaleString()}</span>
+                                    </div>
+                                    <div className="bg-indigo-50 dark:bg-indigo-950/30 px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-black text-sm">
+                                        Total: KES {(quoteItems.reduce((sum, item) => sum + item.amount, 0) + Math.round((quoteItems.reduce((sum, item) => sum + item.amount, 0) * taxRate) / 100)).toLocaleString()}
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <div className="flex items-center justify-end gap-3 w-full">
                                 <button
                                     onClick={() => handleDownloadQuotePreview(selectedRequestForQuote)}
-                                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm text-xs font-bold"
+                                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm text-xs font-bold cursor-pointer"
                                 >
                                     <DocumentArrowDownIcon className="w-4 h-4" /> Download PDF
                                 </button>
@@ -853,7 +934,7 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                                 <button
                                     onClick={() => handleSendQuoteToClient(selectedRequestForQuote)}
                                     disabled={isGeneratingQuote || quoteItems.length === 0}
-                                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:bg-indigo-400 transition-colors shadow-md text-xs font-black uppercase tracking-wider"
+                                    className="inline-flex items-center justify-center gap-1.5 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:bg-indigo-400 transition-colors shadow-md text-xs font-black uppercase tracking-wider cursor-pointer"
                                 >
                                     {isGeneratingQuote ? (
                                         <>
@@ -861,7 +942,7 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                                         </>
                                     ) : (
                                         <>
-                                            <CheckIcon className="w-4 h-4" /> Email to Client
+                                            <CheckIcon className="w-4 h-4" /> Email & Save Quotation
                                         </>
                                     )}
                                 </button>

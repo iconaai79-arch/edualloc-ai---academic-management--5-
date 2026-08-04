@@ -13,6 +13,8 @@ import { TrashIcon } from '../icons/TrashIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
+import { DownloadIcon } from '../icons/DownloadIcon';
+import { UploadIcon } from '../icons/UploadIcon';
 import { isSubjectApplicableToClass } from '../ClassSubjectAllocationModal';
 
 export interface ExamUnitRecord {
@@ -1247,6 +1249,247 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return pctNum >= 80 ? 'A' : pctNum >= 75 ? 'A-' : pctNum >= 70 ? 'B+' : pctNum >= 65 ? 'B' : pctNum >= 60 ? 'B-' : pctNum >= 55 ? 'C+' : pctNum >= 50 ? 'C' : pctNum >= 45 ? 'C-' : pctNum >= 40 ? 'D+' : pctNum >= 35 ? 'D' : pctNum >= 30 ? 'D-' : 'E';
     }, [currentInstitution, instId, selectedClassFilter, isPrimarySchool]);
 
+    // CSV / Excel Export Handler
+    const handleExportBroadsheetCSV = useCallback(() => {
+        if (!broadsheetStudentRows || broadsheetStudentRows.length === 0) {
+            alert("No student broadsheet records available to export.");
+            return;
+        }
+
+        const rowsToExport = filteredStudentRows.length > 0 ? filteredStudentRows : broadsheetStudentRows;
+        const isSingleSubject = selectedSubjectFilter !== 'all';
+        const targetClass = selectedClassFilter !== 'all' ? selectedClassFilter : (activeExamClasses[0] || 'All_Classes');
+        const examTitle = activeExam?.name ? activeExam.name.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Exam';
+
+        let headers: string[] = ['Admission No', 'Student Name', 'Class'];
+        let paperList: { label: string; key: string; maxScore: number }[] = [];
+
+        if (isSingleSubject) {
+            paperList = getSubjectPapers(selectedSubjectFilter);
+            paperList.forEach(p => headers.push(`${p.label} (/${p.maxScore})`));
+            headers.push('Subject Total', 'Max Score', 'Converted %', 'Grade');
+        } else {
+            const allPapers = modalAvailableSubjects.flatMap(subName => getSubjectPapers(subName));
+            paperList = allPapers;
+            paperList.forEach(p => headers.push(`${p.label} (/${p.maxScore})`));
+            headers.push('Total Raw', 'Max Score', 'Converted %', 'Grade');
+        }
+
+        const csvLines: string[] = [];
+        csvLines.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
+
+        rowsToExport.forEach(st => {
+            const rowVals: (string | number)[] = [
+                st.admNo || '',
+                st.name || '',
+                st.class || targetClass
+            ];
+
+            let rawTotal = 0;
+            let maxTotal = 0;
+
+            paperList.forEach(p => {
+                const val = (st as any)[p.key] ?? 0;
+                rowVals.push(val);
+                rawTotal += val;
+                maxTotal += p.maxScore;
+            });
+
+            const convertedPct = maxTotal > 0 ? ((rawTotal / maxTotal) * 100).toFixed(1) : '0.0';
+            const pctNum = parseFloat(convertedPct);
+            const grade = calculateGradeFromScore(pctNum, st.class || selectedClassFilter);
+
+            rowVals.push(rawTotal, maxTotal, `${convertedPct}%`, grade);
+            csvLines.push(rowVals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+        });
+
+        const csvContent = csvLines.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const filename = `${examTitle}_${targetClass.replace(/[^a-zA-Z0-9_-]/g, '_')}_${isSingleSubject ? selectedSubjectFilter.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Broadsheet'}.csv`;
+
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setSaveToastMessage(`📥 Exported ${rowsToExport.length} student marks to "${filename}"!`);
+        setTimeout(() => setSaveToastMessage(null), 4000);
+    }, [broadsheetStudentRows, filteredStudentRows, selectedSubjectFilter, selectedClassFilter, activeExamClasses, activeExam, modalAvailableSubjects, getSubjectPapers, calculateGradeFromScore]);
+
+    // Download Import CSV Template
+    const handleDownloadImportTemplate = useCallback(() => {
+        const isSingleSubject = selectedSubjectFilter !== 'all';
+        const subName = isSingleSubject ? selectedSubjectFilter : (modalAvailableSubjects[0] || 'Mathematics');
+        const targetClass = selectedClassFilter !== 'all' ? selectedClassFilter : (activeExamClasses[0] || 'Form 3 Central');
+        const examTitle = activeExam?.name ? activeExam.name.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Exam';
+
+        const paperList = getSubjectPapers(subName);
+        let headers: string[] = ['Admission No', 'Student Name', 'Class'];
+        paperList.forEach(p => headers.push(`${p.label} (/${p.maxScore})`));
+
+        const csvLines: string[] = [];
+        csvLines.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
+
+        const sampleRows = filteredStudentRows.length > 0 ? filteredStudentRows : broadsheetStudentRows;
+        sampleRows.forEach(st => {
+            const rowVals: (string | number)[] = [
+                st.admNo || '',
+                st.name || '',
+                st.class || targetClass
+            ];
+            paperList.forEach(p => {
+                rowVals.push((st as any)[p.key] ?? 0);
+            });
+            csvLines.push(rowVals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+        });
+
+        const csvContent = csvLines.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const filename = `${examTitle}_${targetClass.replace(/[^a-zA-Z0-9_-]/g, '_')}_${subName.replace(/[^a-zA-Z0-9_-]/g, '_')}_Import_Template.csv`;
+
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setSaveToastMessage(`📄 Downloaded import template for ${subName} (${sampleRows.length} students)`);
+        setTimeout(() => setSaveToastMessage(null), 4000);
+    }, [selectedSubjectFilter, modalAvailableSubjects, selectedClassFilter, activeExamClasses, activeExam, getSubjectPapers, filteredStudentRows, broadsheetStudentRows]);
+
+    // CSV Bulk Marks Upload Handler
+    const handleImportMarksCSV = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const content = event.target?.result as string;
+                if (!content) return;
+
+                const lines = content.split(/\r?\n/).filter(line => line.trim().length > 0);
+                if (lines.length < 2) {
+                    alert("CSV file must contain a header row and at least one student data row.");
+                    return;
+                }
+
+                const parseCSVLine = (line: string): string[] => {
+                    const result: string[] = [];
+                    let current = '';
+                    let inQuotes = false;
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        if (char === '"' || char === "'") {
+                            inQuotes = !inQuotes;
+                        } else if (char === ',' && !inQuotes) {
+                            result.push(current.trim().replace(/^["']|["']$/g, ''));
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    result.push(current.trim().replace(/^["']|["']$/g, ''));
+                    return result;
+                };
+
+                const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
+                const admIdx = headers.findIndex(h => h.includes('adm') || h.includes('admission') || h.includes('reg') || h.includes('id'));
+                const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('student'));
+                const classIdx = headers.findIndex(h => h.includes('class') || h.includes('grade') || h.includes('stream'));
+
+                if (admIdx === -1 && nameIdx === -1) {
+                    alert("CSV file must contain 'Admission No' or 'Student Name' column.");
+                    return;
+                }
+
+                const subName = selectedSubjectFilter !== 'all' ? selectedSubjectFilter : (modalAvailableSubjects[0] || 'Mathematics');
+                const targetPapers = getSubjectPapers(subName);
+                const paperColMap: { headerIdx: number; key: string; maxScore: number }[] = [];
+
+                headers.forEach((h, hIdx) => {
+                    if (hIdx === admIdx || hIdx === nameIdx || hIdx === classIdx || h.includes('total') || h.includes('converted') || h.includes('grade')) return;
+                    const matchedPaper = targetPapers.find(p => h.includes(p.label.toLowerCase()) || h.includes(p.key.toLowerCase()));
+                    if (matchedPaper) {
+                        paperColMap.push({ headerIdx: hIdx, key: matchedPaper.key, maxScore: matchedPaper.maxScore });
+                    } else if (targetPapers.length > 0) {
+                        const fallbackPaper = targetPapers[paperColMap.length % targetPapers.length];
+                        paperColMap.push({ headerIdx: hIdx, key: fallbackPaper.key, maxScore: fallbackPaper.maxScore });
+                    }
+                });
+
+                if (paperColMap.length === 0 && targetPapers.length > 0) {
+                    let colCounter = Math.max(admIdx, nameIdx, classIdx) + 1;
+                    targetPapers.forEach(p => {
+                        if (colCounter < headers.length) {
+                            paperColMap.push({ headerIdx: colCounter, key: p.key, maxScore: p.maxScore });
+                            colCounter++;
+                        }
+                    });
+                }
+
+                let updatedCount = 0;
+                const updatedRows = [...broadsheetStudentRows];
+
+                for (let i = 1; i < lines.length; i++) {
+                    const cols = parseCSVLine(lines[i]);
+                    if (cols.length === 0) continue;
+
+                    const rowAdm = admIdx !== -1 ? cols[admIdx] : '';
+                    const rowName = nameIdx !== -1 ? cols[nameIdx] : '';
+
+                    let rowIndex = updatedRows.findIndex(r =>
+                        (rowAdm && String(r.admNo).toLowerCase().trim() === String(rowAdm).toLowerCase().trim()) ||
+                        (rowName && String(r.name).toLowerCase().trim() === String(rowName).toLowerCase().trim())
+                    );
+
+                    if (rowIndex !== -1) {
+                        const rowObj = { ...updatedRows[rowIndex] };
+                        paperColMap.forEach(colInfo => {
+                            if (colInfo.headerIdx < cols.length) {
+                                const val = Math.max(0, Math.min(colInfo.maxScore, parseFloat(cols[colInfo.headerIdx]) || 0));
+                                (rowObj as any)[colInfo.key] = val;
+                            }
+                        });
+                        updatedRows[rowIndex] = rowObj;
+                        updatedCount++;
+                    }
+                }
+
+                setBroadsheetStudentRows(updatedRows);
+                if (activeExam?.id) {
+                    setExamMarksStore(prev => ({ ...prev, [activeExam.id]: updatedRows }));
+                    try {
+                        localStorage.setItem(`eduai_exam_broadsheet_${activeExam.id}`, JSON.stringify(updatedRows));
+                    } catch(e) {}
+                    if (currentInstitution?.id) {
+                        apiService.saveModuleRecord('exam_broadsheets', {
+                            id: activeExam.id,
+                            examId: activeExam.id,
+                            rows: updatedRows,
+                            institutionId: currentInstitution.id,
+                            institution_id: currentInstitution.id
+                        }).catch(() => {});
+                    }
+                }
+
+                setSaveToastMessage(`✨ Successfully imported marks for ${updatedCount} student(s)!`);
+                setTimeout(() => setSaveToastMessage(null), 4000);
+            } catch(err) {
+                console.error("Error parsing CSV file:", err);
+                alert("Failed to parse CSV file. Please check file formatting.");
+            } finally {
+                e.target.value = '';
+            }
+        };
+        reader.readAsText(file);
+    }, [broadsheetStudentRows, selectedSubjectFilter, modalAvailableSubjects, getSubjectPapers, activeExam, currentInstitution]);
+
     // Dynamic Class Paper Progress Rows based on active exam & broadsheet rows
     const classPaperRows = useMemo(() => {
         // 1. Get classAllocationsStore (Ground truth per-class subjects from Manage Subjects per Class Stream)
@@ -1683,24 +1926,35 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         <div className="space-y-6 animate-fade-in max-w-7xl">
             {/* Top Action Header Bar */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <button
-                    type="button"
-                    onClick={() => {
-                        setIsEditingExam(false);
-                        setNewExamName('');
-                        setSelectedClasses((selectedClassFilter && selectedClassFilter !== 'all') ? [selectedClassFilter] : (registeredClasses.length > 0 ? [registeredClasses[0]] : []));
-                        setWizardStep(1);
-                        setIsAddExamModalOpen(true);
-                    }}
-                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center gap-2"
-                >
-                    <PlusIcon className="w-4 h-4 stroke-[3]" /> Add Exam
-                </button>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setIsEditingExam(false);
+                            setNewExamName('');
+                            setSelectedClasses((selectedClassFilter && selectedClassFilter !== 'all') ? [selectedClassFilter] : (registeredClasses.length > 0 ? [registeredClasses[0]] : []));
+                            setWizardStep(1);
+                            setIsAddExamModalOpen(true);
+                        }}
+                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                    >
+                        <PlusIcon className="w-4 h-4 stroke-[3]" /> Add Exam
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleExportBroadsheetCSV}
+                        className="px-5 py-2.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold text-xs uppercase tracking-wider rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                        title="Export current active exam broadsheet to CSV"
+                    >
+                        <DownloadIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Export Broadsheet CSV
+                    </button>
+                </div>
 
                 <button
                     type="button"
                     onClick={() => window.location.reload()}
-                    className="px-5 py-2.5 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 font-bold text-xs uppercase tracking-wider rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
+                    className="px-5 py-2.5 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 font-bold text-xs uppercase tracking-wider rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                 >
                     <ArrowPathIcon className="w-4 h-4" /> Refresh
                 </button>
@@ -2752,6 +3006,40 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                             <option key={subName} value={subName}>{subName}</option>
                                         ))}
                                     </select>
+                                </div>
+
+                                {/* Export & Import Controls */}
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleExportBroadsheetCSV}
+                                        className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                                        title="Export broadsheet & student marks to CSV / Excel spreadsheet"
+                                    >
+                                        <DownloadIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                        <span>Export CSV</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleDownloadImportTemplate}
+                                        className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                                        title="Download sample CSV template pre-filled with class student list"
+                                    >
+                                        <DocumentTextIcon className="w-4 h-4 text-slate-500" />
+                                        <span>Template</span>
+                                    </button>
+
+                                    <label className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95">
+                                        <UploadIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                        <span>Import CSV</span>
+                                        <input
+                                            type="file"
+                                            accept=".csv,.txt"
+                                            onChange={handleImportMarksCSV}
+                                            className="hidden"
+                                        />
+                                    </label>
                                 </div>
 
                                 {selectedSubjectFilter !== 'all' && (
