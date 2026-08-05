@@ -15,6 +15,7 @@ import { SparklesIcon } from '../icons/SparklesIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { DownloadIcon } from '../icons/DownloadIcon';
 import { UploadIcon } from '../icons/UploadIcon';
+import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { isSubjectApplicableToClass } from '../ClassSubjectAllocationModal';
 
 export interface ExamUnitRecord {
@@ -74,7 +75,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed)) return parsed;
             }
-        } catch (e) {}
+        } catch (e) { }
         return [
             { id: 'exam_1', name: 'Endterm 2 Exam 2026', term: 'TERM 2', type: 'END TERM', year: 2026, status: 'in_progress', submittedPercent: 27.6, studentsEnrolled: 361, missingMarks: 4354 },
             { id: 'exam_2', name: 'Kapseret Mock', term: 'TERM 2', type: 'END TERM', year: 2026, status: 'in_progress', submittedPercent: 19.2, studentsEnrolled: 340, missingMarks: 5120 },
@@ -99,7 +100,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         });
                     }
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [currentInstitution]);
 
@@ -217,6 +218,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [targetStudentSearch, setTargetStudentSearch] = useState('');
     const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
 
+    // Choose From Students Modal States:
+    const [isStudentPickerModalOpen, setIsStudentPickerModalOpen] = useState(false);
+    const [studentPickerYear, setStudentPickerYear] = useState('2026');
+    const [studentPickerTab, setStudentPickerTab] = useState<'all_classes' | 'all_students' | 'all_groups'>('all_students');
+    const [studentPickerSearch, setStudentPickerSearch] = useState('');
+    const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+
     useEffect(() => {
         if (registeredClasses.length > 0 && selectedClasses.length === 0 && !isAddExamModalOpen) {
             setSelectedClasses(registeredClasses);
@@ -263,7 +271,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     const parsed = JSON.parse(savedEx);
                     if (parsed && typeof parsed === 'object') setStudentSubjectExemptions(parsed);
                 }
-            } catch(e) {}
+            } catch (e) { }
         };
         window.addEventListener('eduai_academics_synced', handleSync);
         return () => window.removeEventListener('eduai_academics_synced', handleSync);
@@ -274,7 +282,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         try {
             const saved = localStorage.getItem(`eduai_student_subject_exemptions_${instId}`);
             if (saved) return JSON.parse(saved) || {};
-        } catch(e) {}
+        } catch (e) { }
         return {};
     });
 
@@ -290,7 +298,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         setStudentSubjectExemptions(prev => ({ ...map, ...prev }));
                     }
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [currentInstitution]);
 
@@ -312,7 +320,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             try {
                 const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
                 if (saved) return JSON.parse(saved) || {};
-            } catch(e) {}
+            } catch (e) { }
             return (currentInstitution as any)?.classSubjectAllocations || {};
         })();
 
@@ -354,7 +362,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         try {
             localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(deduplicated));
-        } catch(e) {}
+        } catch (e) { }
 
         setSaveToastMessage(`Imported ${deduplicated.length} enrolled subject(s) from Student Registry`);
         setTimeout(() => setSaveToastMessage(null), 3000);
@@ -376,7 +384,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             try {
                 const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
                 if (saved) return JSON.parse(saved) || {};
-            } catch(e) {}
+            } catch (e) { }
             return (currentInstitution as any)?.classSubjectAllocations || {};
         })();
 
@@ -436,7 +444,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         savedConfigs = parsed;
                     }
                 }
-            } catch(e) {}
+            } catch (e) { }
         }
 
         const matchClassConfig = (c: any, targets: string[]) => {
@@ -650,7 +658,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const parsed = JSON.parse(saved);
                 if (parsed && typeof parsed === 'object') return parsed;
             }
-        } catch(e) {}
+        } catch (e) { }
         return {};
     });
 
@@ -674,7 +682,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     if (stOnly.length > 0) return stOnly;
                 }
             }
-        } catch(e) {}
+        } catch (e) { }
         return [];
     });
 
@@ -717,7 +725,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         });
                         try {
                             localStorage.setItem(`eduai_students_${currentInstitution.id}`, JSON.stringify(unique));
-                        } catch(e) {}
+                        } catch (e) { }
                         return unique;
                     });
                 }
@@ -742,7 +750,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             const merged = [...newOnes, ...prev];
                             try {
                                 localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
-                            } catch(e) {}
+                            } catch (e) { }
                             return merged;
                         });
                     }
@@ -758,12 +766,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             const merged = { ...storeData, ...prev };
                             try {
                                 localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
-                            } catch(e) {}
+                            } catch (e) { }
                             return merged;
                         });
                     }
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [currentInstitution]);
 
@@ -811,19 +819,19 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     // Comprehensive helper to resolve student class name across all schema variations
     const getStudentClass = useCallback((st: any): string => {
         if (!st) return '';
-        const candidate = 
-            st.studentClass || 
-            st.classLevel || 
-            st.class_name || 
-            st.className || 
-            st.class || 
-            st.courseLevelId || 
-            st.academicLevel || 
-            st.grade || 
-            st.currentClass || 
-            st.gradeLevel || 
-            st.level || 
-            st.courseId || 
+        const candidate =
+            st.studentClass ||
+            st.classLevel ||
+            st.class_name ||
+            st.className ||
+            st.class ||
+            st.courseLevelId ||
+            st.academicLevel ||
+            st.grade ||
+            st.currentClass ||
+            st.gradeLevel ||
+            st.level ||
+            st.courseId ||
             st.metadata?.studentClass ||
             st.metadata?.classLevel ||
             st.metadata?.className ||
@@ -838,21 +846,21 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     // Helper to resolve clean human-readable student admission numbers across all schema types (numeric, string, metadata)
     const resolveCleanAdmNo = useCallback((st: any, idx: number) => {
         if (!st) return `ADM-${1001 + idx}`;
-        const rawCandidate = 
-            st.admissionNumber ?? 
-            st.admission_number ?? 
-            st.admNo ?? 
-            st.admissionNo ?? 
-            st.regNo ?? 
-            st.registrationNumber ?? 
-            st.studentId ?? 
-            st.staffId ?? 
-            st.metadata?.admissionNumber ?? 
-            st.metadata?.admission_number ?? 
-            st.metadata?.admNo ?? 
-            st.metadata?.admissionNo ?? 
-            st.metadata?.regNo ?? 
-            st.user?.admissionNumber ?? 
+        const rawCandidate =
+            st.admissionNumber ??
+            st.admission_number ??
+            st.admNo ??
+            st.admissionNo ??
+            st.regNo ??
+            st.registrationNumber ??
+            st.studentId ??
+            st.staffId ??
+            st.metadata?.admissionNumber ??
+            st.metadata?.admission_number ??
+            st.metadata?.admNo ??
+            st.metadata?.admissionNo ??
+            st.metadata?.regNo ??
+            st.user?.admissionNumber ??
             st.user?.metadata?.admissionNumber;
 
         if (rawCandidate !== undefined && rawCandidate !== null) {
@@ -888,6 +896,37 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return row;
         });
     }, [allRealStudents, users, resolveCleanAdmNo]);
+
+    // Display students list for Choose from students modal
+    const displayStudentsList = useMemo(() => {
+        if (allRealStudents.length > 0) {
+            return allRealStudents.map((st, idx) => ({
+                id: (st as any).id || (st as any).admissionNumber || resolveCleanAdmNo(st, idx),
+                admNo: resolveCleanAdmNo(st, idx),
+                name: (st as any).fullName || st.name || (st as any).email || `Student ${idx + 1}`,
+                class: getStudentClass(st) || 'Grade 1 S 2026',
+            }));
+        }
+        return defaultSampleRows.map((st) => ({
+            id: st.admNo,
+            admNo: st.admNo,
+            name: st.name,
+            class: st.class || 'Form 3 Central',
+        }));
+    }, [allRealStudents, resolveCleanAdmNo, getStudentClass, defaultSampleRows]);
+
+    const filteredPickerStudents = useMemo(() => {
+        let list = displayStudentsList;
+        const q = studentPickerSearch.trim().toLowerCase();
+        if (q) {
+            list = list.filter(st =>
+                st.name.toLowerCase().includes(q) ||
+                st.admNo.toLowerCase().includes(q) ||
+                st.class.toLowerCase().includes(q)
+            );
+        }
+        return list;
+    }, [displayStudentsList, studentPickerSearch]);
 
     // Update broadsheet rows whenever selectedExamId changes
     useEffect(() => {
@@ -952,7 +991,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     return;
                 }
             }
-        } catch(e) {}
+        } catch (e) { }
 
         // 3. Check DB
         if (currentInstitution?.id && selectedExamId.startsWith('exam_')) {
@@ -966,7 +1005,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         return;
                     }
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
 
         // 4. Default clean rows for target classes (using matching real students or official student registry)
@@ -1069,8 +1108,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         setExamMarksStore(updatedStore);
         try {
             localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(updatedStore));
-        } catch(e) {}
-        
+        } catch (e) { }
+
         if (currentInstitution?.id) {
             await apiService.saveModuleRecord('institution_module_states', {
                 id: `broadsheets_${currentInstitution.id}`,
@@ -1083,12 +1122,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 status: 'active',
                 settings: updatedStore,
                 stateData: updatedStore
-            }).catch(() => {});
+            }).catch(() => { });
         }
 
         try {
             window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'marks', instId } }));
-        } catch(e) {}
+        } catch (e) { }
 
         setTimeout(() => {
             setIsSavingMarks(false);
@@ -1125,7 +1164,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             try {
                 const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
                 if (saved) return JSON.parse(saved) || {};
-            } catch(e) {}
+            } catch (e) { }
             return (currentInstitution as any)?.classSubjectAllocations || {};
         })();
 
@@ -1223,7 +1262,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             try {
                 const saved = localStorage.getItem(`eduai_tree_grading_nodes_${instId}`);
                 if (saved) treeNodes = JSON.parse(saved);
-            } catch(e) {}
+            } catch (e) { }
         }
         let scaleDefinitions: any[] | null = null;
 
@@ -1468,7 +1507,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     setExamMarksStore(prev => ({ ...prev, [activeExam.id]: updatedRows }));
                     try {
                         localStorage.setItem(`eduai_exam_broadsheet_${activeExam.id}`, JSON.stringify(updatedRows));
-                    } catch(e) {}
+                    } catch (e) { }
                     if (currentInstitution?.id) {
                         apiService.saveModuleRecord('exam_broadsheets', {
                             id: activeExam.id,
@@ -1476,13 +1515,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             rows: updatedRows,
                             institutionId: currentInstitution.id,
                             institution_id: currentInstitution.id
-                        }).catch(() => {});
+                        }).catch(() => { });
                     }
                 }
 
                 setSaveToastMessage(`✨ Successfully imported marks for ${updatedCount} student(s)!`);
                 setTimeout(() => setSaveToastMessage(null), 4000);
-            } catch(err) {
+            } catch (err) {
                 console.error("Error parsing CSV file:", err);
                 alert("Failed to parse CSV file. Please check file formatting.");
             } finally {
@@ -1499,7 +1538,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             try {
                 const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
                 if (saved) return JSON.parse(saved) || {};
-            } catch(e) {}
+            } catch (e) { }
             return (currentInstitution as any)?.classSubjectAllocations || {};
         })();
 
@@ -1514,7 +1553,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         savedConfigs = parsed;
                     }
                 }
-            } catch(e) {}
+            } catch (e) { }
         }
 
         const activeExamRows = (activeExam?.id && examMarksStore[activeExam.id]) ? examMarksStore[activeExam.id] : broadsheetStudentRows;
@@ -1754,12 +1793,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const nextExams = prev.map(e => e.id === activeExam.id ? updatedExam : e);
                 try {
                     localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
-                } catch(e) {}
+                } catch (e) { }
                 return nextExams;
             });
 
             if (currentInstitution?.id) {
-                await apiService.saveModuleRecord('exam_units', updatedExam).catch(() => {});
+                await apiService.saveModuleRecord('exam_units', updatedExam).catch(() => { });
             }
 
             setIsEditingExam(false);
@@ -1813,7 +1852,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const nextExams = [newExam, ...prev];
             try {
                 localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
-            } catch(e) {}
+            } catch (e) { }
             return nextExams;
         });
 
@@ -1821,7 +1860,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const nextStore = { ...prev, [newExamId]: freshRows };
             try {
                 localStorage.setItem(`eduai_exam_broadsheet_${newExamId}`, JSON.stringify(freshRows));
-            } catch(e) {}
+            } catch (e) { }
             return nextStore;
         });
 
@@ -1833,8 +1872,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         // Save to Database
         if (currentInstitution?.id) {
-            await apiService.saveModuleRecord('exam_units', newExam).catch(() => {});
-            await apiService.saveModuleRecord('exam_broadsheets', { id: newExamId, examId: newExamId, rows: freshRows, institutionId: currentInstitution.id, institution_id: currentInstitution.id }).catch(() => {});
+            await apiService.saveModuleRecord('exam_units', newExam).catch(() => { });
+            await apiService.saveModuleRecord('exam_broadsheets', { id: newExamId, examId: newExamId, rows: freshRows, institutionId: currentInstitution.id, institution_id: currentInstitution.id }).catch(() => { });
         }
 
         setSaveToastMessage(`✨ Created "${newExam.name}" cleanly for ${targetClasses.length} registered classes!`);
@@ -1851,7 +1890,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             });
             try {
                 localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
-            } catch(e) {}
+            } catch (e) { }
             return nextExams;
         });
     };
@@ -1864,7 +1903,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const nextExams = prev.filter(e => e.id !== targetId);
                 try {
                     localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
-                } catch(e) {}
+                } catch (e) { }
                 if (nextExams.length > 0) {
                     setSelectedExamId(nextExams[0].id);
                 } else {
@@ -1875,8 +1914,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             // Delete from database to prevent backend sync restoration
             if (currentInstitution?.id) {
-                await apiService.deleteModuleRecord('exam_units', targetId).catch(() => {});
-                await apiService.deleteModuleRecord('exam_broadsheets', targetId).catch(() => {});
+                await apiService.deleteModuleRecord('exam_units', targetId).catch(() => { });
+                await apiService.deleteModuleRecord('exam_broadsheets', targetId).catch(() => { });
             }
 
             setSaveToastMessage(`🗑️ Deleted "${activeExam.name}".`);
@@ -1978,11 +2017,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     <div
                                         key={exam.id}
                                         onClick={() => setSelectedExamId(exam.id)}
-                                        className={`p-4 cursor-pointer transition-all ${
-                                            isSelected
+                                        className={`p-4 cursor-pointer transition-all ${isSelected
                                                 ? 'bg-blue-600 text-white font-bold'
                                                 : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-900 dark:text-white'
-                                        }`}
+                                            }`}
                                     >
                                         <h4 className="text-xs font-bold uppercase tracking-tight mb-1">{exam.name}</h4>
                                         <p className={`text-[10px] uppercase font-bold tracking-wider ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
@@ -2028,11 +2066,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                 <div
                                                                     key={exam.id}
                                                                     onClick={() => setSelectedExamId(exam.id)}
-                                                                    className={`p-3 cursor-pointer transition-all ${
-                                                                        isSelected
+                                                                    className={`p-3 cursor-pointer transition-all ${isSelected
                                                                             ? 'bg-blue-600 text-white font-bold'
                                                                             : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
-                                                                    }`}
+                                                                        }`}
                                                                 >
                                                                     <h5 className="text-xs font-bold uppercase">{exam.name}</h5>
                                                                     <p className={`text-[9px] uppercase font-bold tracking-wider ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
@@ -2058,7 +2095,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             <SparklesIcon className="w-12 h-12 text-blue-500 mx-auto opacity-50" />
                             <h3 className="text-base font-bold text-slate-800 dark:text-white uppercase tracking-tight">No Exam Selected</h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                                {exams.length === 0 
+                                {exams.length === 0
                                     ? "No exams created yet for this institution. Click '+ Add Exam' to set up your first exam unit."
                                     : "Select an exam from the list on the left to view its performance dashboard."}
                             </p>
@@ -2137,194 +2174,191 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 </div>
                             </div>
 
-                        {/* 3 Progress Columns matching screenshot */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-                            {/* Column 1: PROGRESS PER TEACHER */}
-                            <div className="space-y-3">
-                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PROGRESS PER TEACHER</h4>
-                                <div className="space-y-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                                    {teacherProgressList.map((t, idx) => (
-                                        <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800">
-                                            <span>{t.name}</span>
-                                            <span className="font-mono text-slate-900 dark:text-white">{t.progress}%</span>
-                                        </div>
-                                    ))}
+                            {/* 3 Progress Columns matching screenshot */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+                                {/* Column 1: PROGRESS PER TEACHER */}
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PROGRESS PER TEACHER</h4>
+                                    <div className="space-y-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                        {teacherProgressList.map((t, idx) => (
+                                            <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800">
+                                                <span>{t.name}</span>
+                                                <span className="font-mono text-slate-900 dark:text-white">{t.progress}%</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Column 2: PROGRESS BY CLASS */}
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PROGRESS BY CLASS</h4>
+                                    <div className="space-y-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                        {classProgressList.map((c, idx) => (
+                                            <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800">
+                                                <span>{c.name}</span>
+                                                <span className="font-mono text-slate-900 dark:text-white">{c.progress}%</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Column 3: PROGRESS BY SUBJECT */}
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PROGRESS BY SUBJECT</h4>
+                                    <div className="space-y-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                        {subjectProgressList.map((s, idx) => (
+                                            <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800">
+                                                <span>{s.name}</span>
+                                                <span className="font-mono text-slate-900 dark:text-white">{s.progress}%</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Column 2: PROGRESS BY CLASS */}
-                            <div className="space-y-3">
-                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PROGRESS BY CLASS</h4>
-                                <div className="space-y-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                                    {classProgressList.map((c, idx) => (
-                                        <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800">
-                                            <span>{c.name}</span>
-                                            <span className="font-mono text-slate-900 dark:text-white">{c.progress}%</span>
-                                        </div>
-                                    ))}
+                            {/* Bottom Subtabs & Marks Entry Progress Panel */}
+                            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-sm">
+                                {/* Subtabs Bar */}
+                                <div className="flex space-x-6 border-b border-slate-200 dark:border-slate-800">
+                                    <button
+                                        onClick={() => setActiveSubTab('progress')}
+                                        className={`pb-3 border-b-2 font-black text-xs uppercase tracking-wider transition-all ${activeSubTab === 'progress' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'
+                                            }`}
+                                    >
+                                        Marks Entry Progress
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveSubTab('irregularities')}
+                                        className={`pb-3 border-b-2 font-black text-xs uppercase tracking-wider transition-all ${activeSubTab === 'irregularities' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'
+                                            }`}
+                                    >
+                                        Exam Irregularities
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveSubTab('history')}
+                                        className={`pb-3 border-b-2 font-black text-xs uppercase tracking-wider transition-all ${activeSubTab === 'history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'
+                                            }`}
+                                    >
+                                        Edit History
+                                    </button>
                                 </div>
-                            </div>
 
-                            {/* Column 3: PROGRESS BY SUBJECT */}
-                            <div className="space-y-3">
-                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PROGRESS BY SUBJECT</h4>
-                                <div className="space-y-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                                    {subjectProgressList.map((s, idx) => (
-                                        <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800">
-                                            <span>{s.name}</span>
-                                            <span className="font-mono text-slate-900 dark:text-white">{s.progress}%</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                    {/* Bottom Subtabs & Marks Entry Progress Panel */}
-                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-sm">
-                        {/* Subtabs Bar */}
-                        <div className="flex space-x-6 border-b border-slate-200 dark:border-slate-800">
-                            <button
-                                onClick={() => setActiveSubTab('progress')}
-                                className={`pb-3 border-b-2 font-black text-xs uppercase tracking-wider transition-all ${
-                                    activeSubTab === 'progress' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'
-                                }`}
-                            >
-                                Marks Entry Progress
-                            </button>
-                            <button
-                                onClick={() => setActiveSubTab('irregularities')}
-                                className={`pb-3 border-b-2 font-black text-xs uppercase tracking-wider transition-all ${
-                                    activeSubTab === 'irregularities' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'
-                                }`}
-                            >
-                                Exam Irregularities
-                            </button>
-                            <button
-                                onClick={() => setActiveSubTab('history')}
-                                className={`pb-3 border-b-2 font-black text-xs uppercase tracking-wider transition-all ${
-                                    activeSubTab === 'history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'
-                                }`}
-                            >
-                                Edit History
-                            </button>
-                        </div>
-
-                        {/* SUBTAB 1: MARKS ENTRY PROGRESS */}
-                        {activeSubTab === 'progress' && (
-                            <div className="space-y-4">
-                                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
-                                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
-                                        <thead className="bg-slate-700 text-white font-bold text-xs uppercase">
-                                            <tr>
-                                                <th className="px-4 py-3 text-left">Paper</th>
-                                                <th className="px-4 py-3 text-left">Subject Teacher</th>
-                                                <th className="px-4 py-3 text-center w-28">Enrollment</th>
-                                                <th className="px-6 py-3 text-left">Marks Entry Progress</th>
-                                                <th className="px-4 py-3 text-center w-32">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                            {classPaperRows.map(cRow => {
-                                                const isExpanded = expandedClasses[cRow.classKey];
-                                                return (
-                                                    <React.Fragment key={cRow.classKey}>
-                                                        {/* Class Accordion Header Row */}
-                                                        <tr className="bg-slate-100 dark:bg-slate-800/60 font-bold text-xs text-slate-900 dark:text-white">
-                                                            <td className="px-4 py-3 cursor-pointer flex items-center gap-2" onClick={() => setExpandedClasses(prev => ({ ...prev, [cRow.classKey]: !prev[cRow.classKey] }))}>
-                                                                {isExpanded ? <ChevronDownIcon className="w-4 h-4 text-slate-500" /> : <ChevronRightIcon className="w-4 h-4 text-slate-500" />}
-                                                                <span>{cRow.className}</span>
-                                                            </td>
-                                                            <td className="px-4 py-3"></td>
-                                                            <td className="px-4 py-3 text-center font-bold">{cRow.enrollment}</td>
-                                                            <td className="px-6 py-3">
-                                                                <div className="flex items-center gap-3">
-                                                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{cRow.overallProgress}% progress</span>
-                                                                    <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                                        <div className="h-full bg-blue-600 rounded-full" style={{ width: `${cRow.overallProgress}%` }}></div>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setSelectedClassFilter(cRow.className);
-                                                                        setSelectedSubjectFilter('all');
-                                                                        setIsBroadsheetModalOpen(true);
-                                                                    }}
-                                                                    className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                                                                >
-                                                                    View Broadsheet
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-
-                                                        {/* Class Inner Paper Rows */}
-                                                        {isExpanded && cRow.papers.map(p => (
-                                                            <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 text-xs">
-                                                                <td className="px-4 py-3 pl-10 font-bold text-slate-800 dark:text-slate-200">{p.subject}</td>
-                                                                <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-medium">{p.teacher}</td>
-                                                                <td className="px-4 py-3 text-center font-bold text-slate-700 dark:text-slate-300">{p.enrollment}</td>
-                                                                <td className="px-6 py-3">
-                                                                    <div className="flex items-center gap-3">
-                                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 w-12">{p.progress}%</span>
-                                                                        <div className="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${p.progress}%` }}></div>
+                                {/* SUBTAB 1: MARKS ENTRY PROGRESS */}
+                                {activeSubTab === 'progress' && (
+                                    <div className="space-y-4">
+                                        <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                                            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
+                                                <thead className="bg-slate-700 text-white font-bold text-xs uppercase">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left">Paper</th>
+                                                        <th className="px-4 py-3 text-left">Subject Teacher</th>
+                                                        <th className="px-4 py-3 text-center w-28">Enrollment</th>
+                                                        <th className="px-6 py-3 text-left">Marks Entry Progress</th>
+                                                        <th className="px-4 py-3 text-center w-32">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                                    {classPaperRows.map(cRow => {
+                                                        const isExpanded = expandedClasses[cRow.classKey];
+                                                        return (
+                                                            <React.Fragment key={cRow.classKey}>
+                                                                {/* Class Accordion Header Row */}
+                                                                <tr className="bg-slate-100 dark:bg-slate-800/60 font-bold text-xs text-slate-900 dark:text-white">
+                                                                    <td className="px-4 py-3 cursor-pointer flex items-center gap-2" onClick={() => setExpandedClasses(prev => ({ ...prev, [cRow.classKey]: !prev[cRow.classKey] }))}>
+                                                                        {isExpanded ? <ChevronDownIcon className="w-4 h-4 text-slate-500" /> : <ChevronRightIcon className="w-4 h-4 text-slate-500" />}
+                                                                        <span>{cRow.className}</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-3"></td>
+                                                                    <td className="px-4 py-3 text-center font-bold">{cRow.enrollment}</td>
+                                                                    <td className="px-6 py-3">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{cRow.overallProgress}% progress</span>
+                                                                            <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                                                <div className="h-full bg-blue-600 rounded-full" style={{ width: `${cRow.overallProgress}%` }}></div>
+                                                                            </div>
                                                                         </div>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-4 py-3 text-center">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            setSelectedClassFilter(cRow.className);
-                                                                            setSelectedSubjectFilter(p.subject);
-                                                                            setIsBroadsheetModalOpen(true);
-                                                                        }}
-                                                                        className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-300 hover:text-blue-800 bg-blue-50 dark:bg-blue-900/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800/50 transition-all shadow-2xs active:scale-95"
-                                                                        title={`Edit and view marks for ${p.subject}`}
-                                                                    >
-                                                                        <PencilIcon className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                                                                        <span>Edit Marks</span>
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </React.Fragment>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-center">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setSelectedClassFilter(cRow.className);
+                                                                                setSelectedSubjectFilter('all');
+                                                                                setIsBroadsheetModalOpen(true);
+                                                                            }}
+                                                                            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                                                                        >
+                                                                            View Broadsheet
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
 
-                        {/* SUBTAB 2: EXAM IRREGULARITIES */}
-                        {activeSubTab === 'irregularities' && (
-                            <div className="space-y-4 py-6 text-center text-slate-400">
-                                <SparklesIcon className="w-10 h-10 mx-auto opacity-30 text-amber-500" />
-                                <p className="text-xs font-bold uppercase tracking-wider">No exam irregularities or malpractice cases reported for {activeExam?.name || 'this exam'}.</p>
-                            </div>
-                        )}
+                                                                {/* Class Inner Paper Rows */}
+                                                                {isExpanded && cRow.papers.map(p => (
+                                                                    <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 text-xs">
+                                                                        <td className="px-4 py-3 pl-10 font-bold text-slate-800 dark:text-slate-200">{p.subject}</td>
+                                                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-medium">{p.teacher}</td>
+                                                                        <td className="px-4 py-3 text-center font-bold text-slate-700 dark:text-slate-300">{p.enrollment}</td>
+                                                                        <td className="px-6 py-3">
+                                                                            <div className="flex items-center gap-3">
+                                                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 w-12">{p.progress}%</span>
+                                                                                <div className="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${p.progress}%` }}></div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 text-center">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setSelectedClassFilter(cRow.className);
+                                                                                    setSelectedSubjectFilter(p.subject);
+                                                                                    setIsBroadsheetModalOpen(true);
+                                                                                }}
+                                                                                className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-300 hover:text-blue-800 bg-blue-50 dark:bg-blue-900/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800/50 transition-all shadow-2xs active:scale-95"
+                                                                                title={`Edit and view marks for ${p.subject}`}
+                                                                            >
+                                                                                <PencilIcon className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                                                                                <span>Edit Marks</span>
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
 
-                        {/* SUBTAB 3: EDIT HISTORY */}
-                        {activeSubTab === 'history' && (
-                            <div className="space-y-3 text-xs font-medium text-slate-600 dark:text-slate-400">
-                                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg flex justify-between">
-                                    <span>Created assessment `{activeExam?.name || 'Exam'}`</span>
-                                    <span className="text-slate-400">Today at 08:30 AM</span>
-                                </div>
-                                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg flex justify-between">
-                                    <span>Marks updated for English (Form 3 Central) by Mdm. Faith Kanguha</span>
-                                    <span className="text-slate-400">Today at 10:15 AM</span>
-                                </div>
+                                {/* SUBTAB 2: EXAM IRREGULARITIES */}
+                                {activeSubTab === 'irregularities' && (
+                                    <div className="space-y-4 py-6 text-center text-slate-400">
+                                        <SparklesIcon className="w-10 h-10 mx-auto opacity-30 text-amber-500" />
+                                        <p className="text-xs font-bold uppercase tracking-wider">No exam irregularities or malpractice cases reported for {activeExam?.name || 'this exam'}.</p>
+                                    </div>
+                                )}
+
+                                {/* SUBTAB 3: EDIT HISTORY */}
+                                {activeSubTab === 'history' && (
+                                    <div className="space-y-3 text-xs font-medium text-slate-600 dark:text-slate-400">
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg flex justify-between">
+                                            <span>Created assessment `{activeExam?.name || 'Exam'}`</span>
+                                            <span className="text-slate-400">Today at 08:30 AM</span>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg flex justify-between">
+                                            <span>Marks updated for English (Form 3 Central) by Mdm. Faith Kanguha</span>
+                                            <span className="text-slate-400">Today at 10:15 AM</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
-            )}
             </div>
-        </div>
 
             {/* MODAL 1: ADD NEW EXAM (STEP 1 & STEP 2) */}
             {isAddExamModalOpen && (
@@ -2538,6 +2572,17 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
                                     />
 
+                                    <div className="pt-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsStudentPickerModalOpen(true)}
+                                            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1.5"
+                                        >
+                                            <UserGroupIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                            <span>Choose from students</span>
+                                        </button>
+                                    </div>
+
                                     {/* Search result hint */}
                                     {(() => {
                                         const q = targetStudentSearch.trim().toLowerCase();
@@ -2614,13 +2659,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                 isSelected ? prev.filter(c => c !== cName) : [...prev, cName]
                                                             );
                                                         }}
-                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
-                                                            isSelected
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${isSelected
                                                                 ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
                                                                 : isStudentMatch
                                                                     ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-400 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400'
                                                                     : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-                                                        }`}
+                                                            }`}
                                                         title={isStudentMatch ? `A matching student is in ${cName}` : cName}
                                                     >
                                                         {isSelected ? '✓ ' : isStudentMatch ? '🎯 ' : '+ '}{cName}
@@ -2961,7 +3005,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         setTestedPaperConfigs(cleanPapers);
                                         try {
                                             localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(cleanPapers));
-                                        } catch(e) {}
+                                        } catch (e) { }
                                         setIsPapersModalOpen(false);
                                     }}
                                     className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-md transition-all"
@@ -2978,7 +3022,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             {isBroadsheetModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
                     <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-6xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in my-auto">
-                        
+
                         {/* Toast Alert */}
                         {saveToastMessage && (
                             <div className="bg-emerald-600 text-white px-6 py-3 font-bold text-xs flex justify-between items-center animate-in slide-in-from-top-2">
@@ -2999,7 +3043,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     </span>
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                    {selectedSubjectFilter === 'all' 
+                                    {selectedSubjectFilter === 'all'
                                         ? `Viewing full multi-subject broadsheet for ${activeExam?.name || 'this exam'}. Select a subject from the list or dropdown below to enter & edit raw marks.`
                                         : `Type or edit raw marks for ${selectedSubjectFilter} below. Total raw scores and grades calculate live automatically.`}
                                 </p>
@@ -3102,8 +3146,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     </button>
                                 )}
 
-                                <button 
-                                    onClick={() => setIsBroadsheetModalOpen(false)} 
+                                <button
+                                    onClick={() => setIsBroadsheetModalOpen(false)}
                                     className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-all"
                                 >
                                     <XIcon className="w-6 h-6" />
@@ -3146,7 +3190,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 <tr>
                                                     <th className="px-4 py-3 text-left w-24">Adm No</th>
                                                     <th className="px-4 py-3 text-left">Student Name</th>
-                                                    
+
                                                     {/* Dynamic Paper Header Columns */}
                                                     {getSubjectPapers(selectedSubjectFilter).map((paper: any, pIdx: number) => (
                                                         <th key={pIdx} className="px-4 py-3 text-center bg-indigo-900/90 text-indigo-100 border-x border-indigo-800">
@@ -3160,7 +3204,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                     <th className="px-4 py-3 text-center w-24">Status</th>
                                                 </tr>
                                             </thead>
-                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
+                                            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
                                                 {filteredStudentRows.map((st, stIndex) => {
                                                     const papers = getSubjectPapers(selectedSubjectFilter);
 
@@ -3174,7 +3218,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                         <tr key={st.admNo} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors">
                                                             <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">{st.admNo}</td>
                                                             <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
-                                                            
+
                                                             {/* Paper Editable Score Inputs */}
                                                             {papers.map((paper: any, pIdx: number) => {
                                                                 const currentVal = (st as any)[paper.key] ?? 0;
@@ -3325,7 +3369,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                         <tr key={st.admNo} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
                                                             <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">{st.admNo}</td>
                                                             <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
-                                                            
+
                                                             {allPapers.map((sp, pIdx) => {
                                                                 const val = (st as any)[sp.key] ?? 0;
                                                                 return (
@@ -3377,6 +3421,179 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
                                 >
                                     Close Window
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL 3: CHOOSE FROM STUDENTS */}
+            {isStudentPickerModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in my-auto">
+                        
+                        {/* Header matching exact screenshot styling */}
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
+                            <h3 className="text-base font-bold text-slate-800 dark:text-white">Choose from students</h3>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={() => setIsStudentPickerModalOpen(false)}
+                                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-all cursor-pointer"
+                                >
+                                    <XIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 space-y-4">
+                            {/* Academic Year Filter Bar */}
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Academic year:</span>
+                                <div className="flex-1 max-w-xs">
+                                    <select
+                                        value={studentPickerYear}
+                                        onChange={(e) => setStudentPickerYear(e.target.value)}
+                                        className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                                    >
+                                        <option value="2026">2026</option>
+                                        <option value="2025">2025</option>
+                                        <option value="2024">2024</option>
+                                        <option value="2023">2023</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Subtabs & Search Header */}
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
+                                <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-xs font-bold">
+                                    <button
+                                        type="button"
+                                        onClick={() => setStudentPickerTab('all_classes')}
+                                        className={`px-4 py-1.5 rounded-lg transition-all cursor-pointer ${
+                                            studentPickerTab === 'all_classes'
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        All Classes
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStudentPickerTab('all_students')}
+                                        className={`px-4 py-1.5 rounded-lg transition-all cursor-pointer ${
+                                            studentPickerTab === 'all_students'
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        All Students
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStudentPickerTab('all_groups')}
+                                        className={`px-4 py-1.5 rounded-lg transition-all cursor-pointer ${
+                                            studentPickerTab === 'all_groups'
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        All Groups
+                                    </button>
+                                </div>
+
+                                <div className="relative w-full sm:w-64">
+                                    <input
+                                        type="text"
+                                        value={studentPickerSearch}
+                                        onChange={(e) => setStudentPickerSearch(e.target.value)}
+                                        placeholder="Search students"
+                                        className="w-full h-9 pl-9 pr-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-full text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                                    />
+                                    <MagnifyingGlassIcon className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                                </div>
+                            </div>
+
+                            {/* Student Data Table */}
+                            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-950 max-h-80 overflow-y-auto shadow-xs">
+                                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/80 font-bold text-slate-600 dark:text-slate-300 sticky top-0 z-10">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left w-12">
+                                                <input
+                                                    type="checkbox"
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            const allIds = displayStudentsList.map(s => s.id);
+                                                            setSelectedStudentIds(allIds);
+                                                            const allCls = Array.from(new Set(displayStudentsList.map(s => s.class)));
+                                                            setSelectedClasses(prev => Array.from(new Set([...prev, ...allCls])));
+                                                        } else {
+                                                            setSelectedStudentIds([]);
+                                                        }
+                                                    }}
+                                                    checked={displayStudentsList.length > 0 && selectedStudentIds.length >= displayStudentsList.length}
+                                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                />
+                                            </th>
+                                            <th className="px-4 py-3 text-left w-24">Id</th>
+                                            <th className="px-4 py-3 text-left">Name</th>
+                                            <th className="px-4 py-3 text-left">Class</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                                        {filteredPickerStudents.map((st) => {
+                                            const isChecked = selectedStudentIds.includes(st.id);
+                                            return (
+                                                <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                    <td className="px-4 py-3">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isChecked}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedStudentIds(prev => [...prev, st.id]);
+                                                                    if (st.class && !selectedClasses.includes(st.class)) {
+                                                                        setSelectedClasses(prev => [...prev, st.class]);
+                                                                    }
+                                                                } else {
+                                                                    setSelectedStudentIds(prev => prev.filter(id => id !== st.id));
+                                                                }
+                                                            }}
+                                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-3 font-mono font-bold text-slate-800 dark:text-slate-200">{st.admNo}</td>
+                                                    <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{st.name}</td>
+                                                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-semibold">{st.class}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {filteredPickerStudents.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="px-4 py-8 text-center text-slate-400 text-xs italic">
+                                                    No students found matching query.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            <span className="text-xs text-slate-500 font-medium">
+                                {selectedStudentIds.length} student(s) selected
+                            </span>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsStudentPickerModalOpen(false)}
+                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer"
+                                >
+                                    Done
                                 </button>
                             </div>
                         </div>
