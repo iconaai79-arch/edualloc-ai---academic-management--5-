@@ -2984,6 +2984,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [activeTab]);
 
     const handlePostManualPayment = async () => {
+        if (isSavingManualPay) return;
         if (!manualPayStudentId || manualPayAmount <= 0) {
             alert("Please select a student and enter a valid payment amount.");
             return;
@@ -11454,12 +11455,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <p className="text-[9px] text-slate-400 font-medium">Student &amp; parent will receive receipt confirmation with a download link.</p>
                                 </div>
 
+                                {isSavingManualPay && (
+                                    <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center justify-center gap-3 text-amber-800 dark:text-amber-200 font-bold text-xs animate-pulse text-center">
+                                        <span className="animate-spin text-base">⏳</span>
+                                        <span>Posting transaction in progress... Please do not close or click again to prevent duplicate receipts.</span>
+                                    </div>
+                                )}
+
                                 <button
                                     onClick={handlePostManualPayment}
                                     disabled={isSavingManualPay || !manualPayStudentId || (!manualPayInvoiceId && !studentPendingInvoices.some((inv: any) => inv.isOpeningBalance && inv.id === manualPayInvoiceId)) || manualPayAmount <= 0}
-                                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all text-center disabled:opacity-50 mt-4 active:scale-[0.98]"
+                                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all text-center disabled:opacity-50 mt-4 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
                                 >
-                                    {isSavingManualPay ? 'Saving Receipt...' : 'Confirm and Post Receipt'}
+                                    {isSavingManualPay ? (
+                                        <>
+                                            <span className="animate-spin text-sm">⏳</span>
+                                            <span>Posting Transaction in Progress...</span>
+                                        </>
+                                    ) : (
+                                        'Confirm and Post Receipt'
+                                    )}
                                 </button>
                             </div>
                         </div>
@@ -11529,12 +11544,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                 )}
 
+                                {isReconciling && (
+                                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center justify-center gap-3 text-emerald-800 dark:text-emerald-200 font-bold text-xs animate-pulse text-center">
+                                        <span className="animate-spin text-base">⏳</span>
+                                        <span>Reconciling payment feed in progress... Please do not click again to avoid duplicate receipts.</span>
+                                    </div>
+                                )}
+
                                 <button
                                     onClick={handleReconcileBankFeed}
                                     disabled={isReconciling || !reconcileStudentId || !reconcileInvoiceId}
-                                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all text-center disabled:opacity-50 mt-4 active:scale-[0.98]"
+                                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all text-center disabled:opacity-50 mt-4 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
                                 >
-                                    {isReconciling ? 'Reconciling...' : 'Reconcile and Generate Receipt'}
+                                    {isReconciling ? (
+                                        <>
+                                            <span className="animate-spin text-sm">⏳</span>
+                                            <span>Reconciling & Generating Receipt...</span>
+                                        </>
+                                    ) : (
+                                        'Reconcile and Generate Receipt'
+                                    )}
                                 </button>
                             </div>
                         </div>
