@@ -15415,7 +15415,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </React.Suspense>
                 </div>
             )}
-            </div>
 
             {/* On-Screen Interactive PDF Preview Modal */}
             {pdfPreviewModal && (
@@ -15744,6 +15743,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 </div>
             )}
             </div>
+        </div>
     );
 };
 
