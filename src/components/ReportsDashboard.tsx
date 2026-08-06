@@ -804,27 +804,28 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         { key: 'assessments', label: 'Assessment Reports', icon: <AcademicCapIcon className="w-5 h-5 mr-3" /> },
         { key: 'exam_timetable', label: 'Exam Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
         { key: 'generated_timetable', label: 'Generated Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
+        { key: 'activity_logs', label: 'Activity Logs', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'patterns', label: 'Behavioral Analytics', icon: <TrendingUpIcon className="w-5 h-5 mr-3" /> },
         { key: 'client_statements', label: 'Client Statements', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'manage_users', label: 'Manage Showroom Users', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
     ].filter(tab => {
         if (isHeritage) {
-            const allowed = ['heritage_summary', 'stats', 'audit'];
+            const allowed = ['heritage_summary', 'stats', 'audit', 'activity_logs'];
             return allowed.includes(tab.key);
         }
         if (isAutoSales) {
-            const allowed = ['visuals', 'stats', 'audit', 'attendance', 'client_statements', 'manage_users'];
+            const allowed = ['visuals', 'stats', 'audit', 'activity_logs', 'attendance', 'client_statements', 'manage_users'];
             return allowed.includes(tab.key);
         }
         if (isRetailAgency || !isEdu) {
-            const allowed = ['visuals', 'stats', 'audit', 'attendance', 'patterns'];
+            const allowed = ['visuals', 'stats', 'audit', 'activity_logs', 'attendance', 'patterns'];
             if (currentInstitution?.institutionType === 'Transport' || currentInstitution?.institutionType === 'Business' || currentInstitution?.institutionType === 'Retail') {
                 allowed.push('client_statements');
             }
             return allowed.includes(tab.key);
         }
         if (isDS || activeScope === 'ds') {
-            const allowed = ['visuals', 'stats', 'audit', 'attendance', 'client_statements'];
+            const allowed = ['visuals', 'stats', 'audit', 'activity_logs', 'attendance', 'client_statements'];
             return allowed.includes(tab.key);
         }
         
@@ -1793,7 +1794,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             }}
                         />
                     )}
-                    {subTab === 'audit' && (
+                    {(subTab === 'audit' || subTab === 'activity_logs') && (
                         <ActivityLogView 
                             activityLog={activityLog} 
                             activityLogLimit={props.activityLogLimit}

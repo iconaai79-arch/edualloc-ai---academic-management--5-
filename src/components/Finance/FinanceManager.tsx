@@ -114,6 +114,7 @@ interface FinanceManagerProps {
     onUpdateLeaveStatus?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
+    activityLog?: any[];
 }
 
 export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
@@ -450,7 +451,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (instId && (selectedBranchTargetIds.has(instId) || selectedBranchTargetIds.has(cleanInstId))) return true;
             }
 
-            // Check via associated student ID (if item is invoice, receipt, payment, enrollment, etc.)
+            // Check via student ID or user ID in mergedEnrollments
+            const itemId = item.id || item.userId || item.user_id || item.studentId || item.student_id;
+            if (itemId && mergedEnrollments && mergedEnrollments.length > 0) {
+                const enr = mergedEnrollments.find((e: any) => e.userId === itemId || e.studentId === itemId);
+                if (enr) {
+                    const eBId = enr.branchId || enr.branch_id || enr.metadata?.branchId;
+                    const eInstId = enr.institutionId || enr.institution_id || enr.metadata?.institutionId;
+                    const cleanEBId = eBId ? cleanId(eBId) : '';
+                    const cleanEInstId = eInstId ? cleanId(eInstId) : '';
+
+                    if (eBId === selectedBranchId || cleanEBId === cleanSelectedId) return true;
+                    if (eInstId === selectedBranchId || cleanEInstId === cleanSelectedId) return true;
+                    if (selectedBranchTargetIds) {
+                        if (eBId && (selectedBranchTargetIds.has(eBId) || selectedBranchTargetIds.has(cleanEBId))) return true;
+                        if (eInstId && (selectedBranchTargetIds.has(eInstId) || selectedBranchTargetIds.has(cleanEInstId))) return true;
+                    }
+                }
+            }
+
+            // Check via associated student object (if item is invoice, receipt, etc.)
             const studentId = item.studentId || item.student_id || item.userId || item.user_id;
             if (studentId && mergedStudentsMap.has(studentId)) {
                 const s = mergedStudentsMap.get(studentId);
@@ -492,7 +512,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
 
         return false;
-    }, [selectedBranchId, selectedBranchTargetIds, props.institution?.id, branches, cleanId, mergedStudentsMap]);
+    }, [selectedBranchId, selectedBranchTargetIds, props.institution?.id, branches, cleanId, mergedStudentsMap, mergedEnrollments]);
 
     const displayBranches = useMemo(() => {
         const seenKeys = new Set<string>();
@@ -12336,6 +12356,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         { id: 'payroll_summary', label: 'Payroll Summary', icon: '👔' },
                         { id: 'annual', label: 'Annual Report', icon: '📊' },
                         { id: 'student_statement', label: 'Student Statement', icon: '🎓' },
+                        { id: 'activity_logs', label: 'Activity Logs', icon: '📋' },
                     ];
 
                     return (
@@ -14897,6 +14918,57 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                 );
                             })()}
+
+                                {reportsSubTab === 'activity_logs' && (
+                                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6 text-left">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                            <div>
+                                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Financial & System Activity Logs</h3>
+                                                <p className="text-[10px] text-slate-400 font-medium">Detailed audit trail of recorded transactions, ledger edits, and system actions</p>
+                                            </div>
+                                            <button
+                                                onClick={() => window.print()}
+                                                className="print:hidden flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md cursor-pointer"
+                                            >
+                                                🖨️ Print Activity Logs
+                                            </button>
+                                        </div>
+
+                                        <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
+                                            <table className="w-full border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Timestamp</th>
+                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">User / Actor</th>
+                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Action Details</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/40 text-xs">
+                                                    {(props.activityLog || []).map((log: any, idx: number) => (
+                                                        <tr key={log.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
+                                                            <td className="px-6 py-4 font-bold text-slate-500 whitespace-nowrap">
+                                                                {log.timestamp || log.created_at ? new Date(log.timestamp || log.created_at).toLocaleString() : '—'}
+                                                            </td>
+                                                            <td className="px-6 py-4 font-black text-slate-900 dark:text-white">
+                                                                {log.user || log.userName || log.recordedBy || 'System User'}
+                                                            </td>
+                                                            <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">
+                                                                {log.action || log.message || log.details || '—'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {(!props.activityLog || props.activityLog.length === 0) && (
+                                                        <tr>
+                                                            <td colSpan={3} className="p-12 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">
+                                                                No activity logs recorded yet.
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
 
                 {(activeTab as string) === 'users' && (
                     <div className="space-y-6 animate-in fade-in duration-300">

@@ -39,6 +39,7 @@ interface FinanceOfficerViewProps {
     onUpdateLeaveStatus?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
+    activityLog?: any[];
 }
 
 export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
@@ -74,7 +75,8 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     onProcessPayroll,
     onUpdateLeaveStatus,
     onEditUser,
-    onDeleteUser
+    onDeleteUser,
+    activityLog
 }) => {
     const totalBilled = (invoices || []).reduce((sum, inv) => sum + (inv.totalAmount || (inv as any).total_amount || 0), 0);
     const totalCollected = (receipts || []).reduce((sum, rec) => sum + (rec.amountPaid || (rec as any).amount_paid || 0), 0);
@@ -127,6 +129,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                 onUpdateLeaveStatus={onUpdateLeaveStatus}
                 onEditUser={onEditUser}
                 onDeleteUser={onDeleteUser}
+                activityLog={activityLog}
             />
         </div>
     );

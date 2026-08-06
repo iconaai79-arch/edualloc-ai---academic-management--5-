@@ -6343,6 +6343,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             onUpdateLeaveStatus={handleUpdateLeaveStatus}
                                             onEditUser={onEditUser}
                                             onDeleteUser={onDeleteUser}
+                                            activityLog={activityLog}
                                         />
                                     </ModuleAccessGuard>
                                 ) : activeRole === 'hr_officer' ? (
