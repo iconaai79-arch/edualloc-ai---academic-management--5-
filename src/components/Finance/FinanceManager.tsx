@@ -281,6 +281,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return Array.from(map.values());
     }, [props.students, allBranchStudents]);
 
+    const mergedStudentsMap = useMemo(() => {
+        const map = new Map<string, any>();
+        mergedStudents.forEach(s => {
+            if (s && s.id) map.set(s.id, s);
+        });
+        return map;
+    }, [mergedStudents]);
+
     const mergedInvoices = useMemo(() => {
         const map = new Map<string, any>();
         (props.invoices || []).forEach((inv: any) => map.set(inv.id, inv));
@@ -433,6 +441,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         if (selectedBranchId && selectedBranchId !== 'ALL') {
             const cleanSelectedId = cleanId(selectedBranchId);
 
+            // Direct check on item's own branch/inst IDs
             if (bId === selectedBranchId || cleanBId === cleanSelectedId) return true;
             if (instId === selectedBranchId || cleanInstId === cleanSelectedId) return true;
 
@@ -440,16 +449,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (bId && (selectedBranchTargetIds.has(bId) || selectedBranchTargetIds.has(cleanBId))) return true;
                 if (instId && (selectedBranchTargetIds.has(instId) || selectedBranchTargetIds.has(cleanInstId))) return true;
             }
+
+            // Check via associated student ID (if item is invoice, receipt, payment, enrollment, etc.)
+            const studentId = item.studentId || item.student_id || item.userId || item.user_id;
+            if (studentId && mergedStudentsMap.has(studentId)) {
+                const s = mergedStudentsMap.get(studentId);
+                if (s) {
+                    const sbId = s.branchId || s.branch_id || s.institutionBranchId || s.metadata?.branchId || s.metadata?.branch_id;
+                    const sInstId = s.institutionId || s.institution_id || s.metadata?.institutionId || s.metadata?.institution_id;
+                    const cleanSBId = sbId ? cleanId(sbId) : '';
+                    const cleanSInstId = sInstId ? cleanId(sInstId) : '';
+
+                    if (sbId === selectedBranchId || cleanSBId === cleanSelectedId) return true;
+                    if (sInstId === selectedBranchId || cleanSInstId === cleanSelectedId) return true;
+
+                    if (selectedBranchTargetIds) {
+                        if (sbId && (selectedBranchTargetIds.has(sbId) || selectedBranchTargetIds.has(cleanSBId))) return true;
+                        if (sInstId && (selectedBranchTargetIds.has(sInstId) || selectedBranchTargetIds.has(cleanSInstId))) return true;
+                    }
+                }
+            }
+
             return false;
         }
 
         // 2. When selectedBranchId === 'ALL':
-        // Records without explicit branch/inst IDs belong to current institution context by default
         if (!bId && !instId) return true;
         if (bId && (bId === currentInstId || cleanBId === cleanCurrentInstId)) return true;
         if (instId && (instId === currentInstId || cleanInstId === cleanCurrentInstId)) return true;
 
-        // If record belongs to a known satellite branch of current institution group, allow in ALL mode
         if (branches && branches.length > 0) {
             const isGroupBranchRecord = branches.some((b: any) => {
                 const bIdVal = b.id;
@@ -464,11 +492,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
 
         return false;
-    }, [selectedBranchId, selectedBranchTargetIds, props.institution?.id, branches, cleanId]);
+    }, [selectedBranchId, selectedBranchTargetIds, props.institution?.id, branches, cleanId, mergedStudentsMap]);
 
     const displayBranches = useMemo(() => {
         const seenKeys = new Set<string>();
         const result: any[] = [];
+
+        // Always include current main institution/default branch as the first option if not present
+        if (props.institution?.id) {
+            const mainId = props.institution.id;
+            const mainName = props.institution.name || 'Default Branch';
+            const cleanMainId = cleanId(mainId);
+            seenKeys.add(cleanMainId);
+            result.push({
+                id: mainId,
+                name: mainName,
+                linked_institution_id: mainId,
+                institution_id: mainId
+            });
+        }
 
         (branches || []).forEach((b: any) => {
             const rawName = (b.name || '').trim();
@@ -482,7 +524,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
         });
         return result;
-    }, [branches, cleanId]);
+    }, [branches, props.institution, cleanId]);
 
     // Branch User Isolation for System Users
     const filteredUsersByBranch = useMemo(() => {
