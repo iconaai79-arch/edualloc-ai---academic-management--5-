@@ -149,7 +149,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const uRoles: string[] = Array.isArray((props.currentUser as any)?.roles)
             ? (props.currentUser as any).roles.map((r: any) => String(r).toLowerCase().trim())
             : [];
-        const allowed = ['director', 'managing_director', 'county_director', 'group_admin', 'school_group_admin', 'super_admin', 'principal', 'headteacher', 'headmaster', 'bursar', 'accountant', 'finance_officer', 'admin', 'administrator', 'school_admin'];
+        const allowed = ['reseller', 'reseller_admin', 'reseller_user', 'director', 'managing_director', 'county_director', 'group_admin', 'school_group_admin', 'super_admin', 'principal', 'headteacher', 'headmaster', 'bursar', 'accountant', 'finance_officer', 'admin', 'administrator', 'school_admin'];
         return allowed.includes(uRole) || uRoles.some(r => allowed.includes(r));
     }, [props.currentUser]);
 
@@ -860,7 +860,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const handleSaveOpeningBalances = async () => {
         if (!canEditOpeningBalances) {
-            alert("Permission Denied: Only Director and Group Admin are authorized to edit opening balances.");
+            alert("Permission Denied: Only Reseller, Director, and Group Admin are authorized to edit opening balances.");
             return;
         }
         setIsSavingBalances(true);
@@ -9061,7 +9061,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 {!canEditOpeningBalances && (
                                     <div className="bg-amber-50 dark:bg-amber-950/30 p-4 rounded-2xl border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center gap-2">
                                         <ShieldCheckIcon className="w-5 h-5 text-amber-600 shrink-0" />
-                                        <span>Restricted Access: Opening balances are view-only. Editing or importing requires Director or Group Admin authorization.</span>
+                                        <span>Restricted Access: Opening balances are view-only. Editing or importing requires Reseller, Director, or Group Admin authorization.</span>
                                     </div>
                                 )}
 
