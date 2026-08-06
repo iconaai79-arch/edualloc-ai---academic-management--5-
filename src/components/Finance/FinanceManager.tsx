@@ -150,7 +150,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const uRoles: string[] = Array.isArray((props.currentUser as any)?.roles)
             ? (props.currentUser as any).roles.map((r: any) => String(r).toLowerCase().trim())
             : [];
-        const allowed = ['reseller', 'reseller_admin', 'reseller_user', 'director', 'managing_director', 'county_director', 'group_admin', 'school_group_admin', 'super_admin', 'principal', 'headteacher', 'headmaster', 'bursar', 'accountant', 'finance_officer', 'admin', 'administrator', 'school_admin'];
+        const allowed = ['reseller', 'reseller_admin', 'reseller_user', 'director', 'managing_director', 'county_director', 'group_admin', 'school_group_admin', 'super_admin', 'principal', 'headteacher', 'head_teacher', 'head teacher', 'headmaster', 'bursar', 'accountant', 'finance_officer', 'admin', 'administrator', 'school_admin'];
         return allowed.includes(uRole) || uRoles.some(r => allowed.includes(r));
     }, [props.currentUser]);
 

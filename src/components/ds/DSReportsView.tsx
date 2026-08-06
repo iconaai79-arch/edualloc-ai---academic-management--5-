@@ -1204,7 +1204,7 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                 const EXP_CATEGORIES = ['Fuel','Maintenance','Salaries','Rent','Utilities','Marketing','Equipment','Insurance','Other'];
                 const CAT_COLORS: Record<string,string> = { Fuel:'bg-orange-100 text-orange-700', Maintenance:'bg-blue-100 text-blue-700', Salaries:'bg-violet-100 text-violet-700', Rent:'bg-amber-100 text-amber-700', Utilities:'bg-cyan-100 text-cyan-700', Marketing:'bg-pink-100 text-pink-700', Equipment:'bg-teal-100 text-teal-700', Insurance:'bg-indigo-100 text-indigo-700', Other:'bg-slate-100 text-slate-600' };
                 const filtered = (expenditures || []).filter(e => {
-                    const d = new Date(e.expenseDate).getTime();
+                    const d = e.expenseDate ? new Date(e.expenseDate).getTime() : NaN;
                     const matchCat = expRepCategory === 'all' || e.category === expRepCategory;
                     const matchFrom = !expRepDateFrom || d >= new Date(expRepDateFrom).getTime();
                     const matchTo = !expRepDateTo || d <= new Date(expRepDateTo + 'T23:59:59').getTime();
@@ -1332,7 +1332,7 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                                             const veh = (vehicles||[]).find((v: any) => v.id === exp.vehicleId);
                                             return (
                                                 <tr key={exp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                                                    <td className="px-6 py-4 text-xs font-bold text-slate-500">{new Date(exp.expenseDate).toLocaleDateString('en-KE',{day:'2-digit',month:'short',year:'numeric'})}</td>
+                                                    <td className="px-6 py-4 text-xs font-bold text-slate-500">{exp.expenseDate ? new Date(exp.expenseDate).toLocaleDateString('en-KE',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</td>
                                                     <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white max-w-[200px] truncate">{exp.description}</td>
                                                     <td className="px-6 py-4"><span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${CAT_COLORS[exp.category]||CAT_COLORS['Other']}`}>{exp.category}</span></td>
                                                     <td className="px-6 py-4 font-black text-sm text-rose-600 dark:text-rose-400">KES {(exp.amount??0).toLocaleString()}</td>
