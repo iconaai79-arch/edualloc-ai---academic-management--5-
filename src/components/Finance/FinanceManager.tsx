@@ -127,7 +127,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
-    const [logisticsSubTab, setLogisticsSubTab] = useState<'transit' | 'stores'>('transit');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
     const [pdfPreviewModal, setPdfPreviewModal] = useState<{ title: string; subtitle: string; studentName: string; admNo: string; className: string; invoiced: number; paid: number; balance: number; items?: any[] } | null>(null);
@@ -3352,6 +3351,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
+    const [onScreenReceiptModal, setOnScreenReceiptModal] = useState<{ receipt: Receipt; dataUri: string; studentName: string; admNo: string } | null>(null);
+
+    const handlePreviewOnScreenReceipt = async (receipt: Receipt) => {
+        try {
+            let relatedTx = null;
+            if (receipt.relatedTransactionId) {
+                relatedTx = {
+                    transactionId: receipt.relatedTransactionId,
+                    amount: receipt.amountPaid,
+                    provider: receipt.paymentMethod,
+                    description: receipt.paidFor || 'Fees Payment'
+                } as any;
+            }
+            const student = receipt.studentId ? props.students.find(s => s.id === receipt.studentId) : null;
+            const studentName = student?.name || (receipt as any).studentName || (receipt as any).payerName || 'Walk-in / Student';
+            const admNo = student?.admissionNumber || (student as any)?.admission_number || '—';
+
+            const dataUri = await pdfService.generateReceiptPdfDataUri(
+                receipt,
+                relatedTx,
+                props.institution,
+                props.companyDetails || {} as any,
+                props.institution.logoUrl || null
+            );
+            setOnScreenReceiptModal({ receipt, dataUri, studentName, admNo });
+        } catch (err: any) {
+            console.error("Failed to generate receipt preview:", err);
+            alert("Failed to generate receipt preview: " + (err.message || err));
+        }
+    };
+
     const [eposModalReceipt, setEposModalReceipt] = useState<{ receipt: Receipt; dataUri: string } | null>(null);
 
     const handlePrintEposThermalReceipt = async (receipt: Receipt) => {
@@ -6280,12 +6310,29 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         {rec.paymentDate ? new Date(rec.paymentDate).toLocaleDateString() : 'N/A'}
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
-                                                        <button
-                                                            onClick={() => handleDownloadReceipt(rec)}
-                                                            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-650 dark:hover:bg-indigo-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
-                                                        >
-                                                            PDF
-                                                        </button>
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            <button
+                                                                onClick={() => handlePreviewOnScreenReceipt(rec)}
+                                                                className="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest border border-indigo-200 dark:border-indigo-800/40 transition-all cursor-pointer shadow-xs active:scale-95 whitespace-nowrap"
+                                                                title="View Official Receipt On-Screen Preview"
+                                                            >
+                                                                👁️ Preview
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDownloadReceipt(rec)}
+                                                                className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer whitespace-nowrap"
+                                                                title="Download standard A4 PDF Receipt"
+                                                            >
+                                                                📄 A4 PDF
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handlePrintEposThermalReceipt(rec)}
+                                                                className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-800/40 transition-all cursor-pointer shadow-xs active:scale-95 whitespace-nowrap"
+                                                                title="Print on EPOS 80mm Thermal Printer"
+                                                            >
+                                                                🖨️ EPOS (80mm)
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -15161,51 +15208,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             {/* Logistics & Transit Module View */}
             {activeTab === 'logistics' && (
-                <div className="space-y-6 animate-in fade-in duration-300">
-                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-2 overflow-x-auto">
-                        <button
-                            type="button"
-                            onClick={() => setLogisticsSubTab('transit')}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                                logisticsSubTab === 'transit'
-                                    ? 'bg-indigo-600 text-white shadow-md'
-                                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                            }`}
-                        >
-                            <TruckIcon className="w-4 h-4" />
-                            <span>Transport & Transit Billing</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setLogisticsSubTab('stores')}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                                logisticsSubTab === 'stores'
-                                    ? 'bg-indigo-600 text-white shadow-md'
-                                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                            }`}
-                        >
-                            <BuildingLibraryIcon className="w-4 h-4" />
-                            <span>Stores & Inventory</span>
-                        </button>
-                    </div>
-
-                    {logisticsSubTab === 'transit' ? (
-                        <React.Suspense fallback={
-                            <div className="p-12 text-center text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">
-                                Loading Transport & Transit Billing Hub...
-                            </div>
-                        }>
-                            <LogisticsManager
-                                currentInstitution={props.institution}
-                                users={props.users || props.students || []}
-                            />
-                        </React.Suspense>
-                    ) : (
-                        <ProcurementHub
-                            institution={props.institution}
-                            currentUser={props.currentUser}
+                <div className="animate-in fade-in duration-300">
+                    <React.Suspense fallback={
+                        <div className="p-12 text-center text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">
+                            Loading Transport & Transit Billing Hub...
+                        </div>
+                    }>
+                        <LogisticsManager
+                            currentInstitution={props.institution}
+                            users={props.users || props.students || []}
                         />
-                    )}
+                    </React.Suspense>
                 </div>
             )}
             </div>
@@ -15453,6 +15466,83 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
                                 >
                                     Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* On-Screen Interactive Receipt Preview Modal */}
+            {onScreenReceiptModal && (
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-fade-in">
+                    <div className="bg-slate-900 border border-slate-700 rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden max-h-[95vh] flex flex-col text-left">
+                        <div className="p-6 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center border border-indigo-500/30">
+                                    <BanknotesIcon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-tight text-white">Official Receipt On-Screen Document Preview</h3>
+                                    <p className="text-[10px] font-bold text-indigo-400">
+                                        Receipt #{onScreenReceiptModal.receipt.receiptNumber || onScreenReceiptModal.receipt.id} — {onScreenReceiptModal.studentName} ({onScreenReceiptModal.admNo})
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setOnScreenReceiptModal(null)}
+                                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-2xl transition-all cursor-pointer"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 bg-slate-950/60 flex justify-center">
+                            <iframe
+                                src={onScreenReceiptModal.dataUri}
+                                className="w-full h-[650px] bg-white rounded-2xl shadow-2xl border border-slate-200"
+                                title="On-Screen Receipt Preview"
+                            />
+                        </div>
+
+                        <div className="p-6 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleDownloadReceipt(onScreenReceiptModal.receipt)}
+                                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-indigo-600/30"
+                                >
+                                    <span>📥 Download A4 PDF</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handlePrintEposThermalReceipt(onScreenReceiptModal.receipt);
+                                        setOnScreenReceiptModal(null);
+                                    }}
+                                    className="px-4 py-2.5 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border border-emerald-500/30 flex items-center gap-2"
+                                >
+                                    <PrinterIcon className="w-4 h-4" />
+                                    <span>🖨️ EPOS (80mm)</span>
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => {
+                                        const win = window.open(onScreenReceiptModal.dataUri);
+                                        if (win) {
+                                            win.focus();
+                                            win.print();
+                                        }
+                                    }}
+                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-emerald-600/30 active:scale-95 flex items-center gap-2"
+                                >
+                                    <PrinterIcon className="w-4 h-4" />
+                                    <span>Print Document</span>
+                                </button>
+                                <button
+                                    onClick={() => setOnScreenReceiptModal(null)}
+                                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                >
+                                    Close Preview
                                 </button>
                             </div>
                         </div>
