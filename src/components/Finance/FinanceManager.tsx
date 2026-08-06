@@ -126,7 +126,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
-    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
