@@ -1486,6 +1486,217 @@ export const generateRetailReceiptPdf = async (
     return doc.output('bloburl');
 };
 
+export const generateFinanceEposThermalReceiptPdfDataUri = async (
+    receipt: Receipt,
+    student: User | null | undefined,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    extraMeta?: { studentClass?: string; invoiceDetails?: any; isReprint?: boolean; previousBalance?: number; remainingBalance?: number }
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+
+    // Standard 80mm EPOS Thermal Spool format
+    const baseHeight = 160;
+    const itemsCount = (receipt.items || []).length || 1;
+    const estimatedHeight = Math.max(140, baseHeight + (itemsCount * 8));
+
+    const doc = new lib.jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [80, estimatedHeight]
+    });
+
+    const logoImg = await loadImage(logoUrl);
+    const margin = 4;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = 8;
+
+    const centerText = (text: string, y: number) => {
+        const textWidth = doc.getTextWidth(text);
+        doc.text(text, (pageWidth - textWidth) / 2, y);
+    };
+
+    // 1. Institution Branding & Header
+    if (logoImg) {
+        const logoWidth = 18;
+        const logoHeight = (logoImg.height * logoWidth) / logoImg.width;
+        doc.addImage(logoImg, 'PNG', (pageWidth - logoWidth) / 2, yPos, logoWidth, logoHeight);
+        yPos += logoHeight + 4;
+    }
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    centerText(institution?.name || 'INSTITUTION RECEIPT', yPos);
+    yPos += 4;
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    if (institution?.location) {
+        const locStr = typeof institution.location === 'string' ? institution.location : 'Finance & Accounting Division';
+        centerText(locStr.substring(0, 38), yPos);
+        yPos += 3.5;
+    }
+    if (institution?.phoneNumber || institution?.phone) {
+        centerText(`Tel: ${institution.phoneNumber || institution.phone}`, yPos);
+        yPos += 3.5;
+    }
+    if (institution?.email) {
+        centerText(institution.email, yPos);
+        yPos += 3.5;
+    }
+
+    // Line divider
+    yPos += 1;
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 5;
+
+    // 2. Receipt Badge
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    if (extraMeta?.isReprint) {
+        centerText("*** REPRINT ***", yPos);
+        yPos += 4;
+    }
+    centerText("EPOS OFFICIAL FEE RECEIPT", yPos);
+    yPos += 5;
+
+    // 3. Key Transaction Details
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    
+    const recNo = receipt.receiptNumber || receipt.id || 'REC-000';
+    doc.text(`Receipt No: ${recNo}`, margin, yPos);
+    yPos += 3.8;
+
+    const formattedDate = receipt.paymentDate ? new Date(receipt.paymentDate).toLocaleString('en-GB') : new Date().toLocaleString('en-GB');
+    doc.text(`Date: ${formattedDate}`, margin, yPos);
+    yPos += 3.8;
+
+    if (student) {
+        doc.text(`Student: ${student.name || 'N/A'}`, margin, yPos);
+        yPos += 3.8;
+
+        const admNo = student.admissionNumber || (student as any).admission_number || (student as any).admNo || 'N/A';
+        doc.text(`Adm No: ${admNo}`, margin, yPos);
+        yPos += 3.8;
+
+        if (extraMeta?.studentClass) {
+            doc.text(`Class: ${extraMeta.studentClass}`, margin, yPos);
+            yPos += 3.8;
+        }
+    } else if (receipt.payerName || receipt.paidFor) {
+        doc.text(`Payer: ${receipt.payerName || 'Walk-in / Client'}`, margin, yPos);
+        yPos += 3.8;
+    }
+
+    doc.text(`Payment Mode: ${receipt.paymentMethod || 'Cash'}`, margin, yPos);
+    yPos += 3.8;
+
+    if (receipt.relatedTransactionId) {
+        doc.text(`Ref/Txn ID: ${receipt.relatedTransactionId}`, margin, yPos);
+        yPos += 3.8;
+    }
+
+    // Line divider
+    yPos += 1;
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 5;
+
+    // 4. Line Items Table Header
+    doc.setFont('helvetica', 'bold');
+    doc.text("Description", margin, yPos);
+    doc.text("Amount (KES)", pageWidth - margin, yPos, { align: 'right' });
+    yPos += 4;
+
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 4;
+
+    // Line Items Content
+    doc.setFont('helvetica', 'normal');
+    const items = receipt.items && receipt.items.length > 0 
+        ? receipt.items 
+        : [{ name: receipt.paidFor || 'Academic Tuition & School Fees', amount: receipt.amountPaid }];
+
+    for (const item of items) {
+        const itemTitle = (item.name || item.description || 'Fee Payment').substring(0, 24);
+        const itemAmount = (item.amount || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 });
+        doc.text(itemTitle, margin, yPos);
+        doc.text(itemAmount, pageWidth - margin, yPos, { align: 'right' });
+        yPos += 4.5;
+    }
+
+    // Line divider
+    yPos += 2;
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 5;
+
+    // Totals Summary
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.text("TOTAL AMOUNT PAID:", margin, yPos);
+    doc.text(`KES ${(receipt.amountPaid || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 5;
+
+    if (extraMeta?.previousBalance !== undefined) {
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text("Previous Balance:", margin, yPos);
+        doc.text(`KES ${extraMeta.previousBalance.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`, pageWidth - margin, yPos, { align: 'right' });
+        yPos += 4;
+    }
+
+    if (extraMeta?.remainingBalance !== undefined) {
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text("Outstanding Balance:", margin, yPos);
+        doc.text(`KES ${extraMeta.remainingBalance.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`, pageWidth - margin, yPos, { align: 'right' });
+        yPos += 5;
+    }
+
+    // Footer barcode & thank you text
+    yPos += 3;
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 5;
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'italic');
+    centerText("Thank you for your payment!", yPos);
+    yPos += 4;
+
+    doc.setFont('helvetica', 'normal');
+    centerText("Valid EPOS Electronic Receipt", yPos);
+    yPos += 4;
+
+    centerText(`*${recNo}*`, yPos);
+
+    return doc.output('datauristring');
+};
+
+export const downloadFinanceEposThermalReceiptPdf = async (
+    receipt: Receipt,
+    student: User | null | undefined,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    extraMeta?: { studentClass?: string; invoiceDetails?: any; isReprint?: boolean; previousBalance?: number; remainingBalance?: number }
+) => {
+    const dataUri = await generateFinanceEposThermalReceiptPdfDataUri(receipt, student, institution, companyDetails, logoUrl, extraMeta);
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = `EPOS-Receipt-${receipt.receiptNumber || receipt.id}.pdf`;
+    link.click();
+};
+
 export const generateUserListPdf = async (
     users: User[],
     title: string,
