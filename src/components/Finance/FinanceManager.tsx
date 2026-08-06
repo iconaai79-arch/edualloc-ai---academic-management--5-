@@ -5800,7 +5800,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             )}
                         </div>
                         {/* Branch Selector Dropdown */}
-                        {(props.currentUser?.role === 'super_admin' || props.currentUser?.role === 'group_admin') && displayBranches.length > 0 && (
+                        {(['super_admin', 'group_admin', 'admin', 'reseller', 'reseller_admin', 'finance_officer'].includes(props.currentUser?.role || '') || displayBranches.length > 1) && displayBranches.length > 0 && (
                             <div className="flex items-center gap-2 px-4 border-l border-slate-100 dark:border-slate-800">
                                 <select
                                     value={selectedBranchId}
@@ -15073,8 +15073,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
             </div>
-        );
-    })()}
 
             {/* Excel Payment Import & Auto-Reconcile Modal */}
             {isExcelImportModalOpen && (
