@@ -1499,7 +1499,7 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
 
     // Standard 80mm EPOS Thermal Spool format
     const baseHeight = 160;
-    const itemsCount = (receipt.items || []).length || 1;
+    const itemsCount = ((receipt as any).items || []).length || 1;
     const estimatedHeight = Math.max(140, baseHeight + (itemsCount * 8));
 
     const doc = new lib.jsPDF({
@@ -1538,8 +1538,9 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
         centerText(locStr.substring(0, 38), yPos);
         yPos += 3.5;
     }
-    if (institution?.phoneNumber || institution?.phone) {
-        centerText(`Tel: ${institution.phoneNumber || institution.phone}`, yPos);
+    const instPhone = institution?.phoneNumber || (institution as any)?.phone;
+    if (instPhone) {
+        centerText(`Tel: ${instPhone}`, yPos);
         yPos += 3.5;
     }
     if (institution?.email) {
@@ -1576,6 +1577,7 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
     doc.text(`Date: ${formattedDate}`, margin, yPos);
     yPos += 3.8;
 
+    const payerName = (receipt as any).payerName || (receipt as any).studentName;
     if (student) {
         doc.text(`Student: ${student.name || 'N/A'}`, margin, yPos);
         yPos += 3.8;
@@ -1588,8 +1590,8 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
             doc.text(`Class: ${extraMeta.studentClass}`, margin, yPos);
             yPos += 3.8;
         }
-    } else if (receipt.payerName || receipt.paidFor) {
-        doc.text(`Payer: ${receipt.payerName || 'Walk-in / Client'}`, margin, yPos);
+    } else if (payerName || receipt.paidFor) {
+        doc.text(`Payer: ${payerName || 'Walk-in / Client'}`, margin, yPos);
         yPos += 3.8;
     }
 
@@ -1619,8 +1621,9 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
 
     // Line Items Content
     doc.setFont('helvetica', 'normal');
-    const items = receipt.items && receipt.items.length > 0 
-        ? receipt.items 
+    const rawItems = (receipt as any).items;
+    const items = rawItems && rawItems.length > 0 
+        ? rawItems 
         : [{ name: receipt.paidFor || 'Academic Tuition & School Fees', amount: receipt.amountPaid }];
 
     for (const item of items) {
