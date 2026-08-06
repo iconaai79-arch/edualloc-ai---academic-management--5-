@@ -3010,19 +3010,22 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         setIsTransitioning(true);
         setTimeout(async () => {
             const adminRoles = [
-                // Top Tier Admin
-                'admin', 'group_admin', 'school_group_admin', 'school_admin', 'head_teacher', 'deputy', 'dos', 'hod', 'tto', 
-                // Business/Institution Admins
-                'reseller', 'property_admin', 'cooperative_manager', 'coop_admin', 'coop_chairman',
-                'sacco_officer', 'agrovet_admin', 'his_admin', 'pharmacy_admin', 'carwash_admin',
-                'mechanic_admin', 'fuel_admin', 'legal_admin', 'church_admin', 'pastor', 'elder',
-                'deacon', 'treasurer', 'secretary', 'driving_instructor', 'campaign_admin',
-                'constituency_admin', 'constituency_staff', 'county_admin', 'county_staff',
+                // Primary Tenant/Institution Administrators
+                'super_admin', 'admin', 'reseller', 'property_admin', 'cooperative_manager', 'coop_chairman', 'coop_admin',
+                'his_admin', 'pharmacy_admin', 'carwash_admin', 'agrovet_admin', 'church_admin', 'pastor',
+                'mechanic_admin', 'fuel_admin', 'legal_admin', 'restaurant_admin', 'director',
+                'constituency_admin', 'county_admin',
+                
+                // School / Institutional Leaders & Secondary Admins
+                'head_teacher', 'deputy', 'dos', 'hod', 'tto', 'group_admin', 'school_group_admin', 'school_admin',
+                
                 // Staff / Officers
                 'finance', 'finance_officer', 'academics_officer', 'hr_officer', 'transport_admin',
                 'boarding_master', 'librarian', 'store', 'event_manager', 'security', 'info_desk',
+                
                 // Instructors / Teachers
                 'teacher', 'practice_teacher', 'lecturer',
+                
                 // Assistant / Support staff
                 'transport_assistant', 'driver'
             ];
