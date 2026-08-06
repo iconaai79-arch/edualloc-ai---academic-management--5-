@@ -4563,6 +4563,22 @@ export interface DSPayment {
     createdAt: string;
 }
 
+export interface DSExpenditure {
+    id: string;
+    institutionId: string;
+    description: string;
+    category: 'Fuel' | 'Maintenance' | 'Salaries' | 'Rent' | 'Utilities' | 'Marketing' | 'Equipment' | 'Insurance' | 'Other';
+    amount: number;
+    paymentMethod: 'Cash' | 'Bank Transfer' | 'M-Pesa' | 'Cheque';
+    referenceNumber?: string;
+    vehicleId?: string;
+    paidTo?: string;
+    recordedBy?: string;
+    notes?: string;
+    expenseDate: string;
+    createdAt: string;
+}
+
 export interface SchoolRegistry {
     id: string;
     name: string;

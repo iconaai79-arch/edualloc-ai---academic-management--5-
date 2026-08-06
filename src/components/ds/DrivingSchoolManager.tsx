@@ -47,7 +47,7 @@ import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
 
 import type { 
-    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure, DSFeeItem, LetterheadConfig, DSLead 
+    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure, DSFeeItem, LetterheadConfig, DSLead, DSExpenditure 
 } from '../../types';
 import { DSBroadcasterView } from './DSBroadcasterView';
 import { DSFinanceFeeds } from './DSFinanceFeeds';
@@ -3451,6 +3451,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         mpesaTransactions,
         bankTransactions,
         leads, addLead, updateLead, deleteLead, deleteLeads,
+        expenditures,
+        addExpenditure: onAddExpenditure,
+        updateExpenditure: onUpdateExpenditure,
+        deleteExpenditure: onDeleteExpenditure,
         sendLessonNotification
     } = useDrivingSchool();
     
@@ -3604,7 +3608,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
         return requestedBy;
     };
-    const [financeTab, setFinanceTab] = useState<'invoices' | 'payments' | 'feeds' | 'audit'>('invoices');
+    const [financeTab, setFinanceTab] = useState<'invoices' | 'payments' | 'feeds' | 'audit' | 'expenditure'>('invoices');
     const [invoiceSearch, setInvoiceSearch] = useState('');
     const [paymentSearch, setPaymentSearch] = useState('');
     const [invoicePage, setInvoicePage] = useState(1);
@@ -3614,6 +3618,20 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [auditDateFrom, setAuditDateFrom] = useState('');
     const [auditDateTo, setAuditDateTo] = useState('');
     const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots' | 'groups' | 'kiosk'>('categories');
+    // Expenditure state
+    const [expSearch, setExpSearch] = useState('');
+    const [expCategoryFilter, setExpCategoryFilter] = useState<string>('all');
+    const [expDateFrom, setExpDateFrom] = useState('');
+    const [expDateTo, setExpDateTo] = useState('');
+    const [expPage, setExpPage] = useState(1);
+    const EXP_PAGE_SIZE = 20;
+    const [showExpForm, setShowExpForm] = useState(false);
+    const [editingExp, setEditingExp] = useState<DSExpenditure | null>(null);
+    const [expForm, setExpForm] = useState<Partial<DSExpenditure>>({
+        description: '', category: 'Other', amount: 0,
+        paymentMethod: 'Cash', referenceNumber: '', vehicleId: '',
+        paidTo: '', notes: '', expenseDate: new Date().toISOString().split('T')[0]
+    });
     const [newDSGroupForm, setNewDSGroupForm] = useState('');
     const [editingDSGroupOriginalName, setEditingDSGroupOriginalName] = useState<string | null>(null);
     const [editingDSGroupForm, setEditingDSGroupForm] = useState('');
@@ -7795,6 +7813,14 @@ END $$;
                                         Audit
                                     </button>
                                 )}
+                                <button 
+                                    onClick={() => setFinanceTab('expenditure')}
+                                    className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        financeTab === 'expenditure' ? 'bg-white dark:bg-slate-700 text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    Expenditures
+                                </button>
                             </div>
 
                             {financeTab === 'invoices' && (
@@ -8531,6 +8557,212 @@ END $$;
                                                             <CheckCircleIcon className="w-3.5 h-3.5" /> Verify All ({filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status || '')).length})
                                                         </button>
                                                     )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {financeTab === 'expenditure' && (() => {
+                                const allExp = [...(expenditures || [])].sort((a, b) => new Date(b.expenseDate).getTime() - new Date(a.expenseDate).getTime());
+                                const filteredExp = allExp.filter(e => {
+                                    const q = expSearch.toLowerCase();
+                                    const matchSearch = !q || e.description?.toLowerCase().includes(q) || e.category?.toLowerCase().includes(q) || e.paidTo?.toLowerCase().includes(q) || e.referenceNumber?.toLowerCase().includes(q);
+                                    const matchCat = expCategoryFilter === 'all' || e.category === expCategoryFilter;
+                                    const eDate = new Date(e.expenseDate).getTime();
+                                    const matchFrom = !expDateFrom || eDate >= new Date(expDateFrom).getTime();
+                                    const matchTo = !expDateTo || eDate <= new Date(expDateTo + 'T23:59:59').getTime();
+                                    return matchSearch && matchCat && matchFrom && matchTo;
+                                });
+                                const totalPages = Math.max(1, Math.ceil(filteredExp.length / EXP_PAGE_SIZE));
+                                const pagedExp = filteredExp.slice((expPage - 1) * EXP_PAGE_SIZE, expPage * EXP_PAGE_SIZE);
+                                const totalAmt = filteredExp.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+                                const byCat: Record<string, number> = {};
+                                filteredExp.forEach(e => { byCat[e.category] = (byCat[e.category] || 0) + (Number(e.amount) || 0); });
+                                const EXP_CATEGORIES = ['Fuel','Maintenance','Salaries','Rent','Utilities','Marketing','Equipment','Insurance','Other'];
+                                const CAT_COLORS: Record<string,string> = { Fuel:'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', Maintenance:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', Salaries:'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400', Rent:'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', Utilities:'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400', Marketing:'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400', Equipment:'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400', Insurance:'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400', Other:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' };
+
+                                const handleSaveExp = async () => {
+                                    if (!expForm.description || !expForm.amount || Number(expForm.amount) <= 0) {
+                                        toastError('Description and a valid amount are required');
+                                        return;
+                                    }
+                                    setIsActionLoading(true);
+                                    try {
+                                        const data = { ...expForm, recordedBy: currentUser?.name || currentUser?.email || 'Admin' };
+                                        if (editingExp) {
+                                            await onUpdateExpenditure({ ...editingExp, ...data });
+                                        } else {
+                                            await onAddExpenditure(data as DSExpenditure);
+                                        }
+                                        setShowExpForm(false);
+                                        setEditingExp(null);
+                                        setExpForm({ description: '', category: 'Other', amount: 0, paymentMethod: 'Cash', referenceNumber: '', vehicleId: '', paidTo: '', notes: '', expenseDate: new Date().toISOString().split('T')[0] });
+                                    } catch (err) { } finally { setIsActionLoading(false); }
+                                };
+
+                                const handleExportExpCSV = () => {
+                                    const header = ['Date','Description','Category','Amount (KES)','Payment Method','Ref #','Vehicle','Paid To','Recorded By','Notes'];
+                                    const rows = filteredExp.map(e => [
+                                        e.expenseDate, e.description, e.category, e.amount,
+                                        e.paymentMethod, e.referenceNumber || '', e.vehicleId || '',
+                                        e.paidTo || '', e.recordedBy || '', e.notes || ''
+                                    ]);
+                                    const csv = [header, ...rows].map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+                                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a'); a.href = url;
+                                    a.download = `ds_expenditures_${new Date().toISOString().split('T')[0]}.csv`;
+                                    a.click(); URL.revokeObjectURL(url);
+                                };
+
+                                return (
+                                    <div className="space-y-6 animate-fade-in">
+                                        {/* Summary Cards */}
+                                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Expenses</p>
+                                                <p className="text-2xl font-black text-rose-600 mt-1">KES {totalAmt.toLocaleString()}</p>
+                                                <p className="text-[9px] text-slate-400 font-bold mt-1">{filteredExp.length} records</p>
+                                            </div>
+                                            {Object.entries(byCat).slice(0,3).map(([cat, amt]) => (
+                                                <div key={cat} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{cat}</p>
+                                                    <p className="text-xl font-black text-slate-800 dark:text-slate-100 mt-1">KES {amt.toLocaleString()}</p>
+                                                    <p className="text-[9px] text-slate-400 font-bold mt-1">{((amt/Math.max(totalAmt,1))*100).toFixed(1)}% of total</p>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Controls */}
+                                        <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                                            <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                                                <div>
+                                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Expenditure Register</h3>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Log and track all school operating costs</p>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    <button onClick={handleExportExpCSV} className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                                                        <DownloadIcon className="w-3.5 h-3.5" /> Export CSV
+                                                    </button>
+                                                    <button onClick={() => { setEditingExp(null); setExpForm({ description: '', category: 'Other', amount: 0, paymentMethod: 'Cash', referenceNumber: '', vehicleId: '', paidTo: '', notes: '', expenseDate: new Date().toISOString().split('T')[0] }); setShowExpForm(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/20">
+                                                        <PlusIcon className="w-3.5 h-3.5" /> Add Expense
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Filters */}
+                                            <div className="px-8 py-4 border-b border-slate-50 dark:border-slate-800 flex flex-wrap items-center gap-3">
+                                                <div className="relative flex-1 min-w-[160px]">
+                                                    <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                                    <input type="text" placeholder="Search..." value={expSearch} onChange={e => { setExpSearch(e.target.value); setExpPage(1); }} className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-1 focus:ring-rose-500 text-slate-700 dark:text-slate-200" />
+                                                </div>
+                                                <select value={expCategoryFilter} onChange={e => { setExpCategoryFilter(e.target.value); setExpPage(1); }} className="px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-1 focus:ring-rose-500 text-slate-700 dark:text-slate-200 appearance-none">
+                                                    <option value="all">All Categories</option>
+                                                    {EXP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                                <input type="date" value={expDateFrom} onChange={e => { setExpDateFrom(e.target.value); setExpPage(1); }} className="px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-1 focus:ring-rose-500 text-slate-600 dark:text-slate-300" />
+                                                <input type="date" value={expDateTo} onChange={e => { setExpDateTo(e.target.value); setExpPage(1); }} className="px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-1 focus:ring-rose-500 text-slate-600 dark:text-slate-300" />
+                                            </div>
+
+                                            {/* Add / Edit Form */}
+                                            {showExpForm && (
+                                                <div className="px-8 py-6 border-b border-rose-50 dark:border-rose-900/20 bg-rose-50/30 dark:bg-rose-900/10 animate-fade-in">
+                                                    <h4 className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-4">{editingExp ? 'Edit Expenditure' : 'New Expenditure'}</h4>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                        {[{label:'Description *', field:'description', type:'text'},{label:'Amount (KES) *', field:'amount', type:'number'},{label:'Date *', field:'expenseDate', type:'date'},{label:'Paid To', field:'paidTo', type:'text'},{label:'Reference #', field:'referenceNumber', type:'text'}].map(({label,field,type}) => (
+                                                            <div key={field}>
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">{label}</label>
+                                                                <input type={type} value={(expForm as any)[field] || ''} onChange={e => setExpForm({...expForm,[field]:type==='number'?Number(e.target.value):e.target.value})} className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-1 focus:ring-rose-500 text-slate-700 dark:text-slate-200" />
+                                                            </div>
+                                                        ))}
+                                                        <div>
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Category *</label>
+                                                            <select value={expForm.category || 'Other'} onChange={e => setExpForm({...expForm, category: e.target.value as any})} className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-1 focus:ring-rose-500 text-slate-700 dark:text-slate-200 appearance-none">
+                                                                {EXP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Payment Method</label>
+                                                            <select value={expForm.paymentMethod || 'Cash'} onChange={e => setExpForm({...expForm, paymentMethod: e.target.value as any})} className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-1 focus:ring-rose-500 text-slate-700 dark:text-slate-200 appearance-none">
+                                                                {['Cash','Bank Transfer','M-Pesa','Cheque'].map(m => <option key={m} value={m}>{m}</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Vehicle (optional)</label>
+                                                            <select value={expForm.vehicleId || ''} onChange={e => setExpForm({...expForm, vehicleId: e.target.value})} className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-1 focus:ring-rose-500 text-slate-700 dark:text-slate-200 appearance-none">
+                                                                <option value="">Not vehicle-specific</option>
+                                                                {(vehicles || []).map(v => <option key={v.id} value={v.id}>{v.registrationNumber} — {v.make} {v.model}</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div className="md:col-span-2 lg:col-span-3">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Notes</label>
+                                                            <textarea value={expForm.notes || ''} onChange={e => setExpForm({...expForm, notes: e.target.value})} rows={2} className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-1 focus:ring-rose-500 text-slate-700 dark:text-slate-200 resize-none" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-3 mt-4">
+                                                        <button onClick={() => { setShowExpForm(false); setEditingExp(null); }} className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
+                                                        <button onClick={handleSaveExp} disabled={isActionLoading} className="flex items-center gap-2 px-6 py-2.5 bg-rose-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-700 transition-all disabled:opacity-50 shadow-lg shadow-rose-600/20">
+                                                            {isActionLoading ? 'Saving...' : (editingExp ? 'Update Expenditure' : 'Save Expenditure')}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Table */}
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full">
+                                                    <thead>
+                                                        <tr className="border-b border-slate-50 dark:border-slate-800">
+                                                            {['Date','Description','Category','Amount','Method','Paid To','Vehicle','By','Actions'].map(h => (
+                                                                <th key={h} className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
+                                                            ))}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/60">
+                                                        {pagedExp.length === 0 ? (
+                                                            <tr><td colSpan={9} className="px-6 py-16 text-center">
+                                                                <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                                                                    <CurrencyIcon className="w-8 h-8 text-rose-400" />
+                                                                </div>
+                                                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No expenditures found</p>
+                                                                <button onClick={() => { setShowExpForm(true); setEditingExp(null); }} className="mt-4 px-5 py-2 bg-rose-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-700 transition-all">Record First Expense</button>
+                                                            </td></tr>
+                                                        ) : pagedExp.map(exp => {
+                                                            const veh = (vehicles||[]).find(v => v.id === exp.vehicleId);
+                                                            return (
+                                                                <tr key={exp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
+                                                                    <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{new Date(exp.expenseDate).toLocaleDateString('en-KE',{day:'2-digit',month:'short',year:'numeric'})}</td>
+                                                                    <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white max-w-[200px] truncate">{exp.description}</td>
+                                                                    <td className="px-6 py-4"><span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${CAT_COLORS[exp.category] || CAT_COLORS['Other']}`}>{exp.category}</span></td>
+                                                                    <td className="px-6 py-4 font-black text-sm text-rose-600 dark:text-rose-400 whitespace-nowrap">KES {(exp.amount ?? 0).toLocaleString()}</td>
+                                                                    <td className="px-6 py-4 text-xs font-bold text-slate-500">{exp.paymentMethod}</td>
+                                                                    <td className="px-6 py-4 text-xs font-bold text-slate-500 max-w-[120px] truncate">{exp.paidTo || '—'}</td>
+                                                                    <td className="px-6 py-4 text-xs font-bold text-slate-500">{veh ? `${veh.registrationNumber}` : '—'}</td>
+                                                                    <td className="px-6 py-4 text-[10px] text-slate-400 font-bold max-w-[100px] truncate">{exp.recordedBy || '—'}</td>
+                                                                    <td className="px-6 py-4 text-right">
+                                                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <button onClick={() => { setEditingExp(exp); setExpForm({...exp}); setShowExpForm(true); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-all" title="Edit"><PencilIcon className="w-3.5 h-3.5" /></button>
+                                                                            <button onClick={() => onDeleteExpenditure(exp.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-all" title="Delete"><TrashIcon className="w-3.5 h-3.5" /></button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            {/* Pagination */}
+                                            {totalPages > 1 && (
+                                                <div className="p-6 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                                                    <p className="text-xs font-bold text-slate-400">Showing {(expPage-1)*EXP_PAGE_SIZE+1}–{Math.min(expPage*EXP_PAGE_SIZE,filteredExp.length)} of {filteredExp.length}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => setExpPage(p => Math.max(1,p-1))} disabled={expPage===1} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg font-black text-[10px] uppercase tracking-widest disabled:opacity-40">Prev</button>
+                                                        {Array.from({length:Math.min(totalPages,5)},(_,i)=>i+1).map(p=><button key={p} onClick={()=>setExpPage(p)} className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${expPage===p?'bg-rose-600 text-white shadow-sm':'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'}`}>{p}</button>)}
+                                                        <button onClick={() => setExpPage(p => Math.min(totalPages,p+1))} disabled={expPage===totalPages} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg font-black text-[10px] uppercase tracking-widest disabled:opacity-40">Next</button>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -9414,6 +9646,9 @@ END $$;
                                 rooms={rooms || []}
                                 letterheadConfig={letterheadConfig}
                                 currentInstitution={currentInstitution}
+                                invoices={invoices}
+                                payments={payments}
+                                expenditures={expenditures}
                             />
                         </div>
                     )}

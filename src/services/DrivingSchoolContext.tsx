@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from 'react';
-import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, MpesaTransaction, BankTransaction, DSLead } from '../types';
+import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, MpesaTransaction, BankTransaction, DSLead, DSExpenditure } from '../types';
 import { apiService } from './apiService';
 import { useToast } from './ToastContext';
 import { generateDSPDF } from '../utils/dsPdfGenerator';
@@ -16,6 +16,7 @@ interface DrivingSchoolContextType {
     mpesaTransactions: MpesaTransaction[];
     bankTransactions: BankTransaction[];
     leads: DSLead[];
+    expenditures: DSExpenditure[];
     
     // Setters (used for hydration from main loadData)
     setInstructors: React.Dispatch<React.SetStateAction<DSInstructor[]>>;
@@ -27,6 +28,7 @@ interface DrivingSchoolContextType {
     setInvoices: React.Dispatch<React.SetStateAction<DSInvoice[]>>;
     setPayments: React.Dispatch<React.SetStateAction<DSPayment[]>>;
     setLeads: React.Dispatch<React.SetStateAction<DSLead[]>>;
+    setExpenditures: React.Dispatch<React.SetStateAction<DSExpenditure[]>>;
 
     // Operations
     addInstructor: (data: any) => Promise<void>;
@@ -52,6 +54,9 @@ interface DrivingSchoolContextType {
     updateLead: (data: Partial<DSLead>) => Promise<void>;
     deleteLead: (id: string) => Promise<void>;
     deleteLeads: (ids: string[]) => Promise<void>;
+    addExpenditure: (data: Partial<DSExpenditure>) => Promise<void>;
+    updateExpenditure: (data: Partial<DSExpenditure>) => Promise<void>;
+    deleteExpenditure: (id: string) => Promise<void>;
     sendLessonNotification?: (lesson: DSLesson, isReminder?: boolean) => Promise<void>;
     refreshData: () => Promise<void>;
     stats: {
@@ -84,6 +89,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const [mpesaTransactions, setMpesaTransactions] = useState<MpesaTransaction[]>([]);
     const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([]);
     const [leads, setLeads] = useState<DSLead[]>([]);
+    const [expenditures, setExpenditures] = useState<DSExpenditure[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const loadDSData = useCallback(async () => {
@@ -94,7 +100,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         setIsLoading(true);
         console.log(`[DSContext] loadDSData: Starting fetch for institutionId=${institutionId}`);
         try {
-            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone, dsLeadsStandalone] = await Promise.all([
+            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone, dsLeadsStandalone, dsExpendituresStandalone] = await Promise.all([
                 apiService.fetchModuleRecords<DSInstructor>('ds_instructors', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSStudent>('ds_students', institutionId, undefined, { limit: 100000 }).catch(() => []),
@@ -108,6 +114,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 apiService.fetchModuleRecords<any>('ds_votes', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<any>('ds_license_categories', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSLead>('ds_leads', institutionId, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<DSExpenditure>('ds_expenditures', institutionId, undefined, { limit: 100000 }).catch(() => []),
             ]);
 
             console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons, ${dsLeadsStandalone.length} leads`);
@@ -220,6 +227,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const localOnly = prev.filter(l => !fetchedIds.has(l.id));
                 return [...(dsLeadsStandalone || []), ...localOnly];
             });
+            setExpenditures([...(dsExpendituresStandalone || [])]);
         } catch (err) {
             console.error("[DSContext] loadDSData: Failed to load DS data:", err);
         } finally {
@@ -1398,6 +1406,58 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, payments, onRefresh, success, error]);
 
+    const addExpenditure = useCallback(async (data: Partial<DSExpenditure>) => {
+        if (!institutionId) return;
+        try {
+            const record: DSExpenditure = {
+                id: `dsexp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId,
+                description: data.description || '',
+                category: data.category || 'Other',
+                amount: data.amount || 0,
+                paymentMethod: data.paymentMethod || 'Cash',
+                referenceNumber: data.referenceNumber,
+                vehicleId: data.vehicleId,
+                paidTo: data.paidTo,
+                recordedBy: data.recordedBy,
+                notes: data.notes,
+                expenseDate: data.expenseDate || new Date().toISOString().split('T')[0],
+                createdAt: new Date().toISOString(),
+            };
+            await apiService.saveModuleRecord('ds_expenditures', record);
+            setExpenditures(prev => [record, ...prev]);
+            success('Expenditure recorded successfully');
+        } catch (err) {
+            error('Failed to save expenditure');
+            throw err;
+        }
+    }, [institutionId, success, error]);
+
+    const updateExpenditure = useCallback(async (data: Partial<DSExpenditure>) => {
+        if (!institutionId || !data.id) return;
+        try {
+            await apiService.saveModuleRecord('ds_expenditures', data);
+            setExpenditures(prev => prev.map(e => e.id === data.id ? { ...e, ...data } : e));
+            success('Expenditure updated successfully');
+        } catch (err) {
+            error('Failed to update expenditure');
+            throw err;
+        }
+    }, [institutionId, success, error]);
+
+    const deleteExpenditure = useCallback(async (id: string) => {
+        if (!institutionId) return;
+        if (!window.confirm('Delete this expenditure record? This cannot be undone.')) return;
+        try {
+            await apiService.deleteModuleRecord('ds_expenditures', id);
+            setExpenditures(prev => prev.filter(e => e.id !== id));
+            success('Expenditure deleted');
+        } catch (err) {
+            error('Failed to delete expenditure');
+            throw err;
+        }
+    }, [institutionId, success, error]);
+
     const stats = useMemo(() => ({
         totalStudents: students.length,
         activeInstructors: instructors.filter(i => i.status === 'Active').length,
@@ -1407,9 +1467,10 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const value = {
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
-        mpesaTransactions, bankTransactions, leads,
-        setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads,
+        mpesaTransactions, bankTransactions, leads, expenditures,
+        setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads, setExpenditures,
         addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead, deleteLeads,
+        addExpenditure, updateExpenditure, deleteExpenditure,
         sendLessonNotification,
         refreshData, stats
     };

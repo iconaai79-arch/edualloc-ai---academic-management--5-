@@ -14896,8 +14896,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </div>
                                             </div>
                                         )}
-                                        {reportsSubTab === 'activity_logs' && (
-                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6 text-left">
+                                    </div>
+                                );
+                            })()}
+
+                            {reportsSubTab === 'activity_logs' && (
+                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6 text-left">
                                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                                     <div>
                                                         <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Financial & System Activity Logs</h3>
@@ -14946,9 +14950,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </div>
                                             </div>
                                         )}
-                                    </div>
-                                );
-                            })()}
 
                 {(activeTab as string) === 'users' && (
                     <div className="space-y-6 animate-in fade-in duration-300">
