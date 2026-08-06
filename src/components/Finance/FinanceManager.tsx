@@ -15072,7 +15072,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </React.Suspense>
                     </div>
                 )}
-            </div>
 
             {/* Excel Payment Import & Auto-Reconcile Modal */}
             {isExcelImportModalOpen && (
