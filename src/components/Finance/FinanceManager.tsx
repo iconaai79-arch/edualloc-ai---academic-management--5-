@@ -114,7 +114,6 @@ interface FinanceManagerProps {
     onUpdateLeaveStatus?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
-    activityLog?: any[];
 }
 
 export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
@@ -126,6 +125,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
+    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
@@ -427,22 +427,72 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [selectedBranchId, selectedBranchTargetIds]);
 
     const matchesSelectedBranch = React.useCallback((item: any) => {
-    const satelliteBranchIds = useMemo(() => {
-        const ids = new Set<string>();
-        const currentInstClean = cleanId(props.institution?.id);
-        (branches || []).forEach((b: any) => {
-            const bId = b.id;
-            const bLinked = b.linked_institution_id || b.linkedInstitutionId;
-            const bInst = b.institution_id;
-            [bId, bLinked, bInst, b.metadata?.branchId, b.metadata?.institutionId].forEach(id => {
-                if (id && cleanId(id) !== currentInstClean) {
-                    ids.add(id);
-                    ids.add(cleanId(id));
+        if (!item) return false;
+
+        const bId = item.branchId || item.branch_id || item.institutionBranchId || item.metadata?.branchId || item.metadata?.branch_id;
+        const instId = item.institutionId || item.institution_id || item.metadata?.institutionId || item.metadata?.institution_id;
+
+        const cleanBId = bId ? cleanId(bId) : '';
+        const cleanInstId = instId ? cleanId(instId) : '';
+        const currentInstId = props.institution?.id || '';
+        const cleanCurrentInstId = cleanId(currentInstId);
+
+        // 1. If a specific branch is selected (not 'ALL')
+        if (selectedBranchId && selectedBranchId !== 'ALL') {
+            const cleanSelectedId = cleanId(selectedBranchId);
+
+            // Direct check on item's own branch/inst IDs
+            if (bId === selectedBranchId || cleanBId === cleanSelectedId) return true;
+            if (instId === selectedBranchId || cleanInstId === cleanSelectedId) return true;
+
+            if (selectedBranchTargetIds) {
+                if (bId && (selectedBranchTargetIds.has(bId) || selectedBranchTargetIds.has(cleanBId))) return true;
+                if (instId && (selectedBranchTargetIds.has(instId) || selectedBranchTargetIds.has(cleanInstId))) return true;
+            }
+
+            // Check via associated student ID (if item is invoice, receipt, payment, enrollment, etc.)
+            const studentId = item.studentId || item.student_id || item.userId || item.user_id;
+            if (studentId && mergedStudentsMap.has(studentId)) {
+                const s = mergedStudentsMap.get(studentId);
+                if (s) {
+                    const sbId = s.branchId || s.branch_id || s.institutionBranchId || s.metadata?.branchId || s.metadata?.branch_id;
+                    const sInstId = s.institutionId || s.institution_id || s.metadata?.institutionId || s.metadata?.institution_id;
+                    const cleanSBId = sbId ? cleanId(sbId) : '';
+                    const cleanSInstId = sInstId ? cleanId(sInstId) : '';
+
+                    if (sbId === selectedBranchId || cleanSBId === cleanSelectedId) return true;
+                    if (sInstId === selectedBranchId || cleanSInstId === cleanSelectedId) return true;
+
+                    if (selectedBranchTargetIds) {
+                        if (sbId && (selectedBranchTargetIds.has(sbId) || selectedBranchTargetIds.has(cleanSBId))) return true;
+                        if (sInstId && (selectedBranchTargetIds.has(sInstId) || selectedBranchTargetIds.has(cleanSInstId))) return true;
+                    }
                 }
+            }
+
+            return false;
+        }
+
+        // 2. When selectedBranchId === 'ALL':
+        if (!bId && !instId) return true;
+        if (bId && (bId === currentInstId || cleanBId === cleanCurrentInstId)) return true;
+        if (instId && (instId === currentInstId || cleanInstId === cleanCurrentInstId)) return true;
+
+        if (branches && branches.length > 0) {
+            const isGroupBranchRecord = branches.some((b: any) => {
+                const bIdVal = b.id;
+                const bLinkedVal = b.linked_institution_id || b.linkedInstitutionId;
+                const bInstVal = b.institution_id;
+                return (
+                    (bId && (bIdVal === bId || bLinkedVal === bId || bInstVal === bId || cleanId(bIdVal) === cleanBId || cleanId(bLinkedVal) === cleanBId)) ||
+                    (instId && (bIdVal === instId || bLinkedVal === instId || bInstVal === instId || cleanId(bIdVal) === cleanInstId || cleanId(bLinkedVal) === cleanInstId))
+                );
             });
-        });
-        return ids;
-    }, [branches, props.institution?.id, cleanId]);
+            if (isGroupBranchRecord) return true;
+        }
+
+        return false;
+    }, [selectedBranchId, selectedBranchTargetIds, props.institution?.id, branches, cleanId, mergedStudentsMap]);
 
     const displayBranches = useMemo(() => {
         const seenKeys = new Set<string>();
@@ -475,97 +525,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
         return result;
     }, [branches, props.institution, cleanId]);
-
-    const selectedBranchObj = useMemo(() => {
-        if (!selectedBranchId || selectedBranchId === 'ALL') return null;
-        return displayBranches.find((b: any) => 
-            b.id === selectedBranchId || 
-            b.linked_institution_id === selectedBranchId ||
-            cleanId(b.id) === cleanId(selectedBranchId) ||
-            cleanId(b.linked_institution_id) === cleanId(selectedBranchId)
-        );
-    }, [selectedBranchId, displayBranches, cleanId]);
-
-    const isMainBranchSelected = useMemo(() => {
-        if (!selectedBranchId || selectedBranchId === 'ALL') return false;
-        return cleanId(selectedBranchId) === cleanId(props.institution?.id);
-    }, [selectedBranchId, props.institution?.id, cleanId]);
-
-    const matchesSelectedBranch = React.useCallback((item: any) => {
-        if (!item) return false;
-
-        // 1. When selectedBranchId === 'ALL': show all records across all branches
-        if (!selectedBranchId || selectedBranchId === 'ALL') return true;
-
-        const getItemBranchInfo = (targetItem: any) => {
-            if (!targetItem) return { bId: '', instId: '', bName: '', cleanBId: '', cleanInstId: '' };
-            const targetBId = targetItem.branchId || targetItem.branch_id || targetItem.institutionBranchId || targetItem.metadata?.branchId || targetItem.metadata?.branch_id;
-            const targetInstId = targetItem.institutionId || targetItem.institution_id || targetItem.metadata?.institutionId || targetItem.metadata?.institution_id;
-            const targetBName = targetItem.branchName || targetItem.branch_name || targetItem.metadata?.branchName || targetItem.metadata?.branch_name;
-            return {
-                bId: targetBId,
-                instId: targetInstId,
-                bName: targetBName,
-                cleanBId: targetBId ? cleanId(targetBId) : '',
-                cleanInstId: targetInstId ? cleanId(targetInstId) : ''
-            };
-        };
-
-        // 2. If Main/Default Branch is selected:
-        if (isMainBranchSelected) {
-            const ownInfo = getItemBranchInfo(item);
-            
-            const studentId = item.studentId || item.student_id || item.userId || item.user_id;
-            let studentInfo = null;
-            if (studentId && mergedStudentsMap.has(studentId)) {
-                studentInfo = getItemBranchInfo(mergedStudentsMap.get(studentId));
-            }
-
-            const effectiveCleanBId = ownInfo.cleanBId || studentInfo?.cleanBId || '';
-            const effectiveCleanInstId = ownInfo.cleanInstId || studentInfo?.cleanInstId || '';
-
-            // If explicitly assigned to a satellite branch, exclude from Main Branch view
-            if (effectiveCleanBId && satelliteBranchIds.has(effectiveCleanBId)) return false;
-            if (effectiveCleanInstId && satelliteBranchIds.has(effectiveCleanInstId) && effectiveCleanInstId !== cleanId(props.institution?.id)) return false;
-
-            return true;
-        }
-
-        // 3. If a Satellite Branch is selected (e.g. Eagle Nest Academy Bronjo):
-        const cleanSelectedId = cleanId(selectedBranchId);
-        const selName = selectedBranchObj?.name ? String(selectedBranchObj.name).trim().toLowerCase() : '';
-
-        const checkMatchesTarget = (info: ReturnType<typeof getItemBranchInfo>) => {
-            if (!info) return false;
-            if (info.bId === selectedBranchId || (info.cleanBId && info.cleanBId === cleanSelectedId)) return true;
-            if (info.instId === selectedBranchId || (info.cleanInstId && info.cleanInstId === cleanSelectedId)) return true;
-            if (selectedBranchTargetIds) {
-                if (info.bId && (selectedBranchTargetIds.has(info.bId) || selectedBranchTargetIds.has(info.cleanBId))) return true;
-                if (info.instId && (selectedBranchTargetIds.has(info.instId) || selectedBranchTargetIds.has(info.cleanInstId))) return true;
-            }
-            if (selName && info.bName && String(info.bName).trim().toLowerCase() === selName) return true;
-            return false;
-        };
-
-        // Direct check on item
-        if (checkMatchesTarget(getItemBranchInfo(item))) return true;
-
-        // Check via mergedEnrollments
-        const itemId = item.id || item.userId || item.user_id || item.studentId || item.student_id;
-        if (itemId && mergedEnrollments && mergedEnrollments.length > 0) {
-            const enr = mergedEnrollments.find((e: any) => e.userId === itemId || e.studentId === itemId);
-            if (enr && checkMatchesTarget(getItemBranchInfo(enr))) return true;
-        }
-
-        // Check via associated student object
-        const studentId = item.studentId || item.student_id || item.userId || item.user_id;
-        if (studentId && mergedStudentsMap.has(studentId)) {
-            const s = mergedStudentsMap.get(studentId);
-            if (s && checkMatchesTarget(getItemBranchInfo(s))) return true;
-        }
-
-        return false;
-    }, [selectedBranchId, isMainBranchSelected, satelliteBranchIds, selectedBranchTargetIds, selectedBranchObj, props.institution?.id, cleanId, mergedStudentsMap, mergedEnrollments]);
 
     // Branch User Isolation for System Users
     const filteredUsersByBranch = useMemo(() => {
@@ -655,7 +614,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [props.voteHeads, matchesSelectedBranch]);
 
     // Reports sub-tab states
-    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs'>('collection');
     const [stmtStudentId, setStmtStudentId] = useState('');
     const [stmtSearch, setStmtSearch] = useState('');
     const [stmtViewMode, setStmtViewMode] = useState<'table' | 'preview'>('table');
@@ -5800,7 +5758,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             )}
                         </div>
                         {/* Branch Selector Dropdown */}
-                        {(['super_admin', 'group_admin', 'admin', 'reseller', 'reseller_admin', 'finance_officer'].includes(props.currentUser?.role || '') || displayBranches.length > 1) && displayBranches.length > 0 && (
+                        {(props.currentUser?.role === 'super_admin' || props.currentUser?.role === 'group_admin') && displayBranches.length > 0 && (
                             <div className="flex items-center gap-2 px-4 border-l border-slate-100 dark:border-slate-800">
                                 <select
                                     value={selectedBranchId}
@@ -15072,6 +15030,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </React.Suspense>
                     </div>
                 )}
+            </div>
+        );
+    })()}
 
             {/* Excel Payment Import & Auto-Reconcile Modal */}
             {isExcelImportModalOpen && (
@@ -15415,6 +15376,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </React.Suspense>
                 </div>
             )}
+            </div>
 
             {/* On-Screen Interactive PDF Preview Modal */}
             {pdfPreviewModal && (
