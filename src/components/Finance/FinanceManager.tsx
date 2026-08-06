@@ -51,6 +51,7 @@ import { BuildingLibraryIcon } from '../icons/BuildingLibraryIcon';
 import { ArrowPathIcon } from '../icons/ArrowPathIcon';
 import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
 import { DevicePhoneMobileIcon } from '../icons/DevicePhoneMobileIcon';
+import { TruckIcon } from '../icons/TruckIcon';
 const HRManager = React.lazy(() => import('../HR/HRManager').then(m => ({ default: m.HRManager })));
 const StudentEnrollmentManager = React.lazy(() => import('../common/StudentEnrollmentManager').then(m => ({ default: m.StudentEnrollmentManager })));
 const CommunicationsManager = React.lazy(() => import('../CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
@@ -119,7 +120,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     
     // Dynamic Tabs based on Institution Type
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
-    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users'>(isProcurementOfficer ? 'requisitions' : 'home');
+    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics'>(isProcurementOfficer ? 'requisitions' : 'home');
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
@@ -5440,6 +5441,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         { id: 'bursaries', label: 'Bursaries & Grants', icon: CreditCardIcon },
                         { id: 'expenses', label: 'Expenses & Payments', icon: CreditCardIcon },
                         { id: 'requisitions', label: 'Requisitions', icon: ClipboardListIcon },
+                        { id: 'logistics', label: 'Logistics & Stores', icon: TruckIcon },
                         { id: 'payroll', label: 'Payroll & HR', icon: BriefcaseIcon },
                         { id: 'reports', label: 'Financial Reports', icon: BarChart3Icon },
                         { id: 'audit', label: 'Fiscal Audit', icon: ShieldCheckIcon },
@@ -15131,6 +15133,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Logistics & Stores Module View */}
+            {activeTab === 'logistics' && (
+                <div className="animate-in fade-in duration-300">
+                    <ProcurementHub
+                        institution={props.institution}
+                        currentUser={props.currentUser}
+                    />
                 </div>
             )}
             </div>
