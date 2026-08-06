@@ -634,6 +634,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [props.voteHeads, matchesSelectedBranch]);
 
     // Reports sub-tab states
+    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs'>('collection');
     const [stmtStudentId, setStmtStudentId] = useState('');
     const [stmtSearch, setStmtSearch] = useState('');
     const [stmtViewMode, setStmtViewMode] = useState<'table' | 'preview'>('table');
