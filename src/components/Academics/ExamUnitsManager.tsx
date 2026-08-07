@@ -2740,6 +2740,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 />
                                                 <span>CAT</span>
                                             </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
                                                 <input
                                                     type="radio"
                                                     name="examTypeRadio"
