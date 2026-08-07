@@ -810,7 +810,20 @@ export const App: React.FC = () => {
 
     const timetableSettings = useMemo(() => activeInstitution?.timetableSettings || INITIAL_TIMETABLE_SETTINGS, [activeInstitution]);
 
-    const allocations = useMemo(() => (Array.isArray(requests) ? requests : []).filter(r => r && (r.status === 'approved' || r.status === 'hod_approved' || r.status === 'change_request_pending' || r.status === 'deallocation_pending')), [requests]);
+    const isSchoolContext = useMemo(() => {
+        const instType = activeInstitution?.institutionType;
+        const cat = activeInstitution?.category;
+        return instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (instType !== 'Tertiary' && instType !== 'University');
+    }, [activeInstitution]);
+
+    const allocations = useMemo(() => {
+        const reqList = Array.isArray(requests) ? requests : [];
+        if (isSchoolContext) {
+            // On Primary & Secondary schools, lessons allocated to teachers are automatically approved for timetable upon allocation!
+            return reqList.filter(r => r && (r.lecturerId || r.status === 'approved' || r.status === 'hod_approved')).map(r => ({ ...r, status: 'approved' as const }));
+        }
+        return reqList.filter(r => r && (r.status === 'approved' || r.status === 'hod_approved' || r.status === 'change_request_pending' || r.status === 'deallocation_pending'));
+    }, [requests, isSchoolContext]);
 
     const timetableConflicts = useMemo(() => detectTimetableConflicts(generatedTimetable, rooms, courses, subjects, timetableSettings), [generatedTimetable, rooms, courses, subjects, timetableSettings]);
 
@@ -2363,12 +2376,27 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
     }, [currentUser, loadData]);
 
     const handleAddRequest = useCallback(async (data: any) => {
-        await apiService.saveModuleRecord('allocation_requests', { ...data, id: `req_${Date.now()}`, institutionId: currentUser?.institutionId });
+        const instType = activeInstitution?.institutionType;
+        const cat = activeInstitution?.category;
+        const isSchool = instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (instType !== 'Tertiary' && instType !== 'University');
+        const defaultStatus = isSchool ? 'approved' : (data.status || 'pending');
+
+        await apiService.saveModuleRecord('allocation_requests', { 
+            ...data, 
+            id: data.id || `req_${Date.now()}`, 
+            institutionId: currentUser?.institutionId,
+            status: defaultStatus
+        });
         loadData();
-    }, [currentUser, loadData]);
+    }, [currentUser, activeInstitution, loadData]);
 
     const handleLecturerSubmitRequest = useCallback(async (subjectIds: string[], justification: string, signatureUrl: string | null, priority: string, academicYearId: string, semesterId: string, preferences: any, courseLevelSelections: Record<string, string[]>) => {
         try {
+            const instType = activeInstitution?.institutionType;
+            const cat = activeInstitution?.category;
+            const isSchool = instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (instType !== 'Tertiary' && instType !== 'University');
+            const defaultStatus = isSchool ? 'approved' : 'pending';
+
             for (const subjectId of subjectIds) {
                 await apiService.saveModuleRecord('allocation_requests', {
                     id: `req_${Date.now()}_${subjectId}`,
@@ -2382,7 +2410,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                     semesterId,
                     preferences,
                     courseLevelSelections,
-                    status: 'pending',
+                    status: defaultStatus,
                     createdAt: new Date().toISOString()
                 });
             }
