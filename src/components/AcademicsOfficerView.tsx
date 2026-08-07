@@ -39,6 +39,7 @@ import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { Futuristic3DExamAnalyticsDashboard } from './Academics/Futuristic3DExamAnalyticsDashboard';
 import { AdvancedAttendanceManager } from './Academics/AdvancedAttendanceManager';
 import { TimetableManagerModule } from './Academics/TimetableManagerModule';
+import { CbeStrandRubricManager } from './Academics/CbeStrandRubricManager';
 import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
 
 interface AcademicsOfficerViewProps {
@@ -175,6 +176,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     } = props;
 
     const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
+    const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands'>('summative');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
     const [isLoading, setIsLoading] = useState(false);
@@ -583,15 +585,52 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
             {activeTab === 'exam_units' && (
                 <div className="space-y-6 animate-fade-in w-full">
-                    <ExamUnitsManager
-                        currentInstitution={currentInstitution}
-                        subjects={subjects}
-                        users={users}
-                        assessments={assessments}
-                        marks={marks}
-                        courses={courses}
-                        academicLevels={academicLevels}
-                    />
+                    {/* View Mode Sub-Navigation Toggle */}
+                    <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setExamViewSubTab('summative')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    examViewSubTab === 'summative'
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                📖 Summative Exams & Marksheet Engine
+                            </button>
+                            <button
+                                onClick={() => setExamViewSubTab('cbe_strands')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    examViewSubTab === 'cbe_strands'
+                                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                🎯 CBE Formative Strands & Rubrics (EE / ME / AE / BE)
+                            </button>
+                        </div>
+                    </div>
+
+                    {examViewSubTab === 'summative' ? (
+                        <ExamUnitsManager
+                            currentInstitution={currentInstitution}
+                            subjects={subjects}
+                            users={users}
+                            assessments={assessments}
+                            marks={marks}
+                            courses={courses}
+                            academicLevels={academicLevels}
+                        />
+                    ) : (
+                        <CbeStrandRubricManager
+                            currentInstitution={currentInstitution}
+                            subjects={subjects}
+                            users={users}
+                            courses={courses}
+                            currentUser={currentUser}
+                            onLogAction={onLogAction}
+                        />
+                    )}
                 </div>
             )}
 

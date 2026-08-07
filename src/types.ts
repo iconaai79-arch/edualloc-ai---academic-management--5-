@@ -663,6 +663,38 @@ export interface LessonStructure {
     dedicatedRoomId?: string;
 }
 
+export type CbeRubricLevel = 'EE' | 'ME' | 'AE' | 'BE';
+
+export interface CbeSubStrand {
+    id: string;
+    name: string;
+    learningOutcomes?: string[];
+}
+
+export interface CbeStrand {
+    id: string;
+    subjectId: string;
+    name: string;
+    code?: string;
+    subStrands: CbeSubStrand[];
+}
+
+export interface CbeLearningOutcomeAssessment {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    subjectId: string;
+    strandId: string;
+    subStrandId: string;
+    learningOutcomeText?: string;
+    rubricScore: CbeRubricLevel;
+    teacherRemarks?: string;
+    academicYearId?: string;
+    semesterId?: string;
+    assessedByTeacherId?: string;
+    assessedAt: string;
+}
+
 export interface Subject {
     id: string;
     code: string;
@@ -679,6 +711,7 @@ export interface Subject {
     targetClasses?: string[];
     assignedClasses?: string[];
     classes?: string[];
+    cbeStrands?: CbeStrand[];
 }
 
 export interface LevelSubjectMetadata {
