@@ -682,7 +682,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [managingEquityFor, setManagingEquityFor] = useState<Institution | null>(null);
     const [tenantEquityConfig, setTenantEquityConfig] = useState<{ billerCode: string; apiKey: string; secretKey: string }>({ billerCode: '', apiKey: '', secretKey: '' });
     const [managingImFor, setManagingImFor] = useState<Institution | null>(null);
-    const [tenantImConfig, setTenantImConfig] = useState<{ apiKey: string; callbackUser: string; callbackSecret: string }>({ apiKey: '', callbackUser: '', callbackSecret: '' });
+    const [tenantImConfig, setTenantImConfig] = useState<{ apiKey: string; callbackUser: string; callbackSecret: string; validationEndpoint: string }>({ apiKey: '', callbackUser: '', callbackSecret: '', validationEndpoint: '' });
     const [tenantModulePricing, setTenantModulePricing] = useState<Record<string, { monthly?: number; yearly?: number }>>({});
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
@@ -2877,7 +2877,7 @@ Please change it after login.`;
                                                             <button
                                                                 onClick={() => {
                                                                     setManagingImFor(inst);
-                                                                    setTenantImConfig((inst as any).imConfig || { apiKey: '', callbackUser: '', callbackSecret: '' });
+                                                                    setTenantImConfig((inst as any).imConfig || { apiKey: '', callbackUser: '', callbackSecret: '', validationEndpoint: '' });
                                                                 }}
                                                                 className="flex items-center gap-1 text-blue-600 hover:text-blue-900 font-black text-[10px] uppercase tracking-tighter bg-blue-50 px-2 py-1 rounded-lg"
                                                             >
@@ -7784,6 +7784,40 @@ Please change it after login.`;
                                         placeholder="Basic Auth Password/Secret"
                                     />
                                 </div>
+                            </div>
+
+                            {/* Auto-generated Validation Endpoint */}
+                            {managingImFor && (
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Validation Endpoint (give to I&amp;M Bank)</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={`${window.location.origin}/api/im-validate/${managingImFor.id}`}
+                                            className="form-input font-mono text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 pr-24 cursor-text select-all"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/im-validate/${managingImFor.id}`); }}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95"
+                                        >Copy</button>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 ml-1">This URL is unique to this tenant. Provide it to I&amp;M Bank as the <span className="font-bold text-slate-600 dark:text-slate-300">Customer Validation URL</span> in their integration setup.</p>
+                                </div>
+                            )}
+
+                            {/* Custom Validation Endpoint Override */}
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Custom Validation Endpoint Override <span className="normal-case font-medium text-slate-400">(optional)</span></label>
+                                <input
+                                    type="text"
+                                    value={tenantImConfig.validationEndpoint}
+                                    onChange={e => setTenantImConfig({ ...tenantImConfig, validationEndpoint: e.target.value })}
+                                    className="form-input font-mono text-sm"
+                                    placeholder="https://custom-endpoint.example.com/validate"
+                                />
+                                <p className="text-[10px] text-slate-400 ml-1 mt-1">Leave blank to use the auto-generated URL above.</p>
                             </div>
                         </div>
                         <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
