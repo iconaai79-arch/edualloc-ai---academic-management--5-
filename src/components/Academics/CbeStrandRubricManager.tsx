@@ -104,7 +104,7 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
             });
         });
         allStudents.forEach(s => {
-            const cl = s.studentClass || s.classLevel || s.class_name || s.className || s.class || s.metadata?.studentClass;
+            const cl = s.studentClass || (s as any).classLevel || (s as any).class_name || (s as any).className || (s as any).class || s.metadata?.studentClass;
             if (cl && typeof cl === 'string' && !cl.startsWith('lvl_') && !cl.startsWith('c_')) {
                 set.add(cl.trim());
             }
@@ -124,7 +124,7 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
     // Filtered Students for selected class
     const classStudents = useMemo(() => {
         return allStudents.filter(s => {
-            const stClass = (s.studentClass || s.classLevel || s.class_name || s.className || s.class || s.metadata?.studentClass || '').toLowerCase().trim();
+            const stClass = (s.studentClass || (s as any).classLevel || (s as any).class_name || (s as any).className || (s as any).class || s.metadata?.studentClass || '').toLowerCase().trim();
             const selClean = (selectedClass || '').toLowerCase().trim();
             const matchesClass = !selClean || selClean === 'all' || stClass.includes(selClean) || selClean.includes(stClass) || allStudents.length <= 10;
             const q = searchQuery.toLowerCase();
@@ -132,6 +132,7 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
             return matchesClass && matchesQuery;
         });
     }, [allStudents, selectedClass, searchQuery]);
+
     // Active Subject object
     const selectedSubject = useMemo(() => {
         return subjects.find(s => s.id === selectedSubjectId) || subjects[0] || { id: 'sub_math', name: 'Mathematical Activities', code: 'MATH-CBE' };
@@ -170,16 +171,6 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
     const activeSubStrand = useMemo(() => {
         return activeStrand?.subStrands?.find(ss => ss.id === selectedSubStrandId) || activeStrand?.subStrands?.[0];
     }, [activeStrand, selectedSubStrandId]);
-
-    // Filtered Students for selected class
-    const classStudents = useMemo(() => {
-        return allStudents.filter(s => {
-            const matchesClass = !selectedClass || s.studentClass === selectedClass || selectedClass.includes(s.studentClass || '');
-            const q = searchQuery.toLowerCase();
-            const matchesQuery = !q || s.name.toLowerCase().includes(q) || (s.admissionNumber || '').toLowerCase().includes(q);
-            return matchesClass && matchesQuery;
-        });
-    }, [allStudents, selectedClass, searchQuery]);
 
     // Local Storage & API Assessment Records State (Key: `${instId}_cbe_assessments_${selectedSubjectId}_${selectedSubStrandId}`)
     const [assessmentsMap, setAssessmentsMap] = useState<Record<string, { score: CbeRubricLevel; remarks: string }>>(() => {
