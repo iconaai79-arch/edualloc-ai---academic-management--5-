@@ -37,6 +37,7 @@ import { ExamUnitsManager } from './Academics/ExamUnitsManager';
 import { RectangleStackIcon } from './icons/RectangleStackIcon';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { Futuristic3DExamAnalyticsDashboard } from './Academics/Futuristic3DExamAnalyticsDashboard';
+import { AdvancedAttendanceManager } from './Academics/AdvancedAttendanceManager';
 import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
 
 interface AcademicsOfficerViewProps {
@@ -169,7 +170,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         academicLevels = []
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'home' | 'exam_units' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
     const [isLoading, setIsLoading] = useState(false);
@@ -271,6 +272,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
+        { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
         { id: 'students', label: 'Students Registry', icon: UserPlusIcon },
         { id: 'teachers', label: 'Teachers Registry', icon: UserGroupIcon },
         { id: 'lessons', label: 'Lessons & Allocations', icon: RectangleStackIcon },
@@ -550,6 +552,21 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         marks={marks}
                         courses={courses}
                         academicLevels={academicLevels}
+                    />
+                </div>
+            )}
+
+            {activeTab === 'attendance' && (
+                <div className="space-y-6 animate-fade-in w-full">
+                    <AdvancedAttendanceManager
+                        users={users}
+                        students={users ? users.filter(u => u.role === 'student') : []}
+                        currentInstitution={currentInstitution}
+                        activeAcademicYear={activeAcademicYear}
+                        activeSemester={activeSemester}
+                        studentAttendances={props.studentAttendances}
+                        onSaveAttendance={props.onSaveAttendance}
+                        onLogAction={onLogAction}
                     />
                 </div>
             )}
