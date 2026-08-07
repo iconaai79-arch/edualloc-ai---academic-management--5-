@@ -386,7 +386,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                     institutionId={institution?.id}
                     institutionCode={institution?.institutionCode}
                     institutionName={institution?.name}
-                    mpesaConfig={institution?.mpesaConfig || { shortCode: '247247', consumerKey: '', consumerSecret: '', passkey: '' }}
+                    mpesaConfig={institution?.mpesaConfig || { paybillNumber: '247247', accountNumber: 'SUBSCRIPTION', consumerKey: '', consumerSecret: '', passkey: '' }}
                     ncbaConfig={institution?.ncbaConfig}
                     monthlyPrice={institution?.customSubscriptionPrice?.monthly || 4999}
                     quarterlyPrice={institution?.customSubscriptionPrice?.quarterly || 13500}
@@ -406,7 +406,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                     institutionId={institution?.id || 'inst_default'}
                     institutionCode={institution?.institutionCode || 'EDU001'}
                     institutionName={institution?.name || 'Academic Institution'}
-                    mpesaConfig={institution?.mpesaConfig || { shortCode: '247247', consumerKey: '', consumerSecret: '', passkey: '' }}
+                    mpesaConfig={institution?.mpesaConfig || { paybillNumber: '247247', accountNumber: 'SUBSCRIPTION', consumerKey: '', consumerSecret: '', passkey: '' }}
                     ncbaConfig={institution?.ncbaConfig}
                     smsUnitPrice={institution?.customSmsPrice || 2.0}
                     onPurchaseComplete={(purchasedUnits) => {

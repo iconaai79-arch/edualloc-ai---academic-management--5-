@@ -22,6 +22,7 @@ import { AbsenceRequestModal } from './AbsenceRequestModal';
 import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/locationUtils';
 import { MyTasks } from './MyTasks';
 import { AttendanceTakerModal } from './AttendanceTakerModal';
+import { CheckCircle2, ArrowRight } from 'lucide-react';
 
 
 interface LecturerDashboardProps {
@@ -442,6 +443,31 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                         Apply Subject Load
                     </button>
                 )}
+            </div>
+
+            {/* Class Supervisor Duty Banner */}
+            <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 p-6 md:p-8 rounded-[2.5rem] border border-emerald-500/30 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20 shrink-0">
+                        <CheckCircle2 className="w-7 h-7" />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">Class Supervisor Duty</span>
+                        </div>
+                        <h4 className="text-lg font-black uppercase text-white tracking-tight">Daily Student Roll Call Register</h4>
+                        <p className="text-xs text-slate-300 font-medium mt-0.5">Responsible for taking & verifying daily student attendance for assigned class ({user.supervisedClass || user.studentClass || 'Class Register'})</p>
+                    </div>
+                </div>
+
+                <button
+                    onClick={() => setActiveTab('class_supervisor_attendance')}
+                    className="w-full sm:w-auto px-6 py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                >
+                    <span>Take Class Roll Call</span>
+                    <ArrowRight className="w-4 h-4" />
+                </button>
             </div>
 
             {/* Quick Actions Console */}
