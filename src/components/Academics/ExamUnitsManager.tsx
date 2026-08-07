@@ -647,7 +647,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (selectedClasses && selectedClasses.length > 0) {
             return selectedClasses;
         }
-        return registeredClasses.length > 0 ? [registeredClasses[0]] : ['Form 3 Central'];
+        return registeredClasses.length > 0 ? registeredClasses : ['Grade 1', 'Grade 2', 'Grade 3', 'Form 1', 'Form 2', 'Form 3'];
     }, [activeExam, selectedClasses, registeredClasses]);
 
     // Per-exam broadsheet store
@@ -775,72 +775,101 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
     }, [currentInstitution]);
 
-    // Robust helper to match a student's class against target class(es) for an exam unit
-    const isStudentInTargetClasses = useCallback((stClassRaw: string, targetClasses: string[]): boolean => {
+    // Comprehensive helper to resolve student class name across all schema variations
+    const getStudentClass = useCallback((st: any): string => {
+        if (!st) return '';
+        const explicit =
+            st.studentClass ||
+            st.classLevel ||
+            st.class_name ||
+            st.className ||
+            st.currentClass ||
+            st.gradeLevel ||
+            st.academicLevel ||
+            st.grade ||
+            st.metadata?.studentClass ||
+            st.metadata?.classLevel ||
+            st.metadata?.className ||
+            st.metadata?.class ||
+            st.metadata?.gradeLevel ||
+            st.metadata?.grade ||
+            '';
+
+        if (typeof explicit === 'string' && explicit.trim() && !explicit.startsWith('lvl_') && !explicit.startsWith('c_')) {
+            const stream = st.stream || st.streamName || st.metadata?.stream;
+            if (stream && typeof stream === 'string' && !explicit.toLowerCase().includes(stream.toLowerCase())) {
+                return `${explicit.trim()} ${stream.trim()}`;
+            }
+            return explicit.trim();
+        }
+
+        const levelId = st.courseLevelId || st.metadata?.courseLevelId;
+        const courseId = st.courseId || st.metadata?.courseId;
+
+        if (courses && Array.isArray(courses)) {
+            for (const c of courses) {
+                if (c.levels && Array.isArray(c.levels)) {
+                    for (const l of c.levels) {
+                        if (l.id === levelId || (courseId && c.id === courseId && l.id === levelId)) {
+                            return `${c.name} ${l.name ? '(' + l.name + ')' : ''}`.trim();
+                        }
+                    }
+                }
+                if (c.id === courseId || c.id === levelId) {
+                    return (c.name || c.code || '').trim();
+                }
+            }
+        }
+
+        if (typeof st.class === 'string' && st.class.trim() && !st.class.startsWith('lvl_') && !st.class.startsWith('c_')) {
+            return st.class.trim();
+        }
+
+        if (typeof explicit === 'string') return explicit.trim();
+        return '';
+    }, [courses]);
+
+    const isStudentInTargetClasses = useCallback((stClassRaw: string, targetClasses: string[]) => {
         if (!stClassRaw || !targetClasses || targetClasses.length === 0) return false;
+        if (targetClasses.includes('all') || targetClasses.includes('All Classes')) return true;
+
         const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
         const stClean = stClassRaw.toLowerCase().trim();
         const stNorm = normalize(stClean);
 
         return targetClasses.some(tc => {
-            if (!tc) return false;
+            if (!tc || tc === 'all' || tc === 'All Classes') return true;
             const tcClean = tc.toLowerCase().trim();
             const tcNorm = normalize(tcClean);
-            const tcNoStream = tcClean.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d]|\d{4})$/i, '').trim();
-            const tcNoStreamNorm = normalize(tcNoStream);
 
             if (stClean === tcClean || stNorm === tcNorm) return true;
-            if (tcNoStreamNorm && (stClean === tcNoStream || stNorm === tcNoStreamNorm)) return true;
+
+            const tcNoStream = tcClean.replace(/\s+(east|west|north|south|central|alpha|blue|green|red|stream\s*[a-z0-9]*|[a-d]|\d{4})$/i, '').trim();
+            const tcNoStreamNorm = normalize(tcNoStream);
+
+            const stNoStream = stClean.replace(/\s+(east|west|north|south|central|alpha|blue|green|red|stream\s*[a-z0-9]*|[a-d]|\d{4})$/i, '').trim();
+            const stNoStreamNorm = normalize(stNoStream);
+
+            if (tcNoStreamNorm && (stClean === tcNoStream || stNorm === tcNoStreamNorm || stNoStreamNorm === tcNoStreamNorm)) return true;
             if (stNorm.includes(tcNorm) || tcNorm.includes(stNorm)) return true;
             if (tcNoStreamNorm && (stNorm.includes(tcNoStreamNorm) || tcNoStreamNorm.includes(stNorm))) return true;
 
-            const isPg = (s: string) => s.includes('pg') || s.includes('playgroup') || s.includes('play');
-            if (isPg(stNorm) && isPg(tcNorm)) return true;
+            // Grade level numeric matching (e.g. "Grade 2", "Grade 2 Alpha", "Std 2", "Class 2", "G2")
+            const extractGradeNum = (str: string) => {
+                const match = str.match(/(?:grade|std|standard|class|form|g|lvl)[_\s]*(\d+)/i);
+                return match ? match[1] : null;
+            };
 
-            const isPp1 = (s: string) => /\bpp\s*1\b/i.test(s) || s.includes('pp1') || s.includes('preprimary1');
-            if (isPp1(stNorm) && isPp1(tcNorm)) return true;
-
-            const isPp2 = (s: string) => /\bpp\s*2\b/i.test(s) || s.includes('pp2') || s.includes('preprimary2');
-            if (isPp2(stNorm) && isPp2(tcNorm)) return true;
-
-            const isG1 = (s: string) => /\b(grade|std|class)\s*1\b/i.test(s) || s.includes('grade1') || s === 'g1';
-            if (isG1(stNorm) && isG1(tcNorm)) return true;
-
-            const isG2 = (s: string) => /\b(grade|std|class)\s*2\b/i.test(s) || s.includes('grade2') || s === 'g2';
-            if (isG2(stNorm) && isG2(tcNorm)) return true;
-
-            const isG3 = (s: string) => /\b(grade|std|class)\s*3\b/i.test(s) || s.includes('grade3') || s === 'g3';
-            if (isG3(stNorm) && isG3(tcNorm)) return true;
+            const stNum = extractGradeNum(stClean);
+            const tcNum = extractGradeNum(tcClean);
+            if (stNum && tcNum && stNum === tcNum) {
+                const isFormSt = stClean.includes('form');
+                const isFormTc = tcClean.includes('form');
+                if (isFormSt === isFormTc) return true;
+            }
 
             return false;
         });
-    }, []);
-
-    // Comprehensive helper to resolve student class name across all schema variations
-    const getStudentClass = useCallback((st: any): string => {
-        if (!st) return '';
-        const candidate =
-            st.studentClass ||
-            st.classLevel ||
-            st.class_name ||
-            st.className ||
-            st.class ||
-            st.courseLevelId ||
-            st.academicLevel ||
-            st.grade ||
-            st.currentClass ||
-            st.gradeLevel ||
-            st.level ||
-            st.courseId ||
-            st.metadata?.studentClass ||
-            st.metadata?.classLevel ||
-            st.metadata?.className ||
-            st.metadata?.class ||
-            st.metadata?.courseLevelId ||
-            st.metadata?.grade ||
-            '';
-        if (typeof candidate === 'string') return candidate.trim();
-        return '';
     }, []);
 
     // Helper to resolve clean human-readable student admission numbers across all schema types (numeric, string, metadata)

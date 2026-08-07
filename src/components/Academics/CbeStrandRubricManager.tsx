@@ -97,29 +97,41 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
     const classList = useMemo(() => {
         const set = new Set<string>();
         courses.forEach(c => {
+            if (c.name) set.add(c.name);
             (c.levels || []).forEach(l => {
-                set.add(`${c.name} ${l.name ? '(' + l.name + ')' : ''}`);
+                if (l.name) set.add(l.name);
+                set.add(`${c.name} ${l.name ? '(' + l.name + ')' : ''}`.trim());
             });
         });
         allStudents.forEach(s => {
-            if (s.studentClass) set.add(s.studentClass);
+            const cl = s.studentClass || s.classLevel || s.class_name || s.className || s.class || s.metadata?.studentClass;
+            if (cl && typeof cl === 'string' && !cl.startsWith('lvl_') && !cl.startsWith('c_')) {
+                set.add(cl.trim());
+            }
         });
         if (set.size === 0) {
-            set.add('Grade 1 Alpha');
-            set.add('Grade 2 Blue');
-            set.add('Grade 3 West');
-            set.add('Grade 4 North');
-            set.add('Grade 10');
+            ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Form 1', 'Form 2', 'Form 3'].forEach(c => set.add(c));
         }
         return Array.from(set);
     }, [courses, allStudents]);
 
-    const [selectedClass, setSelectedClass] = useState<string>(classList[0] || 'Grade 1 Alpha');
+    const [selectedClass, setSelectedClass] = useState<string>(classList[0] || 'Grade 1');
     const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id || 'sub_math');
     const [selectedStrandId, setSelectedStrandId] = useState<string>('');
     const [selectedSubStrandId, setSelectedSubStrandId] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState<string>('');
 
+    // Filtered Students for selected class
+    const classStudents = useMemo(() => {
+        return allStudents.filter(s => {
+            const stClass = (s.studentClass || s.classLevel || s.class_name || s.className || s.class || s.metadata?.studentClass || '').toLowerCase().trim();
+            const selClean = (selectedClass || '').toLowerCase().trim();
+            const matchesClass = !selClean || selClean === 'all' || stClass.includes(selClean) || selClean.includes(stClass) || allStudents.length <= 10;
+            const q = searchQuery.toLowerCase();
+            const matchesQuery = !q || s.name.toLowerCase().includes(q) || (s.admissionNumber || s.admission_number || '').toLowerCase().includes(q);
+            return matchesClass && matchesQuery;
+        });
+    }, [allStudents, selectedClass, searchQuery]);
     // Active Subject object
     const selectedSubject = useMemo(() => {
         return subjects.find(s => s.id === selectedSubjectId) || subjects[0] || { id: 'sub_math', name: 'Mathematical Activities', code: 'MATH-CBE' };
