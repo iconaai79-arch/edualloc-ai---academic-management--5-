@@ -80,16 +80,54 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
     }, [rooms, lecturers, subjects, courses]);
 
     const workloadStatus = useMemo(() => {
-        const pending = allocations.filter(a => a.status === 'pending').length;
-        const approvedAllocations = allocations.filter(a => a.status === 'approved' || a.status === 'hod_approved');
+        const instType = currentInstitution?.institutionType as string | undefined;
+        const cat = currentInstitution?.category;
+        const isSchool = instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (cat !== 'University' && cat !== 'Tertiary');
+
+        // Synthesize allocations from registered subjects & classes if explicit allocations array is empty or sparse in Primary/Secondary schools
+        const availableAllocations = allocations && allocations.length > 0
+            ? allocations
+            : (subjects || []).flatMap((s, sIdx) => {
+                const linkedLevels = (courses || []).flatMap(c => (c.levels || []).filter(l => (l.subjectIds || []).includes(s.id)));
+                if (linkedLevels.length === 0) {
+                    return [{
+                        id: `auto_alloc_${s.id}`,
+                        institutionId: currentInstitution?.id || '',
+                        subjectId: s.id,
+                        lecturerId: lecturers[sIdx % (lecturers.length || 1)]?.id || 'default_teacher',
+                        courseLevelIds: [],
+                        status: 'approved' as const,
+                        priority: 'normal',
+                        justification: 'Auto-approved class subject allocation',
+                        createdAt: new Date().toISOString()
+                    }];
+                }
+                return linkedLevels.map((lvl, lIdx) => ({
+                    id: `auto_alloc_${s.id}_${lvl.id}`,
+                    institutionId: currentInstitution?.id || '',
+                    subjectId: s.id,
+                    lecturerId: lvl.classTeacherId || lecturers[(sIdx + lIdx) % (lecturers.length || 1)]?.id || 'default_teacher',
+                    courseLevelIds: [lvl.id],
+                    status: 'approved' as const,
+                    priority: 'normal',
+                    justification: 'Auto-approved class subject allocation',
+                    createdAt: new Date().toISOString()
+                }));
+            });
+
+        const pending = isSchool ? 0 : availableAllocations.filter(a => a.status === 'pending').length;
+        const approvedAllocations = isSchool
+            ? availableAllocations.filter(a => a && (a.lecturerId || a.status === 'approved')).map(a => ({ ...a, status: 'approved' as const }))
+            : availableAllocations.filter(a => a.status === 'approved' || a.status === 'hod_approved');
+
         const approvedPeriods = approvedAllocations.reduce((sum, a) => {
             const subject = subjects.find(s => s.id === a.subjectId);
-            const periods = subject?.lessonStructure?.reduce((s: number, ls: any) => s + (ls.periods || 0) * (ls.count || 0), 0) || 0;
+            const periods = (subject?.lessonStructure || [{ periods: 1, count: 5 }]).reduce((s: number, ls: any) => s + (ls.periods || 1) * (ls.count || 1), 0);
             const streams = (a.courseLevelIds || []).length || 1;
             return sum + (periods * streams);
         }, 0);
-        return { approved: approvedAllocations.length, pending, approvedPeriods };
-    }, [allocations, subjects]);
+        return { approved: approvedAllocations.length, pending, approvedPeriods, approvedAllocations };
+    }, [allocations, subjects, courses, lecturers, currentInstitution]);
 
         const canProceedStep1 = contextStatus.year && contextStatus.semester && contextStatus.settings;
         const canProceedStep2 = resourceStatus.rooms > 0 && resourceStatus.lecturers > 0 && resourceStatus.subjects > 0;
@@ -106,7 +144,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
 
                 if (mode === 'ai' || mode === 'flash') {
                     const { entries, notifications: resultNotifications } = await generateTimetable(
-                        allocations.filter(a => a.status === 'approved' || a.status === 'hod_approved'),
+                        workloadStatus.approvedAllocations,
                         subjects,
                         lecturers,
                         rooms,
@@ -122,7 +160,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                     setNotifications(resultNotifications || []);
                 } else {
                     const { entries: stdEntries, notifications: stdNotifications } = generateStandardTimetable(
-                        allocations.filter(a => a.status === 'approved' || a.status === 'hod_approved'),
+                        workloadStatus.approvedAllocations,
                         subjects,
                         lecturers,
                         rooms,
