@@ -96,6 +96,7 @@ interface AcademicsOfficerViewProps {
     onDeleteBuilding?: (buildingId: string) => void;
 
     academicLevels?: AcademicLevel[];
+    allocations?: AllocationRequest[];
     letterheadConfig?: LetterheadConfig;
     logoUrl?: string | null;
     footerImageUrl?: string | null;
@@ -170,7 +171,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         onAccessAlumnaPortal = () => {}, 
         schoolRegistry = [], 
         onTimetableGenerated = async () => {},
-        academicLevels = []
+        academicLevels = [],
+        allocations = []
     } = props;
 
     const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
