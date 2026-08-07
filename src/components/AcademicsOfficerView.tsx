@@ -96,7 +96,6 @@ interface AcademicsOfficerViewProps {
     onDeleteBuilding?: (buildingId: string) => void;
 
     academicLevels?: AcademicLevel[];
-    allocations?: AllocationRequest[];
     letterheadConfig?: LetterheadConfig;
     logoUrl?: string | null;
     footerImageUrl?: string | null;
@@ -276,8 +275,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
-        { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
+        { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
         { id: 'lessons', label: 'Lessons & Allocations', icon: RectangleStackIcon },
         { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
@@ -287,6 +286,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const horizontalTabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
+        { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
         { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
         { id: 'students', label: 'Students Registry', icon: UserPlusIcon },
