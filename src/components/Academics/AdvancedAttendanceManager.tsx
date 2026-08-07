@@ -7,6 +7,7 @@ import {
     Search, Send, Eye, Clock, Sparkles, ShieldCheck, ArrowUpRight, UserCheck
 } from 'lucide-react';
 import { AttendanceTakerModal } from '../AttendanceTakerModal';
+import { QuickAttendanceRecordModal } from './QuickAttendanceRecordModal';
 
 export interface AdvancedAttendanceManagerProps {
     users?: User[];
@@ -491,32 +492,21 @@ export const AdvancedAttendanceManager: React.FC<AdvancedAttendanceManagerProps>
 
             </div>
 
-            {/* ── ROLL CALL TAKING MODAL ── */}
-            {isRollCallModalOpen && selectedClassRecord && (
-                <AttendanceTakerModal
-                    lesson={{
-                        id: selectedClassRecord.id,
-                        subjectId: 'sub_general',
-                        roomId: 'rm_general',
-                        dayOfWeek: 'Monday',
-                        startTime: '08:00 AM',
-                        endTime: '03:30 PM',
-                        courseId: selectedClassRecord.className,
-                        courseLevelId: selectedClassRecord.className,
-                        lecturerId: selectedClassRecord.supervisorId
-                    } as any}
-                    students={allStudents.slice(0, selectedClassRecord.studentCount)}
-                    initialAttendance={[]}
+            {/* ── ADVANCED QUICK ATTENDANCE COMMAND MODAL ── */}
+            {isRollCallModalOpen && (
+                <QuickAttendanceRecordModal
+                    isOpen={isRollCallModalOpen}
                     onClose={() => setIsRollCallModalOpen(false)}
-                    onSave={async (lid, data) => {
+                    students={allStudents}
+                    users={users}
+                    currentInstitution={currentInstitution}
+                    initialDate={selectedClassRecord?.date || todayStr}
+                    initialClassName={selectedClassRecord?.className || 'Form 3 2026'}
+                    onSaveAttendanceComplete={async (dStr, clsName, data) => {
                         if (onSaveAttendance) {
-                            await onSaveAttendance(lid, data as any);
+                            await onSaveAttendance(`att_${dStr}_${clsName}`, data as any);
                         }
-                        setIsRollCallModalOpen(false);
-                        alert(`Attendance successfully updated for ${selectedClassRecord.className}!`);
                     }}
-                    currentUser={users[0] || ({} as any)}
-                    studentAbsences={[]}
                 />
             )}
         </div>
