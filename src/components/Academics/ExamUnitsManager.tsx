@@ -121,6 +121,80 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [saveToastMessage, setSaveToastMessage] = useState<string | null>(null);
     const [isSavingMarks, setIsSavingMarks] = useState(false);
 
+    // ──────────────────────────────────────────────────────────────────
+    // MARKS BACKUP SYSTEM
+    // ──────────────────────────────────────────────────────────────────
+    // State for the restore panel
+    const [isBackupPanelOpen, setIsBackupPanelOpen] = useState(false);
+    // State for the class-change warning dialog
+    const [classChangeWarning, setClassChangeWarning] = useState<{
+        oldClasses: string[];
+        newClasses: string[];
+        examId: string;
+        examName: string;
+        backupKey: string;
+        rowCount: number;
+        proceed: () => void;
+    } | null>(null);
+
+    /** Snapshot key: uniquely identifies marks for an exam+class combination */
+    const buildSnapshotKey = useCallback((examId: string, classes: string[]) => {
+        const classPart = [...classes].sort().join('|').replace(/\s+/g, '_').toLowerCase();
+        return `eduai_marks_snapshot_${instId}_${examId}_${classPart}`;
+    }, [instId]);
+
+    /** Write a named snapshot of current broadsheet rows for the active exam */
+    const snapshotMarks = useCallback((examId: string, classes: string[], rows: any[]) => {
+        if (!examId || rows.length === 0) return;
+        const key = buildSnapshotKey(examId, classes);
+        const snapshot = {
+            examId,
+            classes,
+            rows,
+            savedAt: new Date().toISOString(),
+            rowCount: rows.length
+        };
+        try {
+            localStorage.setItem(key, JSON.stringify(snapshot));
+            // Keep a master index of all snapshot keys per exam
+            const indexKey = `eduai_marks_snapshot_index_${instId}_${examId}`;
+            const existing: string[] = JSON.parse(localStorage.getItem(indexKey) || '[]');
+            if (!existing.includes(key)) {
+                existing.push(key);
+                localStorage.setItem(indexKey, JSON.stringify(existing));
+            }
+        } catch (e) { }
+    }, [buildSnapshotKey, instId]);
+
+    /** List all snapshots for a given exam */
+    const listSnapshots = useCallback((examId: string): Array<{ key: string; classes: string[]; savedAt: string; rowCount: number }> => {
+        const indexKey = `eduai_marks_snapshot_index_${instId}_${examId}`;
+        const keys: string[] = JSON.parse(localStorage.getItem(indexKey) || '[]');
+        return keys.map(k => {
+            try {
+                const raw = localStorage.getItem(k);
+                if (!raw) return null;
+                const snap = JSON.parse(raw);
+                return { key: k, classes: snap.classes || [], savedAt: snap.savedAt || '', rowCount: snap.rowCount || 0 };
+            } catch { return null; }
+        }).filter(Boolean) as any[];
+    }, [instId]);
+
+    /** Restore rows from a snapshot key */
+    const restoreFromSnapshot = useCallback((snapshotKey: string) => {
+        try {
+            const raw = localStorage.getItem(snapshotKey);
+            if (!raw) { alert('Backup not found.'); return; }
+            const snap = JSON.parse(raw);
+            if (!Array.isArray(snap.rows) || snap.rows.length === 0) { alert('Backup is empty.'); return; }
+            setBroadsheetStudentRows(snap.rows);
+            setExamMarksStore(prev => ({ ...prev, [snap.examId]: snap.rows }));
+            setSaveToastMessage(`✅ Restored ${snap.rows.length} student marks from backup (${snap.classes?.join(', ')} — ${new Date(snap.savedAt).toLocaleString()})`);
+            setTimeout(() => setSaveToastMessage(null), 6000);
+            setIsBackupPanelOpen(false);
+        } catch (e) { alert('Failed to restore backup.'); }
+    }, []);
+
     // Accordion state for class progress table
     const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({
         'c_form_3_central': true,
@@ -1260,6 +1334,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(updatedStore));
         } catch (e) { }
 
+        // ── AUTO-SNAPSHOT: Save a timestamped class-keyed backup of these marks ──
+        if (activeExam && broadsheetStudentRows.length > 0) {
+            const classesForSnap = activeExamClasses.length > 0 ? activeExamClasses : (activeExam.classes || []);
+            snapshotMarks(selectedExamId, classesForSnap, broadsheetStudentRows);
+        }
+
         if (currentInstitution?.id) {
             await apiService.saveModuleRecord('institution_module_states', {
                 id: `broadsheets_${currentInstitution.id}`,
@@ -1927,6 +2007,64 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         // EDIT EXISTING EXAM CASE
         if (isEditingExam && activeExam) {
+            // ── CLASS-CHANGE GUARD: Warn if class list changed and marks exist ──
+            const oldClasses = activeExam.classes || [];
+            const newClasses = targetClasses;
+            const classesChanged =
+                oldClasses.length !== newClasses.length ||
+                oldClasses.some(c => !newClasses.includes(c));
+
+            const existingRows: any[] = examMarksStore[activeExam.id] || [];
+            const hasEnteredMarks = existingRows.some(r =>
+                Object.entries(r).some(([k, v]) =>
+                    !['admNo', 'name', 'class'].includes(k) && typeof v === 'number' && v > 0
+                )
+            );
+
+            if (classesChanged && hasEnteredMarks && oldClasses.length > 0) {
+                // Snapshot the existing marks under the old class key BEFORE warning
+                snapshotMarks(activeExam.id, oldClasses, existingRows);
+
+                const backupKey = buildSnapshotKey(activeExam.id, oldClasses);
+                // Show warning dialog — don't proceed until user confirms
+                setClassChangeWarning({
+                    oldClasses,
+                    newClasses,
+                    examId: activeExam.id,
+                    examName: newExamName.trim(),
+                    backupKey,
+                    rowCount: existingRows.length,
+                    proceed: async () => {
+                        const updatedExam: ExamUnitRecord = {
+                            ...activeExam,
+                            name: newExamName.trim(),
+                            term: newTerm.toUpperCase(),
+                            type: newExamTypeRadio.toUpperCase(),
+                            year: parseInt(newAcademicYear) || activeExam.year,
+                            studentsEnrolled: studentCount,
+                            classes: targetClasses,
+                            institution_id: currentInstitution?.id,
+                            institutionId: currentInstitution?.id
+                        };
+                        setExams(prev => {
+                            const nextExams = prev.map(e => e.id === activeExam.id ? updatedExam : e);
+                            try { localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(nextExams)); } catch (e) { }
+                            return nextExams;
+                        });
+                        if (currentInstitution?.id) {
+                            await apiService.saveModuleRecord('exam_units', updatedExam).catch(() => { });
+                        }
+                        setIsEditingExam(false);
+                        setIsAddExamModalOpen(false);
+                        setWizardStep(1);
+                        setClassChangeWarning(null);
+                        setSaveToastMessage(`✨ Updated "${updatedExam.name}". Previous marks archived.`);
+                        setTimeout(() => setSaveToastMessage(null), 5000);
+                    }
+                });
+                return; // Wait for user response in dialog
+            }
+
             const updatedExam: ExamUnitRecord = {
                 ...activeExam,
                 name: newExamName.trim(),
@@ -2602,7 +2740,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 />
                                                 <span>CAT</span>
                                             </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
                                                 <input
                                                     type="radio"
                                                     name="examTypeRadio"
@@ -3746,6 +3883,157 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     Done
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════════════
+                CLASS CHANGE WARNING DIALOG
+                Fires when exam classes are changed while marks have been entered.
+            ═══════════════════════════════════════════════════════════════════════ */}
+            {classChangeWarning && (
+                <div className="fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full shadow-2xl border border-amber-300 dark:border-amber-700 overflow-hidden">
+                        {/* Warning Header */}
+                        <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 flex items-start gap-3">
+                            <span className="text-3xl mt-0.5">⚠️</span>
+                            <div>
+                                <h3 className="text-white font-black text-lg leading-tight">Class Change Detected</h3>
+                                <p className="text-amber-100 text-xs font-medium mt-0.5">Marks have already been entered for this exam</p>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="px-6 py-5 space-y-4">
+                            <div className="rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-4">
+                                <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 mb-3">
+                                    <strong>{classChangeWarning.rowCount} student mark records</strong> were found for:
+                                </p>
+                                <div className="flex flex-wrap gap-1.5 mb-3">
+                                    {classChangeWarning.oldClasses.map(c => (
+                                        <span key={c} className="px-2 py-0.5 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-md text-xs font-bold">{c}</span>
+                                    ))}
+                                </div>
+                                <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 mb-2">You are changing to:</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {classChangeWarning.newClasses.map(c => (
+                                        <span key={c} className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-md text-xs font-bold">{c}</span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-4">
+                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">🔒 Marks Auto-Archived</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    A backup of all entered marks has been automatically saved under the old class configuration.
+                                    You can restore them anytime via the <strong>Restore Backup</strong> button inside the broadsheet.
+                                </p>
+                            </div>
+
+                            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                Do you want to proceed with changing the class? The broadsheet will reset for the new class roster.
+                            </p>
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex gap-3 justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setClassChangeWarning(null)}
+                                className="px-5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-bold text-sm rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
+                            >
+                                Cancel — Keep Old Classes
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => classChangeWarning.proceed()}
+                                className="px-5 py-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-black text-sm rounded-xl shadow-lg transition-all cursor-pointer active:scale-95"
+                            >
+                                ✅ Proceed — Change Class
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════════════
+                MARKS BACKUP RESTORE PANEL
+                Lists all archived snapshots so user can restore any past version.
+            ═══════════════════════════════════════════════════════════════════════ */}
+            {isBackupPanelOpen && (
+                <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <span className="text-2xl">🗂️</span>
+                                <div>
+                                    <h3 className="text-white font-black text-base">Marks Backup History</h3>
+                                    <p className="text-slate-400 text-xs font-medium">{activeExam?.name || 'Current Exam'}</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsBackupPanelOpen(false)}
+                                className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-all cursor-pointer"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-5 space-y-3 max-h-[60vh] overflow-y-auto">
+                            {(() => {
+                                const snapshots = listSnapshots(selectedExamId);
+                                if (snapshots.length === 0) {
+                                    return (
+                                        <div className="text-center py-12">
+                                            <span className="text-5xl block mb-3">📭</span>
+                                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">No backups found for this exam.</p>
+                                            <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">Backups are created automatically each time you save marks.</p>
+                                        </div>
+                                    );
+                                }
+                                return [...snapshots].reverse().map((snap, i) => (
+                                    <div
+                                        key={snap.key}
+                                        className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:border-blue-300 dark:hover:border-blue-700 transition-all group"
+                                    >
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex flex-wrap gap-1 mb-1">
+                                                {snap.classes.map(c => (
+                                                    <span key={c} className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded text-[10px] font-bold">{c}</span>
+                                                ))}
+                                                {i === 0 && (
+                                                    <span className="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded text-[10px] font-bold">Latest</span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                {snap.rowCount} students &bull; {snap.savedAt ? new Date(snap.savedAt).toLocaleString() : 'Unknown time'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (window.confirm(`Restore ${snap.rowCount} student marks from this backup (${snap.classes.join(', ')})?\n\nThis will overwrite the current broadsheet.`)) {
+                                                    restoreFromSnapshot(snap.key);
+                                                }
+                                            }}
+                                            className="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-lg transition-all cursor-pointer active:scale-95 opacity-0 group-hover:opacity-100"
+                                        >
+                                            ↩ Restore
+                                        </button>
+                                    </div>
+                                ));
+                            })()}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-5 py-3 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800">
+                            <p className="text-[10px] text-slate-400 font-medium text-center">
+                                💡 Backups are stored locally in your browser. Clearing browser data will remove them.
+                            </p>
                         </div>
                     </div>
                 </div>
