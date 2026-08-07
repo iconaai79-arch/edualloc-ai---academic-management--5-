@@ -38,6 +38,7 @@ import { RectangleStackIcon } from './icons/RectangleStackIcon';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { Futuristic3DExamAnalyticsDashboard } from './Academics/Futuristic3DExamAnalyticsDashboard';
 import { AdvancedAttendanceManager } from './Academics/AdvancedAttendanceManager';
+import { TimetableManagerModule } from './Academics/TimetableManagerModule';
 import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
 
 interface AcademicsOfficerViewProps {
@@ -172,7 +173,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         academicLevels = []
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'home' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
     const [isLoading, setIsLoading] = useState(false);
@@ -273,6 +274,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
+        { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
         { id: 'lessons', label: 'Lessons & Allocations', icon: RectangleStackIcon },
@@ -283,6 +285,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const horizontalTabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
+        { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
         { id: 'students', label: 'Students Registry', icon: UserPlusIcon },
         { id: 'teachers', label: 'Teachers Registry', icon: UserGroupIcon },
@@ -548,6 +551,31 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             />
                         </div>
                     </section>
+                </div>
+            )}
+
+            {activeTab === 'timetable' && (
+                <div className="space-y-6 animate-fade-in w-full">
+                    <TimetableManagerModule
+                        entries={filteredExamTimetable}
+                        getSubjectById={getSubjectById}
+                        getLecturerById={getLecturerById}
+                        getRoomById={getRoomById}
+                        buildings={props.buildings || []}
+                        courses={courses}
+                        departments={departments || []}
+                        currentInstitution={currentInstitution}
+                        activeAcademicYear={activeAcademicYear}
+                        activeSemester={activeSemester}
+                        generationMode={generationMode}
+                        setGenerationMode={setGenerationMode}
+                        isLoading={isLoading}
+                        isGeneratingPdf={isGeneratingPdf}
+                        error={error}
+                        onGenerate={handleGenerate}
+                        onDownloadPdf={handleDownloadPdf}
+                        onOpenWizard={() => setIsWizardOpen(true)}
+                    />
                 </div>
             )}
 
