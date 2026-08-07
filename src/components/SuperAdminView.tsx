@@ -7788,23 +7788,43 @@ Please change it after login.`;
 
                             {/* Auto-generated Validation Endpoint */}
                             {managingImFor && (
-                                <div className="space-y-2">
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Validation Endpoint (give to I&amp;M Bank)</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            readOnly
-                                            value={`${window.location.origin}/api/im-validate/${managingImFor.id}`}
-                                            className="form-input font-mono text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 pr-24 cursor-text select-all"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/im-validate/${managingImFor.id}`); }}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95"
-                                        >Copy</button>
+                                <>
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Customer Validation Endpoint (give to I&amp;M Bank)</label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                readOnly
+                                                value={`${window.location.origin}/api/im-validate/${managingImFor.id}`}
+                                                className="form-input font-mono text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 pr-24 cursor-text select-all"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/im-validate/${managingImFor.id}`); }}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95"
+                                            >Copy</button>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 ml-1">Provide this to I&amp;M Bank as the <span className="font-bold text-slate-600 dark:text-slate-300">Customer Validation URL</span> in their setup.</p>
                                     </div>
-                                    <p className="text-[10px] text-slate-400 ml-1">This URL is unique to this tenant. Provide it to I&amp;M Bank as the <span className="font-bold text-slate-600 dark:text-slate-300">Customer Validation URL</span> in their integration setup.</p>
-                                </div>
+
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Payment Notification Webhook (give to I&amp;M Bank)</label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                readOnly
+                                                value={`${window.location.origin}/api/im-notify/${managingImFor.id}`}
+                                                className="form-input font-mono text-[11px] text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 pr-24 cursor-text select-all"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/im-notify/${managingImFor.id}`); }}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95"
+                                            >Copy</button>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 ml-1">Provide this to I&amp;M Bank as the <span className="font-bold text-slate-600 dark:text-slate-300">Payment Notification Callback URL</span> for automatic ledger updating.</p>
+                                    </div>
+                                </>
                             )}
 
                             {/* Custom Validation Endpoint Override */}
