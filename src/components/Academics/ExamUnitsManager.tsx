@@ -901,7 +901,43 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return `ADM-${1001 + idx}`;
     }, []);
 
-    // Helper to sanitize any loaded broadsheet rows with real student admission numbers
+    // Helper to resolve clean human-readable student full name across all schema types
+    const resolveCleanStudentName = useCallback((st: any, idx: number): string => {
+        if (!st) return `Student ${idx + 1}`;
+        const candidate =
+            st.name ??
+            st.fullName ??
+            st.full_name ??
+            st.studentName ??
+            st.student_name ??
+            st.userName ??
+            st.username ??
+            st.metadata?.name ??
+            st.metadata?.fullName ??
+            st.metadata?.studentName ??
+            st.metadata?.student_name ??
+            st.user?.name ??
+            st.user?.fullName ??
+            st.user?.metadata?.name;
+
+        if (typeof candidate === 'string' && candidate.trim() && !candidate.toLowerCase().startsWith('student ')) {
+            return candidate.trim();
+        }
+
+        const fn = st.firstName || st.first_name || st.metadata?.firstName || st.user?.firstName || st.user?.first_name;
+        const ln = st.lastName || st.last_name || st.metadata?.lastName || st.user?.lastName || st.user?.last_name;
+        if (fn || ln) {
+            return `${fn || ''} ${ln || ''}`.trim();
+        }
+
+        if (typeof candidate === 'string' && candidate.trim()) {
+            return candidate.trim();
+        }
+
+        return `Student ${idx + 1}`;
+    }, []);
+
+    // Helper to sanitize any loaded broadsheet rows with real student admission numbers & names
     const sanitizeBroadsheetRows = useCallback((rows: any[]) => {
         if (!Array.isArray(rows)) return rows;
         const realStList = allRealStudents.length > 0
@@ -917,14 +953,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             );
 
             if (matchedSt) {
-                return { ...row, admNo: resolveCleanAdmNo(matchedSt, idx) };
+                const resolvedName = resolveCleanStudentName(matchedSt, idx);
+                const nameToUse = (resolvedName && !resolvedName.toLowerCase().startsWith('student ')) ? resolvedName : (row.name || resolvedName);
+                return { ...row, name: nameToUse, admNo: resolveCleanAdmNo(matchedSt, idx) };
             }
             if (!row.admNo || typeof row.admNo !== 'string' || row.admNo.startsWith('usr_') || row.admNo.startsWith('user_')) {
                 return { ...row, admNo: resolveCleanAdmNo(row, idx) };
             }
             return row;
         });
-    }, [allRealStudents, users, resolveCleanAdmNo]);
+    }, [allRealStudents, users, resolveCleanAdmNo, resolveCleanStudentName]);
 
     // Display students list for Choose from students modal
     const displayStudentsList = useMemo(() => {
@@ -932,7 +970,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return allRealStudents.map((st, idx) => ({
                 id: (st as any).id || (st as any).admissionNumber || resolveCleanAdmNo(st, idx),
                 admNo: resolveCleanAdmNo(st, idx),
-                name: (st as any).fullName || st.name || (st as any).email || `Student ${idx + 1}`,
+                name: resolveCleanStudentName(st, idx),
                 class: getStudentClass(st) || 'Grade 1 S 2026',
             }));
         }
@@ -942,7 +980,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             name: st.name,
             class: st.class || 'Form 3 Central',
         }));
-    }, [allRealStudents, resolveCleanAdmNo, getStudentClass, defaultSampleRows]);
+    }, [allRealStudents, resolveCleanAdmNo, resolveCleanStudentName, getStudentClass, defaultSampleRows]);
 
     const filteredPickerStudents = useMemo(() => {
         let list = displayStudentsList;
@@ -976,35 +1014,32 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         // 1. Check in-memory store
         if (examMarksStore[selectedExamId] && Array.isArray(examMarksStore[selectedExamId]) && examMarksStore[selectedExamId].length > 0) {
             const existingRows = examMarksStore[selectedExamId];
-            const hasLegacySampleNames = existingRows.some(r => ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau'].includes(r.name));
+            const hasGenericStudentNames = existingRows.some(r => r.name && r.name.toLowerCase().startsWith('student '));
 
-            // If store contains legacy sample names or real students available, refresh with real student data
-            if (hasLegacySampleNames) {
-                const freshSource = matchingRealStudents.length > 0
-                    ? matchingRealStudents.map((st, idx) => ({
-                        admNo: resolveCleanAdmNo(st, idx),
-                        name: st.name || `Student ${idx + 1}`,
+            // If store contains generic "Student 1" names or real students available, refresh with real student names
+            if (hasGenericStudentNames && matchingRealStudents.length > 0) {
+                const freshSource = matchingRealStudents.map((st, idx) => {
+                    const adm = resolveCleanAdmNo(st, idx);
+                    const existingRow = existingRows.find(r => r.admNo === adm || r.admNo === (st as any).admissionNumber);
+                    return {
+                        ...(existingRow || {}),
+                        admNo: adm,
+                        name: resolveCleanStudentName(st, idx),
                         class: getStudentClass(st) || targetClasses[0],
-                        mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
-                    }))
-                    : [
-                        { admNo: '2008', name: 'Maxine Jelimo', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                        { admNo: '2244', name: 'Dennis Kiplagat', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                        { admNo: '1897', name: 'Felix Kipkosgei', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                        { admNo: '1712', name: 'Job Kipkorir Kipkoech', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                        { admNo: '2127', name: 'Linett Chepkorir Agui', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                        { admNo: '1838', name: 'Mercy Chepngetich', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                        { admNo: '1834', name: 'Sharon Chebet', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                        { admNo: '1972', name: 'Brian Kipkurui', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                        { admNo: '1957', name: 'Faith Chepkoech', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 },
-                        { admNo: '1967', name: 'Kipkoech Rotich', class: targetClasses[0], mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0 }
-                    ];
-
+                        mathP1: existingRow?.mathP1 || 0,
+                        mathP2: existingRow?.mathP2 || 0,
+                        engP1: existingRow?.engP1 || 0,
+                        engP2: existingRow?.engP2 || 0,
+                        kiswP1: existingRow?.kiswP1 || 0,
+                        bioP1: existingRow?.bioP1 || 0
+                    };
+                });
                 setBroadsheetStudentRows(freshSource);
                 setExamMarksStore(prev => ({ ...prev, [selectedExamId]: freshSource }));
-            } else {
-                setBroadsheetStudentRows(sanitizeBroadsheetRows(existingRows));
+                return;
             }
+
+            setBroadsheetStudentRows(sanitizeBroadsheetRows(existingRows));
             return;
         }
 
@@ -1042,7 +1077,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (matchingRealStudents.length > 0) {
             cleanRows = matchingRealStudents.map((st, idx) => ({
                 admNo: resolveCleanAdmNo(st, idx),
-                name: st.name || `Student ${idx + 1}`,
+                name: resolveCleanStudentName(st, idx),
                 class: getStudentClass(st) || targetClasses[0],
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
             }));
@@ -1073,7 +1108,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
         setBroadsheetStudentRows(cleanRows);
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
-    }, [selectedExamId, currentInstitution, users, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass, sanitizeBroadsheetRows, resolveCleanAdmNo, examMarksStore]);
+    }, [selectedExamId, currentInstitution, users, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass, sanitizeBroadsheetRows, resolveCleanAdmNo, resolveCleanStudentName, examMarksStore]);
 
     const filteredStudentRows = useMemo(() => {
         const activeStList = allRealStudents.length > 0
@@ -1096,14 +1131,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 // Map matchedReal strictly to their existing broadsheet row or create clean rows
                 rows = matchedReal.map((st, idx) => {
                     const adm = resolveCleanAdmNo(st, idx);
-                    const nameLower = (st.name || '').toLowerCase().trim();
-                    const existingRow = broadsheetStudentRows.find(r => r.admNo === adm || (r.name || '').toLowerCase().trim() === nameLower);
+                    const cleanName = resolveCleanStudentName(st, idx);
+                    const existingRow = broadsheetStudentRows.find(r => r.admNo === adm || (r.name && r.name.toLowerCase().trim() === cleanName.toLowerCase().trim()));
                     if (existingRow) {
-                        return { ...existingRow, class: getStudentClass(st) || targetClasses[0] };
+                        const nameToUse = (cleanName && !cleanName.toLowerCase().startsWith('student ')) ? cleanName : (existingRow.name || cleanName);
+                        return { ...existingRow, admNo: adm, name: nameToUse, class: getStudentClass(st) || targetClasses[0] };
                     }
                     return {
                         admNo: adm,
-                        name: st.name || `Student ${idx + 1}`,
+                        name: cleanName,
                         class: getStudentClass(st) || targetClasses[0],
                         mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
                     };
