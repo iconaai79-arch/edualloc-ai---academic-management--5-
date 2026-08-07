@@ -1,10 +1,10 @@
 import type { 
-    Subject, User, Room, Course, ExamTimetableEntry, ExamTimetableSettings, Semester 
+    Subject, User, Room, Course, ExamTimetableEntry, ExamTimetableSettings, Semester, AllocationRequest 
 } from '../types';
 
 /**
  * Deterministically generates an exam timetable by filling available slots sequentially.
- * This provides a "Standard Logic" alternative to the AI generator.
+ * Automatically uses subject allocation data to bind allocated lecturers to subjects.
  */
 export const generateStandardExamTimetable = (
     subjectsWithExams: Subject[],
@@ -12,7 +12,8 @@ export const generateStandardExamTimetable = (
     lecturers: User[],
     rooms: Room[],
     activeSemester: Semester,
-    settings: ExamTimetableSettings
+    settings: ExamTimetableSettings,
+    allocations?: AllocationRequest[]
 ): ExamTimetableEntry[] => {
     const entries: ExamTimetableEntry[] = [];
     const availableLecturers = (lecturers || []).filter(u => u && u.role !== 'student' && u.role !== 'super_admin');
@@ -58,10 +59,10 @@ export const generateStandardExamTimetable = (
         });
     });
 
-    // 3. Sequential load balancing
+    // 3. Sequential load balancing with automatic allocation binding
     let windowIndex = 0;
     let roomIndexInWindow = 0;
-    let lecturerIndex = 0;
+    let fallbackLecturerIndex = 0;
 
     examTasks.forEach((task, idx) => {
         if (roomIndexInWindow >= availableRooms.length) {
@@ -71,7 +72,19 @@ export const generateStandardExamTimetable = (
 
         const currentWindow = allWindows[windowIndex % allWindows.length];
         const currentRoom = availableRooms[roomIndexInWindow % availableRooms.length];
-        const currentInvigilator = availableLecturers[lecturerIndex % availableLecturers.length];
+
+        // AUTOMATIC ALLOCATION BINDING: Check if an approved allocation exists for this subject
+        const approvedAlloc = (allocations || []).find(a => 
+            a && a.subjectId === task.subjectId && 
+            (a.status === 'approved' || a.status === 'hod_approved')
+        );
+
+        const assignedInvigilator = approvedAlloc
+            ? availableLecturers.find(l => l.id === approvedAlloc.lecturerId) || availableLecturers[fallbackLecturerIndex % availableLecturers.length]
+            : availableLecturers[fallbackLecturerIndex % availableLecturers.length];
+
+        fallbackLecturerIndex++;
+        roomIndexInWindow++;
 
         entries.push({
             id: `exam_std_${Date.now()}_${idx}`,
@@ -81,8 +94,8 @@ export const generateStandardExamTimetable = (
             subjectId: task.subjectId,
             courseId: task.courseId,
             courseLevelId: task.courseLevelId,
-            roomId: currentRoom.id,
-            invigilatorId: currentInvigilator.id,
+            roomId: currentRoom ? currentRoom.id : '',
+            invigilatorId: assignedInvigilator ? assignedInvigilator.id : '',
             institutionId: activeSemester.institutionId,
             academicYearId: activeSemester.academicYearId,
             semesterId: activeSemester.id

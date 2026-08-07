@@ -215,7 +215,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 await onExamTimetableGenerated(rawTimetable, (activeAcademicYear?.id || ""), (activeSemester?.id || ""));
                 onLogAction?.(`Generated AI exam timetable for ${activeSemester?.name || 'Term'} (${activeAcademicYear?.name || 'Year'})`);
             } else {
-                const standardEntries = generateStandardExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], Array.isArray(users) ? users : [], Array.isArray(rooms) ? rooms : [], activeSemester, (examTimetableSettings || {} as any));
+                const standardEntries = generateStandardExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], Array.isArray(users) ? users : [], Array.isArray(rooms) ? rooms : [], activeSemester, (examTimetableSettings || {} as any), allocations);
                 await onExamTimetableGenerated(standardEntries, (activeAcademicYear?.id || ""), (activeSemester?.id || ""));
                 onLogAction?.(`Generated standard exam timetable for ${activeSemester?.name || 'Term'} (${activeAcademicYear?.name || 'Year'})`);
             }

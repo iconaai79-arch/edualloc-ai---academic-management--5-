@@ -5,9 +5,11 @@ import type {
 } from '../../types';
 import { ExamTimetableGrid } from '../ExamTimetableGrid';
 import { 
-    Calendar, Sparkles, Printer, DocumentArrowDownIcon, CommandLineIcon, 
-    Filter, Search, Clock, Plus, ShieldCheck, CheckCircle2, RefreshCw, Layers
+    Calendar, Sparkles, Printer, Filter, Search, Clock, Plus, 
+    ShieldCheck, CheckCircle2, RefreshCw, Layers, Terminal, FileText
 } from 'lucide-react';
+import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
+import { CommandLineIcon } from '../icons/CommandLineIcon';
 
 export interface TimetableManagerModuleProps {
     entries: ExamTimetableEntry[];
@@ -216,9 +218,9 @@ export const TimetableManagerModule: React.FC<TimetableManagerModuleProps> = ({
                     <div className="overflow-x-auto">
                         <ExamTimetableGrid
                             entries={filteredEntries}
-                            getSubjectById={getSubjectById}
-                            getLecturerById={getLecturerById}
-                            getRoomById={getRoomById}
+                            getSubjectById={getSubjectById || (() => undefined)}
+                            getLecturerById={getLecturerById || (() => undefined)}
+                            getRoomById={getRoomById || (() => undefined)}
                             buildings={buildings}
                             courses={courses}
                             title={title}
