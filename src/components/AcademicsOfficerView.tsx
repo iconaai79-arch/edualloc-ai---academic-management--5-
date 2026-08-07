@@ -36,6 +36,7 @@ import { StudentEnrollmentManager } from './common/StudentEnrollmentManager';
 import { ExamUnitsManager } from './Academics/ExamUnitsManager';
 import { RectangleStackIcon } from './icons/RectangleStackIcon';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
+import { Futuristic3DExamAnalyticsDashboard } from './Academics/Futuristic3DExamAnalyticsDashboard';
 import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
 
 interface AcademicsOfficerViewProps {
@@ -357,6 +358,17 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
                 {activeTab === 'home' && (
                 <div className="space-y-6">
+                    {/* 3D Futuristic Graphical Analysis & Exam Performance Dashboard */}
+                    <Futuristic3DExamAnalyticsDashboard
+                        assessments={assessments}
+                        marks={marks}
+                        students={users ? users.filter(u => u.role === 'student') : []}
+                        subjects={subjects}
+                        courses={courses}
+                        currentInstitution={currentInstitution}
+                        onNavigateToReports={() => setActiveTab('reports')}
+                    />
+
                     {/* ACADEMICS PORTAL HUB - EASY SWITCHER */}
                     <section className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl border border-indigo-900/50 space-y-6">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
