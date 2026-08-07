@@ -35,6 +35,8 @@ import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
 import { TransportBillingManager } from './TransportBillingManager';
 import type { RouteFeeSetting, TransportFeeInvoice, BillingCycle } from './TransportBillingManager';
+import { TransportManager } from './TransportManager';
+import { apiService } from '../services/apiService';
 
 interface Shipment {
     id: string;
@@ -66,10 +68,99 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const isSACCO = currentInstitution.category === 'Public Transport' || currentInstitution.category?.includes('SACCO');
     const isEduTransport = currentInstitution.category === 'Educational Transport' || currentInstitution.institutionType === 'Education' || currentInstitution.institutionType === 'Primary' || currentInstitution.institutionType === 'Secondary';
 
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips' | 'alerts' | 'billing'>(
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips' | 'alerts' | 'billing'>(
         isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Vehicles state & API operations for Vehicle Registration tab
+    const [dbVehicles, setDbVehicles] = useState<any[]>([]);
+    const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
+
+    const fetchVehiclesList = async () => {
+        setIsLoadingVehicles(true);
+        try {
+            const records = await apiService.fetchModuleRecords('vehicles', currentInstitution.id);
+            setDbVehicles(records || []);
+        } catch (err) {
+            console.error('Error fetching vehicles:', err);
+        } finally {
+            setIsLoadingVehicles(false);
+        }
+    };
+
+    React.useEffect(() => {
+        if (activeTab === 'vehicle_reg') {
+            fetchVehiclesList();
+        }
+    }, [activeTab, currentInstitution.id]);
+
+    const handleAddVehicle = async (vehicleData: any) => {
+        try {
+            const newVehicle = {
+                ...vehicleData,
+                id: `vh_${Date.now()}`,
+                institutionId: currentInstitution.id
+            };
+            await apiService.saveModuleRecord('vehicles', newVehicle);
+            await fetchVehiclesList();
+        } catch (err: any) {
+            alert('Failed to add vehicle: ' + (err.message || err));
+        }
+    };
+
+    const handleUpdateVehicle = async (id: string, updates: any) => {
+        try {
+            const existing = dbVehicles.find(v => v.id === id);
+            const updated = {
+                ...existing,
+                ...updates,
+                id
+            };
+            await apiService.saveModuleRecord('vehicles', updated);
+            await fetchVehiclesList();
+        } catch (err: any) {
+            alert('Failed to update vehicle: ' + (err.message || err));
+        }
+    };
+
+    const handleDeleteVehicle = async (id: string) => {
+        try {
+            await apiService.deleteModuleRecord('vehicles', id);
+            await fetchVehiclesList();
+        } catch (err: any) {
+            alert('Failed to delete vehicle: ' + (err.message || err));
+        }
+    };
+
+    const handleAddUser = async (userData: any) => {
+        try {
+            const newUser = {
+                ...userData,
+                id: `usr_${Date.now()}`,
+                institutionId: currentInstitution.id
+            };
+            await apiService.saveModuleRecord('users', newUser);
+            alert('Driver added successfully!');
+        } catch (err: any) {
+            alert('Failed to add driver: ' + (err.message || err));
+        }
+    };
+
+    const handleEditUser = async (userId: string, data: any) => {
+        try {
+            const existingUser = users.find(u => u.id === userId);
+            const updated = {
+                ...existingUser,
+                ...data,
+                id: userId
+            };
+            await apiService.saveModuleRecord('users', updated);
+            alert('Driver updated successfully!');
+        } catch (err: any) {
+            alert('Failed to update driver: ' + (err.message || err));
+        }
+    };
 
     // Transport Disruption Alerts state
     const [transportAlerts, setTransportAlerts] = useState<TransportDisruption[]>([]);
@@ -1699,6 +1790,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     { id: 'manifest', label: isSACCO ? 'Trip Registry' : isShuttle ? 'Route History' : isEduTransport ? 'Student Commute' : 'Cargo Manifest', icon: isEduTransport ? MapPin : Package, show: true },
                     { id: 'trips', label: 'School Trips', icon: Calendar, show: isEduTransport },
                     { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', icon: Truck, show: true },
+                    { id: 'vehicle_reg', label: 'Vehicle Registration', icon: Truck, show: true },
                     { id: 'analytics', label: isSACCO ? 'Dividend Data' : isShuttle ? 'Commute Data' : isEduTransport ? 'Commute Insights' : 'Route Science', icon: BarChart3, show: true },
                     { id: 'alerts',  label: 'Disruption Alerts', icon: Bell,    show: isEduTransport },
                     { id: 'billing', label: 'Transport Billing', icon: Receipt, show: isEduTransport },
@@ -1723,6 +1815,26 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             <div className="min-h-[60vh]">
                 {activeTab === 'manifest' && (isEduTransport ? renderStudentCommute() : renderManifest())}
                 {activeTab === 'fleet' && renderFleet()}
+                {activeTab === 'vehicle_reg' && (
+                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-6 border border-slate-100 dark:border-slate-700 shadow-sm">
+                        {isLoadingVehicles ? (
+                            <div className="p-12 text-center text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">
+                                Loading Vehicle Registry...
+                            </div>
+                        ) : (
+                            <TransportManager
+                                currentInstitution={currentInstitution}
+                                vehicles={dbVehicles}
+                                users={users}
+                                onAddVehicle={handleAddVehicle}
+                                onUpdateVehicle={handleUpdateVehicle}
+                                onDeleteVehicle={handleDeleteVehicle}
+                                onAddUser={handleAddUser}
+                                onEditUser={handleEditUser}
+                            />
+                        )}
+                    </div>
+                )}
                 {activeTab === 'epod' && renderEPOD()}
                 {activeTab === 'shuttle' && renderShuttleHub()}
                 {activeTab === 'sacco' && renderSACCOHub()}
