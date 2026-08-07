@@ -811,9 +811,9 @@ export const App: React.FC = () => {
     const timetableSettings = useMemo(() => activeInstitution?.timetableSettings || INITIAL_TIMETABLE_SETTINGS, [activeInstitution]);
 
     const isSchoolContext = useMemo(() => {
-        const instType = activeInstitution?.institutionType;
+        const instType = activeInstitution?.institutionType as string | undefined;
         const cat = activeInstitution?.category;
-        return instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (instType !== 'Tertiary' && instType !== 'University');
+        return instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (cat !== 'University' && cat !== 'Tertiary');
     }, [activeInstitution]);
 
     const allocations = useMemo(() => {
@@ -2376,9 +2376,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
     }, [currentUser, loadData]);
 
     const handleAddRequest = useCallback(async (data: any) => {
-        const instType = activeInstitution?.institutionType;
+        const instType = activeInstitution?.institutionType as string | undefined;
         const cat = activeInstitution?.category;
-        const isSchool = instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (instType !== 'Tertiary' && instType !== 'University');
+        const isSchool = instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (cat !== 'University' && cat !== 'Tertiary');
         const defaultStatus = isSchool ? 'approved' : (data.status || 'pending');
 
         await apiService.saveModuleRecord('allocation_requests', { 
@@ -2392,9 +2392,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
     const handleLecturerSubmitRequest = useCallback(async (subjectIds: string[], justification: string, signatureUrl: string | null, priority: string, academicYearId: string, semesterId: string, preferences: any, courseLevelSelections: Record<string, string[]>) => {
         try {
-            const instType = activeInstitution?.institutionType;
+            const instType = activeInstitution?.institutionType as string | undefined;
             const cat = activeInstitution?.category;
-            const isSchool = instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (instType !== 'Tertiary' && instType !== 'University');
+            const isSchool = instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (cat !== 'University' && cat !== 'Tertiary');
             const defaultStatus = isSchool ? 'approved' : 'pending';
 
             for (const subjectId of subjectIds) {
