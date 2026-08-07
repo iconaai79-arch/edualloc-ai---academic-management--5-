@@ -274,13 +274,36 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [branches, props.institution?.id, cleanId]);
 
     const mergedStudents = useMemo(() => {
+        const activeInstId = props.institution?.id || '';
+        const activeInstClean = cleanId(activeInstId);
+
+        // Collect all institution IDs that are relevant to the current active institution
+        // (the institution itself + all its linked satellite branch institutions)
+        const relevantInstIds = new Set<string>([activeInstId, activeInstClean]);
+        branches.forEach((b: any) => {
+            [b.id, b.linked_institution_id, b.linkedInstitutionId, b.institution_id,
+             b.metadata?.institutionId, b.metadata?.linkedInstitutionId]
+                .forEach((id: string) => { if (id) { relevantInstIds.add(id); relevantInstIds.add(cleanId(id)); } });
+        });
+
+        // Filter props.students to only those belonging to the active institution scope
+        // This prevents stale students from prior impersonation sessions bleeding in
+        const scopedPropsStudents = (props.students || []).filter((s: any) => {
+            const sInstId = s.institutionId || s.institution_id || '';
+            const sBranchId = s.branchId || s.branch_id || s.metadata?.branchId || '';
+            // Keep if no institutionId set (legacy), or if it matches a relevant institution
+            if (!sInstId) return true;
+            return relevantInstIds.has(sInstId) || relevantInstIds.has(cleanId(sInstId)) ||
+                   (sBranchId && (relevantInstIds.has(sBranchId) || relevantInstIds.has(cleanId(sBranchId))));
+        });
+
         const map = new Map<string, any>();
-        (props.students || []).forEach((s: any) => map.set(s.id, s));
+        scopedPropsStudents.forEach((s: any) => map.set(s.id, s));
         allBranchStudents.forEach((s: any) => {
             if (!map.has(s.id)) map.set(s.id, s);
         });
         return Array.from(map.values());
-    }, [props.students, allBranchStudents]);
+    }, [props.students, allBranchStudents, props.institution?.id, branches, cleanId]);
 
     const mergedStudentsMap = useMemo(() => {
         const map = new Map<string, any>();
@@ -291,22 +314,48 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [mergedStudents]);
 
     const mergedInvoices = useMemo(() => {
+        const activeInstId = props.institution?.id || '';
+        const activeInstClean = cleanId(activeInstId);
+        const relevantInstIds = new Set<string>([activeInstId, activeInstClean]);
+        branches.forEach((b: any) => {
+            [b.id, b.linked_institution_id, b.linkedInstitutionId, b.institution_id,
+             b.metadata?.institutionId, b.metadata?.linkedInstitutionId]
+                .forEach((id: string) => { if (id) { relevantInstIds.add(id); relevantInstIds.add(cleanId(id)); } });
+        });
+        const scopedPropsInvoices = (props.invoices || []).filter((inv: any) => {
+            const iInstId = inv.institutionId || inv.institution_id || '';
+            if (!iInstId) return true;
+            return relevantInstIds.has(iInstId) || relevantInstIds.has(cleanId(iInstId));
+        });
         const map = new Map<string, any>();
-        (props.invoices || []).forEach((inv: any) => map.set(inv.id, inv));
+        scopedPropsInvoices.forEach((inv: any) => map.set(inv.id, inv));
         allBranchInvoices.forEach((inv: any) => {
             if (!map.has(inv.id)) map.set(inv.id, inv);
         });
         return Array.from(map.values());
-    }, [props.invoices, allBranchInvoices]);
+    }, [props.invoices, allBranchInvoices, props.institution?.id, branches, cleanId]);
 
     const mergedReceipts = useMemo(() => {
+        const activeInstId = props.institution?.id || '';
+        const activeInstClean = cleanId(activeInstId);
+        const relevantInstIds = new Set<string>([activeInstId, activeInstClean]);
+        branches.forEach((b: any) => {
+            [b.id, b.linked_institution_id, b.linkedInstitutionId, b.institution_id,
+             b.metadata?.institutionId, b.metadata?.linkedInstitutionId]
+                .forEach((id: string) => { if (id) { relevantInstIds.add(id); relevantInstIds.add(cleanId(id)); } });
+        });
+        const scopedPropsReceipts = (props.receipts || []).filter((rec: any) => {
+            const rInstId = rec.institutionId || rec.institution_id || '';
+            if (!rInstId) return true;
+            return relevantInstIds.has(rInstId) || relevantInstIds.has(cleanId(rInstId));
+        });
         const map = new Map<string, any>();
-        (props.receipts || []).forEach((rec: any) => map.set(rec.id, rec));
+        scopedPropsReceipts.forEach((rec: any) => map.set(rec.id, rec));
         allBranchReceipts.forEach((rec: any) => {
             if (!map.has(rec.id)) map.set(rec.id, rec);
         });
         return Array.from(map.values());
-    }, [props.receipts, allBranchReceipts]);
+    }, [props.receipts, allBranchReceipts, props.institution?.id, branches, cleanId]);
 
     const mergedEnrollments = useMemo(() => {
         const map = new Map<string, any>();
@@ -1335,7 +1384,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             let matchedStudent: User | undefined;
 
             if (importerMatchField === 'admissionNumber') {
-                matchedStudent = props.students.find(s => {
+                matchedStudent = mergedStudents.find(s => {
                     const ids = getStudentIdentifiers(s);
                     if (ids.some(id => normalize(id) === normRawId)) return true;
                     if (alphaRawId && ids.some(id => sanitizeAlphaNum(id) === alphaRawId)) return true;
@@ -1345,21 +1394,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 // Fallback to student name match if admission number match failed
                 if (!matchedStudent) {
-                    matchedStudent = props.students.find(s => {
+                    matchedStudent = mergedStudents.find(s => {
                         if (!s.name) return false;
                         return normalize(s.name) === normRawId || (alphaRawId && sanitizeAlphaNum(s.name) === alphaRawId);
                     });
                 }
             } else {
                 // Primary match by student name
-                matchedStudent = props.students.find(s => {
+                matchedStudent = mergedStudents.find(s => {
                     if (!s.name) return false;
                     return normalize(s.name) === normRawId || (alphaRawId && sanitizeAlphaNum(s.name) === alphaRawId);
                 });
 
                 // Fallback to admission number match
                 if (!matchedStudent) {
-                    matchedStudent = props.students.find(s => {
+                    matchedStudent = mergedStudents.find(s => {
                         const ids = getStudentIdentifiers(s);
                         if (ids.some(id => normalize(id) === normRawId)) return true;
                         if (alphaRawId && ids.some(id => sanitizeAlphaNum(id) === alphaRawId)) return true;
@@ -2171,7 +2220,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         try {
             const newReceipts = matchedItems.map(item => {
-                const student = props.students.find(s => s.id === item.matchedStudentId);
+                const student = mergedStudents.find(s => s.id === item.matchedStudentId);
                 return {
                     id: `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
                     institutionId: props.institution.id,
@@ -2199,7 +2248,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             try {
                 const bulkSchool = props.institution.name || 'School';
                 for (const rec of newReceipts) {
-                    const bStudent = props.students.find((s: any) => s.id === rec.studentId);
+                    const bStudent = mergedStudents.find((s: any) => s.id === rec.studentId);
                     if (!bStudent) continue;
                     const bLink = `${window.location.origin}/?receipt=${rec.receiptNumber}`;
                     const bSms = `[${bulkSchool}] KSh ${rec.amountPaid.toLocaleString()} received. Receipt: ${rec.receiptNumber}. Download: ${bLink}`;
@@ -2441,7 +2490,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         try {
             const classFilteredReceipts = mappedReceipts.filter(rec => {
                 if (!rec.studentId) return false;
-                const student = props.students.find(s => s.id === rec.studentId);
+                const student = mergedStudents.find(s => s.id === rec.studentId);
                 if (!student) return false;
                 const studentClass = studentClassGroup(student);
                 if (reprintSelectedClass !== 'All' && studentClass !== reprintSelectedClass) return false;
@@ -2974,7 +3023,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             if (receiptsMainTab === 'student_fees' && !isStudentFee) return false;
             if (receiptsMainTab === 'other_income' && isStudentFee) return false;
 
-            const student = rec.studentId ? props.students.find(s => s.id === rec.studentId) : null;
+            const student = rec.studentId ? mergedStudents.find(s => s.id === rec.studentId) : null;
             
             // Standard matches
             const matchesReceiptNumber = (rec.receiptNumber || '').toLowerCase().includes(query);
@@ -2996,7 +3045,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             return matchesQuery && matchesSource;
         });
-    }, [props.receipts, searchReceiptQuery, receiptSourceFilter, props.students, receiptsMainTab]);
+    }, [mappedReceipts, searchReceiptQuery, receiptSourceFilter, mergedStudents, receiptsMainTab]);
 
     const [receiptCurrentPage, setReceiptCurrentPage] = useState(1);
 
@@ -3060,7 +3109,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const fetchBankFeeds = async () => {
         try {
             setLoadingFeeds(true);
-            const feeds = await apiService.fetchModuleRecords('mpesa_transactions', props.institution.id);
+            const targetInstId = (selectedBranchId && selectedBranchId !== 'ALL') ? selectedBranchId : props.institution.id;
+            const feeds = await apiService.fetchModuleRecords('mpesa_transactions', targetInstId);
             setUnreconciledFeeds((feeds || []).filter((f: any) => f.status === 'pending'));
         } catch (e) {
             console.error("Failed to load bank feeds:", e);
@@ -3070,8 +3120,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     };
 
     useEffect(() => {
-        if (showPostModal && props.institution?.id) {
-            apiService.fetchModuleRecords('finance_numbering_configs', props.institution.id)
+        const targetInstId = (selectedBranchId && selectedBranchId !== 'ALL') ? selectedBranchId : (props.institution?.id || '');
+        if (showPostModal && targetInstId) {
+            apiService.fetchModuleRecords('finance_numbering_configs', targetInstId)
                 .then((configs: any[]) => {
                     const rConfig = configs.find(c => c.documentType === 'receipt' || c.document_type === 'receipt');
                     const nextNum = rConfig ? Number(rConfig.nextNumber || rConfig.next_number || 1001) : 1001;
@@ -3082,7 +3133,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     setNextReceiptNumber('');
                 });
         }
-    }, [showPostModal, props.institution?.id]);
+    }, [showPostModal, selectedBranchId, props.institution?.id]);
 
     useEffect(() => {
         if (activeTab === 'receipts') {
@@ -3120,7 +3171,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             // --- Receipt Notification (SMS + Email) ---
             try {
-                const notifyStudent = props.students.find((s: any) => s.id === manualPayStudentId);
+                const notifyStudent = mergedStudents.find((s: any) => s.id === manualPayStudentId);
                 const notifySchool = props.institution.name || 'School';
                 const receiptLink = `${window.location.origin}/?receipt=${receiptNumber}`;
                 const smsText = `[${notifySchool}] KSh ${Number(manualPayAmount).toLocaleString()} received. Receipt: ${receiptNumber}. Download: ${receiptLink}`;
@@ -3444,7 +3495,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     description: receipt.paidFor || 'Fees Payment'
                 } as any;
             }
-            const student = receipt.studentId ? props.students.find(s => s.id === receipt.studentId) : null;
+            const student = receipt.studentId ? mergedStudents.find(s => s.id === receipt.studentId) : null;
             const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
             const invoiceBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
 
@@ -3475,7 +3526,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     description: receipt.paidFor || 'Fees Payment'
                 } as any;
             }
-            const student = receipt.studentId ? props.students.find(s => s.id === receipt.studentId) : null;
+            const student = receipt.studentId ? mergedStudents.find(s => s.id === receipt.studentId) : null;
             const studentName = student?.name || (receipt as any).studentName || (receipt as any).payerName || 'Walk-in / Student';
             const admNo = student?.admissionNumber || (student as any)?.admission_number || '—';
             const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
@@ -3501,7 +3552,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const handlePrintEposThermalReceipt = async (receipt: Receipt) => {
         try {
-            const student = receipt.studentId ? props.students.find(s => s.id === receipt.studentId) : null;
+            const student = receipt.studentId ? mergedStudents.find(s => s.id === receipt.studentId) : null;
             const studentClass = student ? studentClassGroup(student) : undefined;
             const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
             const remainingBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
@@ -6219,8 +6270,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                                             {[
                                                 { label: 'Collection Rate', value: collectionRate, suffix: '%', good: collectionRate >= 80, bar: true },
-                                                { label: 'Avg. per Student', value: props.students.length > 0 ? Math.round(totalCollected / props.students.length) : 0, suffix: ' KSh', good: true, bar: false },
-                                                { label: 'Total Students', value: props.students.length, suffix: '', good: true, bar: false },
+                                                { label: 'Avg. per Student', value: studentFinanceData.length > 0 ? Math.round(totalCollected / studentFinanceData.length) : 0, suffix: ' KSh', good: true, bar: false },
+                                                { label: 'Total Students', value: studentFinanceData.length, suffix: '', good: true, bar: false },
                                                 { label: 'Expense Ratio', value: totalCollected > 0 ? Math.round((totalExpenses / totalCollected) * 100) : 0, suffix: '%', good: totalCollected > 0 && (totalExpenses / totalCollected) < 0.5, bar: true },
                                             ].map((metric, i) => (
                                                 <div key={i} className="space-y-3">
@@ -6356,7 +6407,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
                                         {paginatedReceipts.map(rec => {
-                                            const student = rec.studentId ? props.students.find(s => s.id === rec.studentId) : null;
+                                            const student = rec.studentId ? mergedStudents.find(s => s.id === rec.studentId) : null;
                                             const enrollment = student ? enrollments.find(e => e.userId === student.id) : null;
                                             const admNum = enrollment?.admissionNumber || enrollment?.admission_number || student?.admissionNumber || student?.admission_number || '—';
                                             const studentName = student?.name || 'Unknown Student';
