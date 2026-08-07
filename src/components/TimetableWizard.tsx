@@ -66,8 +66,13 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
     }, [activeAcademicYear, activeSemester, timetableSettings]);
 
     const resourceStatus = useMemo(() => {
+        // Primary & Secondary Schools (K-12): If physical rooms are 0, classes/streams automatically act as rooms
+        const classStreamsCount = (courses || []).reduce((sum, c) => sum + (c.levels?.length || 1), 0);
+        const effectiveRoomCount = rooms.length > 0 ? rooms.length : classStreamsCount;
+
         return {
-            rooms: rooms.length,
+            rooms: effectiveRoomCount,
+            physicalRooms: rooms.length,
             lecturers: lecturers.length,
             subjects: subjects.length,
             courses: courses.length
@@ -242,10 +247,17 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                         <div className="space-y-6 animate-fade-in">
                             <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">2. Resource Availability</h4>
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center relative">
                                     <BuildingOfficeIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
                                     <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.rooms}</p>
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rooms</p>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                        {resourceStatus.physicalRooms > 0 ? 'Rooms' : 'Class / Grade Rooms'}
+                                    </p>
+                                    {resourceStatus.physicalRooms === 0 && resourceStatus.rooms > 0 && (
+                                        <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-full mt-1 inline-block border border-indigo-200 dark:border-indigo-800">
+                                            Classes Act as Rooms
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
                                     <UserGroupIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
