@@ -415,7 +415,8 @@ export const generateReceiptPdfDataUri = async (
     institution: Institution,
     companyDetails: CompanyDetails,
     logoUrl: string | null,
-    invoiceBalance?: number
+    invoiceBalance?: number,
+    accountantName?: string
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -584,7 +585,16 @@ export const generateReceiptPdfDataUri = async (
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    doc.text('Authorized Signature & Stamp', margin, sigBaseY + 10);
+    if (accountantName) {
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(accountantName.toUpperCase(), margin, sigBaseY + 4);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 116, 139);
+        doc.text('Prepared / Verified By', margin, sigBaseY + 10);
+    } else {
+        doc.text('Authorized Signature & Stamp', margin, sigBaseY + 10);
+    }
 
     // Process footers on all pages
     setupPdfFooter(doc, footerImg, footerText);
@@ -1235,8 +1245,8 @@ export const downloadQuotePdf = async (
     link.click();
 };
 
-export const downloadReceiptPdf = async (receipt: Receipt, transaction: MpesaTransaction, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null, invoiceBalance?: number) => {
-    const dataUri = await generateReceiptPdfDataUri(receipt, transaction, institution, companyDetails, logoUrl, invoiceBalance);
+export const downloadReceiptPdf = async (receipt: Receipt, transaction: MpesaTransaction, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null, invoiceBalance?: number, accountantName?: string) => {
+    const dataUri = await generateReceiptPdfDataUri(receipt, transaction, institution, companyDetails, logoUrl, invoiceBalance, accountantName);
     const link = document.createElement('a');
     link.href = dataUri;
     link.download = `Receipt-${receipt.receiptNumber}.pdf`;

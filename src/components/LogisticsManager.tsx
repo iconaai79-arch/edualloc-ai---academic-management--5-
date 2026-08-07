@@ -458,10 +458,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         return (
             <div className="animate-fade-in-up space-y-8">
                 {/* Commute Sub-navigation */}
-                <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-800">
-                    <button onClick={() => setCommuteSubTab('monitor')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${commuteSubTab === 'monitor' ? 'bg-white dark:bg-slate-650 text-indigo-650 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Live Monitor</button>
-                    <button onClick={() => setCommuteSubTab('routes')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${commuteSubTab === 'routes' ? 'bg-white dark:bg-slate-650 text-indigo-650 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Register Routes</button>
-                    <button onClick={() => setCommuteSubTab('students')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${commuteSubTab === 'students' ? 'bg-white dark:bg-slate-650 text-indigo-650 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Student Assignment</button>
+                <div className="flex overflow-x-auto whitespace-nowrap bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-full border border-slate-200 dark:border-slate-800 scrollbar-none">
+                    <button onClick={() => setCommuteSubTab('monitor')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${commuteSubTab === 'monitor' ? 'bg-white dark:bg-slate-650 text-indigo-650 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Live Monitor</button>
+                    <button onClick={() => setCommuteSubTab('routes')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${commuteSubTab === 'routes' ? 'bg-white dark:bg-slate-650 text-indigo-650 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Register Routes</button>
+                    <button onClick={() => setCommuteSubTab('students')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${commuteSubTab === 'students' ? 'bg-white dark:bg-slate-650 text-indigo-650 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Student Assignment</button>
                 </div>
 
                 {commuteSubTab === 'monitor' && (
@@ -1692,7 +1692,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex flex-wrap items-center gap-4 bg-slate-100 dark:bg-slate-900/50 p-2 rounded-[2rem] w-fit border border-slate-200 dark:border-slate-800 shadow-inner">
+            <div className="flex overflow-x-auto whitespace-nowrap items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-2 rounded-[2rem] w-full border border-slate-200 dark:border-slate-800 shadow-inner scrollbar-none">
                 {[
                     { id: 'sacco', label: 'SACCO Hub', icon: Landmark, show: isSACCO },
                     { id: 'shuttle', label: 'Shuttle Control', icon: DoorOpen, show: isShuttle },
@@ -1707,7 +1707,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex items-center gap-3 px-8 py-3 rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest transition-all ${
+                        className={`flex items-center gap-3 px-8 py-3 rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest transition-all shrink-0 ${
                             activeTab === tab.id 
                             ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl' 
                             : 'text-slate-500 hover:text-slate-700'

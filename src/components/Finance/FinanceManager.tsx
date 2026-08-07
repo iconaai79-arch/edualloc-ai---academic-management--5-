@@ -3454,7 +3454,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 props.institution,
                 props.companyDetails || {} as any,
                 props.institution.logoUrl || null,
-                invoiceBalance
+                invoiceBalance,
+                props.currentUser?.name || 'Chief Accountant'
             );
         } catch (err: any) {
             alert("Failed to generate PDF: " + (err.message || err));
@@ -3486,7 +3487,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 props.institution,
                 props.companyDetails || {} as any,
                 props.institution.logoUrl || null,
-                invoiceBalance
+                invoiceBalance,
+                props.currentUser?.name || 'Chief Accountant'
             );
             setOnScreenReceiptModal({ receipt, dataUri, studentName, admNo });
         } catch (err: any) {
