@@ -66,10 +66,14 @@ export const ExamTimetableGrid: React.FC<ExamTimetableGridProps> = ({ entries, g
                                     const room = getRoomById(entry.roomId);
                                     const invigilator = getLecturerById(entry.invigilatorId);
                                     const building = room ? (buildings || []).find(b => b && b.id === room.buildingId) : undefined;
-                                    const roomText = room ? `${building?.name || ''} - ${room.name}` : 'N/A';
                                     const course = (courses || []).find(c => c && c.id === entry.courseId);
                                     const level = course?.levels?.find(l => l && l.id === entry.courseLevelId);
                                     const courseText = course ? `${course.name} (${level?.name || 'N/A'})` : 'N/A';
+                                    
+                                    // For primary/secondary schools, class or grade name acts as the assigned room
+                                    const roomText = room 
+                                        ? `${building?.name ? building.name + ' - ' : ''}${room.name}`
+                                        : (course ? `${course.name} ${level?.name ? '(' + level.name + ')' : ''}` : 'Classroom');
                                     
                                     return (
                                         <tr key={entry.id}>

@@ -86,6 +86,19 @@ export const generateStandardExamTimetable = (
         fallbackLecturerIndex++;
         roomIndexInWindow++;
 
+        // CLASS / GRADE NAME ACTS AS ROOM FOR PRIMARY & SECONDARY SCHOOLS:
+        // Check if there is a physical room matching the class/grade, otherwise assign courseLevelId/courseId
+        const matchingClassRoom = availableRooms.find(r => 
+            r && r.name && (
+                r.name.toLowerCase() === (task.courseId || '').toLowerCase() ||
+                r.name.toLowerCase() === (task.courseLevelId || '').toLowerCase()
+            )
+        );
+
+        const assignedRoomId = matchingClassRoom 
+            ? matchingClassRoom.id 
+            : (currentRoom ? currentRoom.id : (task.courseLevelId || task.courseId));
+
         entries.push({
             id: `exam_std_${Date.now()}_${idx}`,
             date: currentWindow.date,
@@ -94,7 +107,7 @@ export const generateStandardExamTimetable = (
             subjectId: task.subjectId,
             courseId: task.courseId,
             courseLevelId: task.courseLevelId,
-            roomId: currentRoom ? currentRoom.id : '',
+            roomId: assignedRoomId,
             invigilatorId: assignedInvigilator ? assignedInvigilator.id : '',
             institutionId: activeSemester.institutionId,
             academicYearId: activeSemester.academicYearId,
@@ -102,7 +115,6 @@ export const generateStandardExamTimetable = (
         });
 
         roomIndexInWindow++;
-        lecturerIndex++;
     });
 
     return entries;
