@@ -12,6 +12,7 @@ import type {
     CompanyDetails, Course, Department, AcademicYear, Semester, ActivityLog
 } from '../types';
 import { ActivityLogPanel } from './common/ActivityLogPanel';
+import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { apiService } from '../services/apiService';
 
 // Sub-components
@@ -435,6 +436,12 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
                             {isSidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
                     </div>
+
+                    {/* Top Subscription Expiry Banner */}
+                    <SubscriptionExpiryBanner
+                        institution={currentInstitution}
+                        isCollapsed={!isSidebarOpen}
+                    />
 
                     {/* Portal Hub Return Button if onSwitchPerspective */}
                     {onSwitchPerspective && (

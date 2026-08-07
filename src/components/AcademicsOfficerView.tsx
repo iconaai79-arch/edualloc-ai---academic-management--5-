@@ -35,6 +35,7 @@ import { DisciplineManager } from './Academics/DisciplineManager';
 import { StudentEnrollmentManager } from './common/StudentEnrollmentManager';
 import { ExamUnitsManager } from './Academics/ExamUnitsManager';
 import { RectangleStackIcon } from './icons/RectangleStackIcon';
+import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
 
 interface AcademicsOfficerViewProps {
@@ -298,6 +299,12 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         </div>
                     )}
                 </div>
+
+                {/* Top Subscription Expiry Banner */}
+                <SubscriptionExpiryBanner
+                    institution={currentInstitution}
+                    isCollapsed={!isSidebarOpen}
+                />
 
                 <nav className="space-y-1.5 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
                     {tabs.filter(item => item.id !== 'lessons').map(item => (

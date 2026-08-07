@@ -51,6 +51,7 @@ import type {
     CampaignProfile, CampaignVote
 } from '../types';
 import { apiService } from '../services/apiService';
+import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { LeadScoutManager } from './LeadScoutManager';
 import { SmartHeritageMemberImporterModal } from './SmartHeritageMemberImporterModal';
 
@@ -2459,6 +2460,12 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                                 </button>
                             </div>
+
+                            {/* Top Subscription Expiry Banner */}
+                            <SubscriptionExpiryBanner
+                                institution={currentInstitution}
+                                isCollapsed={isSidebarCollapsed}
+                            />
 
                             {/* Vertical Menu Buttons */}
                             <nav className="space-y-2">

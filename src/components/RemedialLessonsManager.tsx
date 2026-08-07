@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject } from '../types';
 import { apiService } from '../services/apiService';
+import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
@@ -758,6 +759,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                             <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/50"></span>
                         </div>
+
+                        {/* Top Subscription Expiry Banner */}
+                        <SubscriptionExpiryBanner
+                            institution={currentInstitution}
+                        />
 
                         <button 
                             onClick={() => setActiveTab('sessions')}

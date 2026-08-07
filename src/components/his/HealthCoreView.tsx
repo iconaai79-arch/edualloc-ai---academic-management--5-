@@ -23,6 +23,7 @@ import { InpatientView } from './InpatientView';
 import { DentalView } from './DentalView';
 import { OphthalmologyView } from './OphthalmologyView';
 import { HISBillingView } from './HISBillingView';
+import { SubscriptionExpiryBanner } from '../common/SubscriptionExpiryBanner';
 import { HISBroadcasterView } from './HISBroadcasterView';
 import { AppointmentsView } from './AppointmentsView';
 import { HISConfigView } from './HISConfigView';
@@ -463,6 +464,13 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                                 <p className="text-[8px] font-black text-indigo-300 uppercase tracking-[0.25em] mt-1">School Wellness</p>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Top Subscription Expiry Banner */}
+                    <div className="px-3">
+                        <SubscriptionExpiryBanner
+                            institution={institutionData}
+                        />
                     </div>
 
                     {/* Primary Navigation: Home, Patients, Appointment */}

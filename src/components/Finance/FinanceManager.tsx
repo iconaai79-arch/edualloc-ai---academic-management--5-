@@ -43,6 +43,7 @@ import { HomeIcon } from '../icons/HomeIcon';
 import { TrendingUpIcon } from '../icons/TrendingUpIcon';
 import { FileTextIcon } from '../icons/FileTextIcon';
 import { ChartPieIcon } from '../icons/ChartPieIcon';
+import { SubscriptionExpiryBanner } from '../common/SubscriptionExpiryBanner';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowsRightLeftIcon } from '../icons/ArrowsRightLeftIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
@@ -5657,6 +5658,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </div>
                     )}
                 </div>
+
+                {/* Top Subscription Expiry Banner */}
+                <SubscriptionExpiryBanner
+                    institution={props.institution}
+                    isCollapsed={!isSidebarOpen}
+                />
+
                 <nav className="space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
                     {[
                         { id: 'home', label: 'Overview', icon: HomeIcon },

@@ -80,6 +80,7 @@ import {
     Key as KeyIconLucide
 } from 'lucide-react';
 import { apiService } from '../../services/apiService';
+import { SubscriptionExpiryBanner } from '../common/SubscriptionExpiryBanner';
 import * as pdfService from '../../services/pdfService';
 
 interface DrivingSchoolManagerProps {
@@ -5673,6 +5674,12 @@ END $$;
                         </button>
                     </div>
                 </div>
+
+                {/* Top Subscription Expiry Banner */}
+                <SubscriptionExpiryBanner
+                    institution={currentInstitution}
+                    isCollapsed={isNavSidebarCollapsed}
+                />
 
                 {/* Navigation Group Sections */}
                 <div className="space-y-5 max-h-[calc(100vh-250px)] overflow-y-auto pr-1 custom-scrollbar-horizontal">

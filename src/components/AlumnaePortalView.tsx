@@ -50,6 +50,7 @@ import {
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
+import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 
 interface AlumnaePortalViewProps {
     currentAlumna: any;
@@ -1505,11 +1506,16 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             </div>
             {/* Left Sidebar - Navigation (Hidden on mobile, shown on md+) */}
             <aside className="hidden md:flex w-64 border-r border-white/5 flex-col p-4 fixed h-screen bg-white/5 backdrop-blur-3xl z-50">
-                <div className="mb-8 px-2">
+                <div className="mb-4 px-2">
                     <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200">
                         <Sparkles className="w-6 h-6" />
                     </div>
                 </div>
+
+                {/* Top Subscription Expiry Banner */}
+                <SubscriptionExpiryBanner
+                    institution={institutions && institutions.length > 0 ? institutions[0] : null}
+                />
 
                 <nav className="space-y-2 flex-1">
                     {[
