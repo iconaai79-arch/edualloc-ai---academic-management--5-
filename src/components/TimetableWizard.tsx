@@ -84,8 +84,12 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
         const cat = currentInstitution?.category;
         const isSchool = instType === 'Primary' || instType === 'Secondary' || cat === 'Primary' || cat === 'Secondary' || (cat !== 'University' && cat !== 'Tertiary');
 
+        const autoTimestamp = new Date().toISOString();
+        const autoAyId = activeAcademicYear?.id || 'ay_default';
+        const autoSemId = activeSemester?.id || 'sem_default';
+
         // Synthesize allocations from registered subjects & classes if explicit allocations array is empty or sparse in Primary/Secondary schools
-        const availableAllocations = allocations && allocations.length > 0
+        const availableAllocations: AllocationRequest[] = allocations && allocations.length > 0
             ? allocations
             : (subjects || []).flatMap((s, sIdx) => {
                 const linkedLevels = (courses || []).flatMap(c => (c.levels || []).filter(l => (l.subjectIds || []).includes(s.id)));
@@ -93,25 +97,31 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                     return [{
                         id: `auto_alloc_${s.id}`,
                         institutionId: currentInstitution?.id || '',
+                        academicYearId: autoAyId,
+                        semesterId: autoSemId,
                         subjectId: s.id,
                         lecturerId: lecturers[sIdx % (lecturers.length || 1)]?.id || 'default_teacher',
                         courseLevelIds: [],
                         status: 'approved' as const,
-                        priority: 'normal',
+                        priority: 'normal' as any,
                         justification: 'Auto-approved class subject allocation',
-                        createdAt: new Date().toISOString()
+                        timestamp: autoTimestamp,
+                        createdAt: autoTimestamp
                     }];
                 }
                 return linkedLevels.map((lvl, lIdx) => ({
                     id: `auto_alloc_${s.id}_${lvl.id}`,
                     institutionId: currentInstitution?.id || '',
+                    academicYearId: autoAyId,
+                    semesterId: autoSemId,
                     subjectId: s.id,
                     lecturerId: lvl.classTeacherId || lecturers[(sIdx + lIdx) % (lecturers.length || 1)]?.id || 'default_teacher',
                     courseLevelIds: [lvl.id],
                     status: 'approved' as const,
-                    priority: 'normal',
+                    priority: 'normal' as any,
                     justification: 'Auto-approved class subject allocation',
-                    createdAt: new Date().toISOString()
+                    timestamp: autoTimestamp,
+                    createdAt: autoTimestamp
                 }));
             });
 
