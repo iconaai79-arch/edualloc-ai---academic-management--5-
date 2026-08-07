@@ -708,6 +708,24 @@ export interface CbeCompetencyAssessment {
     assessedAt: string;
 }
 
+export interface CbePortfolioItem {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    subjectId?: string;
+    subjectName: string;
+    strandName?: string;
+    subStrandName?: string;
+    title: string;
+    description?: string;
+    mediaUrl: string;
+    mediaType?: 'image' | 'video' | 'document' | 'audio';
+    rubricScore?: CbeRubricLevel;
+    teacherComments?: string;
+    uploadedByTeacherId?: string;
+    uploadedAt: string;
+}
+
 export interface Subject {
     id: string;
     code: string;
