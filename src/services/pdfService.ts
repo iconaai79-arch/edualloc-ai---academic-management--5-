@@ -414,7 +414,8 @@ export const generateReceiptPdfDataUri = async (
     transaction: MpesaTransaction,
     institution: Institution,
     companyDetails: CompanyDetails,
-    logoUrl: string | null
+    logoUrl: string | null,
+    invoiceBalance?: number
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -513,9 +514,9 @@ export const generateReceiptPdfDataUri = async (
         startY: finalTableStartY,
         theme: 'striped',
         headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold' },
-        styles: { fontSize: 8.5, cellPadding: 5.5 },
+        styles: { fontSize: 8.5, cellPadding: 5.5, valign: 'top' },
         columnStyles: {
-            0: { cellWidth: 10 },
+            0: { cellWidth: 18, halign: 'center' },
             1: { fontStyle: 'bold' },
             3: { halign: 'right', fontStyle: 'bold' }
         }
@@ -553,6 +554,17 @@ export const generateReceiptPdfDataUri = async (
     doc.setTextColor(13, 148, 136); // Teal-600
     doc.text('TOTAL AMOUNT PAID:', pageWidth - margin - 75, totalBoxY + 7);
     doc.text(`KES ${(receipt?.amountPaid || 0).toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
+
+    // Render Outstanding Balance if present
+    if (invoiceBalance !== undefined) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139); // Slate-500
+        doc.text('OUTSTANDING BALANCE:', pageWidth - margin - 75, totalBoxY + 16);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(220, 38, 38); // Red-600
+        doc.text(`KES ${invoiceBalance.toLocaleString()}.00`, pageWidth - margin, totalBoxY + 16, { align: 'right' });
+    }
 
     // Professional Stamp & Authorized Signature section (Bottom Left)
     const sigBaseY = pageHeight - 55;
@@ -1223,8 +1235,8 @@ export const downloadQuotePdf = async (
     link.click();
 };
 
-export const downloadReceiptPdf = async (receipt: Receipt, transaction: MpesaTransaction, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null) => {
-    const dataUri = await generateReceiptPdfDataUri(receipt, transaction, institution, companyDetails, logoUrl);
+export const downloadReceiptPdf = async (receipt: Receipt, transaction: MpesaTransaction, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null, invoiceBalance?: number) => {
+    const dataUri = await generateReceiptPdfDataUri(receipt, transaction, institution, companyDetails, logoUrl, invoiceBalance);
     const link = document.createElement('a');
     link.href = dataUri;
     link.download = `Receipt-${receipt.receiptNumber}.pdf`;

@@ -3444,12 +3444,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     description: receipt.paidFor || 'Fees Payment'
                 } as any;
             }
+            const student = receipt.studentId ? props.students.find(s => s.id === receipt.studentId) : null;
+            const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
+            const invoiceBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
+
             await pdfService.downloadReceiptPdf(
                 receipt,
                 relatedTx,
                 props.institution,
                 props.companyDetails || {} as any,
-                props.institution.logoUrl || null
+                props.institution.logoUrl || null,
+                invoiceBalance
             );
         } catch (err: any) {
             alert("Failed to generate PDF: " + (err.message || err));
@@ -3472,13 +3477,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const student = receipt.studentId ? props.students.find(s => s.id === receipt.studentId) : null;
             const studentName = student?.name || (receipt as any).studentName || (receipt as any).payerName || 'Walk-in / Student';
             const admNo = student?.admissionNumber || (student as any)?.admission_number || '—';
+            const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
+            const invoiceBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
 
             const dataUri = await pdfService.generateReceiptPdfDataUri(
                 receipt,
                 relatedTx,
                 props.institution,
                 props.companyDetails || {} as any,
-                props.institution.logoUrl || null
+                props.institution.logoUrl || null,
+                invoiceBalance
             );
             setOnScreenReceiptModal({ receipt, dataUri, studentName, admNo });
         } catch (err: any) {
@@ -3493,13 +3501,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         try {
             const student = receipt.studentId ? props.students.find(s => s.id === receipt.studentId) : null;
             const studentClass = student ? studentClassGroup(student) : undefined;
+            const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
+            const remainingBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
+            const previousBalance = remainingBalance !== undefined ? (remainingBalance + (Number(receipt.amountPaid) || 0)) : undefined;
+
             const dataUri = await pdfService.generateFinanceEposThermalReceiptPdfDataUri(
                 receipt,
                 student,
                 props.institution,
                 props.companyDetails || {} as any,
                 props.institution.logoUrl || null,
-                { studentClass }
+                { 
+                    studentClass,
+                    previousBalance,
+                    remainingBalance
+                }
             );
             setEposModalReceipt({ receipt, dataUri });
         } catch (err: any) {
@@ -15592,12 +15608,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <div className="p-6 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3">
                             <button
                                 onClick={() => {
+                                    const student = eposModalReceipt.receipt.studentId ? props.students.find(s => s.id === eposModalReceipt.receipt.studentId) : null;
+                                    const studentClass = student ? studentClassGroup(student) : undefined;
+                                    const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
+                                    const remainingBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
+                                    const previousBalance = remainingBalance !== undefined ? (remainingBalance + (Number(eposModalReceipt.receipt.amountPaid) || 0)) : undefined;
+
                                     pdfService.downloadFinanceEposThermalReceiptPdf(
                                         eposModalReceipt.receipt,
-                                        eposModalReceipt.receipt.studentId ? props.students.find(s => s.id === eposModalReceipt.receipt.studentId) : null,
+                                        student,
                                         props.institution,
                                         props.companyDetails || {} as any,
-                                        props.institution.logoUrl || null
+                                        props.institution.logoUrl || null,
+                                        {
+                                            studentClass,
+                                            previousBalance,
+                                            remainingBalance
+                                        }
                                     );
                                 }}
                                 className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
