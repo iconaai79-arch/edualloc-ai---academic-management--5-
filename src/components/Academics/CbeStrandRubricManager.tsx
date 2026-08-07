@@ -11,7 +11,7 @@ import {
 import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 
 export interface CbeStrandRubricManagerProps {
-    currentInstitution: Institution | null;
+    currentInstitution?: Institution | null;
     subjects?: Subject[];
     users?: User[]; // Contains students & teachers
     courses?: Course[];
