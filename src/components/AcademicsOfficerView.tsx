@@ -40,6 +40,7 @@ import { Futuristic3DExamAnalyticsDashboard } from './Academics/Futuristic3DExam
 import { AdvancedAttendanceManager } from './Academics/AdvancedAttendanceManager';
 import { TimetableManagerModule } from './Academics/TimetableManagerModule';
 import { CbeStrandRubricManager } from './Academics/CbeStrandRubricManager';
+import { CbeCoreCompetenciesManager } from './Academics/CbeCoreCompetenciesManager';
 import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
 
 interface AcademicsOfficerViewProps {
@@ -176,7 +177,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     } = props;
 
     const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
-    const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands'>('summative');
+    const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands' | 'cbe_competencies'>('summative');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
     const [isLoading, setIsLoading] = useState(false);
@@ -586,11 +587,11 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
             {activeTab === 'exam_units' && (
                 <div className="space-y-6 animate-fade-in w-full">
                     {/* View Mode Sub-Navigation Toggle */}
-                    <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4">
+                    <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4 overflow-x-auto custom-scrollbar">
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setExamViewSubTab('summative')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
                                     examViewSubTab === 'summative'
                                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
                                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -600,13 +601,23 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             </button>
                             <button
                                 onClick={() => setExamViewSubTab('cbe_strands')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
                                     examViewSubTab === 'cbe_strands'
                                         ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
                                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                                 }`}
                             >
                                 🎯 CBE Formative Strands & Rubrics (EE / ME / AE / BE)
+                            </button>
+                            <button
+                                onClick={() => setExamViewSubTab('cbe_competencies')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                                    examViewSubTab === 'cbe_competencies'
+                                        ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                🌟 7 Core Competencies & 8 Values HUD
                             </button>
                         </div>
                     </div>
@@ -621,10 +632,18 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             courses={courses}
                             academicLevels={academicLevels}
                         />
-                    ) : (
+                    ) : examViewSubTab === 'cbe_strands' ? (
                         <CbeStrandRubricManager
                             currentInstitution={currentInstitution}
                             subjects={subjects}
+                            users={users}
+                            courses={courses}
+                            currentUser={currentUser}
+                            onLogAction={onLogAction}
+                        />
+                    ) : (
+                        <CbeCoreCompetenciesManager
+                            currentInstitution={currentInstitution}
                             users={users}
                             courses={courses}
                             currentUser={currentUser}

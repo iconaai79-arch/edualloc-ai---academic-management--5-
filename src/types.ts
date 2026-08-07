@@ -695,6 +695,19 @@ export interface CbeLearningOutcomeAssessment {
     assessedAt: string;
 }
 
+export interface CbeCompetencyAssessment {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    academicYearId?: string;
+    semesterId?: string;
+    competencyRatings: Record<string, CbeRubricLevel>;
+    valueRatings: Record<string, CbeRubricLevel>;
+    generalTeacherComments?: string;
+    assessedByTeacherId?: string;
+    assessedAt: string;
+}
+
 export interface Subject {
     id: string;
     code: string;
