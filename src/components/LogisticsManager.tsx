@@ -1728,6 +1728,35 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     return (
         <div className="p-6 lg:p-10 space-y-10 group/logistics">
+            {/* Navigation Tabs */}
+            <div className="flex overflow-x-auto whitespace-nowrap items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-2 rounded-[2rem] w-full border border-slate-200 dark:border-slate-800 shadow-inner scrollbar-none">
+                {[
+                    { id: 'sacco', label: 'SACCO Hub', icon: Landmark, show: isSACCO },
+                    { id: 'shuttle', label: 'Shuttle Control', icon: DoorOpen, show: isShuttle },
+                    { id: 'manifest', label: isSACCO ? 'Trip Registry' : isShuttle ? 'Route History' : isEduTransport ? 'Student Commute' : 'Cargo Manifest', icon: isEduTransport ? MapPin : Package, show: true },
+                    { id: 'trips', label: 'School Trips', icon: Calendar, show: isEduTransport },
+                    { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', icon: Truck, show: true },
+                    { id: 'vehicle_reg', label: 'Vehicle Registration', icon: Truck, show: true },
+                    { id: 'analytics', label: isSACCO ? 'Dividend Data' : isShuttle ? 'Commute Data' : isEduTransport ? 'Commute Insights' : 'Route Science', icon: BarChart3, show: true },
+                    { id: 'alerts',  label: 'Disruption Alerts', icon: Bell,    show: isEduTransport },
+                    { id: 'billing', label: 'Transport Billing', icon: Receipt, show: isEduTransport },
+                    { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle && !isSACCO && !isEduTransport }
+                ].filter(t => t.show).map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`flex items-center gap-3 px-8 py-3 rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest transition-all shrink-0 ${
+                            activeTab === tab.id 
+                            ? 'bg-white dark:bg-slate-800 text-indigo-650 shadow-xl' 
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-indigo-650' : 'text-slate-400'}`} />
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
             {/* Contextual Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div>
@@ -1779,35 +1808,6 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             </div>
                         </div>
                     </div>
-                ))}
-            </div>
-
-            {/* Navigation Tabs */}
-            <div className="flex overflow-x-auto whitespace-nowrap items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-2 rounded-[2rem] w-full border border-slate-200 dark:border-slate-800 shadow-inner scrollbar-none">
-                {[
-                    { id: 'sacco', label: 'SACCO Hub', icon: Landmark, show: isSACCO },
-                    { id: 'shuttle', label: 'Shuttle Control', icon: DoorOpen, show: isShuttle },
-                    { id: 'manifest', label: isSACCO ? 'Trip Registry' : isShuttle ? 'Route History' : isEduTransport ? 'Student Commute' : 'Cargo Manifest', icon: isEduTransport ? MapPin : Package, show: true },
-                    { id: 'trips', label: 'School Trips', icon: Calendar, show: isEduTransport },
-                    { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', icon: Truck, show: true },
-                    { id: 'vehicle_reg', label: 'Vehicle Registration', icon: Truck, show: true },
-                    { id: 'analytics', label: isSACCO ? 'Dividend Data' : isShuttle ? 'Commute Data' : isEduTransport ? 'Commute Insights' : 'Route Science', icon: BarChart3, show: true },
-                    { id: 'alerts',  label: 'Disruption Alerts', icon: Bell,    show: isEduTransport },
-                    { id: 'billing', label: 'Transport Billing', icon: Receipt, show: isEduTransport },
-                    { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle && !isSACCO && !isEduTransport }
-                ].filter(t => t.show).map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex items-center gap-3 px-8 py-3 rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest transition-all shrink-0 ${
-                            activeTab === tab.id 
-                            ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl' 
-                            : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                    >
-                        <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-indigo-600' : 'text-slate-400'}`} />
-                        {tab.label}
-                    </button>
                 ))}
             </div>
 
