@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { Invoice, Institution, InvoiceItem, CompanyDetails, Receipt } from '../types';
 import { PlusIcon } from './icons/PlusIcon';
 import { XIcon } from './icons/XIcon';
@@ -46,6 +47,15 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     invoices, institutions, companyDetails, logoUrl, onCreateInvoice, onUpdateInvoiceStatus, onUpdateInvoice
 }) => {
     const [isCreating, setIsCreating] = useState(false);
+    const formRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (isCreating) {
+            setTimeout(() => {
+                formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+    }, [isCreating]);
     const [documentType, setDocumentType] = useState<'invoice' | 'quote'>('invoice');
     const [selectedInstId, setSelectedInstId] = useState('');
     const [dueDate, setDueDate] = useState('');
@@ -397,7 +407,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
 
             {/* Create Form */}
             {isCreating && (
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in-up">
+                <div ref={formRef} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in-up">
                     <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-700 pb-4">
                         <div className="flex items-center gap-3">
                             {/* Invoice / Quote Toggle */}
@@ -827,7 +837,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
             )}
 
             {/* Preview Modal */}
-            {previewInvoice && (() => {
+            {previewInvoice && createPortal((() => {
                 const inst = institutionMap.get(previewInvoice.institutionId);
                 const isQuote = previewInvoice.status === 'quote';
                 return (
@@ -985,10 +995,10 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                         </div>
                     </div>
                 );
-            })()}
+            })(), document.body)}
 
             {/* Record Payment Modal */}
-            {recordingPaymentFor && (
+            {recordingPaymentFor && createPortal(
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 w-full max-w-md flex flex-col overflow-hidden animate-fade-in-up">
                         <div className="flex justify-between items-center px-8 py-5 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
@@ -1104,7 +1114,8 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

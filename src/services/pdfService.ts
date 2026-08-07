@@ -330,9 +330,9 @@ export const generateInvoicePdfDataUri = async (
         startY: finalTableStartY,
         theme: 'striped',
         headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold' },
-        styles: { fontSize: 8.5, cellPadding: 5.5 },
+        styles: { fontSize: 8.5, cellPadding: 5.5, valign: 'middle' },
         columnStyles: {
-            0: { cellWidth: 10 },
+            0: { cellWidth: 12, halign: 'center' },
             1: { fontStyle: 'bold' },
             2: { halign: 'center' },
             3: { halign: 'right' },
@@ -1133,9 +1133,9 @@ export const generateQuotePdfDataUri = async (
         startY: finalTableStartY,
         theme: 'striped',
         headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold' },
-        styles: { fontSize: 8.5, cellPadding: 5.5 },
+        styles: { fontSize: 8.5, cellPadding: 5.5, valign: 'middle' },
         columnStyles: {
-            0: { cellWidth: 10 },
+            0: { cellWidth: 12, halign: 'center' },
             1: { fontStyle: 'bold' },
             2: { halign: 'center' },
             3: { halign: 'right' },
