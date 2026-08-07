@@ -281,6 +281,17 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
     ] as const;
 
+    const horizontalTabs = [
+        { id: 'home', label: 'Home', icon: HomeIcon },
+        { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
+        { id: 'students', label: 'Students Registry', icon: UserPlusIcon },
+        { id: 'teachers', label: 'Teachers Registry', icon: UserGroupIcon },
+        { id: 'lessons', label: 'Lessons & Allocations', icon: RectangleStackIcon },
+        { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
+        { id: 'discipline', label: 'Discipline', icon: ShieldExclamationIcon },
+        { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
+    ] as const;
+
     return (
         <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[750px] w-full text-left">
             {/* Sidebar (Vertical Menu) */}
@@ -339,7 +350,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 {/* Primary Horizontal Navigation Menu Bar */}
                 <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 p-4 rounded-[2.5rem] shadow-sm shrink-0 gap-4">
                     <div className="flex flex-nowrap items-center gap-2 overflow-x-auto custom-scrollbar-horizontal max-w-[70vw] md:max-w-full pb-1">
-                        {tabs.filter(sub => sub.id !== 'exam_units').map(sub => (
+                        {horizontalTabs.map(sub => (
                             <button
                                 key={sub.id}
                                 onClick={() => setActiveTab(sub.id as any)}
