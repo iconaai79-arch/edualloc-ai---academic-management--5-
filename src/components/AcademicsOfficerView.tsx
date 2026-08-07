@@ -125,6 +125,8 @@ interface AcademicsOfficerViewProps {
     onSaveAssessmentMarks?: (id: string, marks: any[]) => Promise<void>;
     onAccessAlumnaPortal?: (school?: any) => void;
     schoolRegistry?: any[];
+    studentAttendances?: any[];
+    onSaveAttendance?: (lessonId: string, data: any[]) => Promise<void>;
 }
 
 export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props) => {
@@ -273,12 +275,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
-        { id: 'students', label: 'Students Registry', icon: UserPlusIcon },
-        { id: 'teachers', label: 'Teachers Registry', icon: UserGroupIcon },
         { id: 'lessons', label: 'Lessons & Allocations', icon: RectangleStackIcon },
-        { id: 'exam_insights', label: 'Exam Insights', icon: BarChart3Icon },
         { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
-        { id: 'people', label: 'People Governance', icon: UserGroupIcon },
         { id: 'discipline', label: 'Discipline', icon: ShieldExclamationIcon },
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
     ] as const;
