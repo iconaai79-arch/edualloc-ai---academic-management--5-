@@ -327,7 +327,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             { id: 'sub_11', name: 'Business Studies', code: 'BST' },
         ];
 
-        const candidateList: Subject[] = [];
+        const candidateList: any[] = [];
         const seenCandidateNames = new Set<string>();
         rawCandidates.forEach(sub => {
             const normName = (sub.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
