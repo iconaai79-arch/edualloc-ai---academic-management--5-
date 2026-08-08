@@ -5003,8 +5003,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         </form>
                     </div>
                 </div>
-            </div>
             )}
+            </div>
+        </div>
                 {/* Verification Modal */}
                 {isVerifying && (
                     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md animate-fade-in">
@@ -5141,7 +5142,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         </div>
                     </div>
                 )}
-            </div>
             {isSecureApprovalModalOpen && secureApprovalData && (
                 <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-2xl flex items-center justify-center z-[500] p-4">
                     <div className="bg-white dark:bg-slate-900 rounded-[4rem] w-full max-w-2xl shadow-[0_0_100px_rgba(99,102,241,0.2)] border border-white/20 overflow-hidden animate-in zoom-in duration-300">
