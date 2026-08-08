@@ -20,22 +20,7 @@ import * as XLSX from 'xlsx';
 export const getStudentAdmNo = (st: any, idx: number = 0, realStudentsList?: any[]): string => {
     if (!st) return 'N/A';
 
-    // 1. Try to match by student name in realStudentsList first to get authentic DB admission number!
-    if (realStudentsList && Array.isArray(realStudentsList) && realStudentsList.length > 0 && st.name) {
-        const cleanName = String(st.name).trim().toLowerCase();
-        const matched = realStudentsList.find(s => {
-            const sName = String(s.name || s.fullName || '').trim().toLowerCase();
-            return sName && (sName === cleanName || sName.includes(cleanName) || cleanName.includes(sName));
-        });
-        if (matched) {
-            const realAdm = matched.admissionNumber || matched.admissionNo || matched.admNo || matched.registrationNo || matched.studentId;
-            const strAdm = String(realAdm || '').trim();
-            if (strAdm && !strAdm.startsWith('usr_') && !strAdm.startsWith('user_') && !/^ADM-10\d{2,}$/i.test(strAdm)) {
-                return strAdm;
-            }
-        }
-    }
-
+    // 1. Direct candidates on student object
     const candidates = [
         st.admissionNumber,
         st.admissionNo,
@@ -62,18 +47,35 @@ export const getStudentAdmNo = (st: any, idx: number = 0, realStudentsList?: any
     for (const cand of candidates) {
         if (cand !== null && cand !== undefined) {
             const strVal = String(cand).trim();
-            const isLegacySynthetic = /^ADM-10\d{2,}$/i.test(strVal) || /^ADM-100\d$/i.test(strVal);
+            const isLegacySynthetic = /^ADM-10\d{2,}$/i.test(strVal);
             if (strVal && !strVal.startsWith('usr_') && !strVal.startsWith('user_') && !isLegacySynthetic && strVal !== 'undefined' && strVal !== 'null') {
                 return strVal;
             }
         }
     }
 
+    // 2. Direct ID check if clean
     if (st.id && typeof st.id === 'string') {
         const cleanId = st.id.trim();
         const isLegacySynthetic = /^ADM-10\d{2,}$/i.test(cleanId);
         if (!cleanId.startsWith('usr_') && !cleanId.startsWith('user_') && !isLegacySynthetic && cleanId !== 'undefined' && cleanId !== 'null') {
             return cleanId;
+        }
+    }
+
+    // 3. Match by name in realStudentsList (registry)
+    if (realStudentsList && Array.isArray(realStudentsList) && realStudentsList.length > 0 && st.name) {
+        const cleanName = String(st.name).trim().toLowerCase();
+        const matched = realStudentsList.find(s => {
+            const sName = String(s.name || s.fullName || '').trim().toLowerCase();
+            return sName && (sName === cleanName || sName.includes(cleanName) || cleanName.includes(sName));
+        });
+        if (matched) {
+            const realAdm = matched.admissionNumber || matched.admissionNo || matched.admNo || matched.registrationNo || matched.studentId || matched.id;
+            const strAdm = String(realAdm || '').trim();
+            if (strAdm && !strAdm.startsWith('usr_') && !strAdm.startsWith('user_') && !/^ADM-10\d{2,}$/i.test(strAdm)) {
+                return strAdm;
+            }
         }
     }
 
