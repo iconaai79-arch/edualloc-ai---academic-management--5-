@@ -1060,12 +1060,12 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
                             {/* Table Body */}
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
-                                {paginatedRows.map((row, idx) => (
-                                    <tr key={row.student.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                {paginatedRows.filter(row => row?.student).map((row, idx) => (
+                                    <tr key={row.student?.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                                         <td className="p-3 font-mono font-bold text-slate-900 dark:text-slate-100">{getStudentAdmNo(row.student, idx, activeStudents) || row.student?.admissionNo || row.student?.id || 'N/A'}</td>
-                                        <td className="p-3 font-black text-slate-900 dark:text-white uppercase whitespace-nowrap">{row.student.name}</td>
+                                        <td className="p-3 font-black text-slate-900 dark:text-white uppercase whitespace-nowrap">{row.student?.name}</td>
                                         {!isPrimarySchool && <td className="p-3 text-center text-slate-400 font-mono">{row.kcpe || '—'}</td>}
-                                        <td className="p-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.student.studentClass || '3 Central'}</td>
+                                        <td className="p-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{(row.student as any)?.studentClass || '3 Central'}</td>
                                         <td className="p-3 text-center font-bold text-slate-500">{row.entry}</td>
                                         {broadsheetSubjects.map(sub => {
                                             const mark = row.subjectMarksMap[sub.id];
@@ -1268,12 +1268,12 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-300 font-medium">
-                                            {filteredBroadsheetRows.map((r, idx) => (
-                                                <tr key={r.student.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                            {filteredBroadsheetRows.filter(r => r?.student).map((r, idx) => (
+                                                <tr key={r.student?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                                     <td className="p-2 font-bold font-mono border border-slate-300 text-slate-900">{getStudentAdmNo(r.student, idx, activeStudents) || r.student?.admissionNo || r.student?.id || 'N/A'}</td>
-                                                    <td className="p-2 font-black border border-slate-300 uppercase">{r.student.name}</td>
+                                                    <td className="p-2 font-black border border-slate-300 uppercase">{r.student?.name}</td>
                                                     {!isPrimarySchool && <td className="p-2 border border-slate-300 text-center font-bold">{r.kcpe}</td>}
-                                                    <td className="p-2 border border-slate-300">{r.student.studentClass || selectedYearGroup}</td>
+                                                    <td className="p-2 border border-slate-300">{(r.student as any)?.studentClass || selectedYearGroup}</td>
                                                     {broadsheetSubjects.map(sub => {
                                                         const m = r.subjectMarksMap[sub.id];
                                                         return (

@@ -314,6 +314,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
         // 1. Filter students matching class & stream
         const matchedStudents = activeStudents.filter(st => {
+            if (!st) return false; // Guard against null/undefined from Supabase
             const stClass = ((st as any).studentClass || (st as any).classLevel || (st as any).class || '').toLowerCase().trim();
             const matchesClass = stClass.includes(yearGrpClean) || yearGrpClean === 'all';
             if (!matchesClass) return false;
@@ -326,7 +327,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         });
 
         // 2. Map performance metrics from savedBroadsheets or marks prop
-        const computed = matchedStudents.map((st, idx) => {
+        const computed = matchedStudents.filter(Boolean).map((st, idx) => {
             const realAdmNo = st.admissionNumber || (st as any).admissionNo || (st as any).admNo || (st as any).registrationNo || st.id;
             const savedRow = examSavedRows.find((r: any) => {
                 if (r.studentId && r.studentId === st.id) return true;
@@ -864,8 +865,8 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
-                                    {top10Students.map(row => (
-                                        <tr key={row.student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                    {top10Students.filter(row => row?.student).map(row => (
+                                        <tr key={row.student?.id || row.rank} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black ${
                                                     row.rank === 1 ? 'bg-amber-100 text-amber-800 font-bold' :
@@ -876,13 +877,13 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap font-black text-slate-900 dark:text-white uppercase">
-                                                {row.student.name}
+                                                {row.student?.name}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-slate-500 font-mono">
-                                                {row.student.admissionNo || row.student.id}
+                                                {row.student?.admissionNo || row.student?.id}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-slate-600 dark:text-slate-300">
-                                                {(row.student as any).studentClass || 'Form 3 Central'}
+                                                {(row.student as any)?.studentClass || 'Form 3 Central'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-center font-black text-indigo-600 dark:text-indigo-400">
                                                 {row.totalMarks} pts

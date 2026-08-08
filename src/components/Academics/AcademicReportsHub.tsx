@@ -185,8 +185,8 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
     }, [currentInstitution]);
 
     const activeStudents = useMemo(() => {
-        if (students.length > 0) return students;
-        return users.filter(u => u.role === 'student');
+        if (students.length > 0) return students.filter(Boolean);
+        return users.filter(u => u && u.role === 'student');
     }, [students, users]);
 
     // Dynamic list of registered classes
@@ -289,6 +289,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
     const broadsheetData = useMemo(() => {
         const targetClass = selectedClass || classOptions[0];
         const classStudents = activeStudents.filter(st => {
+            if (!st) return false; // Guard against null/undefined from Supabase
             const cl = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class;
             return !targetClass || (cl && cl.trim() === targetClass.trim()) || activeStudents.length <= 10;
         });
@@ -331,7 +332,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
         // Rank by total score descending
         rows.sort((a, b) => b.total - a.total);
-        return rows.map((r, idx) => ({ ...r, rank: idx + 1 }));
+        return rows.filter(r => r?.student).map((r, idx) => ({ ...r, rank: idx + 1 }));
     }, [activeStudents, selectedClass, classOptions, subjects, filteredMarks, isPrimarySchool]);
 
     // Subjects Analysis Data Computation
