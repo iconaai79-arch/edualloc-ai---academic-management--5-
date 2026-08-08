@@ -182,6 +182,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onRefreshData
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
     const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'archive' | 'disbursed' | 'approvers'>('pending');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
     const [payoutRate, setPayoutRate] = useState<number>(currentInstitution?.coopSettings?.payoutRate || 50);
@@ -1065,60 +1066,168 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     };
 
     return (
-        <div className="space-y-8 animate-fade-in pb-20">
-            {/* Navigation & Search will be shown always, but stats move to Overview */}
-
-            {/* Navigation & Search */}
-            <div className={`flex flex-col lg:flex-row ${onTabChange ? 'lg:justify-end' : 'lg:items-center justify-between'} gap-6`}>
-                {!onTabChange && (
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
-                        {[
-                            { id: 'farmers', label: 'Farmers', icon: <FarmerIcon className="w-4 h-4" /> },
-                            { id: 'agrovet', label: 'Agrovet', icon: <StoreIcon className="w-4 h-4" /> },
-                            { id: 'sacco', label: 'SACCO', icon: <SaccoIcon className="w-4 h-4" /> },
-                            { id: 'finances', label: 'Finances', icon: <FinanceIcon className="w-4 h-4" /> },
-                            { id: 'communication', label: 'Communication', icon: <EmailIcon className="w-4 h-4" /> },
-                            { 
-                                id: 'approvals', 
-                                label: 'Approvals', 
-                                icon: <ApprovalIcon className="w-4 h-4" />,
-                                badge: collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').length + payouts.filter(p => p.status === 'pending').length
-                            },
-                            { id: 'settings', label: 'Config', icon: <CogIcon className="w-4 h-4" /> },
-                            { id: 'reports', label: 'Analytics', icon: <ReportsIcon className="w-4 h-4" /> }
-                        ].map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveSubTab(tab.id as any)}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                                    activeSubTab === tab.id 
-                                    ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm border border-slate-200 dark:border-slate-700' 
-                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                }`}
-                            >
-                                {tab.icon}
-                                {tab.label}
-                                {(tab as any).badge > 0 && (
-                                    <span className="ml-2 bg-indigo-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
-                                        {(tab as any).badge}
+        <div className="flex flex-col lg:flex-row gap-6 animate-fade-in pb-20">
+            {/* Futuristic Vertical Sidebar Navigation */}
+            <aside className={`w-full ${isSidebarCollapsed ? 'lg:w-20' : 'lg:w-72'} shrink-0 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-xl border border-slate-800/90 rounded-[2.5rem] p-4 text-white shadow-2xl flex flex-col justify-between self-start sticky top-6 z-20 transition-all duration-300`}>
+                <div>
+                    {/* Header / Brand */}
+                    <div className="flex items-center justify-between pb-5 mb-5 border-b border-slate-800/80 px-2">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 p-0.5 shadow-lg shadow-emerald-500/20 shrink-0 flex items-center justify-center">
+                                <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+                                    <FarmerIcon className="w-5 h-5 text-emerald-400" />
+                                </div>
+                            </div>
+                            {!isSidebarCollapsed && (
+                                <div className="min-w-0">
+                                    <h2 className="text-xs font-black tracking-wider uppercase text-white truncate">
+                                        {currentInstitution?.name || 'COOPERATIVE'}
+                                    </h2>
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mt-0.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                                        COOP OS 2.0
                                     </span>
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                            className="hidden lg:flex p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                        >
+                            <ChevronRightIcon className={`w-4 h-4 transition-transform duration-300 ${isSidebarCollapsed ? '' : 'rotate-180'}`} />
+                        </button>
+                    </div>
+
+                    {/* Vertical Navigation Items */}
+                    <nav className="space-y-5">
+                        {[
+                            {
+                                section: 'CORE MODULES',
+                                items: [
+                                    { id: 'overview', label: 'Overview Hub', icon: <FarmerIcon className="w-4 h-4" /> },
+                                    { id: 'farmers', label: 'Farmers Registry', icon: <UsersIcon className="w-4 h-4" /> },
+                                    { id: 'collections', label: 'Intake Collections', icon: <CollectionIcon className="w-4 h-4" /> },
+                                    { id: 'logistics', label: 'Riders & Logistics', icon: <LogisticsIcon className="w-4 h-4" /> },
+                                    { id: 'agrovet', label: 'Agrovet & Store POS', icon: <StoreIcon className="w-4 h-4" /> },
+                                    { id: 'sacco', label: 'SACCO Savings', icon: <SaccoIcon className="w-4 h-4" /> }
+                                ]
+                            },
+                            {
+                                section: 'FINANCIALS & AUDIT',
+                                items: [
+                                    { id: 'payouts', label: 'Farmer Payouts', icon: <PayoutIcon className="w-4 h-4" /> },
+                                    { id: 'finances', label: 'Coop Finances', icon: <FinanceIcon className="w-4 h-4" /> },
+                                    { 
+                                        id: 'approvals', 
+                                        label: 'Approvals & Audit', 
+                                        icon: <ApprovalIcon className="w-4 h-4" />,
+                                        badge: collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').length + payouts.filter(p => p.status === 'pending').length
+                                    }
+                                ]
+                            },
+                            {
+                                section: 'MANAGEMENT & CONFIG',
+                                items: [
+                                    { id: 'communication', label: 'SMS Broadcasts', icon: <EmailIcon className="w-4 h-4" /> },
+                                    { id: 'reports', label: 'Reports & Analytics', icon: <ReportsIcon className="w-4 h-4" /> },
+                                    { id: 'settings', label: 'System Configuration', icon: <CogIcon className="w-4 h-4" /> }
+                                ]
+                            }
+                        ].map((group, gIdx) => (
+                            <div key={gIdx} className="space-y-1">
+                                {!isSidebarCollapsed && (
+                                    <p className="px-3 text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                                        {group.section}
+                                    </p>
                                 )}
-                            </button>
+                                {group.items.map(tab => {
+                                    const isActive = activeSubTab === tab.id;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => setActiveSubTab(tab.id as any)}
+                                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200 group ${
+                                                isActive
+                                                    ? 'bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-transparent text-emerald-400 border-l-4 border-emerald-400 shadow-md shadow-emerald-500/10'
+                                                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                                            }`}
+                                            title={isSidebarCollapsed ? tab.label : undefined}
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <span className={`p-2 rounded-xl transition-all duration-200 ${
+                                                    isActive
+                                                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30 scale-105'
+                                                        : 'bg-slate-800/80 text-slate-400 group-hover:text-white group-hover:bg-slate-700'
+                                                }`}>
+                                                    {tab.icon}
+                                                </span>
+                                                {!isSidebarCollapsed && (
+                                                    <span className="truncate font-black tracking-wide text-[10px] uppercase">
+                                                        {tab.label}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {!isSidebarCollapsed && tab.badge !== undefined && tab.badge > 0 && (
+                                                <span className="bg-emerald-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                                                    {tab.badge}
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         ))}
+                    </nav>
+                </div>
+
+                {/* Sidebar Footer Stats summary */}
+                {!isSidebarCollapsed && (
+                    <div className="mt-6 pt-3 border-t border-slate-800/80 bg-slate-900/60 p-3 rounded-2xl border border-slate-800/50 space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px] text-slate-400">
+                            <span>Today's Intake:</span>
+                            <strong className="text-emerald-400 font-mono font-black">{stats.todayQty?.toLocaleString()} Ltrs</strong>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400">
+                            <span>Total Farmers:</span>
+                            <strong className="text-white font-mono font-black">{effectiveFarmers.length}</strong>
+                        </div>
                     </div>
                 )}
+            </aside>
 
-                <div className="relative group min-w-[300px]">
-                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                    <input
-                        type="search"
-                        placeholder="Search farmers, collections, or records..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-800 border-none rounded-2xl py-3.5 pl-11 pr-4 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
-                    />
+            {/* Main Content Body Container */}
+            <div className="flex-1 min-w-0 space-y-6">
+                {/* Search & Top Action Controls Bar */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/90 rounded-[2rem] p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="relative group flex-1 max-w-md">
+                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                        <input
+                            type="search"
+                            placeholder="Search farmers, collections, sales, or accounts..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 rounded-2xl py-3 pl-11 pr-4 text-xs font-semibold focus:ring-2 focus:ring-emerald-500/20 shadow-xs text-slate-900 dark:text-white"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                        <button
+                            onClick={() => setIsLoggingCollection(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[10px] font-black uppercase tracking-widest shadow-md hover:brightness-110 transition-all whitespace-nowrap"
+                        >
+                            <PlusIcon className="w-4 h-4" /> Log Intake
+                        </button>
+                        <button
+                            onClick={() => setIsAddingFarmer(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest border border-slate-800 hover:bg-slate-800 transition-all whitespace-nowrap"
+                        >
+                            <PlusIcon className="w-4 h-4" /> Add Farmer
+                        </button>
+                    </div>
                 </div>
-            </div>
 
             {/* Main Content Area */}
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm min-h-[500px]">
@@ -4894,6 +5003,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         </form>
                     </div>
                 </div>
+            </div>
             )}
                 {/* Verification Modal */}
                 {isVerifying && (
