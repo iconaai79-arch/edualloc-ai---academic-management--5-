@@ -18,9 +18,7 @@ import * as XLSX from 'xlsx';
 
 // Helper to resolve clean real student admission number
 export const getStudentAdmNo = (st: any, idx: number = 0): string => {
-    const realRegistryList = ['2008', '2244', '1897', '1712', '2127', '1838', '1834', '1972', '1957', '1967', '1898', '2117', '1883', '1861', '1848', '1853', '1924', '1863', '1904', '1933', '1856', '1908', '1872', '1947'];
-
-    if (!st) return realRegistryList[idx % realRegistryList.length];
+    if (!st) return '';
 
     const candidates = [
         st.admissionNumber,
@@ -47,19 +45,16 @@ export const getStudentAdmNo = (st: any, idx: number = 0): string => {
         if (cand !== null && cand !== undefined) {
             const strVal = String(cand).trim();
             if (strVal && !strVal.startsWith('usr_') && strVal !== 'undefined' && strVal !== 'null') {
-                // Reject synthetic system-generated 1000-1099 numbers (e.g. 1046, 1037, 1034, 1023)
-                if (/^10[0-9]{2}$/.test(strVal)) continue;
                 return strVal;
             }
         }
     }
 
     if (st.id && typeof st.id === 'string' && !st.id.startsWith('usr_')) {
-        const cleanId = st.id.trim();
-        if (!/^10[0-9]{2}$/.test(cleanId)) return cleanId;
+        return st.id.trim();
     }
 
-    return realRegistryList[idx % realRegistryList.length];
+    return '';
 };
 
 // Top-level pure helper: calculate grade or rubric info
@@ -533,52 +528,24 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
                 const { grade: meanGrade } = getGradeInfo(meanScore, isPrimarySchool);
 
-                // Clean helper for numeric token extraction
-                const extractNumericTokens = (val: string) => val.replace(/[^0-9]/g, '');
+                // 1. Get exact admission number used during marks entry
+                const entryAdmNo = getStudentAdmNo(stRow, idx);
 
-                // Try to resolve exact student from activeStudents database
-                const rowNameClean = String(stRow.name || (stRow.student as any)?.name || '').trim().toLowerCase();
-                const rowNameTokens = rowNameClean.split(/\s+/).filter(Boolean);
-                const rowAdmClean = String(stRow.admNo || stRow.admissionNo || stRow.admission_no || (stRow.student as any)?.admissionNo || (stRow.student as any)?.admNo || '').trim().toLowerCase();
-                const rowAdmNum = extractNumericTokens(rowAdmClean);
-
+                // 2. Try to resolve student details from activeStudents database
                 const dbStudent = activeStudents.find(s => {
+                    const sAdmStr = getStudentAdmNo(s, 0);
                     const sName = String(s.name || '').trim().toLowerCase();
-                    const sNameTokens = sName.split(/\s+/).filter(Boolean);
-                    const sAdmStr = String(getStudentAdmNo(s, 0)).trim().toLowerCase();
-                    const sAdmNum = extractNumericTokens(sAdmStr);
+                    const rowName = String(stRow.name || (stRow.student as any)?.name || '').trim().toLowerCase();
 
-                    // 1. Exact numeric admission match (e.g. 1046 matches ADM/2024/1046)
-                    if (rowAdmNum && sAdmNum && (rowAdmNum === sAdmNum || sAdmNum.endsWith(rowAdmNum) || rowAdmNum.endsWith(sAdmNum))) return true;
-
-                    // 2. Exact admission string match
-                    if (rowAdmClean && sAdmStr && (sAdmStr === rowAdmClean || rowAdmClean.includes(sAdmStr) || sAdmStr.includes(rowAdmClean))) return true;
-
-                    // 3. Name token set matching (matches 'OZIAS KIPKEMBOI' with 'KIPKEMBOI OZIAS' or 'Ozias Kipkemboi')
-                    if (rowNameTokens.length > 0 && sNameTokens.length > 0) {
-                        const matchesAllTokens = rowNameTokens.every(t => sNameTokens.some(st => st.includes(t) || t.includes(st)));
-                        if (matchesAllTokens) return true;
-                    }
-
+                    if (entryAdmNo && sAdmStr && sAdmStr.toLowerCase() === entryAdmNo.toLowerCase()) return true;
+                    if (rowName && sName && sName === rowName) return true;
                     return false;
                 });
 
-                // Real student registry fallback list
-                const realRegistryList = ['2008', '2244', '1897', '1712', '2127', '1838', '1834', '1972', '1957', '1967', '1898', '2117', '1883', '1861', '1848', '1853', '1924', '1863', '1904', '1933', '1856', '1908', '1872', '1947'];
-
-                let realAdmNo = dbStudent ? getStudentAdmNo(dbStudent, idx) : '';
-                if (!realAdmNo || /^10[0-9]{2}$/.test(realAdmNo)) {
-                    const rawAdm = String(stRow.admNo || stRow.admissionNo || stRow.admission_no || (stRow.student as any)?.admissionNo || (stRow.student as any)?.admNo || '').trim();
-                    if (rawAdm && !/^10[0-9]{2}$/.test(rawAdm) && !rawAdm.startsWith('usr_')) {
-                        realAdmNo = rawAdm;
-                    }
-                }
-                if (!realAdmNo || /^10[0-9]{2}$/.test(realAdmNo)) {
-                    realAdmNo = realRegistryList[idx % realRegistryList.length];
-                }
-
-                const realName = dbStudent ? (dbStudent.name || stRow.name) : (stRow.name || (stRow.student as any)?.name || `Student ${idx + 1}`);
-                const realClass = (dbStudent as any)?.studentClass || stRow.class || (stRow.student as any)?.studentClass || selectedYearGroup || 'Grade 6';
+                // Use exact admission number from marks entry if present; otherwise DB student admission number
+                const realAdmNo = entryAdmNo || (dbStudent ? getStudentAdmNo(dbStudent, idx) : `ADM-${1001 + idx}`);
+                const realName = stRow.name || (stRow.student as any)?.name || (dbStudent ? dbStudent.name : `Student ${idx + 1}`);
+                const realClass = stRow.class || (stRow.student as any)?.studentClass || (dbStudent as any)?.studentClass || selectedYearGroup || 'Grade 6';
 
                 return {
                     student: {
