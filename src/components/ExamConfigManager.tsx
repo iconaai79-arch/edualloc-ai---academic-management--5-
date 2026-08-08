@@ -611,6 +611,18 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                 className: activeClassObj?.name || 'Class',
                 subjects: autoSubjects
             };
+        } else if (found.subjects && Array.isArray(found.subjects)) {
+            // Deduplicate subjects in existing config by subjectName / subjectCode
+            const seen = new Set<string>();
+            const deduped: ClassSubjectConfig[] = [];
+            found.subjects.forEach(s => {
+                const key = (s.subjectName || s.subjectCode || s.subjectId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (key && !seen.has(key)) {
+                    seen.add(key);
+                    deduped.push(s);
+                }
+            });
+            found = { ...found, subjects: deduped };
         }
         return found;
     }, [findClassConfig, activeClassId, classList, getApplicableSubjectsForClass]);
@@ -630,17 +642,31 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     }, [classComments, activeCommentClassId, classList]);
 
     // Helper to get total paper count for a class
-    // Falls back to counting auto-populated subjects (1 paper each) if no saved config exists
+    // Deduplicates subjects to ensure count matches actual unique subject papers (e.g. 11 instead of 44)
     const getClassPaperCount = (cId: string): number => {
         const conf = findClassConfig(cId);
         if (conf && conf.subjects && conf.subjects.length > 0) {
-            return conf.subjects.reduce((sum, s) => sum + (s.papers ? s.papers.length : 0), 0);
+            const seenSubj = new Set<string>();
+            let count = 0;
+            conf.subjects.forEach(s => {
+                const norm = (s.subjectName || s.subjectCode || s.subjectId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (norm && !seenSubj.has(norm)) {
+                    seenSubj.add(norm);
+                    count += (s.papers && s.papers.length > 0 ? s.papers.length : 1);
+                }
+            });
+            return count;
         }
 
         const classObj = classList.find(c => c.id === cId);
         if (!classObj) return 0;
         const applicable = getApplicableSubjectsForClass(classObj.name);
-        return applicable.length;
+        const seen = new Set<string>();
+        applicable.forEach(s => {
+            const norm = (s.name || s.code || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (norm) seen.add(norm);
+        });
+        return seen.size;
     };
 
     // Helper to get total teacher comment rules count for a class

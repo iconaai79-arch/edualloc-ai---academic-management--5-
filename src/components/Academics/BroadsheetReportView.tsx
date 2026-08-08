@@ -312,8 +312,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
     // Active subjects for broadsheet columns (filtered by current exam's entered/tested subjects)
     const broadsheetSubjects = useMemo(() => {
-        // 1. All candidate subjects
-        const candidateList = subjects.length > 0 ? subjects : [
+        // 1. All candidate subjects (deduplicated by normalized subject name)
+        const rawCandidates = subjects.length > 0 ? subjects : [
             { id: 'sub_1', name: 'English', code: 'ENG' },
             { id: 'sub_2', name: 'Kiswahili', code: 'KISW' },
             { id: 'sub_3', name: 'Mathematics', code: 'MATH' },
@@ -326,6 +326,16 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             { id: 'sub_10', name: 'Computer Studies', code: 'CMP' },
             { id: 'sub_11', name: 'Business Studies', code: 'BST' },
         ];
+
+        const candidateList: Subject[] = [];
+        const seenCandidateNames = new Set<string>();
+        rawCandidates.forEach(sub => {
+            const normName = (sub.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (normName && !seenCandidateNames.has(normName)) {
+                seenCandidateNames.add(normName);
+                candidateList.push(sub);
+            }
+        });
 
         // 2. Check if selectedExamObj defines explicit subjects
         const examSubjNames = (selectedExamObj as any)?.subjects || (selectedExamObj as any)?.examSubjects || (selectedExamObj as any)?.subjectList;
