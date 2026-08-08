@@ -258,6 +258,35 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         }
     }, [selectedExamId, selectedExamObj, yearGroupOptions]);
 
+    // Load saved broadsheet store from Exam Units / institution_module_states
+    const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch(e) {}
+        return {};
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
+                    const storeData = match?.settings || match?.stateData || match?.data;
+                    if (storeData && typeof storeData === 'object') {
+                        setSavedBroadsheets(prev => {
+                            const merged = { ...storeData, ...prev };
+                            try {
+                                localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
     // Active subjects for broadsheet columns (filtered by current exam's entered/tested subjects)
     const broadsheetSubjects = useMemo(() => {
         // 1. All candidate subjects
@@ -359,35 +388,6 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             return { grade: 'E', points: 1.0 };
         }
     }, [isPrimarySchool]);
-
-    // Load saved broadsheet store from Exam Units / institution_module_states
-    const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {
-        try {
-            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
-            if (saved) return JSON.parse(saved) || {};
-        } catch(e) {}
-        return {};
-    });
-
-    useEffect(() => {
-        if (currentInstitution?.id) {
-            apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
-                .then(records => {
-                    const match = (records || []).find(r => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
-                    const storeData = match?.settings || match?.stateData || match?.data;
-                    if (storeData && typeof storeData === 'object') {
-                        setSavedBroadsheets(prev => {
-                            const merged = { ...storeData, ...prev };
-                            try {
-                                localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
-                            } catch(e) {}
-                            return merged;
-                        });
-                    }
-                })
-                .catch(() => {});
-        }
-    }, [currentInstitution]);
 
     // Student broadsheet list (combining real saved marks and fallback sample students)
     const sampleStudents = useMemo(() => {
