@@ -1398,6 +1398,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         setExamMarksStore(updatedStore);
         try {
             localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(updatedStore));
+            window.dispatchEvent(new CustomEvent('eduai_broadsheets_updated', { detail: { examId: selectedExamId } }));
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced'));
         } catch (e) { }
 
         // ── AUTO-SNAPSHOT: Save a timestamped class-keyed backup of these marks ──
