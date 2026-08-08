@@ -1583,6 +1583,16 @@ export const apiService = {
             payload.branch_id = null;
         }
 
+        if (module === 'exam_units' || module === 'exam_broadsheets') {
+            ls.upsert(module, payload);
+            const instId = payload?.institution_id || payload?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || 'default';
+            if (_supabase && instId) {
+                const stateData = { id: `${instId}_${module}_${payload.id || 'state'}`, institutionId: instId, moduleId: module, data: payload, updatedAt: new Date().toISOString() };
+                apiService.saveModuleRecord('institution_module_states', stateData).catch(() => {});
+            }
+            return toCamelCase(payload);
+        }
+
         if (!_supabase) {
             ls.upsert(module, payload);
             return toCamelCase(payload);
@@ -1744,7 +1754,7 @@ export const apiService = {
             });
         }
 
-        if (!_supabase) {
+        if (module === 'exam_units' || module === 'exam_broadsheets' || !_supabase) {
             const records = ls.get(module);
             payload.forEach((item: any) => {
                 const index = records.findIndex((r: any) => r && r.id === item.id);
