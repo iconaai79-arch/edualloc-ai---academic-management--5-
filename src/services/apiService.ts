@@ -929,8 +929,23 @@ export const apiService = {
             return finalResult;
         };
 
-        if (!_supabase) {
+        if (module === 'exam_units' || module === 'exam_broadsheets' || !_supabase) {
             return queryLocal();
+        }
+
+        if (module === 'institution_module_states' && _supabase) {
+            try {
+                let query = _supabase.from('institution_module_states').select('*');
+                if (institutionId && institutionId !== 'ALL') {
+                    query = query.eq('institution_id', institutionId);
+                }
+                const { data: imsData, error: imsErr } = await query;
+                if (!imsErr && imsData) {
+                    return toCamelCase(imsData);
+                }
+            } catch (e) {
+                console.warn('[apiService] Direct Supabase fetch for institution_module_states failed, falling back to local query:', e);
+            }
         }
 
         try {
@@ -1318,7 +1333,7 @@ export const apiService = {
             }
         }
 
-        if (!_supabase) {
+        if (module === 'exam_units' || module === 'exam_broadsheets' || !_supabase) {
             const records = ls.get(module);
             const index = records.findIndex((r: any) => r.id === id);
             if (index >= 0) {
@@ -1403,7 +1418,7 @@ export const apiService = {
         if (idsArray.length === 0) return;
 
         // ── Tier 0: Local storage mode (no Supabase configured) ──
-        if (!_supabase) {
+        if (module === 'exam_units' || module === 'exam_broadsheets' || !_supabase) {
             const records = ls.get(module);
             const idsSet = new Set(idsArray);
             ls.set(module, records.filter((r: any) => !idsSet.has(r.id)));
@@ -1590,6 +1605,20 @@ export const apiService = {
                 const stateData = { id: `${instId}_${module}_${payload.id || 'state'}`, institutionId: instId, moduleId: module, data: payload, updatedAt: new Date().toISOString() };
                 apiService.saveModuleRecord('institution_module_states', stateData).catch(() => {});
             }
+            return toCamelCase(payload);
+        }
+
+        if (module === 'institution_module_states' && _supabase) {
+            try {
+                const { data: imsData, error: imsErr } = await _supabase.from('institution_module_states').upsert(payload).select();
+                if (!imsErr && imsData && imsData.length > 0) {
+                    ls.upsert(module, payload);
+                    return toCamelCase(imsData[0]);
+                }
+            } catch (imsErr) {
+                console.warn('[apiService] Direct Supabase upsert for institution_module_states failed, falling back locally:', imsErr);
+            }
+            ls.upsert(module, payload);
             return toCamelCase(payload);
         }
 
