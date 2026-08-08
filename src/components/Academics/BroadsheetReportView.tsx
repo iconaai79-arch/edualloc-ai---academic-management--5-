@@ -21,25 +21,32 @@ export const getStudentAdmNo = (st: any, idx: number = 0): string => {
     if (!st) return String(1001 + idx);
 
     const candidates = [
+        st.admissionNumber,
         st.admissionNo,
         st.admNo,
         st.admission_no,
+        st.admission_number,
         st.adm_no,
         st.registrationNo,
+        st.registrationNumber,
         st.registration_no,
         st.regNo,
         st.studentId,
         st.staffId,
+        st.upn,
+        st.upi,
+        st.nemisNo,
+        st.metadata?.admissionNumber,
         st.metadata?.admissionNo,
         st.metadata?.admNo
     ];
 
     for (const cand of candidates) {
-        if (cand && typeof cand === 'string' && cand.trim() && !cand.startsWith('usr_')) {
-            return cand.trim();
-        }
-        if (cand && typeof cand === 'number') {
-            return String(cand);
+        if (cand !== null && cand !== undefined) {
+            const strVal = String(cand).trim();
+            if (strVal && !strVal.startsWith('usr_') && strVal !== 'undefined' && strVal !== 'null') {
+                return strVal;
+            }
         }
     }
 
@@ -95,9 +102,27 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     onSelectReportTab
 }) => {
     const activeStudents = useMemo(() => {
-        if (students.length > 0) return students;
-        return users.filter(u => u.role === 'student');
-    }, [students, users]);
+        const set = new Map<string, User>();
+
+        (students || []).forEach(s => { if (s && s.id) set.set(s.id, s); });
+        (users || []).filter(u => u.role === 'student' || u.studentClass || (u as any).admissionNo || (u as any).admNo).forEach(s => {
+            if (s && s.id && !set.has(s.id)) set.set(s.id, s);
+        });
+
+        try {
+            const savedUsrs = localStorage.getItem(`eduai_users_${instId}`) || localStorage.getItem(`eduai_users`);
+            if (savedUsrs) {
+                const parsed = JSON.parse(savedUsrs);
+                if (Array.isArray(parsed)) {
+                    parsed.filter(u => u.role === 'student' || u.studentClass || (u as any).admissionNo || (u as any).admNo).forEach(s => {
+                        if (s && s.id && !set.has(s.id)) set.set(s.id, s);
+                    });
+                }
+            }
+        } catch(e) {}
+
+        return Array.from(set.values());
+    }, [students, users, instId]);
 
     // Navigation & Drawer states
     const [activeNavItem, setActiveNavItem] = useState<string>('broadsheet');
@@ -508,17 +533,15 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
                 const dbStudent = activeStudents.find(s => {
                     const sName = String(s.name || '').trim().toLowerCase();
-                    const sAdm = String((s as any).admissionNo || (s as any).admNo || (s as any).registrationNo || (s as any).adm_no || s.id || '').trim().toLowerCase();
-                    return (rowAdmClean && sAdm === rowAdmClean) ||
+                    const sAdm = String(getStudentAdmNo(s, 0)).trim().toLowerCase();
+                    return (rowAdmClean && (sAdm === rowAdmClean || rowAdmClean.includes(sAdm) || sAdm.includes(rowAdmClean))) ||
                            (rowNameClean && sName === rowNameClean) ||
                            (rowNameClean && (sName.includes(rowNameClean) || rowNameClean.includes(sName)));
                 });
 
-                const rawAdm = dbStudent
+                const realAdmNo = dbStudent
                     ? getStudentAdmNo(dbStudent, idx)
-                    : (stRow.admNo || stRow.admissionNo || stRow.admission_no || (stRow.student as any)?.admissionNo || (stRow.student as any)?.admNo || String(1001 + idx));
-
-                const realAdmNo = String(rawAdm).replace(/^ADM-/i, '').trim() || String(1001 + idx);
+                    : getStudentAdmNo(stRow, idx);
                 const realClass = stRow.class || (stRow.student as any)?.studentClass || selectedYearGroup || 'Grade 6';
 
                 return {
