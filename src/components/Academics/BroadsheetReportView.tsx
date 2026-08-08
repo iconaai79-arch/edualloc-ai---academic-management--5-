@@ -17,8 +17,24 @@ import { EyeIcon } from '../icons/EyeIcon';
 import * as XLSX from 'xlsx';
 
 // Helper to resolve clean real student admission number
-export const getStudentAdmNo = (st: any, idx: number = 0): string => {
+export const getStudentAdmNo = (st: any, idx: number = 0, realStudentsList?: any[]): string => {
     if (!st) return 'N/A';
+
+    // 1. Try to match by student name in realStudentsList first to get authentic DB admission number!
+    if (realStudentsList && Array.isArray(realStudentsList) && realStudentsList.length > 0 && st.name) {
+        const cleanName = String(st.name).trim().toLowerCase();
+        const matched = realStudentsList.find(s => {
+            const sName = String(s.name || s.fullName || '').trim().toLowerCase();
+            return sName && (sName === cleanName || sName.includes(cleanName) || cleanName.includes(sName));
+        });
+        if (matched) {
+            const realAdm = matched.admissionNumber || matched.admissionNo || matched.admNo || matched.registrationNo || matched.studentId;
+            const strAdm = String(realAdm || '').trim();
+            if (strAdm && !strAdm.startsWith('usr_') && !strAdm.startsWith('user_') && !/^ADM-10\d{2,}$/i.test(strAdm)) {
+                return strAdm;
+            }
+        }
+    }
 
     const candidates = [
         st.admissionNumber,
@@ -46,14 +62,19 @@ export const getStudentAdmNo = (st: any, idx: number = 0): string => {
     for (const cand of candidates) {
         if (cand !== null && cand !== undefined) {
             const strVal = String(cand).trim();
-            if (strVal && !strVal.startsWith('usr_') && !strVal.startsWith('user_') && strVal !== 'undefined' && strVal !== 'null') {
+            const isLegacySynthetic = /^ADM-10\d{2,}$/i.test(strVal) || /^ADM-100\d$/i.test(strVal);
+            if (strVal && !strVal.startsWith('usr_') && !strVal.startsWith('user_') && !isLegacySynthetic && strVal !== 'undefined' && strVal !== 'null') {
                 return strVal;
             }
         }
     }
 
-    if (st.id && typeof st.id === 'string' && !st.id.startsWith('usr_') && !st.id.startsWith('user_')) {
-        return st.id.trim();
+    if (st.id && typeof st.id === 'string') {
+        const cleanId = st.id.trim();
+        const isLegacySynthetic = /^ADM-10\d{2,}$/i.test(cleanId);
+        if (!cleanId.startsWith('usr_') && !cleanId.startsWith('user_') && !isLegacySynthetic && cleanId !== 'undefined' && cleanId !== 'null') {
+            return cleanId;
+        }
     }
 
     return 'N/A';
@@ -512,7 +533,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
         // 3. Map saved rows directly so ONLY real entered student marks are rendered!
         return savedRows.map((stRow, idx) => {
-            const realAdmNo = getStudentAdmNo(stRow, idx) || (stRow as any).admissionNumber || (stRow as any).admissionNo || (stRow as any).admNo || 'N/A';
+            const realAdmNo = getStudentAdmNo(stRow, idx, activeStudents) || (stRow as any).admissionNumber || (stRow as any).admissionNo || 'N/A';
             const realName = stRow.name || (stRow as any).studentName || (stRow as any).student?.name || `Student ${idx + 1}`;
             const realClass = stRow.class || (stRow as any).studentClass || (stRow as any).student?.studentClass || selectedYearGroup || 'Grade 6';
 
@@ -1030,7 +1051,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
                                 {paginatedRows.map((row, idx) => (
                                     <tr key={row.student.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                                        <td className="p-3 font-mono font-bold text-slate-500">{getStudentAdmNo(row.student, idx) || 'N/A'}</td>
+                                        <td className="p-3 font-mono font-bold text-slate-500">{getStudentAdmNo(row.student, idx, activeStudents) || 'N/A'}</td>
                                         <td className="p-3 font-black text-slate-900 dark:text-white uppercase whitespace-nowrap">{row.student.name}</td>
                                         {!isPrimarySchool && <td className="p-3 text-center text-slate-400 font-mono">{row.kcpe || '—'}</td>}
                                         <td className="p-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.student.studentClass || '3 Central'}</td>
@@ -1238,7 +1259,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                         <tbody className="divide-y divide-slate-300 font-medium">
                                             {filteredBroadsheetRows.map((r, idx) => (
                                                 <tr key={r.student.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                                    <td className="p-2 font-bold font-mono border border-slate-300">{getStudentAdmNo(r.student, idx) || 'N/A'}</td>
+                                                    <td className="p-2 font-bold font-mono border border-slate-300">{getStudentAdmNo(r.student, idx, activeStudents) || 'N/A'}</td>
                                                     <td className="p-2 font-black border border-slate-300 uppercase">{r.student.name}</td>
                                                     {!isPrimarySchool && <td className="p-2 border border-slate-300 text-center font-bold">{r.kcpe}</td>}
                                                     <td className="p-2 border border-slate-300">{r.student.studentClass || selectedYearGroup}</td>

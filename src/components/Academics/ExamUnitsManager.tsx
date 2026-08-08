@@ -1140,8 +1140,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const nameToUse = (resolvedName && !resolvedName.toLowerCase().startsWith('student ')) ? resolvedName : (row.name || resolvedName);
                 return { ...row, name: nameToUse, admNo: resolveCleanAdmNo(matchedSt, idx) };
             }
-            if (!row.admNo || typeof row.admNo !== 'string' || row.admNo.startsWith('usr_') || row.admNo.startsWith('user_')) {
-                return { ...row, admNo: resolveCleanAdmNo(row, idx) };
+            if (!row.admNo || typeof row.admNo !== 'string' || row.admNo.startsWith('usr_') || row.admNo.startsWith('user_') || /^ADM-10\d{2,}$/i.test(row.admNo)) {
+                return { ...row, admNo: resolveCleanAdmNo(matchedSt || row, idx) };
             }
             return row;
         });
