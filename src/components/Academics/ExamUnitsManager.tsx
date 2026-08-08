@@ -1315,16 +1315,40 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         );
     }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass]);
 
-    const handleUpdateStudentMark = (admNo: string, fieldKey: string, newValue: number) => {
-        const updated = broadsheetStudentRows.map(row => {
-            if (row.admNo === admNo) {
-                return { ...row, [fieldKey]: newValue };
+    const handleUpdateStudentMark = useCallback((admNo: string, fieldKey: string, newValue: number, studentName?: string, studentClass?: string) => {
+        setBroadsheetStudentRows(prevRows => {
+            const normName = studentName ? studentName.toLowerCase().trim() : '';
+            const existingIndex = prevRows.findIndex(r =>
+                r.admNo === admNo ||
+                (normName && r.name && r.name.toLowerCase().trim() === normName)
+            );
+
+            let updatedRows: any[];
+            if (existingIndex >= 0) {
+                updatedRows = [...prevRows];
+                updatedRows[existingIndex] = {
+                    ...updatedRows[existingIndex],
+                    admNo,
+                    ...(studentName && !studentName.toLowerCase().startsWith('student ') ? { name: studentName } : {}),
+                    ...(studentClass ? { class: studentClass } : {}),
+                    [fieldKey]: newValue
+                };
+            } else {
+                const targetSt = allRealStudents.find(s => resolveCleanAdmNo(s, 0) === admNo);
+                const newRow = {
+                    admNo,
+                    name: studentName || (targetSt ? resolveCleanStudentName(targetSt, 0) : `Student ${admNo}`),
+                    class: studentClass || (targetSt ? getStudentClass(targetSt) : (activeExamClasses[0] || 'Form 3 Central')),
+                    mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0,
+                    [fieldKey]: newValue
+                };
+                updatedRows = [...prevRows, newRow];
             }
-            return row;
+
+            setExamMarksStore(prevStore => ({ ...prevStore, [selectedExamId]: updatedRows }));
+            return updatedRows;
         });
-        setBroadsheetStudentRows(updated);
-        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: updated }));
-    };
+    }, [selectedExamId, activeExamClasses, allRealStudents, resolveCleanAdmNo, resolveCleanStudentName, getStudentClass]);
 
     const handleSaveSubjectMarks = async (subjectName: string) => {
         setIsSavingMarks(true);
@@ -3509,7 +3533,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
                                                             {/* Paper Editable Score Inputs */}
                                                             {papers.map((paper: any, pIdx: number) => {
-                                                                const currentVal = (st as any)[paper.key] ?? 0;
+                                                                const currentVal = (st as any)[paper.key];
+                                                                const displayVal = (currentVal === undefined || currentVal === null || currentVal === 0) ? '' : currentVal;
                                                                 const inputId = `mark-input-${stIndex}-${pIdx}`;
                                                                 return (
                                                                     <td key={pIdx} className="px-3 py-2 text-center bg-indigo-50/20 dark:bg-indigo-950/20 border-x border-slate-100 dark:border-slate-800">
@@ -3519,7 +3544,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                                 type="number"
                                                                                 min={0}
                                                                                 max={paper.maxScore}
-                                                                                value={currentVal}
+                                                                                value={displayVal}
+                                                                                placeholder="0"
                                                                                 onFocus={(e) => e.target.select()}
                                                                                 onKeyDown={(e) => {
                                                                                     if (e.key === 'Enter' || e.key === 'ArrowDown') {
@@ -3560,10 +3586,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                                     }
                                                                                 }}
                                                                                 onChange={(e) => {
-                                                                                    const val = Math.max(0, Math.min(paper.maxScore, parseFloat(e.target.value) || 0));
-                                                                                    handleUpdateStudentMark(st.admNo, paper.key, val);
+                                                                                    const raw = e.target.value;
+                                                                                    const val = raw === '' ? 0 : Math.max(0, Math.min(paper.maxScore, parseFloat(raw) || 0));
+                                                                                    handleUpdateStudentMark(st.admNo, paper.key, val, st.name, st.class);
                                                                                 }}
-                                                                                className="w-20 px-2 py-1.5 text-center font-mono font-black text-slate-900 dark:text-white bg-white dark:bg-slate-800 border-2 border-indigo-300 dark:border-indigo-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs transition-all"
+                                                                                className="w-20 px-2 py-1.5 text-center font-mono font-black text-slate-900 dark:text-white bg-white dark:bg-slate-800 border-2 border-indigo-300 dark:border-indigo-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs transition-all placeholder-slate-400"
                                                                             />
                                                                             <span className="text-[10px] font-bold text-slate-400">/ {paper.maxScore}</span>
                                                                         </div>
