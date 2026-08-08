@@ -489,64 +489,23 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     const sampleStudents = useMemo(() => {
         const savedRows = savedBroadsheets[selectedExamId];
 
-        // 1. Build base student registry list from activeStudents (or real fallback list if activeStudents is empty)
-        const baseStudentList = activeStudents.length > 0 ? activeStudents : [
-            { id: '181', name: 'ABEL KIPROTICH(NAOMI)', admissionNo: '181', studentClass: `${selectedYearGroup || 'Grade 6'} Central` },
-            { id: '182', name: 'ABIGAEL JEBET', admissionNo: '182', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '435', name: 'ABISAG JEPKIRUI', admissionNo: '435', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '438', name: 'ADRIAN KIPCHUMBA', admissionNo: '438', studentClass: `${selectedYearGroup || 'Grade 6'} South` },
-            { id: '2008', name: 'Maxine Jelimo', admissionNo: '2008', studentClass: `${selectedYearGroup || 'Grade 6'} Central` },
-            { id: '2244', name: 'Dennis Kiplagat', admissionNo: '2244', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1897', name: 'Felix Kipkosgei', admissionNo: '1897', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1712', name: 'Job Kipkorir Kipkoech', admissionNo: '1712', studentClass: `${selectedYearGroup || 'Grade 6'} South` },
-            { id: '2127', name: 'Linett Chepkorir Agui', admissionNo: '2127', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1838', name: 'Emmanuel Kiptoo', admissionNo: '1838', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1834', name: 'Gervasy Kiptoo', admissionNo: '1834', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1972', name: 'Kelvin Kiprugo', admissionNo: '1972', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1957', name: 'Shamir Lokapel', admissionNo: '1957', studentClass: `${selectedYearGroup || 'Grade 6'} West` },
-            { id: '1967', name: 'Michell Chepleting', admissionNo: '1967', studentClass: `${selectedYearGroup || 'Grade 6'} West` },
-            { id: '1898', name: 'Abigael Kimutai', admissionNo: '1898', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '2117', name: 'Mercy Jerono', admissionNo: '2117', studentClass: `${selectedYearGroup || 'Grade 6'} West` },
-            { id: '1883', name: 'Muthoni Ann Nyaguthie', admissionNo: '1883', studentClass: `${selectedYearGroup || 'Grade 6'} Central` },
-            { id: '1861', name: 'Junior Kahama', admissionNo: '1861', studentClass: `${selectedYearGroup || 'Grade 6'} West` },
-            { id: '1848', name: 'Isaac Kipteting', admissionNo: '1848', studentClass: `${selectedYearGroup || 'Grade 6'} Central` },
-            { id: '1853', name: 'Dennis Maina Kipkemboi', admissionNo: '1853', studentClass: `${selectedYearGroup || 'Grade 6'} South` },
-            { id: '1924', name: 'Judith Jepleting', admissionNo: '1924', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1863', name: 'Joy Jerotich', admissionNo: '1863', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1904', name: 'Yvonne Jepleting', admissionNo: '1904', studentClass: `${selectedYearGroup || 'Grade 6'} Central` },
-            { id: '1933', name: 'Leah Jerotich Kimutai', admissionNo: '1933', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1856', name: 'Abigael Jepchumba', admissionNo: '1856', studentClass: `${selectedYearGroup || 'Grade 6'} Central` },
-            { id: '1908', name: 'Emmanuel Kipkirui Simatei', admissionNo: '1908', studentClass: `${selectedYearGroup || 'Grade 6'} West` },
-            { id: '1872', name: 'Marion Jerop Kemei', admissionNo: '1872', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1947', name: 'Emmanuel Kipkorir', admissionNo: '1947', studentClass: `${selectedYearGroup || 'Grade 6'} South` },
-        ];
+        // Case 1: If there are saved broadsheet rows for this exam, use savedRows directly!
+        // Each saved row represents a real student in that class who has marks recorded.
+        if (savedRows && Array.isArray(savedRows) && savedRows.length > 0) {
+            return savedRows.map((stRow, idx) => {
+                const realAdmNo = getStudentAdmNo(stRow, idx) || (stRow as any).id || String(181 + idx);
+                const realName = stRow.name || (stRow as any).studentName || (stRow as any).student?.name || `Student ${idx + 1}`;
+                const realClass = stRow.class || (stRow as any).studentClass || (stRow as any).student?.studentClass || selectedYearGroup || 'Grade 6';
 
-        // 2. Map saved marks onto baseStudentList so admission numbers (181, 182, 435, 438...) match Data Entry 100%
-        return baseStudentList.map((st, idx) => {
-            const realAdmNo = getStudentAdmNo(st, idx) || st.id || String(181 + idx);
-            const realName = st.name;
-            const realClass = (st as any).studentClass || (st as any).class || `${selectedYearGroup || 'Grade 6'} Central`;
+                const subjectMarksMap: Record<string, { score: number; grade: string }> = {};
+                let total = 0;
+                let totalPts = 0;
+                let validCount = 0;
 
-            // Look up saved row for this student in savedRows (by admission number or name or index)
-            const stRow = savedRows && Array.isArray(savedRows)
-                ? savedRows.find(r => {
-                    const rAdm = getStudentAdmNo(r, 0);
-                    const rName = (r.name || (r.student as any)?.name || '').trim().toLowerCase();
-                    const sName = (st.name || '').trim().toLowerCase();
-                    return (rAdm && rAdm === realAdmNo) || (rName && sName && (rName === sName || rName.includes(sName) || sName.includes(rName)));
-                }) || savedRows[idx]
-                : null;
+                broadsheetSubjects.forEach((sub, sIdx) => {
+                    let sc = 0;
+                    let hasMark = false;
 
-            const subjectMarksMap: Record<string, { score: number; grade: string }> = {};
-            let total = 0;
-            let totalPts = 0;
-            let validCount = 0;
-
-            broadsheetSubjects.forEach((sub, sIdx) => {
-                let sc = 0;
-                let hasMark = false;
-
-                if (stRow) {
                     const subName = sub.name || (sub as any).title || '';
                     const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
                     const subNameNorm = subName.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -569,16 +528,75 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                             hasMark = true;
                         }
                     });
-                }
 
-                if (!hasMark) {
-                    if ((idx + sIdx) % 7 !== 0) {
-                        sc = Math.max(20, Math.min(92, Math.round(78 - idx * 1.8 + (sIdx * 3) % 25)));
-                        hasMark = true;
+                    if (hasMark) {
+                        const { grade, points } = getGradeInfo(sc, isPrimarySchool);
+                        subjectMarksMap[sub.id] = { score: sc, grade };
+                        total += sc;
+                        totalPts += points;
+                        validCount++;
                     }
-                }
+                });
 
-                if (hasMark) {
+                const meanPts = validCount > 0 ? parseFloat((totalPts / validCount).toFixed(4)) : 0;
+                const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
+                const { grade: meanGrade } = getGradeInfo(meanScore, isPrimarySchool);
+
+                return {
+                    student: {
+                        id: realAdmNo,
+                        name: realName,
+                        admissionNo: realAdmNo,
+                        studentClass: realClass
+                    },
+                    kcpe: 250 + (idx * 5) % 150,
+                    entry: broadsheetSubjects.length || 8,
+                    subjectMarksMap,
+                    total,
+                    meanScore,
+                    meanGrade,
+                    meanPts,
+                    vap: parseFloat((3.5714 - idx * 0.12).toFixed(4))
+                };
+            }).sort((a, b) => b.total - a.total).map((r, idx) => ({
+                ...r,
+                overallPos: idx + 1,
+                streamPos: (idx % 5) + 1
+            }));
+        }
+
+        // Case 2: No saved rows yet for this exam -> filter activeStudents strictly by selectedYearGroup!
+        const targetClassLower = (selectedYearGroup || '').toLowerCase().trim();
+        const filteredStudents = activeStudents.filter(st => {
+            if (!targetClassLower || targetClassLower === 'all classes' || targetClassLower === 'all') return true;
+            const stClass = String((st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '').toLowerCase();
+            return stClass.includes(targetClassLower) || targetClassLower.includes(stClass);
+        });
+
+        const baseStudentList = filteredStudents.length > 0 ? filteredStudents : [
+            { id: '181', name: 'ABEL KIPROTICH(NAOMI)', admissionNo: '181', studentClass: `${selectedYearGroup || 'Grade 6'} Central` },
+            { id: '182', name: 'ABIGAEL JEBET', admissionNo: '182', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
+            { id: '435', name: 'ABISAG JEPKIRUI', admissionNo: '435', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
+            { id: '438', name: 'ADRIAN KIPCHUMBA', admissionNo: '438', studentClass: `${selectedYearGroup || 'Grade 6'} South` },
+            { id: '2008', name: 'Maxine Jelimo', admissionNo: '2008', studentClass: `${selectedYearGroup || 'Grade 6'} Central` },
+            { id: '2244', name: 'Dennis Kiplagat', admissionNo: '2244', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
+            { id: '1897', name: 'Felix Kipkosgei', admissionNo: '1897', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
+            { id: '1712', name: 'Job Kipkorir Kipkoech', admissionNo: '1712', studentClass: `${selectedYearGroup || 'Grade 6'} South` },
+        ];
+
+        return baseStudentList.map((st, idx) => {
+            const realAdmNo = getStudentAdmNo(st, idx) || st.id || String(181 + idx);
+            const realName = st.name;
+            const realClass = (st as any).studentClass || (st as any).class || `${selectedYearGroup || 'Grade 6'} Central`;
+
+            const subjectMarksMap: Record<string, { score: number; grade: string }> = {};
+            let total = 0;
+            let totalPts = 0;
+            let validCount = 0;
+
+            broadsheetSubjects.forEach((sub, sIdx) => {
+                if ((idx + sIdx) % 7 !== 0) {
+                    const sc = Math.max(20, Math.min(92, Math.round(78 - idx * 1.8 + (sIdx * 3) % 25)));
                     const { grade, points } = getGradeInfo(sc, isPrimarySchool);
                     subjectMarksMap[sub.id] = { score: sc, grade };
                     total += sc;
@@ -599,7 +617,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                     studentClass: realClass
                 },
                 kcpe: 250 + (idx * 5) % 150,
-                entry: 8,
+                entry: broadsheetSubjects.length || 8,
                 subjectMarksMap,
                 total,
                 meanScore,
