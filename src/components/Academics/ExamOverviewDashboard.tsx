@@ -395,6 +395,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         const streamMap: Record<string, typeof studentPerformanceData[0]> = {};
 
         studentPerformanceData.forEach(stData => {
+            if (!stData?.student) return;
             const stream = stData.student.studentClass || 'Central Stream';
             if (!streamMap[stream] || stData.meanScore > streamMap[stream].meanScore) {
                 streamMap[stream] = stData;
@@ -403,8 +404,8 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
         return Object.entries(streamMap).map(([stream, stData]) => ({
             stream,
-            studentName: stData.student.name,
-            admNo: stData.student.admissionNo || stData.student.id,
+            studentName: stData.student?.name,
+            admNo: stData.student?.admissionNo || stData.student?.id,
             meanScore: stData.meanScore,
             grade: stData.grade
         }));
@@ -417,9 +418,9 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             const diffVal = parseFloat((stData.meanScore - prevScore).toFixed(1));
             return {
                 rank: idx + 1,
-                name: stData.student.name,
-                admNo: stData.student.admissionNo || stData.student.id,
-                stream: stData.student.studentClass,
+                name: stData.student?.name,
+                admNo: stData.student?.admissionNo || stData.student?.id,
+                stream: stData.student?.studentClass,
                 prevScore: Math.max(30, prevScore),
                 currScore: stData.meanScore,
                 diff: `+${diffVal}%`
@@ -469,6 +470,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         const streamGroup: Record<string, { total: number; count: number }> = {};
 
         studentPerformanceData.forEach(st => {
+            if (!st?.student) return;
             const stName = st.student.studentClass || 'Central Stream';
             if (!streamGroup[stName]) streamGroup[stName] = { total: 0, count: 0 };
             streamGroup[stName].total += st.meanScore;
@@ -1045,17 +1047,18 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
                     {expandedSections['sec_6'] && (
                         <div className="p-6 md:p-8 animate-fade-in grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {(subjects.length > 0 ? subjects : [
+                            {top10Students.length > 0 && (subjects.length > 0 ? subjects : [
                                 { id: '1', name: 'Mathematics', code: 'MATH' },
                                 { id: '2', name: 'English', code: 'ENG' },
                                 { id: '3', name: 'Kiswahili', code: 'KISW' },
                             ]).map((sub, idx) => {
                                 const champ = top10Students[idx % top10Students.length];
+                                if (!champ?.student) return null;
                                 return (
                                     <div key={sub.id} className="p-6 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
                                         <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest block">👑 {sub.name} CHAMPION</span>
-                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase truncate">{champ.student.name}</h4>
-                                        <p className="text-[10px] text-slate-400 font-mono">{champ.student.admissionNo || champ.student.id}</p>
+                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase truncate">{champ.student?.name}</h4>
+                                        <p className="text-[10px] text-slate-400 font-mono">{champ.student?.admissionNo || champ.student?.id}</p>
                                         <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 dark:border-slate-700">
                                             <span className="text-lg font-black text-slate-900 dark:text-white">{Math.round(92 - idx * 3)}%</span>
                                             <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-black">Score: {Math.round(92 - idx * 3)}</span>
