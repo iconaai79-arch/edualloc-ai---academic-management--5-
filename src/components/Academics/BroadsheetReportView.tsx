@@ -36,26 +36,33 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     courses = [],
     onSelectReportTab
 }) => {
-    const isPrimarySchool = useMemo(() => {
-        const type = (currentInstitution?.institutionType || '').toLowerCase();
-        const name = (currentInstitution?.name || '').toLowerCase();
-        return type === 'primary' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
-    }, [currentInstitution]);
-
-    const activeStudents = useMemo(() => {
-        if (students.length > 0) return students;
-        return users.filter(u => u.role === 'student');
-    }, [students, users]);
-
-    // Navigation & Drawer states
-    const [activeNavItem, setActiveNavItem] = useState<string>('broadsheet');
-    const [isLeftNavCollapsed, setIsLeftNavCollapsed] = useState<boolean>(false);
-
     // Exam & Year states
     const [expandedYear, setExpandedYear] = useState<string>('2026');
     const [selectedExamId, setSelectedExamId] = useState<string>(assessments[0]?.id || 'exam_midterm_1');
     const [selectedYearGroup, setSelectedYearGroup] = useState<string>('');
     const [selectedStream, setSelectedStream] = useState<string>('all');
+
+    const isPrimarySchool = useMemo(() => {
+        const type = (currentInstitution?.institutionType || '').toLowerCase();
+        const instName = (currentInstitution?.name || '').toLowerCase();
+        const yearGrp = (selectedYearGroup || '').toLowerCase();
+        const examName = ((selectedExamObj as any)?.name || (selectedExamObj as any)?.title || '').toLowerCase();
+
+        return (
+            type === 'primary' ||
+            instName.includes('primary') ||
+            instName.includes('academy') ||
+            instName.includes('cbc') ||
+            instName.includes('cbe') ||
+            yearGrp.includes('grade') ||
+            yearGrp.includes('pp') ||
+            yearGrp.includes('standard') ||
+            yearGrp.includes('std') ||
+            examName.includes('grade') ||
+            examName.includes('pp') ||
+            examName.includes('primary')
+        );
+    }, [currentInstitution, selectedYearGroup, selectedExamObj]);
 
     // Search student in broadsheet
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -363,12 +370,15 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
                 const { grade: meanGrade } = getGradeInfo(meanScore);
 
+                const realAdmNo = stRow.admNo || stRow.admissionNo || stRow.admission_no || (stRow.student as any)?.admissionNo || (stRow.student as any)?.admNo || `ADM-${1046 + idx}`;
+                const realClass = stRow.class || (stRow.student as any)?.studentClass || selectedYearGroup || 'Grade 6';
+
                 return {
                     student: {
-                        id: stRow.admNo || `st_${idx}`,
-                        name: stRow.name,
-                        admissionNo: stRow.admNo,
-                        studentClass: stRow.class
+                        id: realAdmNo,
+                        name: stRow.name || (stRow.student as any)?.name || `Student ${idx + 1}`,
+                        admissionNo: realAdmNo,
+                        studentClass: realClass
                     },
                     kcpe: 250 + (idx * 5) % 150,
                     entry: 8,
@@ -386,31 +396,32 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             }));
         }
 
+        const currentGroup = selectedYearGroup || 'Grade 6';
         const raw = activeStudents.length > 0 ? activeStudents : [
-            { id: '2008', name: 'Maxine Jelimo', admissionNo: '2008', studentClass: '3 Central' },
-            { id: '2244', name: 'Dennis Kiplagat', admissionNo: '2244', studentClass: '3 East' },
-            { id: '1897', name: 'Felix Kipkosgei', admissionNo: '1897', studentClass: '3 East' },
-            { id: '1712', name: 'Job Kipkorir Kipkoech', admissionNo: '1712', studentClass: '3 South' },
-            { id: '2127', name: 'Linett Chepkorir Agui', admissionNo: '2127', studentClass: '3 East' },
-            { id: '1838', name: 'Emmanuel Kiptoo', admissionNo: '1838', studentClass: '3 East' },
-            { id: '1834', name: 'Gervasy Kiptoo', admissionNo: '1834', studentClass: '3 East' },
-            { id: '1972', name: 'Kelvin Kiprugo', admissionNo: '1972', studentClass: '3 East' },
-            { id: '1957', name: 'Shamir Lokapel', admissionNo: '1957', studentClass: '3 West' },
-            { id: '1967', name: 'Michell Chepleting', admissionNo: '1967', studentClass: '3 West' },
-            { id: '1898', name: 'Abigael Kimutai', admissionNo: '1898', studentClass: '3 East' },
-            { id: '2117', name: 'Mercy Jerono', admissionNo: '2117', studentClass: '3 West' },
-            { id: '1883', name: 'Muthoni Ann Nyaguthie', admissionNo: '1883', studentClass: '3 Central' },
-            { id: '1861', name: 'Junior Kahama', admissionNo: '1861', studentClass: '3 West' },
-            { id: '1848', name: 'Isaac Kipteting', admissionNo: '1848', studentClass: '3 Central' },
-            { id: '1853', name: 'Dennis Maina Kipkemboi', admissionNo: '1853', studentClass: '3 South' },
-            { id: '1924', name: 'Judith Jepleting', admissionNo: '1924', studentClass: '3 East' },
-            { id: '1863', name: 'Joy Jerotich', admissionNo: '1863', studentClass: '3 East' },
-            { id: '1904', name: 'Yvonne Jepleting', admissionNo: '1904', studentClass: '3 Central' },
-            { id: '1933', name: 'Leah Jerotich Kimutai', admissionNo: '1933', studentClass: '3 East' },
-            { id: '1856', name: 'Abigael Jepchumba', admissionNo: '1856', studentClass: '3 Central' },
-            { id: '1908', name: 'Emmanuel Kipkirui Simatei', admissionNo: '1908', studentClass: '3 West' },
-            { id: '1872', name: 'Marion Jerop Kemei', admissionNo: '1872', studentClass: '3 East' },
-            { id: '1947', name: 'Emmanuel Kipkorir', admissionNo: '1947', studentClass: '3 South' },
+            { id: '2008', name: 'Maxine Jelimo', admissionNo: '2008', studentClass: `${currentGroup} Central` },
+            { id: '2244', name: 'Dennis Kiplagat', admissionNo: '2244', studentClass: `${currentGroup} East` },
+            { id: '1897', name: 'Felix Kipkosgei', admissionNo: '1897', studentClass: `${currentGroup} East` },
+            { id: '1712', name: 'Job Kipkorir Kipkoech', admissionNo: '1712', studentClass: `${currentGroup} South` },
+            { id: '2127', name: 'Linett Chepkorir Agui', admissionNo: '2127', studentClass: `${currentGroup} East` },
+            { id: '1838', name: 'Emmanuel Kiptoo', admissionNo: '1838', studentClass: `${currentGroup} East` },
+            { id: '1834', name: 'Gervasy Kiptoo', admissionNo: '1834', studentClass: `${currentGroup} East` },
+            { id: '1972', name: 'Kelvin Kiprugo', admissionNo: '1972', studentClass: `${currentGroup} East` },
+            { id: '1957', name: 'Shamir Lokapel', admissionNo: '1957', studentClass: `${currentGroup} West` },
+            { id: '1967', name: 'Michell Chepleting', admissionNo: '1967', studentClass: `${currentGroup} West` },
+            { id: '1898', name: 'Abigael Kimutai', admissionNo: '1898', studentClass: `${currentGroup} East` },
+            { id: '2117', name: 'Mercy Jerono', admissionNo: '2117', studentClass: `${currentGroup} West` },
+            { id: '1883', name: 'Muthoni Ann Nyaguthie', admissionNo: '1883', studentClass: `${currentGroup} Central` },
+            { id: '1861', name: 'Junior Kahama', admissionNo: '1861', studentClass: `${currentGroup} West` },
+            { id: '1848', name: 'Isaac Kipteting', admissionNo: '1848', studentClass: `${currentGroup} Central` },
+            { id: '1853', name: 'Dennis Maina Kipkemboi', admissionNo: '1853', studentClass: `${currentGroup} South` },
+            { id: '1924', name: 'Judith Jepleting', admissionNo: '1924', studentClass: `${currentGroup} East` },
+            { id: '1863', name: 'Joy Jerotich', admissionNo: '1863', studentClass: `${currentGroup} East` },
+            { id: '1904', name: 'Yvonne Jepleting', admissionNo: '1904', studentClass: `${currentGroup} Central` },
+            { id: '1933', name: 'Leah Jerotich Kimutai', admissionNo: '1933', studentClass: `${currentGroup} East` },
+            { id: '1856', name: 'Abigael Jepchumba', admissionNo: '1856', studentClass: `${currentGroup} Central` },
+            { id: '1908', name: 'Emmanuel Kipkirui Simatei', admissionNo: '1908', studentClass: `${currentGroup} West` },
+            { id: '1872', name: 'Marion Jerop Kemei', admissionNo: '1872', studentClass: `${currentGroup} East` },
+            { id: '1947', name: 'Emmanuel Kipkorir', admissionNo: '1947', studentClass: `${currentGroup} South` },
         ];
 
         return raw.map((st, idx) => {
@@ -422,7 +433,6 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             let validCount = 0;
 
             broadsheetSubjects.forEach((sub, sIdx) => {
-                // Determine if student took this subject
                 if ((idx + sIdx) % 7 !== 0) {
                     const sc = Math.max(20, Math.min(92, Math.round(78 - idx * 1.8 + (sIdx * 3) % 25)));
                     const { grade, points } = getGradeInfo(sc);
@@ -437,8 +447,15 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
             const { grade: meanGrade } = getGradeInfo(meanScore);
 
+            const realAdmNo = (st as any).admissionNo || (st as any).admission_no || (st as any).admNo || (st as any).adm_no || (st as any).registrationNo || (st as any).staffId || (st as any).metadata?.admissionNo || (st as any).metadata?.admNo || st.id;
+            const realClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || `${currentGroup} Central`;
+
             return {
-                student: st,
+                student: {
+                    ...st,
+                    admissionNo: realAdmNo,
+                    studentClass: realClass
+                },
                 kcpe,
                 entry,
                 subjectMarksMap,
@@ -453,18 +470,29 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             overallPos: idx + 1,
             streamPos: (idx % 5) + 1
         }));
-    }, [activeStudents, broadsheetSubjects, isPrimarySchool, savedBroadsheets, selectedExamId]);
+    }, [activeStudents, broadsheetSubjects, isPrimarySchool, savedBroadsheets, selectedExamId, selectedYearGroup]);
 
     // Filtered student rows
     const filteredBroadsheetRows = useMemo(() => {
         return sampleStudents.filter(r => {
-            const matchesStream = selectedStream === 'all' || r.student?.studentClass?.includes(selectedStream);
-            const matchesQuery = !searchQuery.trim() ||
-                (r.student?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (r.student?.admissionNo && (r.student.admissionNo || '').toLowerCase().includes(searchQuery.toLowerCase()));
-            return matchesStream && matchesQuery;
+            const stClass = (r.student?.studentClass || '').trim();
+            const yGrp = (selectedYearGroup || '').trim();
+
+            const matchesYearGroup = !yGrp ||
+                yGrp === 'all' ||
+                stClass.toLowerCase().includes(yGrp.toLowerCase()) ||
+                yGrp.toLowerCase().includes(stClass.toLowerCase());
+
+            const matchesStream = selectedStream === 'all' || stClass.toLowerCase().includes(selectedStream.toLowerCase());
+
+            const admStr = (r.student?.admissionNo || (r.student as any)?.admNo || '').toLowerCase();
+            const nameStr = (r.student?.name || '').toLowerCase();
+            const q = searchQuery.trim().toLowerCase();
+            const matchesQuery = !q || nameStr.includes(q) || admStr.includes(q);
+
+            return matchesYearGroup && matchesStream && matchesQuery;
         });
-    }, [sampleStudents, selectedStream, searchQuery]);
+    }, [sampleStudents, selectedYearGroup, selectedStream, searchQuery]);
 
     // Paginated rows
     const paginatedRows = useMemo(() => {
