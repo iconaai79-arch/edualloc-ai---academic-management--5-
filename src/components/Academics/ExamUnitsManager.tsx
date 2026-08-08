@@ -714,17 +714,20 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         'Grace Jepkoech', 'Harrison Kiptoo', 'Ian Kiprono', 'Judith Jepleting', 'Kevin Kiprotich'
     ], []);
 
-    const defaultSampleRows = useMemo(() => KENYAN_STUDENT_NAMES.map((name, idx) => ({
-        admNo: `ADM-${1001 + idx}`,
-        name,
-        class: 'Form 3 Central',
-        mathP1: Math.round(18 + (idx * 3) % 25),
-        mathP2: Math.round(40 + (idx * 4) % 35),
-        engP1: Math.round(35 + (idx * 2) % 30),
-        engP2: Math.round(50 + (idx * 3) % 28),
-        kiswP1: Math.round(25 + (idx * 2) % 20),
-        bioP1: Math.round(45 + (idx * 3) % 35)
-    })), [KENYAN_STUDENT_NAMES]);
+    const defaultSampleRows = useMemo(() => {
+        const defaultAdms = ['181', '182', '435', '438', '2008', '2244', '1897', '1712', '2127', '1838', '1834', '1972', '1957', '1967', '1898', '2117', '1883', '1861', '1848', '1853'];
+        return KENYAN_STUDENT_NAMES.map((name, idx) => ({
+            admNo: defaultAdms[idx % defaultAdms.length],
+            name,
+            class: 'Grade 6 Central',
+            mathP1: Math.round(18 + (idx * 3) % 25),
+            mathP2: Math.round(40 + (idx * 4) % 35),
+            engP1: Math.round(35 + (idx * 2) % 30),
+            engP2: Math.round(50 + (idx * 3) % 28),
+            kiswP1: Math.round(25 + (idx * 2) % 20),
+            bioP1: Math.round(45 + (idx * 3) % 35)
+        }));
+    }, [KENYAN_STUDENT_NAMES]);
 
     // Resolved Active Exam Classes
     const activeExamClasses = useMemo(() => {
