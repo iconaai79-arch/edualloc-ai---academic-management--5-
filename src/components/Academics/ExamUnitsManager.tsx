@@ -1364,6 +1364,33 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             snapshotMarks(selectedExamId, classesForSnap, broadsheetStudentRows);
         }
 
+        // ── UPDATE EXAM SUBMITTED PERCENT IN EXAMS LIST ──
+        if (activeExam && classPaperRows.length > 0) {
+            const sumProgress = classPaperRows.reduce((acc, c) => acc + c.overallProgress, 0);
+            const calculatedSubmittedPct = parseFloat((sumProgress / classPaperRows.length).toFixed(1));
+
+            setExams(prevExams => {
+                const nextExams = prevExams.map(e => {
+                    if (e.id === selectedExamId) {
+                        return {
+                            ...e,
+                            submittedPercent: calculatedSubmittedPct
+                        };
+                    }
+                    return e;
+                });
+                try {
+                    localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(nextExams));
+                } catch (e) { }
+
+                const updatedExam = nextExams.find(e => e.id === selectedExamId);
+                if (updatedExam && currentInstitution?.id) {
+                    apiService.saveModuleRecord('exam_units', updatedExam).catch(() => { });
+                }
+                return nextExams;
+            });
+        }
+
         if (currentInstitution?.id) {
             await apiService.saveModuleRecord('institution_module_states', {
                 id: `broadsheets_${currentInstitution.id}`,
@@ -1827,11 +1854,26 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 return isStudentInTargetClasses(stClass, [cName]);
             });
 
-            const targetStudents = realStudentsForClass.length > 0
+            const baseList = realStudentsForClass.length > 0
                 ? realStudentsForClass
                 : (classStudents.length > 0
                     ? classStudents
                     : (activeExamClasses.length === 1 && broadsheetStudentRows.length > 0 ? broadsheetStudentRows : []));
+
+            const targetStudents = baseList.map((st, idx) => {
+                const adm = resolveCleanAdmNo(st, idx);
+                const cleanName = resolveCleanStudentName(st, idx);
+                const markRow = activeExamRows.find(r =>
+                    (adm && String(r.admNo).trim() === String(adm).trim()) ||
+                    (cleanName && r.name && r.name.toLowerCase().trim() === cleanName.toLowerCase().trim())
+                );
+                return {
+                    ...st,
+                    ...(markRow || {}),
+                    admNo: adm,
+                    name: cleanName
+                };
+            });
 
             const classEnrollment = targetStudents.length;
 
