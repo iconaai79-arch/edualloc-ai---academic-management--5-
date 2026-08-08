@@ -101,6 +101,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     courses = [],
     onSelectReportTab
 }) => {
+    const instId = currentInstitution?.id || 'default_inst';
+
     const activeStudents = useMemo(() => {
         const set = new Map<string, User>();
 
@@ -127,20 +129,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     // Navigation & Drawer states
     const [activeNavItem, setActiveNavItem] = useState<string>('broadsheet');
     const [isLeftNavCollapsed, setIsLeftNavCollapsed] = useState<boolean>(false);
-
-    // Exam & Year states
-    const [expandedYear, setExpandedYear] = useState<string>('2026');
-    const [selectedExamId, setSelectedExamId] = useState<string>(assessments[0]?.id || 'exam_midterm_1');
-    const [selectedYearGroup, setSelectedYearGroup] = useState<string>('');
-    const [selectedStream, setSelectedStream] = useState<string>('all');
-
-    // Search student in broadsheet
-    const [searchQuery, setSearchQuery] = useState<string>('');
-    const [currentPage, setCurrentPage] = useState<number>(1);
-    const [pageSize, setPageSize] = useState<number>(25);
-    const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState<boolean>(false);
-
-    const instId = currentInstitution?.id || 'default_inst';
+    const [isExamSidebarOpen, setIsExamSidebarOpen] = useState<boolean>(false);
 
     // Dynamic state for exam_units created/published in Exam Units Manager
     const [savedExamUnits, setSavedExamUnits] = useState<any[]>(() => {
@@ -834,55 +823,67 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 </div>
             </div>
 
-            {/* COLUMN 2: EXAM HISTORY COLUMN */}
-            <div className="w-full lg:w-60 shrink-0 space-y-3">
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 px-1">
-                        EXAM HISTORY & SESSIONS
-                    </div>
+            {/* COLUMN 2: EXAM HISTORY COLUMN (COLLAPSIBLE TO MAXIMIZE TABLE WIDTH) */}
+            {isExamSidebarOpen && (
+                <div className="w-full lg:w-64 shrink-0 space-y-3 animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm">
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 px-1">
+                            <span>EXAM HISTORY & SESSIONS</span>
+                            <button
+                                type="button"
+                                onClick={() => setIsExamSidebarOpen(false)}
+                                className="text-slate-400 hover:text-rose-500 font-bold text-xs"
+                            >
+                                ✕
+                            </button>
+                        </div>
 
-                    <div className="space-y-2">
-                        {Object.entries(examHistoryByYear).map(([year, examsList]) => {
-                            const isExpanded = expandedYear === year;
-                            return (
-                                <div key={year} className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
-                                    <button
-                                        onClick={() => setExpandedYear(isExpanded ? '' : year)}
-                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 font-black text-xs text-indigo-600 dark:text-indigo-400 flex justify-between items-center"
-                                    >
-                                        <span>{year} ({examsList.length})</span>
-                                        <span>{isExpanded ? '▲' : '▼'}</span>
-                                    </button>
+                        <div className="space-y-2">
+                            {Object.entries(examHistoryByYear).map(([year, examsList]) => {
+                                const isExpanded = expandedYear === year;
+                                return (
+                                    <div key={year} className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                                        <button
+                                            onClick={() => setExpandedYear(isExpanded ? '' : year)}
+                                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 font-black text-xs text-indigo-600 dark:text-indigo-400 flex justify-between items-center"
+                                        >
+                                            <span>{year} ({examsList.length})</span>
+                                            <span>{isExpanded ? '▲' : '▼'}</span>
+                                        </button>
 
-                                    {isExpanded && (
-                                        <div className="p-1.5 space-y-1.5 bg-white dark:bg-slate-900">
-                                            {examsList.map(exam => {
-                                                const isSelected = selectedExamId === exam.id;
-                                                return (
-                                                    <button
-                                                        key={exam.id}
-                                                        onClick={() => setSelectedExamId(exam.id)}
-                                                        className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer border ${
-                                                            isSelected
-                                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md font-bold'
-                                                            : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 hover:border-indigo-200'
-                                                        }`}
-                                                    >
-                                                        <div className="text-xs font-black truncate">{exam.title}</div>
-                                                        <div className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-indigo-100' : 'text-slate-400'}`}>
-                                                            {exam.term} &bull; {exam.type} &bull; {exam.count} students
-                                                        </div>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                        {isExpanded && (
+                                            <div className="p-1.5 space-y-1.5 bg-white dark:bg-slate-900">
+                                                {examsList.map(exam => {
+                                                    const isSelected = selectedExamId === exam.id;
+                                                    return (
+                                                        <button
+                                                            key={exam.id}
+                                                            onClick={() => {
+                                                                setSelectedExamId(exam.id);
+                                                                setIsExamSidebarOpen(false);
+                                                            }}
+                                                            className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer border ${
+                                                                isSelected
+                                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md font-bold'
+                                                                : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 hover:border-indigo-200'
+                                                            }`}
+                                                        >
+                                                            <div className="text-xs font-black truncate">{exam.title}</div>
+                                                            <div className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                                                {exam.term} &bull; {exam.type} &bull; {exam.count} students
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* COLUMN 3: MAIN BROADSHEET MASTER TABLE */}
             <div className="flex-1 w-full min-w-0 space-y-6">
@@ -900,6 +901,19 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
                         {/* Stream / Controls */}
                         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                            <div>
+                                <label className="block text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Select Exam</label>
+                                <select
+                                    value={selectedExamId}
+                                    onChange={e => setSelectedExamId(e.target.value)}
+                                    className="form-select text-xs font-black text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 border-indigo-200 dark:border-indigo-800 max-w-[200px] truncate"
+                                >
+                                    {allExamsList.map(ex => (
+                                        <option key={ex.id} value={ex.id}>{ex.title} ({ex.year || '2026'})</option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <div>
                                 <label className="block text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Year Group</label>
                                 <select
@@ -929,6 +943,17 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                             </div>
 
                             <div className="flex items-end gap-2 mt-4 xl:mt-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsExamSidebarOpen(!isExamSidebarOpen)}
+                                    className={`px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-1.5 transition-all border cursor-pointer ${
+                                        isExamSidebarOpen
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    <span>📁 {isExamSidebarOpen ? 'Hide History' : 'Exam History'}</span>
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => setIsPdfPreviewOpen(true)}
