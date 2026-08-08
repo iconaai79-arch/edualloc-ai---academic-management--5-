@@ -121,6 +121,19 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [saveToastMessage, setSaveToastMessage] = useState<string | null>(null);
     const [isSavingMarks, setIsSavingMarks] = useState(false);
 
+    // Sorting state for broadsheet mark entry (sort by Admission No or Student Name)
+    const [sortField, setSortField] = useState<'admNo' | 'name'>('name');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+    const toggleSort = useCallback((field: 'admNo' | 'name') => {
+        if (sortField === field) {
+            setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSortField(field);
+            setSortOrder('asc');
+        }
+    }, [sortField]);
+
     // ──────────────────────────────────────────────────────────────────
     // MARKS BACKUP SYSTEM
     // ──────────────────────────────────────────────────────────────────
@@ -1308,12 +1321,30 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             }
         }
 
-        if (!searchStudentQuery.trim()) return rows;
-        const q = searchStudentQuery.toLowerCase().trim();
-        return rows.filter(st =>
-            (st.name || '').toLowerCase().includes(q) || (st.admNo || '').toLowerCase().includes(q)
-        );
-    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass]);
+        if (searchStudentQuery.trim()) {
+            const q = searchStudentQuery.toLowerCase().trim();
+            rows = rows.filter(st =>
+                (st.name || '').toLowerCase().includes(q) || (st.admNo || '').toLowerCase().includes(q)
+            );
+        }
+
+        // Enable student data sorting by Admission Number or Student Name
+        return [...rows].sort((a, b) => {
+            const valA = (sortField === 'admNo' ? (a.admNo || '') : (a.name || '')).toString().trim();
+            const valB = (sortField === 'admNo' ? (b.admNo || '') : (b.name || '')).toString().trim();
+
+            if (sortField === 'admNo') {
+                const numA = parseInt(valA.replace(/\D/g, ''), 10);
+                const numB = parseInt(valB.replace(/\D/g, ''), 10);
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return sortOrder === 'asc' ? numA - numB : numB - numA;
+                }
+            }
+
+            const cmp = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+            return sortOrder === 'asc' ? cmp : -cmp;
+        });
+    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass, sortField, sortOrder]);
 
     const handleUpdateStudentMark = useCallback((admNo: string, fieldKey: string, newValue: number, studentName?: string, studentClass?: string) => {
         setBroadsheetStudentRows(prevRows => {
@@ -3452,6 +3483,25 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         {modalAvailableSubjects.map(subName => (
                                             <option key={subName} value={subName}>{subName}</option>
                                         ))}
+                                    </select>
+                                </div>
+
+                                {/* Sort Selector Dropdown */}
+                                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-xs">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sort:</span>
+                                    <select
+                                        value={`${sortField}_${sortOrder}`}
+                                        onChange={(e) => {
+                                            const parts = e.target.value.split('_');
+                                            setSortField(parts[0] as 'admNo' | 'name');
+                                            setSortOrder(parts[1] as 'asc' | 'desc');
+                                        }}
+                                        className="bg-transparent text-xs font-bold text-slate-900 dark:text-white border-none focus:outline-none cursor-pointer"
+                                    >
+                                        <option value="name_asc">Name (A → Z)</option>
+                                        <option value="name_desc">Name (Z → A)</option>
+                                        <option value="admNo_asc">Adm No (Ascending 1-9)</option>
+                                        <option value="admNo_desc">Adm No (Descending 9-1)</option>
                                     </select>
                                 </div>
 
