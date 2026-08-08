@@ -13,7 +13,42 @@ import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
+import { EyeIcon } from '../icons/EyeIcon';
 import * as XLSX from 'xlsx';
+
+// Helper to resolve clean real student admission number
+export const getStudentAdmNo = (st: any, idx: number = 0): string => {
+    if (!st) return String(1001 + idx);
+
+    const candidates = [
+        st.admissionNo,
+        st.admNo,
+        st.admission_no,
+        st.adm_no,
+        st.registrationNo,
+        st.registration_no,
+        st.regNo,
+        st.studentId,
+        st.staffId,
+        st.metadata?.admissionNo,
+        st.metadata?.admNo
+    ];
+
+    for (const cand of candidates) {
+        if (cand && typeof cand === 'string' && cand.trim() && !cand.startsWith('usr_')) {
+            return cand.trim();
+        }
+        if (cand && typeof cand === 'number') {
+            return String(cand);
+        }
+    }
+
+    if (st.id && typeof st.id === 'string' && !st.id.startsWith('usr_')) {
+        return st.id.trim();
+    }
+
+    return String(1001 + idx);
+};
 
 // Top-level pure helper: calculate grade or rubric info
 export const getGradeInfo = (score: number, isPrimary?: boolean): { grade: string; points: number } => {
@@ -78,6 +113,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [pageSize, setPageSize] = useState<number>(25);
+    const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState<boolean>(false);
 
     const instId = currentInstitution?.id || 'default_inst';
 
@@ -479,10 +515,10 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 });
 
                 const rawAdm = dbStudent
-                    ? ((dbStudent as any).admissionNo || (dbStudent as any).admNo || (dbStudent as any).registrationNo || dbStudent.id)
+                    ? getStudentAdmNo(dbStudent, idx)
                     : (stRow.admNo || stRow.admissionNo || stRow.admission_no || (stRow.student as any)?.admissionNo || (stRow.student as any)?.admNo || String(1001 + idx));
 
-                const realAdmNo = String(rawAdm).trim() || String(1001 + idx);
+                const realAdmNo = String(rawAdm).replace(/^ADM-/i, '').trim() || String(1001 + idx);
                 const realClass = stRow.class || (stRow.student as any)?.studentClass || selectedYearGroup || 'Grade 6';
 
                 return {
@@ -559,7 +595,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
             const { grade: meanGrade } = getGradeInfo(meanScore, isPrimarySchool);
 
-            const realAdmNo = (st as any).admissionNo || (st as any).admission_no || (st as any).admNo || (st as any).adm_no || (st as any).registrationNo || (st as any).staffId || (st as any).metadata?.admissionNo || (st as any).metadata?.admNo || st.id;
+            const realAdmNo = getStudentAdmNo(st, idx);
             const realClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || `${currentGroup} Central`;
 
             return {
@@ -642,9 +678,9 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
     // Export Broadsheet Excel
     const handleExportExcel = () => {
-        const exportData = filteredBroadsheetRows.map(r => {
+        const exportData = filteredBroadsheetRows.map((r, idx) => {
             const rowObj: any = {
-                'ID': r.student.admissionNo || r.student.id,
+                'ID': getStudentAdmNo(r.student, idx),
                 'Name': r.student.name,
                 ...(!isPrimarySchool ? { 'KCPE': r.kcpe } : {}),
                 'Class': r.student.studentClass || '3 Central',
@@ -871,6 +907,12 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
                             <div className="flex items-end gap-2 mt-4 xl:mt-0">
                                 <button
+                                    onClick={() => setIsPdfPreviewOpen(true)}
+                                    className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 text-indigo-600 dark:text-indigo-300 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-800 transition-all shadow-sm cursor-pointer"
+                                >
+                                    <EyeIcon className="w-4 h-4" /> PDF Preview
+                                </button>
+                                <button
                                     onClick={() => window.print()}
                                     className="btn-secondary px-4 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-1.5"
                                 >
@@ -933,9 +975,9 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
                             {/* Table Body */}
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
-                                {paginatedRows.map(row => (
-                                    <tr key={row.student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                                        <td className="p-3 font-mono font-bold text-slate-500">{row.student.admissionNo || row.student.id}</td>
+                                {paginatedRows.map((row, idx) => (
+                                    <tr key={row.student.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                        <td className="p-3 font-mono font-bold text-slate-500">{getStudentAdmNo(row.student, idx)}</td>
                                         <td className="p-3 font-black text-slate-900 dark:text-white uppercase whitespace-nowrap">{row.student.name}</td>
                                         {!isPrimarySchool && <td className="p-3 text-center text-slate-400 font-mono">{row.kcpe || '—'}</td>}
                                         <td className="p-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.student.studentClass || '3 Central'}</td>
@@ -1035,6 +1077,157 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* ON-SCREEN PDF PREVIEW MODAL */}
+            {isPdfPreviewOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto animate-fade-in no-print">
+                    <div className="bg-slate-900 text-white rounded-3xl border border-slate-700 w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+                        {/* Modal Top Bar */}
+                        <div className="p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-600 rounded-xl">
+                                    <DocumentArrowDownIcon className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-sm uppercase tracking-wider text-white">
+                                        PDF Broadsheet On-Screen Preview
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 font-semibold">
+                                        {selectedYearGroup} &bull; {selectedExamObj.title} &bull; {filteredBroadsheetRows.length} Students
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => window.print()}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <PrinterIcon className="w-4 h-4" /> Print PDF
+                                </button>
+                                <button
+                                    onClick={handleExportExcel}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <ArrowUpTrayIcon className="w-4 h-4" /> Excel
+                                </button>
+                                <button
+                                    onClick={() => setIsPdfPreviewOpen(false)}
+                                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-black rounded-xl transition-all cursor-pointer"
+                                >
+                                    ✕ Close
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Printable PDF Sheet Document */}
+                        <div className="p-6 overflow-y-auto bg-slate-950/60 flex-1 flex justify-center">
+                            <div className="bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-2xl border border-slate-200 w-full max-w-5xl space-y-6 font-sans text-xs relative">
+                                {/* Official Letterhead */}
+                                <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
+                                    <div>
+                                        <h1 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                                            {currentInstitution?.name || 'ACADEMIC MANAGEMENT SYSTEM'}
+                                        </h1>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+                                            OFFICIAL ACADEMIC BROADSHEET REPORT &bull; CONFIDENTIAL
+                                        </p>
+                                        <p className="text-[10px] font-semibold text-slate-600 mt-1">
+                                            Class: <strong className="text-slate-900">{selectedYearGroup}</strong> | Exam: <strong className="text-slate-900">{selectedExamObj.title}</strong> | Term: <strong className="text-slate-900">{selectedExamObj.term || 'TERM 1'} {selectedExamObj.year || '2026'}</strong>
+                                        </p>
+                                    </div>
+
+                                    <div className="text-right">
+                                        <span className="inline-block px-3 py-1 bg-slate-100 text-slate-800 text-[10px] font-black uppercase tracking-widest rounded border border-slate-300">
+                                            OFFICIAL DOCUMENT
+                                        </span>
+                                        <p className="text-[9px] font-bold text-slate-400 mt-1">
+                                            Date: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* PDF Broadsheet Table */}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full border-collapse text-[10px] border border-slate-900 text-left">
+                                        <thead className="bg-slate-900 text-white font-black uppercase tracking-wider text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-slate-800">ADM NO</th>
+                                                <th className="p-2 border border-slate-800">STUDENT NAME</th>
+                                                {!isPrimarySchool && <th className="p-2 border border-slate-800 text-center">KCPE</th>}
+                                                <th className="p-2 border border-slate-800">CLASS</th>
+                                                {broadsheetSubjects.map(sub => (
+                                                    <th key={sub.id} className="p-2 border border-slate-800 text-center">{sub.code || sub.name}</th>
+                                                ))}
+                                                <th className="p-2 border border-slate-800 text-center">TOTAL</th>
+                                                <th className="p-2 border border-slate-800 text-center">MEAN</th>
+                                                <th className="p-2 border border-slate-800 text-center">GRADE</th>
+                                                <th className="p-2 border border-slate-800 text-center">RANK</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-300 font-medium">
+                                            {filteredBroadsheetRows.map((r, idx) => (
+                                                <tr key={r.student.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 font-bold font-mono border border-slate-300">{getStudentAdmNo(r.student, idx)}</td>
+                                                    <td className="p-2 font-black border border-slate-300 uppercase">{r.student.name}</td>
+                                                    {!isPrimarySchool && <td className="p-2 border border-slate-300 text-center font-bold">{r.kcpe}</td>}
+                                                    <td className="p-2 border border-slate-300">{r.student.studentClass || selectedYearGroup}</td>
+                                                    {broadsheetSubjects.map(sub => {
+                                                        const m = r.subjectMarksMap[sub.id];
+                                                        return (
+                                                            <td key={sub.id} className="p-2 border border-slate-300 text-center font-bold">
+                                                                {m ? `${m.score} ${m.grade}` : '-'}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                    <td className="p-2 border border-slate-300 text-center font-black">{r.total}</td>
+                                                    <td className="p-2 border border-slate-300 text-center font-bold">{r.meanScore}</td>
+                                                    <td className="p-2 border border-slate-300 text-center font-black text-indigo-700">{r.meanGrade}</td>
+                                                    <td className="p-2 border border-slate-300 text-center font-black">#{r.overallPos}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                        {/* Footer Subject Means */}
+                                        <tfoot className="bg-slate-200 text-slate-900 font-black text-[9px] uppercase border-t-2 border-slate-900">
+                                            <tr>
+                                                <td colSpan={!isPrimarySchool ? 4 : 3} className="p-2 border border-slate-400">SUBJECT MEANS</td>
+                                                {broadsheetSubjects.map(sub => {
+                                                    const f = subjectFooterMeans[sub.id];
+                                                    return (
+                                                        <td key={sub.id} className="p-2 border border-slate-400 text-center">
+                                                            {f ? `${f.meanScore} (${f.meanGrade})` : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td colSpan={4} className="p-2 border border-slate-400 text-center">&mdash;</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+
+                                {/* Official Signatures */}
+                                <div className="pt-8 border-t border-slate-300 grid grid-cols-3 gap-6 text-[10px]">
+                                    <div>
+                                        <p className="font-bold text-slate-500 uppercase tracking-wider">Class Teacher Signature</p>
+                                        <div className="mt-4 border-b border-slate-400 w-36"></div>
+                                        <p className="text-[9px] text-slate-400 mt-1">Date: _________________</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-500 uppercase tracking-wider">HOD Examination / Academics</p>
+                                        <div className="mt-4 border-b border-slate-400 w-36"></div>
+                                        <p className="text-[9px] text-slate-400 mt-1">Date: _________________</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-500 uppercase tracking-wider">Principal / Headteacher Stamp</p>
+                                        <div className="mt-4 border-b border-slate-400 w-36"></div>
+                                        <p className="text-[9px] text-slate-400 mt-1">Official Seal</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
