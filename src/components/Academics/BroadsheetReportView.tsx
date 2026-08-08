@@ -1014,7 +1014,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                             {/* Table Header */}
                             <thead className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest border-b border-slate-800">
                                 <tr>
-                                    <th className="p-3">ID</th>
+                                    <th className="p-3">ADM NO</th>
                                     <th className="p-3">Name</th>
                                     {!isPrimarySchool && <th className="p-3 text-center">KCPE</th>}
                                     <th className="p-3">Class</th>
