@@ -20,6 +20,7 @@ import { FuturisticReportCardView } from './FuturisticReportCardView';
 import { StudentProgressReportView } from './StudentProgressReportView';
 import { BroadsheetReportView } from './BroadsheetReportView';
 import { OfficialResultSlipView } from './OfficialResultSlipView';
+import { AcademicTranscriptView } from './AcademicTranscriptView';
 
 interface AcademicReportsHubProps {
     assessments?: Assessment[];
@@ -41,6 +42,7 @@ export type ReportSubTab =
     | 'result_slips'
     | 'student_progress'
     | 'report_cards'
+    | 'transcripts'
     | 'missing_marks';
 
 export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
@@ -414,11 +416,12 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
         { id: 'result_slips', label: '4. Results Slips', icon: DocumentArrowDownIcon },
         { id: 'student_progress', label: '5. Student Progress Reports', icon: UserGroupIcon },
         { id: 'report_cards', label: '6. Report Cards', icon: BookOpenIcon },
+        { id: 'transcripts', label: '7. Academic Transcripts', icon: SparklesIcon },
         { id: 'missing_marks', label: 'Missing Marks Integrity', icon: ExclamationTriangleIcon },
     ];
 
     // If viewing any of the full-width report dashboards that contain their own drawer navigation, render them directly without duplicate outer header
-    const hasOwnDrawerNav = ['exam_analysis', 'subject_grades_analysis', 'broadsheet', 'result_slips', 'student_progress', 'report_cards'].includes(activeSubTab);
+    const hasOwnDrawerNav = ['exam_analysis', 'subject_grades_analysis', 'broadsheet', 'result_slips', 'student_progress', 'report_cards', 'transcripts'].includes(activeSubTab);
 
     if (hasOwnDrawerNav) {
         return (
@@ -477,6 +480,19 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
                 {activeSubTab === 'report_cards' && (
                     <FuturisticReportCardView
+                        assessments={effectiveAssessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
+                )}
+
+                {activeSubTab === 'transcripts' && (
+                    <AcademicTranscriptView
                         assessments={effectiveAssessments}
                         marks={marks}
                         students={activeStudents}
