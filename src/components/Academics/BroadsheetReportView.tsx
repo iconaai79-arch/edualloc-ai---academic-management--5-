@@ -907,20 +907,24 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
                             <div className="flex items-end gap-2 mt-4 xl:mt-0">
                                 <button
+                                    type="button"
                                     onClick={() => setIsPdfPreviewOpen(true)}
-                                    className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 text-indigo-600 dark:text-indigo-300 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-800 transition-all shadow-sm cursor-pointer"
+                                    className="px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-purple-500/25 hover:scale-105 active:scale-95 transition-all border border-purple-400/30 cursor-pointer"
                                 >
-                                    <EyeIcon className="w-4 h-4" /> PDF Preview
+                                    <EyeIcon className="w-4 h-4 animate-pulse text-amber-300" /> 
+                                    <span>PDF Preview</span>
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => window.print()}
-                                    className="btn-secondary px-4 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-1.5"
+                                    className="btn-secondary px-4 py-2.5 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <PrinterIcon className="w-4 h-4" /> Print
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={handleExportExcel}
-                                    className="btn-primary px-4 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 shadow-md shadow-indigo-100"
+                                    className="btn-primary px-4 py-2.5 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 shadow-md shadow-indigo-100 cursor-pointer"
                                 >
                                     <ArrowUpTrayIcon className="w-4 h-4" /> Download Excel
                                 </button>
@@ -928,21 +932,31 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                         </div>
                     </div>
 
-                    {/* Search & Results Info */}
-                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/60">
-                        <div className="relative w-full sm:w-72">
+                    {/* Search & On-Screen PDF Banner */}
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-purple-50/40 dark:from-slate-800/80 dark:to-indigo-950/40 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm">
+                        <div className="relative w-full md:w-80">
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                                 placeholder="Search student name or admission no..."
-                                className="form-input text-xs pl-9 py-2"
+                                className="form-input text-xs pl-9 py-2.5 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
                             />
-                            <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                            <MagnifyingGlassIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                         </div>
 
-                        <div className="text-xs font-bold text-slate-500">
-                            Showing <strong className="text-slate-900 dark:text-white">{filteredBroadsheetRows.length}</strong> Students in Broadsheet
+                        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                            <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                                Showing <strong className="text-indigo-600 dark:text-indigo-400 font-black">{filteredBroadsheetRows.length}</strong> Students
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsPdfPreviewOpen(true)}
+                                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow cursor-pointer"
+                            >
+                                <EyeIcon className="w-3.5 h-3.5" /> Open PDF Preview
+                            </button>
                         </div>
                     </div>
                 </div>
