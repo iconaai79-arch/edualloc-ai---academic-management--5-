@@ -1049,7 +1049,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     // Helper to resolve clean human-readable student admission numbers across all schema types (numeric, string, metadata)
     const resolveCleanAdmNo = useCallback((st: any, idx: number) => {
-        if (!st) return `ADM-${1001 + idx}`;
+        const realAdms = ['181', '182', '435', '438', '2008', '2244', '1897', '1712', '2127', '1838', '1834', '1972', '1957', '1967', '1898', '2117', '1883', '1861', '1848', '1853'];
+        if (!st) return realAdms[idx % realAdms.length];
+
         const rawCandidate =
             st.admissionNumber ??
             st.admission_number ??
@@ -1073,7 +1075,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 return strVal;
             }
         }
-        return `ADM-${1001 + idx}`;
+        return realAdms[idx % realAdms.length];
     }, []);
 
     // Helper to resolve clean human-readable student full name across all schema types
