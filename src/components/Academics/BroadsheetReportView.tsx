@@ -324,27 +324,36 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 broadsheetSubjects.forEach(sub => {
                     const subName = sub.name || (sub as any).title || '';
                     const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                    const candidateKeys = [
-                        `subj_${sClean}_p1`,
-                        `subj_${sClean}_paper_1`,
-                        subName.toLowerCase().includes('math') ? 'mathP1' : null,
-                        subName.toLowerCase().includes('eng') ? 'engP1' : null,
-                        subName.toLowerCase().includes('kisw') ? 'kiswP1' : null,
-                        subName.toLowerCase().includes('bio') ? 'bioP1' : null
-                    ].filter(Boolean) as string[];
+                    
+                    let subTotal = 0;
+                    let hasMark = false;
 
-                    let foundScore: number | null = null;
-                    for (const k of candidateKeys) {
-                        if (stRow[k] !== undefined && stRow[k] !== null) {
-                            foundScore = Number(stRow[k]);
-                            break;
+                    Object.entries(stRow).forEach(([k, val]) => {
+                        if (['admNo', 'name', 'class', 'kcpe'].includes(k)) return;
+                        if (typeof val !== 'number' || isNaN(val)) return;
+
+                        const kNorm = k.toLowerCase();
+                        const sNorm = sClean.toLowerCase();
+                        const subNameNorm = subName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                        const isMatch =
+                            kNorm.includes(sNorm) ||
+                            (subNameNorm.length >= 3 && kNorm.includes(subNameNorm)) ||
+                            (subNameNorm.includes('math') && (kNorm.includes('math') || kNorm.includes('mathp1') || kNorm.includes('mathp2'))) ||
+                            (subNameNorm.includes('eng') && (kNorm.includes('eng') || kNorm.includes('engp1') || kNorm.includes('engp2'))) ||
+                            (subNameNorm.includes('kisw') && (kNorm.includes('kisw') || kNorm.includes('kiswp1'))) ||
+                            (subNameNorm.includes('bio') && (kNorm.includes('bio') || kNorm.includes('biop1')));
+
+                        if (isMatch) {
+                            subTotal += val;
+                            hasMark = true;
                         }
-                    }
+                    });
 
-                    if (foundScore !== null && foundScore > 0) {
-                        const { grade, points } = getGradeInfo(foundScore);
-                        subjectMarksMap[sub.id] = { score: foundScore, grade };
-                        total += foundScore;
+                    if (hasMark) {
+                        const { grade, points } = getGradeInfo(subTotal);
+                        subjectMarksMap[sub.id] = { score: subTotal, grade };
+                        total += subTotal;
                         totalPts += points;
                         validCount++;
                     }
@@ -497,7 +506,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const rowObj: any = {
                 'ID': r.student.admissionNo || r.student.id,
                 'Name': r.student.name,
-                'KCPE': r.kcpe,
+                ...(!isPrimarySchool ? { 'KCPE': r.kcpe } : {}),
                 'Class': r.student.studentClass || '3 Central',
                 'Entry': r.entry
             };
@@ -765,7 +774,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                 <tr>
                                     <th className="p-3">ID</th>
                                     <th className="p-3">Name</th>
-                                    <th className="p-3 text-center">KCPE</th>
+                                    {!isPrimarySchool && <th className="p-3 text-center">KCPE</th>}
                                     <th className="p-3">Class</th>
                                     <th className="p-3 text-center">Entry</th>
                                     {broadsheetSubjects.map(sub => (
@@ -788,7 +797,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                     <tr key={row.student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                                         <td className="p-3 font-mono font-bold text-slate-500">{row.student.admissionNo || row.student.id}</td>
                                         <td className="p-3 font-black text-slate-900 dark:text-white uppercase whitespace-nowrap">{row.student.name}</td>
-                                        <td className="p-3 text-center text-slate-400 font-mono">{row.kcpe || '—'}</td>
+                                        {!isPrimarySchool && <td className="p-3 text-center text-slate-400 font-mono">{row.kcpe || '—'}</td>}
                                         <td className="p-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.student.studentClass || '3 Central'}</td>
                                         <td className="p-3 text-center font-bold text-slate-500">{row.entry}</td>
                                         {broadsheetSubjects.map(sub => {
@@ -823,7 +832,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                             {/* Table Footer Row: Subject Means */}
                             <tfoot className="bg-slate-100/90 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-700 text-xs font-black">
                                 <tr>
-                                    <td colSpan={5} className="p-3 uppercase text-slate-900 dark:text-white font-black">
+                                    <td colSpan={isPrimarySchool ? 4 : 5} className="p-3 uppercase text-slate-900 dark:text-white font-black">
                                         SUBJECT MEAN SCORES & GRADES
                                     </td>
                                     {broadsheetSubjects.map(sub => {
