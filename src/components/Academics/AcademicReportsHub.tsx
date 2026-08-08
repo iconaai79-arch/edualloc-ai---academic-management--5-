@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import type { Assessment, AssessmentMark, User, Subject, ActivityLog, Institution, Course, AcademicLevel } from '../../types';
 import { apiService } from '../../services/apiService';
