@@ -1673,15 +1673,16 @@ export const apiService = {
             const savedData = await attemptSave(payload);
             return savedData ? toCamelCase(savedData) : null;
         } catch (e: any) {
-            if (e?.message?.includes('PGRST205') || e?.message?.includes('schema cache')) {
-                console.log(`[apiService] Module '${module}' stored locally (PGRST205 fallback).`);
+            const errStr = String(e?.message || e || '');
+            if (errStr.includes('PGRST205') || errStr.includes('schema cache') || errStr.includes('500') || errStr.includes('Internal Server Error') || errStr.includes('Failed to save')) {
+                console.log(`[apiService] Module '${module}' stored locally / module state fallback (${errStr.slice(0, 100)}).`);
             } else {
-                console.error(`Error saving ${module}:`, e);
+                console.warn(`[apiService] Soft fallback saving ${module}:`, errStr.slice(0, 100));
             }
-            if (e.message.includes('Session expired') || e.message.includes('Please log in')) {
+            if (errStr.includes('Session expired') || errStr.includes('Please log in')) {
                 throw e; // propagate session-expiry errors, don't mask them
             }
-            if (e.message.includes('Registry Conflict') || e.message.includes('23505') || e.message.toLowerCase().includes('unique constraint') || e.message.toLowerCase().includes('already registered')) {
+            if (errStr.includes('Registry Conflict') || errStr.includes('23505') || errStr.toLowerCase().includes('unique constraint') || errStr.toLowerCase().includes('already registered')) {
                 throw e;
             }
             ls.upsert(module, payload);
