@@ -18,7 +18,7 @@ import * as XLSX from 'xlsx';
 
 // Helper to resolve clean real student admission number
 export const getStudentAdmNo = (st: any, idx: number = 0): string => {
-    if (!st) return String(1001 + idx);
+    if (!st) return `ADM-${1001 + idx}`;
 
     const candidates = [
         st.admissionNumber,
@@ -45,16 +45,21 @@ export const getStudentAdmNo = (st: any, idx: number = 0): string => {
         if (cand !== null && cand !== undefined) {
             const strVal = String(cand).trim();
             if (strVal && !strVal.startsWith('usr_') && strVal !== 'undefined' && strVal !== 'null') {
+                if (/^\d+$/.test(strVal)) {
+                    return `ADM-${strVal}`;
+                }
                 return strVal;
             }
         }
     }
 
     if (st.id && typeof st.id === 'string' && !st.id.startsWith('usr_')) {
-        return st.id.trim();
+        const cleanId = st.id.trim();
+        if (/^\d+$/.test(cleanId)) return `ADM-${cleanId}`;
+        return cleanId;
     }
 
-    return String(1001 + idx);
+    return `ADM-${1001 + idx}`;
 };
 
 // Top-level pure helper: calculate grade or rubric info
@@ -663,9 +668,9 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         }));
     }, [activeStudents, broadsheetSubjects, isPrimarySchool, savedBroadsheets, selectedExamId, selectedYearGroup]);
 
-    // Filtered student rows
+    // Filtered student rows (sorted by total marks descending and re-ranked 1, 2, 3, 4...)
     const filteredBroadsheetRows = useMemo(() => {
-        return sampleStudents.filter(r => {
+        const filtered = sampleStudents.filter(r => {
             const stClass = (r.student?.studentClass || '').trim();
             const yGrp = (selectedYearGroup || '').trim();
 
@@ -682,6 +687,22 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const matchesQuery = !q || nameStr.includes(q) || admStr.includes(q);
 
             return matchesYearGroup && matchesStream && matchesQuery;
+        });
+
+        // Re-sort filtered rows by total marks descending
+        const sorted = [...filtered].sort((a, b) => b.total - a.total);
+
+        // Re-assign accurate ranks (1, 2, 3, 4, 5...) for the active class/stream
+        let currentRank = 1;
+        return sorted.map((row, idx, arr) => {
+            if (idx > 0 && row.total < arr[idx - 1].total) {
+                currentRank = idx + 1;
+            }
+            return {
+                ...row,
+                overallPos: currentRank,
+                streamPos: currentRank
+            };
         });
     }, [sampleStudents, selectedYearGroup, selectedStream, searchQuery]);
 

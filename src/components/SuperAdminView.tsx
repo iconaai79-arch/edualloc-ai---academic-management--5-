@@ -7753,6 +7753,29 @@ Please change it after login.`;
                             <button onClick={() => setManagingImFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
                         </div>
                         <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                            <div className="flex justify-between items-center bg-blue-50/60 dark:bg-blue-950/40 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/50">
+                                <div>
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-blue-900 dark:text-blue-200">API Credentials Setup</h4>
+                                    <p className="text-[10px] font-bold text-slate-500">Auto-generate secure keys for I&amp;M Integration</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const randHex = (len: number) => Array.from(crypto.getRandomValues(new Uint8Array(len)), b => b.toString(16).padStart(2, '0')).join('');
+                                        const instSlug = (managingImFor?.name || 'inst').toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 8);
+                                        setTenantImConfig({
+                                            ...tenantImConfig,
+                                            apiKey: `im_key_${instSlug}_${randHex(6)}`,
+                                            callbackUser: `im_user_${instSlug}`,
+                                            callbackSecret: `im_pass_${randHex(8)}!`
+                                        });
+                                    }}
+                                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-blue-200 dark:shadow-none transition-all active:scale-95 cursor-pointer"
+                                >
+                                    ⚡ Auto-Generate
+                                </button>
+                            </div>
+
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">API Key (x-api-key)</label>
@@ -7770,17 +7793,17 @@ Please change it after login.`;
                                         type="text"
                                         value={tenantImConfig.callbackUser}
                                         onChange={e => setTenantImConfig({ ...tenantImConfig, callbackUser: e.target.value })}
-                                        className="form-input"
+                                        className="form-input font-mono text-sm font-bold"
                                         placeholder="Basic Auth Username"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Callback Secret</label>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Callback Secret (Password)</label>
                                     <input
-                                        type="password"
+                                        type="text"
                                         value={tenantImConfig.callbackSecret}
                                         onChange={e => setTenantImConfig({ ...tenantImConfig, callbackSecret: e.target.value })}
-                                        className="form-input"
+                                        className="form-input font-mono text-sm font-bold"
                                         placeholder="Basic Auth Password/Secret"
                                     />
                                 </div>
