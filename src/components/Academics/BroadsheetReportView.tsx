@@ -36,33 +36,20 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     courses = [],
     onSelectReportTab
 }) => {
+    const activeStudents = useMemo(() => {
+        if (students.length > 0) return students;
+        return users.filter(u => u.role === 'student');
+    }, [students, users]);
+
+    // Navigation & Drawer states
+    const [activeNavItem, setActiveNavItem] = useState<string>('broadsheet');
+    const [isLeftNavCollapsed, setIsLeftNavCollapsed] = useState<boolean>(false);
+
     // Exam & Year states
     const [expandedYear, setExpandedYear] = useState<string>('2026');
     const [selectedExamId, setSelectedExamId] = useState<string>(assessments[0]?.id || 'exam_midterm_1');
     const [selectedYearGroup, setSelectedYearGroup] = useState<string>('');
     const [selectedStream, setSelectedStream] = useState<string>('all');
-
-    const isPrimarySchool = useMemo(() => {
-        const type = (currentInstitution?.institutionType || '').toLowerCase();
-        const instName = (currentInstitution?.name || '').toLowerCase();
-        const yearGrp = (selectedYearGroup || '').toLowerCase();
-        const examName = ((selectedExamObj as any)?.name || (selectedExamObj as any)?.title || '').toLowerCase();
-
-        return (
-            type === 'primary' ||
-            instName.includes('primary') ||
-            instName.includes('academy') ||
-            instName.includes('cbc') ||
-            instName.includes('cbe') ||
-            yearGrp.includes('grade') ||
-            yearGrp.includes('pp') ||
-            yearGrp.includes('standard') ||
-            yearGrp.includes('std') ||
-            examName.includes('grade') ||
-            examName.includes('pp') ||
-            examName.includes('primary')
-        );
-    }, [currentInstitution, selectedYearGroup, selectedExamObj]);
 
     // Search student in broadsheet
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -171,6 +158,28 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         };
     }, [allExamsList, selectedExamId, activeStudents]);
 
+    const isPrimarySchool = useMemo(() => {
+        const type = (currentInstitution?.institutionType || '').toLowerCase();
+        const instName = (currentInstitution?.name || '').toLowerCase();
+        const yearGrp = (selectedYearGroup || '').toLowerCase();
+        const examName = ((selectedExamObj as any)?.name || (selectedExamObj as any)?.title || '').toLowerCase();
+
+        return (
+            type === 'primary' ||
+            instName.includes('primary') ||
+            instName.includes('academy') ||
+            instName.includes('cbc') ||
+            instName.includes('cbe') ||
+            yearGrp.includes('grade') ||
+            yearGrp.includes('pp') ||
+            yearGrp.includes('standard') ||
+            yearGrp.includes('std') ||
+            examName.includes('grade') ||
+            examName.includes('pp') ||
+            examName.includes('primary')
+        );
+    }, [currentInstitution, selectedYearGroup, selectedExamObj]);
+
     // Dynamic List of Year Group Options
     const yearGroupOptions = useMemo(() => {
         const set = new Set<string>();
@@ -267,7 +276,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     }, [subjects]);
 
     // Grade calculation helper
-    const getGradeInfo = (score: number) => {
+    const getGradeInfo = useCallback((score: number) => {
         if (isPrimarySchool) {
             if (score >= 80) return { grade: 'EE', points: 4.0 };
             if (score >= 65) return { grade: 'ME', points: 3.0 };
@@ -287,7 +296,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             if (score >= 30) return { grade: 'D-', points: 2.0 };
             return { grade: 'E', points: 1.0 };
         }
-    };
+    }, [isPrimarySchool]);
 
     // Load saved broadsheet store from Exam Units / institution_module_states
     const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {

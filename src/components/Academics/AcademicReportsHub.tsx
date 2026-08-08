@@ -245,7 +245,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
     }, [activeStudents, selectedStudentId]);
 
     // Helper: calculate letter grade from marks
-    const getGradeFromScore = (score: number): { grade: string; points: number; comment: string } => {
+    const getGradeFromScore = useCallback((score: number): { grade: string; points: number; comment: string } => {
         if (isPrimarySchool) {
             if (score >= 80) return { grade: 'EE', points: 4.0, comment: 'Exceeding Expectations' };
             if (score >= 65) return { grade: 'ME', points: 3.0, comment: 'Meeting Expectations' };
@@ -265,7 +265,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
             if (score >= 30) return { grade: 'D-', points: 2.0, comment: 'POOR' };
             return { grade: 'E', points: 1.0, comment: 'VERY POOR' };
         }
-    };
+    }, [isPrimarySchool]);
 
     // Filtered marks for current selection
     const filteredMarks = useMemo(() => {
