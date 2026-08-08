@@ -327,9 +327,22 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             { id: 'sub_11', name: 'Business Studies', code: 'BST' },
         ];
 
+        const isUpperPrimaryGroup = /grade\s*[4-8]|std\s*[4-8]|standard\s*[4-8]/i.test(selectedYearGroup);
+        const isLowerPrimaryGroup = /grade\s*[1-3]|std\s*[1-3]|standard\s*[1-3]|pp[1-2]|playgroup/i.test(selectedYearGroup);
+
         const candidateList: any[] = [];
         const seenCandidateNames = new Set<string>();
         rawCandidates.forEach(sub => {
+            const sCode = (sub.code || '').toUpperCase().trim();
+            const sName = (sub.name || '').toUpperCase().trim();
+
+            if (isUpperPrimaryGroup) {
+                if (sCode.endsWith('-LP') || sCode.endsWith('_LP') || sName.includes('LOWER PRIMARY') || sName.includes('(LP)')) return;
+            }
+            if (isLowerPrimaryGroup) {
+                if (sCode.endsWith('-UP') || sCode.endsWith('_UP') || sName.includes('UPPER PRIMARY') || sName.includes('(UP)')) return;
+            }
+
             const normName = (sub.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             if (normName && !seenCandidateNames.has(normName)) {
                 seenCandidateNames.add(normName);
@@ -397,7 +410,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         }
 
         return candidateList;
-    }, [subjects, selectedExamObj, savedBroadsheets, selectedExamId, isPrimarySchool]);
+    }, [subjects, selectedExamObj, savedBroadsheets, selectedExamId, isPrimarySchool, selectedYearGroup]);
 
 
 
@@ -453,7 +466,23 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
                 const { grade: meanGrade } = getGradeInfo(meanScore, isPrimarySchool);
 
-                const realAdmNo = stRow.admNo || stRow.admissionNo || stRow.admission_no || (stRow.student as any)?.admissionNo || (stRow.student as any)?.admNo || `ADM-${1046 + idx}`;
+                // Try to resolve exact student from activeStudents database
+                const rowNameClean = String(stRow.name || (stRow.student as any)?.name || '').trim().toLowerCase();
+                const rowAdmClean = String(stRow.admNo || stRow.admissionNo || stRow.admission_no || (stRow.student as any)?.admissionNo || (stRow.student as any)?.admNo || '').trim().toLowerCase();
+
+                const dbStudent = activeStudents.find(s => {
+                    const sName = String(s.name || '').trim().toLowerCase();
+                    const sAdm = String((s as any).admissionNo || (s as any).admNo || (s as any).registrationNo || (s as any).adm_no || s.id || '').trim().toLowerCase();
+                    return (rowAdmClean && sAdm === rowAdmClean) ||
+                           (rowNameClean && sName === rowNameClean) ||
+                           (rowNameClean && (sName.includes(rowNameClean) || rowNameClean.includes(sName)));
+                });
+
+                const rawAdm = dbStudent
+                    ? ((dbStudent as any).admissionNo || (dbStudent as any).admNo || (dbStudent as any).registrationNo || dbStudent.id)
+                    : (stRow.admNo || stRow.admissionNo || stRow.admission_no || (stRow.student as any)?.admissionNo || (stRow.student as any)?.admNo || String(1001 + idx));
+
+                const realAdmNo = String(rawAdm).trim() || String(1001 + idx);
                 const realClass = stRow.class || (stRow.student as any)?.studentClass || selectedYearGroup || 'Grade 6';
 
                 return {
