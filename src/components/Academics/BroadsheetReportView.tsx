@@ -103,6 +103,23 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 }) => {
     const instId = currentInstitution?.id || 'default_inst';
 
+    // Navigation & Drawer states
+    const [activeNavItem, setActiveNavItem] = useState<string>('broadsheet');
+    const [isLeftNavCollapsed, setIsLeftNavCollapsed] = useState<boolean>(false);
+    const [isExamSidebarOpen, setIsExamSidebarOpen] = useState<boolean>(false);
+
+    // Exam & Year states
+    const [expandedYear, setExpandedYear] = useState<string>('2026');
+    const [selectedExamId, setSelectedExamId] = useState<string>(assessments[0]?.id || 'exam_midterm_1');
+    const [selectedYearGroup, setSelectedYearGroup] = useState<string>('');
+    const [selectedStream, setSelectedStream] = useState<string>('all');
+
+    // Search student & Modal states
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [currentPage, setCurrentPage] = useState<number>(1);
+    const [pageSize, setPageSize] = useState<number>(25);
+    const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState<boolean>(false);
+
     const activeStudents = useMemo(() => {
         const set = new Map<string, User>();
 
@@ -125,11 +142,6 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
         return Array.from(set.values());
     }, [students, users, instId]);
-
-    // Navigation & Drawer states
-    const [activeNavItem, setActiveNavItem] = useState<string>('broadsheet');
-    const [isLeftNavCollapsed, setIsLeftNavCollapsed] = useState<boolean>(false);
-    const [isExamSidebarOpen, setIsExamSidebarOpen] = useState<boolean>(false);
 
     // Dynamic state for exam_units created/published in Exam Units Manager
     const [savedExamUnits, setSavedExamUnits] = useState<any[]>(() => {
