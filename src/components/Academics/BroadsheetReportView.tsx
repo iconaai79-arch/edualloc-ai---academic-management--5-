@@ -528,27 +528,46 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
                 const { grade: meanGrade } = getGradeInfo(meanScore, isPrimarySchool);
 
+                // Clean helper for numeric token extraction
+                const extractNumericTokens = (val: string) => val.replace(/[^0-9]/g, '');
+
                 // Try to resolve exact student from activeStudents database
                 const rowNameClean = String(stRow.name || (stRow.student as any)?.name || '').trim().toLowerCase();
+                const rowNameTokens = rowNameClean.split(/\s+/).filter(Boolean);
                 const rowAdmClean = String(stRow.admNo || stRow.admissionNo || stRow.admission_no || (stRow.student as any)?.admissionNo || (stRow.student as any)?.admNo || '').trim().toLowerCase();
+                const rowAdmNum = extractNumericTokens(rowAdmClean);
 
                 const dbStudent = activeStudents.find(s => {
                     const sName = String(s.name || '').trim().toLowerCase();
-                    const sAdm = String(getStudentAdmNo(s, 0)).trim().toLowerCase();
-                    return (rowAdmClean && (sAdm === rowAdmClean || rowAdmClean.includes(sAdm) || sAdm.includes(rowAdmClean))) ||
-                           (rowNameClean && sName === rowNameClean) ||
-                           (rowNameClean && (sName.includes(rowNameClean) || rowNameClean.includes(sName)));
+                    const sNameTokens = sName.split(/\s+/).filter(Boolean);
+                    const sAdmStr = String(getStudentAdmNo(s, 0)).trim().toLowerCase();
+                    const sAdmNum = extractNumericTokens(sAdmStr);
+
+                    // 1. Exact numeric admission match (e.g. 1046 matches ADM/2024/1046)
+                    if (rowAdmNum && sAdmNum && (rowAdmNum === sAdmNum || sAdmNum.endsWith(rowAdmNum) || rowAdmNum.endsWith(sAdmNum))) return true;
+
+                    // 2. Exact admission string match
+                    if (rowAdmClean && sAdmStr && (sAdmStr === rowAdmClean || rowAdmClean.includes(sAdmStr) || sAdmStr.includes(rowAdmClean))) return true;
+
+                    // 3. Name token set matching (matches 'OZIAS KIPKEMBOI' with 'KIPKEMBOI OZIAS' or 'Ozias Kipkemboi')
+                    if (rowNameTokens.length > 0 && sNameTokens.length > 0) {
+                        const matchesAllTokens = rowNameTokens.every(t => sNameTokens.some(st => st.includes(t) || t.includes(st)));
+                        if (matchesAllTokens) return true;
+                    }
+
+                    return false;
                 });
 
                 const realAdmNo = dbStudent
                     ? getStudentAdmNo(dbStudent, idx)
                     : getStudentAdmNo(stRow, idx);
-                const realClass = stRow.class || (stRow.student as any)?.studentClass || selectedYearGroup || 'Grade 6';
+                const realName = dbStudent ? (dbStudent.name || stRow.name) : (stRow.name || (stRow.student as any)?.name || `Student ${idx + 1}`);
+                const realClass = (dbStudent as any)?.studentClass || stRow.class || (stRow.student as any)?.studentClass || selectedYearGroup || 'Grade 6';
 
                 return {
                     student: {
                         id: realAdmNo,
-                        name: stRow.name || (stRow.student as any)?.name || `Student ${idx + 1}`,
+                        name: realName,
                         admissionNo: realAdmNo,
                         studentClass: realClass
                     },
