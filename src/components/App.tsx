@@ -1081,7 +1081,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             const isAcademic = isSuper || ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'].includes(instTypeLower);
             const isHealth = isSuper || ['his', 'pharmacy'].includes(instTypeLower);
             const isLaw = isSuper || instTypeLower === 'law firm' || (activeInst?.businessSubType || '').toLowerCase().includes('law') || (activeInst?.businessSubType || '').toLowerCase().includes('legal');
-            const isCoop = isSuper || ['cooperative', 'sacco'].includes(instTypeLower);
+            const isCoopRole = currentUser ? ['cooperative_manager', 'coop_admin', 'coop_chairman', 'farmer', 'rider', 'sacco_officer', 'agrovet_admin'].includes(currentUser.role) : false;
+            const isCoop = isSuper || isCoopRole || ['cooperative', 'sacco', 'agrovet', 'farming'].includes(instTypeLower);
             const isBusiness = isSuper || ['business', 'business ecosystem', 'retail', 'agrovet', 'car wash', 'automotive marketplace', 'car showroom', 'hardware', 'pharmacy'].includes(instTypeLower);
             const isHigherEd = ['university', 'college', 'tvet', 'polytechnic', 'institute'].includes(instTypeLower);
 
@@ -1747,7 +1748,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 setJobs(cwJobs || []);
                 setNotifications(notifs || []);
 
-                setCoopFarmers(cFarmers || []);
+                let finalFarmers = cFarmers || [];
+                if (finalFarmers.length === 0) {
+                    try {
+                        const local = localStorage.getItem('eduai_coop_farmers') || localStorage.getItem(`eduai_coop_farmers_${effectiveInstIdFinal}`);
+                        if (local) {
+                            const parsed = JSON.parse(local);
+                            if (Array.isArray(parsed) && parsed.length > 0) finalFarmers = parsed;
+                        }
+                    } catch(e) {}
+                }
+                setCoopFarmers(finalFarmers);
                 setCoopCollections(cColls || []);
                 setCoopRiders(cRiders || []);
                 setCoopAgrovetInventory(cAgroInv || []);

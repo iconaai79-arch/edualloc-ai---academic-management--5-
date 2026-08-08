@@ -353,16 +353,39 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     const totalPages = Math.ceil(filteredCollections.length / itemsPerPage);
     
+    // Robust local farmer list resolution to ensure existing farmer records are never lost
+    const effectiveFarmers = useMemo(() => {
+        if (farmers && farmers.length > 0) return farmers;
+
+        try {
+            const instId = currentInstitution?.id || currentUser?.institutionId || '';
+            const keys = [
+                'eduai_coop_farmers',
+                `eduai_coop_farmers_${instId}`,
+                'eduai_farmers',
+                `eduai_farmers_${instId}`
+            ];
+            for (const k of keys) {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                }
+            }
+        } catch(e) {}
+
+        return farmers || [];
+    }, [farmers, currentInstitution?.id, currentUser?.institutionId]);
+
     const filteredFarmersForSelect = useMemo(() => {
-        if (!farmerSearchQuery) return farmers.slice(0, 10);
+        if (!farmerSearchQuery) return effectiveFarmers.slice(0, 10);
         const query = farmerSearchQuery.toLowerCase();
-        return farmers.filter(f => 
-            f.name.toLowerCase().includes(query) || 
-            f.accountNumber.toLowerCase().includes(query) ||
-            f.memberId?.toLowerCase().includes(query) ||
-            f.phone.includes(query)
+        return effectiveFarmers.filter(f => 
+            f.name?.toLowerCase().includes(query) || 
+            f.phone?.includes(query) ||
+            f.memberId?.includes(query)
         ).slice(0, 50);
-    }, [farmers, farmerSearchQuery]);
+    }, [effectiveFarmers, farmerSearchQuery]);
 
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
@@ -596,13 +619,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     };
 
     const filteredFarmers = useMemo(() => {
-        return farmers.filter(f => 
+        return effectiveFarmers.filter(f => 
             f.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
             f.phone?.includes(searchTerm) ||
             f.nationalId?.includes(searchTerm) ||
             f.memberId?.includes(searchTerm)
         );
-    }, [farmers, searchTerm]);
+    }, [effectiveFarmers, searchTerm]);
 
     const filteredInventory = useMemo(() => {
         return inventory.filter(item => 
@@ -629,12 +652,12 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
         return {
             todayQty,
-            totalFarmers: farmers.length,
+            totalFarmers: effectiveFarmers.length,
             activeRiders: riders.filter(r => r.status === 'active').length,
             totalSaccoAssets,
             totalPayouts
         };
-    }, [collections, farmers, riders, saccoAccounts, payouts]);
+    }, [collections, effectiveFarmers, riders, saccoAccounts, payouts]);
 
 
     const getRiderName = (id?: string) => riders.find(r => r.id === id)?.name || 'N/A';
