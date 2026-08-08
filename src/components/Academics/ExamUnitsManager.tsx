@@ -2235,7 +2235,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const sampleNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau'];
                 sampleNames.forEach((sName, sIdx) => {
                     freshRows.push({
-                        admNo: `${1001 + (cIdx * 10) + sIdx}`,
+                        admNo: 'N/A',
                         name: `${sName}`,
                         class: cName,
                         mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
