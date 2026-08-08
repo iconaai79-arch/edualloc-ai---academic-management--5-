@@ -715,9 +715,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     ], []);
 
     const defaultSampleRows = useMemo(() => {
-        const defaultAdms = ['181', '182', '435', '438', '2008', '2244', '1897', '1712', '2127', '1838', '1834', '1972', '1957', '1967', '1898', '2117', '1883', '1861', '1848', '1853'];
         return KENYAN_STUDENT_NAMES.map((name, idx) => ({
-            admNo: defaultAdms[idx % defaultAdms.length],
+            admNo: 'N/A',
             name,
             class: 'Grade 6 Central',
             mathP1: Math.round(18 + (idx * 3) % 25),
@@ -1047,35 +1046,42 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         });
     }, []);
 
-    // Helper to resolve clean human-readable student admission numbers across all schema types (numeric, string, metadata)
-    const resolveCleanAdmNo = useCallback((st: any, idx: number) => {
-        const realAdms = ['181', '182', '435', '438', '2008', '2244', '1897', '1712', '2127', '1838', '1834', '1972', '1957', '1967', '1898', '2117', '1883', '1861', '1848', '1853'];
-        if (!st) return realAdms[idx % realAdms.length];
+    // Helper to resolve clean real student admission numbers across all schema types (strictly real DB student data, NO artificial generation)
+    const resolveCleanAdmNo = useCallback((st: any, idx: number): string => {
+        if (!st) return 'N/A';
 
-        const rawCandidate =
-            st.admissionNumber ??
-            st.admission_number ??
-            st.admNo ??
-            st.admissionNo ??
-            st.regNo ??
-            st.registrationNumber ??
-            st.studentId ??
-            st.staffId ??
-            st.metadata?.admissionNumber ??
-            st.metadata?.admission_number ??
-            st.metadata?.admNo ??
-            st.metadata?.admissionNo ??
-            st.metadata?.regNo ??
-            st.user?.admissionNumber ??
-            st.user?.metadata?.admissionNumber;
+        const candidates = [
+            st.admissionNumber,
+            st.admission_number,
+            st.admNo,
+            st.admissionNo,
+            st.regNo,
+            st.registrationNumber,
+            st.studentId,
+            st.staffId,
+            st.metadata?.admissionNumber,
+            st.metadata?.admission_number,
+            st.metadata?.admNo,
+            st.metadata?.admissionNo,
+            st.metadata?.regNo,
+            st.user?.admissionNumber,
+            st.user?.metadata?.admissionNumber
+        ];
 
-        if (rawCandidate !== undefined && rawCandidate !== null) {
-            const strVal = String(rawCandidate).trim();
-            if (strVal.length > 0 && !strVal.startsWith('usr_') && !strVal.startsWith('user_')) {
-                return strVal;
+        for (const cand of candidates) {
+            if (cand !== null && cand !== undefined) {
+                const strVal = String(cand).trim();
+                if (strVal.length > 0 && !strVal.startsWith('usr_') && !strVal.startsWith('user_') && strVal !== 'undefined' && strVal !== 'null') {
+                    return strVal;
+                }
             }
         }
-        return realAdms[idx % realAdms.length];
+
+        if (st.id && typeof st.id === 'string' && !st.id.startsWith('usr_') && !st.id.startsWith('user_')) {
+            return st.id.trim();
+        }
+
+        return 'N/A';
     }, []);
 
     // Helper to resolve clean human-readable student full name across all schema types
