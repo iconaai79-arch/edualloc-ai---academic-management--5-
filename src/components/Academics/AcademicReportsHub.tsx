@@ -45,6 +45,29 @@ export type ReportSubTab =
     | 'transcripts'
     | 'missing_marks';
 
+// Top-level pure helper: calculate letter grade or rubric from marks
+export const getGradeFromScore = (score: number, isPrimary?: boolean): { grade: string; points: number; comment: string } => {
+    if (isPrimary) {
+        if (score >= 80) return { grade: 'EE', points: 4.0, comment: 'Exceeding Expectations' };
+        if (score >= 65) return { grade: 'ME', points: 3.0, comment: 'Meeting Expectations' };
+        if (score >= 50) return { grade: 'AE', points: 2.0, comment: 'Approaching Expectations' };
+        return { grade: 'BE', points: 1.0, comment: 'Below Expectations' };
+    } else {
+        if (score >= 80) return { grade: 'A', points: 12.0, comment: 'EXCELLENT' };
+        if (score >= 75) return { grade: 'A-', points: 11.0, comment: 'EXCELLENT' };
+        if (score >= 70) return { grade: 'B+', points: 10.0, comment: 'VERY GOOD' };
+        if (score >= 65) return { grade: 'B', points: 9.0, comment: 'VERY GOOD' };
+        if (score >= 60) return { grade: 'B-', points: 8.0, comment: 'GOOD' };
+        if (score >= 55) return { grade: 'C+', points: 7.0, comment: 'AVERAGE' };
+        if (score >= 50) return { grade: 'C', points: 6.0, comment: 'AVERAGE' };
+        if (score >= 45) return { grade: 'C-', points: 5.0, comment: 'AVERAGE' };
+        if (score >= 40) return { grade: 'D+', points: 4.0, comment: 'PUT MORE EFFORT' };
+        if (score >= 35) return { grade: 'D', points: 3.0, comment: 'POOR' };
+        if (score >= 30) return { grade: 'D-', points: 2.0, comment: 'POOR' };
+        return { grade: 'E', points: 1.0, comment: 'VERY POOR' };
+    }
+};
+
 export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
     assessments = [],
     marks = [],
@@ -244,28 +267,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
         }
     }, [activeStudents, selectedStudentId]);
 
-    // Helper: calculate letter grade from marks
-    const getGradeFromScore = useCallback((score: number): { grade: string; points: number; comment: string } => {
-        if (isPrimarySchool) {
-            if (score >= 80) return { grade: 'EE', points: 4.0, comment: 'Exceeding Expectations' };
-            if (score >= 65) return { grade: 'ME', points: 3.0, comment: 'Meeting Expectations' };
-            if (score >= 50) return { grade: 'AE', points: 2.0, comment: 'Approaching Expectations' };
-            return { grade: 'BE', points: 1.0, comment: 'Below Expectations' };
-        } else {
-            if (score >= 80) return { grade: 'A', points: 12.0, comment: 'EXCELLENT' };
-            if (score >= 75) return { grade: 'A-', points: 11.0, comment: 'EXCELLENT' };
-            if (score >= 70) return { grade: 'B+', points: 10.0, comment: 'VERY GOOD' };
-            if (score >= 65) return { grade: 'B', points: 9.0, comment: 'VERY GOOD' };
-            if (score >= 60) return { grade: 'B-', points: 8.0, comment: 'GOOD' };
-            if (score >= 55) return { grade: 'C+', points: 7.0, comment: 'AVERAGE' };
-            if (score >= 50) return { grade: 'C', points: 6.0, comment: 'AVERAGE' };
-            if (score >= 45) return { grade: 'C-', points: 5.0, comment: 'AVERAGE' };
-            if (score >= 40) return { grade: 'D+', points: 4.0, comment: 'PUT MORE EFFORT' };
-            if (score >= 35) return { grade: 'D', points: 3.0, comment: 'POOR' };
-            if (score >= 30) return { grade: 'D-', points: 2.0, comment: 'POOR' };
-            return { grade: 'E', points: 1.0, comment: 'VERY POOR' };
-        }
-    }, [isPrimarySchool]);
+
 
     // Filtered marks for current selection
     const filteredMarks = useMemo(() => {
@@ -314,7 +316,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
             });
 
             const mean = count > 0 ? parseFloat((total / count).toFixed(1)) : 0;
-            const { grade, points, comment } = getGradeFromScore(mean);
+            const { grade, points, comment } = getGradeFromScore(mean, isPrimarySchool);
 
             return {
                 student: st,

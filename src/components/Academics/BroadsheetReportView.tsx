@@ -15,6 +15,29 @@ import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import * as XLSX from 'xlsx';
 
+// Top-level pure helper: calculate grade or rubric info
+export const getGradeInfo = (score: number, isPrimary?: boolean): { grade: string; points: number } => {
+    if (isPrimary) {
+        if (score >= 80) return { grade: 'EE', points: 4.0 };
+        if (score >= 65) return { grade: 'ME', points: 3.0 };
+        if (score >= 50) return { grade: 'AE', points: 2.0 };
+        return { grade: 'BE', points: 1.0 };
+    } else {
+        if (score >= 80) return { grade: 'A', points: 12.0 };
+        if (score >= 75) return { grade: 'A-', points: 11.0 };
+        if (score >= 70) return { grade: 'B+', points: 10.0 };
+        if (score >= 65) return { grade: 'B', points: 9.0 };
+        if (score >= 60) return { grade: 'B-', points: 8.0 };
+        if (score >= 55) return { grade: 'C+', points: 7.0 };
+        if (score >= 50) return { grade: 'C', points: 6.0 };
+        if (score >= 45) return { grade: 'C-', points: 5.0 };
+        if (score >= 40) return { grade: 'D+', points: 4.0 };
+        if (score >= 35) return { grade: 'D', points: 3.0 };
+        if (score >= 30) return { grade: 'D-', points: 2.0 };
+        return { grade: 'E', points: 1.0 };
+    }
+};
+
 interface BroadsheetReportViewProps {
     assessments?: Assessment[];
     marks?: AssessmentMark[];
@@ -366,28 +389,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         return candidateList;
     }, [subjects, selectedExamObj, savedBroadsheets, selectedExamId, isPrimarySchool]);
 
-    // Grade calculation helper
-    const getGradeInfo = useCallback((score: number) => {
-        if (isPrimarySchool) {
-            if (score >= 80) return { grade: 'EE', points: 4.0 };
-            if (score >= 65) return { grade: 'ME', points: 3.0 };
-            if (score >= 50) return { grade: 'AE', points: 2.0 };
-            return { grade: 'BE', points: 1.0 };
-        } else {
-            if (score >= 80) return { grade: 'A', points: 12.0 };
-            if (score >= 75) return { grade: 'A-', points: 11.0 };
-            if (score >= 70) return { grade: 'B+', points: 10.0 };
-            if (score >= 65) return { grade: 'B', points: 9.0 };
-            if (score >= 60) return { grade: 'B-', points: 8.0 };
-            if (score >= 55) return { grade: 'C+', points: 7.0 };
-            if (score >= 50) return { grade: 'C', points: 6.0 };
-            if (score >= 45) return { grade: 'C-', points: 5.0 };
-            if (score >= 40) return { grade: 'D+', points: 4.0 };
-            if (score >= 35) return { grade: 'D', points: 3.0 };
-            if (score >= 30) return { grade: 'D-', points: 2.0 };
-            return { grade: 'E', points: 1.0 };
-        }
-    }, [isPrimarySchool]);
+
 
     // Student broadsheet list (combining real saved marks and fallback sample students)
     const sampleStudents = useMemo(() => {
@@ -429,7 +431,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                     });
 
                     if (hasMark) {
-                        const { grade, points } = getGradeInfo(subTotal);
+                        const { grade, points } = getGradeInfo(subTotal, isPrimarySchool);
                         subjectMarksMap[sub.id] = { score: subTotal, grade };
                         total += subTotal;
                         totalPts += points;
@@ -439,7 +441,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
                 const meanPts = validCount > 0 ? parseFloat((totalPts / validCount).toFixed(4)) : 0;
                 const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
-                const { grade: meanGrade } = getGradeInfo(meanScore);
+                const { grade: meanGrade } = getGradeInfo(meanScore, isPrimarySchool);
 
                 const realAdmNo = stRow.admNo || stRow.admissionNo || stRow.admission_no || (stRow.student as any)?.admissionNo || (stRow.student as any)?.admNo || `ADM-${1046 + idx}`;
                 const realClass = stRow.class || (stRow.student as any)?.studentClass || selectedYearGroup || 'Grade 6';
@@ -506,7 +508,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             broadsheetSubjects.forEach((sub, sIdx) => {
                 if ((idx + sIdx) % 7 !== 0) {
                     const sc = Math.max(20, Math.min(92, Math.round(78 - idx * 1.8 + (sIdx * 3) % 25)));
-                    const { grade, points } = getGradeInfo(sc);
+                    const { grade, points } = getGradeInfo(sc, isPrimarySchool);
                     subjectMarksMap[sub.id] = { score: sc, grade };
                     total += sc;
                     totalPts += points;
@@ -516,7 +518,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
             const meanPts = validCount > 0 ? parseFloat((totalPts / validCount).toFixed(4)) : 0;
             const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
-            const { grade: meanGrade } = getGradeInfo(meanScore);
+            const { grade: meanGrade } = getGradeInfo(meanScore, isPrimarySchool);
 
             const realAdmNo = (st as any).admissionNo || (st as any).admission_no || (st as any).admNo || (st as any).adm_no || (st as any).registrationNo || (st as any).staffId || (st as any).metadata?.admissionNo || (st as any).metadata?.admNo || st.id;
             const realClass = (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || `${currentGroup} Central`;
@@ -592,7 +594,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const avg = count > 0 ? parseFloat((sum / count).toFixed(2)) : 0;
             footer[sub.id] = {
                 meanScore: avg,
-                meanGrade: getGradeInfo(avg).grade
+                meanGrade: getGradeInfo(avg, isPrimarySchool).grade
             };
         });
 
