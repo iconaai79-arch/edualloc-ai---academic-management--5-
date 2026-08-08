@@ -258,9 +258,10 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         }
     }, [selectedExamId, selectedExamObj, yearGroupOptions]);
 
-    // Active subjects for broadsheet columns
+    // Active subjects for broadsheet columns (filtered by current exam's entered/tested subjects)
     const broadsheetSubjects = useMemo(() => {
-        return subjects.length > 0 ? subjects : [
+        // 1. All candidate subjects
+        const candidateList = subjects.length > 0 ? subjects : [
             { id: 'sub_1', name: 'English', code: 'ENG' },
             { id: 'sub_2', name: 'Kiswahili', code: 'KISW' },
             { id: 'sub_3', name: 'Mathematics', code: 'MATH' },
@@ -273,7 +274,68 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             { id: 'sub_10', name: 'Computer Studies', code: 'CMP' },
             { id: 'sub_11', name: 'Business Studies', code: 'BST' },
         ];
-    }, [subjects]);
+
+        // 2. Check if selectedExamObj defines explicit subjects
+        const examSubjNames = (selectedExamObj as any)?.subjects || (selectedExamObj as any)?.examSubjects || (selectedExamObj as any)?.subjectList;
+        if (Array.isArray(examSubjNames) && examSubjNames.length > 0) {
+            const cleanSubjNames = examSubjNames.map((s: any) => String(typeof s === 'string' ? s : s.name || s.code).toLowerCase().replace(/[^a-z0-9]/g, ''));
+            const filtered = candidateList.filter(sub => {
+                const subNameClean = (sub.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const subCodeClean = (sub.code || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                return cleanSubjNames.some((es: string) => es.includes(subNameClean) || subNameClean.includes(es) || es.includes(subCodeClean));
+            });
+            if (filtered.length > 0) return filtered;
+        }
+
+        // 3. Check if savedBroadsheets has entered marks for this exam
+        const savedRows = savedBroadsheets[selectedExamId];
+        if (savedRows && Array.isArray(savedRows) && savedRows.length > 0) {
+            const activeSubjIds = new Set<string>();
+            candidateList.forEach(sub => {
+                const subName = sub.name || (sub as any).title || '';
+                const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const subNameNorm = subName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                const hasDataInRows = savedRows.some(stRow => {
+                    return Object.entries(stRow).some(([k, val]) => {
+                        if (['admNo', 'name', 'class', 'kcpe'].includes(k)) return false;
+                        if (val === null || val === undefined || val === '') return false;
+                        const kNorm = k.toLowerCase();
+                        return (
+                            kNorm.includes(sClean) ||
+                            (subNameNorm.length >= 3 && kNorm.includes(subNameNorm)) ||
+                            (subNameNorm.includes('math') && kNorm.includes('math')) ||
+                            (subNameNorm.includes('eng') && kNorm.includes('eng')) ||
+                            (subNameNorm.includes('kisw') && kNorm.includes('kisw')) ||
+                            (subNameNorm.includes('bio') && kNorm.includes('bio')) ||
+                            (subNameNorm.includes('chem') && kNorm.includes('chem')) ||
+                            (subNameNorm.includes('phy') && kNorm.includes('phy'))
+                        );
+                    });
+                });
+
+                if (hasDataInRows) {
+                    activeSubjIds.add(sub.id);
+                }
+            });
+
+            if (activeSubjIds.size > 0) {
+                return candidateList.filter(sub => activeSubjIds.has(sub.id));
+            }
+        }
+
+        // 4. Default for Grade 6 / Primary when no explicit marks exist yet: primary subjects
+        if (isPrimarySchool) {
+            const primaryKeywords = ['math', 'eng', 'kisw', 'sci', 'env', 'agri', 'cre', 'art', 'social'];
+            const primarySubs = candidateList.filter(sub => {
+                const n = (sub.name || '').toLowerCase();
+                return primaryKeywords.some(kw => n.includes(kw));
+            });
+            if (primarySubs.length > 0) return primarySubs;
+        }
+
+        return candidateList;
+    }, [subjects, selectedExamObj, savedBroadsheets, selectedExamId, isPrimarySchool]);
 
     // Grade calculation helper
     const getGradeInfo = useCallback((score: number) => {
