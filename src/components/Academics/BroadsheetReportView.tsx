@@ -700,6 +700,37 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         return footer;
     }, [broadsheetSubjects, filteredBroadsheetRows, isPrimarySchool]);
 
+    // Calculate Class / Institutional Mean Score & Grade following school grading system
+    const classMeanInfo = useMemo(() => {
+        if (filteredBroadsheetRows.length === 0) {
+            return { meanScore: 0, meanPts: 0, meanGrade: isPrimarySchool ? 'BE' : 'E', points: 1.0 };
+        }
+
+        let sumScore = 0;
+        let sumPts = 0;
+        let count = 0;
+
+        filteredBroadsheetRows.forEach(r => {
+            if (r.meanScore > 0 || r.total > 0) {
+                sumScore += r.meanScore;
+                sumPts += r.meanPts;
+                count++;
+            }
+        });
+
+        const validCount = count || filteredBroadsheetRows.length;
+        const avgScore = parseFloat((sumScore / validCount).toFixed(2));
+        const avgPts = parseFloat((sumPts / validCount).toFixed(2));
+        const gradeInfo = getGradeInfo(avgScore, isPrimarySchool);
+
+        return {
+            meanScore: avgScore,
+            meanPts: avgPts,
+            meanGrade: gradeInfo.grade,
+            points: gradeInfo.points
+        };
+    }, [filteredBroadsheetRows, isPrimarySchool]);
+
     // Export Broadsheet Excel
     const handleExportExcel = () => {
         const exportData = filteredBroadsheetRows.map((r, idx) => {
@@ -1105,7 +1136,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                         );
                                     })}
                                     <td colSpan={6} className="p-3 text-right font-mono text-indigo-700 dark:text-indigo-300 uppercase">
-                                        INSTITUTIONAL MEAN: 2.8890 (D)
+                                        CLASS MEAN: <span className="font-black text-slate-900 dark:text-white">{classMeanInfo.meanScore}</span> (<span className="font-black text-indigo-600 dark:text-indigo-400">{classMeanInfo.meanGrade}</span>) &bull; POINTS: <span className="font-black text-emerald-600 dark:text-emerald-400">{classMeanInfo.meanPts}</span>
                                     </td>
                                 </tr>
                             </tfoot>
@@ -1273,7 +1304,9 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                                         </td>
                                                     );
                                                 })}
-                                                <td colSpan={4} className="p-2 border border-slate-400 text-center">&mdash;</td>
+                                                <td colSpan={4} className="p-2 border border-slate-400 text-center font-bold text-slate-900">
+                                                    CLASS MEAN: {classMeanInfo.meanScore} ({classMeanInfo.meanGrade})
+                                                </td>
                                             </tr>
                                         </tfoot>
                                     </table>
