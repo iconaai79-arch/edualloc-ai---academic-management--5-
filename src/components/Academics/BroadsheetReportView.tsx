@@ -192,27 +192,37 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
     // Unified list of all exams (combining props.assessments and savedExamUnits)
     const allExamsList = useMemo(() => {
-        const customConverted = savedExamUnits.map(e => ({
-            id: e.id,
-            title: e.name || e.title || 'Exam Unit',
-            name: e.name || e.title || 'Exam Unit',
-            type: e.type || 'CAT',
-            term: e.term || 'TERM 1',
-            year: String(e.year || 2026),
-            count: e.studentsEnrolled || e.studentCount || 40,
-            status: e.status || 'published'
-        }));
+        const customConverted = savedExamUnits.map(e => {
+            const stStr = String(e.status || '').toLowerCase().trim();
+            const isPub = stStr === 'published' || e.isPublished === true || e.published === true;
+            return {
+                id: e.id,
+                title: e.name || e.title || 'Exam Unit',
+                name: e.name || e.title || 'Exam Unit',
+                type: e.type || 'CAT',
+                term: e.term || 'TERM 1',
+                year: String(e.year || 2026),
+                count: e.studentsEnrolled || e.studentCount || 40,
+                status: isPub ? 'published' : (stStr || 'in_progress'),
+                isPublished: isPub
+            };
+        });
 
-        const propConverted = (assessments || []).map(a => ({
-            id: a.id,
-            title: a.title || (a as any).name || 'Assessment',
-            name: a.title || (a as any).name || 'Assessment',
-            type: a.type || 'CAT',
-            term: a.term || 'TERM 1',
-            year: String(a.year || 2026),
-            count: (a as any).count || (a as any).studentCount || 40,
-            status: 'published'
-        }));
+        const propConverted = (assessments || []).map(a => {
+            const stStr = String((a as any).status || '').toLowerCase().trim();
+            const isPub = stStr === 'published' || (a as any).isPublished === true || (a as any).published === true;
+            return {
+                id: a.id,
+                title: a.title || (a as any).name || 'Assessment',
+                name: a.title || (a as any).name || 'Assessment',
+                type: a.type || 'CAT',
+                term: a.term || 'TERM 1',
+                year: String(a.year || 2026),
+                count: (a as any).count || (a as any).studentCount || 40,
+                status: isPub ? 'published' : (stStr || 'in_progress'),
+                isPublished: isPub
+            };
+        });
 
         const combined = [...customConverted, ...propConverted];
         const seen = new Set<string>();
@@ -226,16 +236,38 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
         if (unique.length === 0) {
             return [
-                { id: 'exam_1', title: 'Endterm 2 Exam 2026', name: 'Endterm 2 Exam 2026', year: '2026', term: 'TERM 2', type: 'END TERM', count: 361, status: 'published' },
-                { id: 'exam_2', title: 'Kapseret Mock', name: 'Kapseret Mock', year: '2026', term: 'TERM 2', type: 'END TERM', count: 251, status: 'published' },
-                { id: 'exam_3', title: 'Mid Term 2 Exam', name: 'Mid Term 2 Exam', year: '2026', term: 'TERM 2', type: 'CAT', count: 610, status: 'published' },
-                { id: 'exam_4', title: 'End Term Exam', name: 'End Term Exam', year: '2026', term: 'TERM 1', type: 'END TERM', count: 594, status: 'published' },
-                { id: 'exam_5', title: 'Mid Term Exam', name: 'Mid Term Exam', year: '2026', term: 'TERM 1', type: 'CAT', count: 477, status: 'published' },
+                { id: 'exam_1', title: 'Endterm 2 Exam 2026', name: 'Endterm 2 Exam 2026', year: '2026', term: 'TERM 2', type: 'END TERM', count: 361, status: 'in_progress', isPublished: false },
+                { id: 'exam_2', title: 'Kapseret Mock', name: 'Kapseret Mock', year: '2026', term: 'TERM 2', type: 'END TERM', count: 251, status: 'in_progress', isPublished: false },
+                { id: 'exam_3', title: 'Mid Term 2 Exam', name: 'Mid Term 2 Exam', year: '2026', term: 'TERM 2', type: 'CAT', count: 610, status: 'in_progress', isPublished: false },
             ];
         }
 
         return unique;
     }, [savedExamUnits, assessments]);
+
+    // Active selected exam object
+    const selectedExamObj = useMemo(() => {
+        const match = allExamsList.find(a => a.id === selectedExamId);
+        if (match) return match;
+        return allExamsList[0] || {
+            id: 'exam_midterm_1',
+            title: 'Mid Term Exam',
+            name: 'Mid Term Exam',
+            type: 'CAT',
+            term: 'TERM 1',
+            year: '2026',
+            status: 'in_progress',
+            isPublished: false
+        };
+    }, [allExamsList, selectedExamId]);
+
+    // Check if current exam is officially published
+    const isExamPublished = useMemo(() => {
+        if (!selectedExamObj) return false;
+        const stStr = String(selectedExamObj.status || '').toLowerCase().trim();
+        const isPubBool = (selectedExamObj as any).isPublished ?? (selectedExamObj as any).published;
+        return stStr === 'published' || isPubBool === true;
+    }, [selectedExamObj]);
 
     // Active selected exam object
     const selectedExamObj = useMemo(() => {
@@ -487,6 +519,11 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
     // Student broadsheet list (combining real saved marks and student registry)
     const sampleStudents = useMemo(() => {
+        // If the selected exam is NOT published, return empty array so broadsheet stays empty!
+        if (!isExamPublished) {
+            return [];
+        }
+
         const savedRows = savedBroadsheets[selectedExamId];
 
         // Case 1: If there are saved broadsheet rows for this exam, use savedRows directly!
@@ -630,7 +667,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             overallPos: idx + 1,
             streamPos: (idx % 5) + 1
         }));
-    }, [activeStudents, broadsheetSubjects, isPrimarySchool, savedBroadsheets, selectedExamId, selectedYearGroup]);
+    }, [activeStudents, broadsheetSubjects, isPrimarySchool, savedBroadsheets, selectedExamId, selectedYearGroup, isExamPublished]);
 
     // Filtered student rows (sorted by total marks descending and re-ranked 1, 2, 3, 4...)
     const filteredBroadsheetRows = useMemo(() => {
@@ -706,34 +743,26 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
     // Calculate Class / Institutional Mean Score & Grade following school grading system
     const classMeanInfo = useMemo(() => {
-        if (filteredBroadsheetRows.length === 0) {
-            return { meanScore: 0, meanPts: 0, meanGrade: isPrimarySchool ? 'BE' : 'E', points: 1.0 };
+        if (!isExamPublished || sampleStudents.length === 0) {
+            return {
+                meanScore: '—',
+                meanGrade: 'Unpublished',
+                meanPts: '0.00'
+            };
         }
-
-        let sumScore = 0;
-        let sumPts = 0;
-        let count = 0;
-
-        filteredBroadsheetRows.forEach(r => {
-            if (r.meanScore > 0 || r.total > 0) {
-                sumScore += r.meanScore;
-                sumPts += r.meanPts;
-                count++;
-            }
-        });
-
-        const validCount = count || filteredBroadsheetRows.length;
-        const avgScore = parseFloat((sumScore / validCount).toFixed(2));
-        const avgPts = parseFloat((sumPts / validCount).toFixed(2));
-        const gradeInfo = getGradeInfo(avgScore, isPrimarySchool);
+        const totalSum = sampleStudents.reduce((acc, curr) => acc + (curr.meanScore || 0), 0);
+        const meanScore = parseFloat((totalSum / sampleStudents.length).toFixed(1));
+        const { grade: meanGrade, points } = getGradeInfo(meanScore, isPrimarySchool);
+        
+        const ptsSum = sampleStudents.reduce((acc, curr) => acc + (curr.meanPts || 0), 0);
+        const meanPts = parseFloat((ptsSum / sampleStudents.length).toFixed(2));
 
         return {
-            meanScore: avgScore,
-            meanPts: avgPts,
-            meanGrade: gradeInfo.grade,
-            points: gradeInfo.points
+            meanScore,
+            meanGrade,
+            meanPts
         };
-    }, [filteredBroadsheetRows, isPrimarySchool]);
+    }, [sampleStudents, isPrimarySchool, isExamPublished]);
 
     // Export Broadsheet Excel
     const handleExportExcel = () => {
@@ -1106,18 +1135,35 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                                 </td>
                                             );
                                         })}
-                                        <td className="p-3 text-center font-black text-indigo-600 dark:text-indigo-400 text-sm border-l border-slate-100 dark:border-slate-800">{row.total}</td>
-                                        <td className="p-3 text-center font-black">
-                                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-md text-[11px]">
-                                                {row.meanGrade}
-                                            </span>
+                                        <td className="p-3 text-center border-l border-slate-100 dark:border-slate-800/60 font-mono font-bold text-slate-900 dark:text-white">
+                                            {row.total}
                                         </td>
-                                        <td className="p-3 text-center font-mono font-bold text-slate-600 dark:text-slate-300">{row.meanPts}</td>
-                                        <td className="p-3 text-center font-bold text-slate-500">{row.streamPos}</td>
-                                        <td className="p-3 text-center font-black text-slate-900 dark:text-white">#{row.overallPos}</td>
-                                        <td className="p-3 text-right font-mono text-emerald-600 font-bold">{row.vap}</td>
+                                        <td className="p-3 text-center font-black text-indigo-600 dark:text-indigo-400 font-mono">{row.meanGrade}</td>
+                                        <td className="p-3 text-center font-mono text-emerald-600 font-bold">{row.meanPts}</td>
+                                        <td className="p-3 text-center font-bold text-slate-700 dark:text-slate-300 font-mono">#{row.streamPos}</td>
+                                        <td className="p-3 text-center font-black text-slate-900 dark:text-white font-mono">#{row.overallPos}</td>
+                                        <td className="p-3 text-right font-mono font-bold text-slate-500">{row.vap > 0 ? `+${row.vap}` : row.vap}</td>
                                     </tr>
                                 ))}
+                                {(!isExamPublished || paginatedRows.length === 0) && (
+                                    <tr>
+                                        <td colSpan={broadsheetSubjects.length + 10} className="px-6 py-16 text-center">
+                                            <div className="max-w-md mx-auto space-y-3">
+                                                <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center mx-auto text-xl font-bold shadow-sm">
+                                                    🔒
+                                                </div>
+                                                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                                                    {!isExamPublished ? 'Exam Results Unpublished' : 'No Broadsheet Results Available'}
+                                                </h3>
+                                                <p className="text-xs text-slate-500 font-medium">
+                                                    {!isExamPublished 
+                                                        ? `This broadsheet is empty because "${selectedExamObj.title}" has not been published yet. Please publish the exam in Exam Units & Marksheet to reveal the broadsheet.`
+                                                        : 'No student results were found matching the selected class or stream filters.'}
+                                                </p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
 
                             {/* Table Footer Row: Subject Means */}

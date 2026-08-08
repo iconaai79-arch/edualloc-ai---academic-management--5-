@@ -2271,18 +2271,76 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     };
 
     const handleTogglePublish = () => {
+        if (!activeExam) return;
+
+        const isCurrentlyPublished = activeExam.status === 'published';
+
+        // If toggling to PUBLISHED, perform incomplete marks validation check first!
+        if (!isCurrentlyPublished) {
+            const papersToTest = modalAvailableSubjects.flatMap(subName => getSubjectPapers(subName));
+            const incompleteStudents: { name: string; admNo: string; missingPapers: string[] }[] = [];
+
+            (broadsheetStudentRows || []).forEach(st => {
+                const missing: string[] = [];
+                papersToTest.forEach(sp => {
+                    const val = (st as any)[sp.key];
+                    if (val === undefined || val === null || val === '' || Number(val) === 0) {
+                        missing.push(sp.label || sp.key);
+                    }
+                });
+                if (missing.length > 0) {
+                    incompleteStudents.push({
+                        name: st.name || 'Student',
+                        admNo: st.admNo || '',
+                        missingPapers: missing
+                    });
+                }
+            });
+
+            if (incompleteStudents.length > 0) {
+                const previewList = incompleteStudents.slice(0, 5).map(s => `• ${s.name} (${s.admNo}): missing ${s.missingPapers.slice(0, 2).join(', ')}${s.missingPapers.length > 2 ? '...' : ''}`).join('\n');
+                const extraCount = incompleteStudents.length > 5 ? `\n...and ${incompleteStudents.length - 5} more student(s).` : '';
+                
+                const confirmMsg = `⚠️ INCOMPLETE MARKS DETECTED!\n\nThere are ${incompleteStudents.length} student(s) with incomplete or missing marks in "${activeExam.name}":\n\n${previewList}${extraCount}\n\nDo you want to publish this exam broadsheet anyway?`;
+
+                if (!confirm(confirmMsg)) {
+                    return; // Abort publishing!
+                }
+            }
+        }
+
+        const newStatus = isCurrentlyPublished ? ('in_progress' as const) : ('published' as const);
+
         setExams(prev => {
             const nextExams = prev.map(e => {
                 if (e.id === activeExam.id) {
-                    return { ...e, status: e.status === 'published' ? ('in_progress' as const) : ('published' as const) };
+                    return {
+                        ...e,
+                        status: newStatus,
+                        isPublished: newStatus === 'published',
+                        published: newStatus === 'published'
+                    };
                 }
                 return e;
             });
             try {
                 localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
             } catch (e) { }
+
+            const updatedExam = nextExams.find(e => e.id === activeExam.id);
+            if (updatedExam && currentInstitution?.id) {
+                apiService.saveModuleRecord('exam_units', updatedExam).catch(() => { });
+            }
+
             return nextExams;
         });
+
+        try {
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'exam_publish', instId: currentInstitution?.id } }));
+        } catch (e) { }
+
+        setSaveToastMessage(newStatus === 'published' ? `🚀 Published "${activeExam.name}" results to the Broadsheet!` : `🔒 Unpublished "${activeExam.name}". Broadsheet hidden.`);
+        setTimeout(() => setSaveToastMessage(null), 4000);
     };
 
     const handleDeleteExam = async () => {
