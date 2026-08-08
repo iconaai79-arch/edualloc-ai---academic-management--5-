@@ -257,9 +257,10 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             term: 'TERM 1',
             year: '2026',
             status: 'in_progress',
-            isPublished: false
+            isPublished: false,
+            count: activeStudents.length || 477
         };
-    }, [allExamsList, selectedExamId]);
+    }, [allExamsList, selectedExamId, activeStudents]);
 
     // Check if current exam is officially published
     const isExamPublished = useMemo(() => {
@@ -268,21 +269,6 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         const isPubBool = (selectedExamObj as any).isPublished ?? (selectedExamObj as any).published;
         return stStr === 'published' || isPubBool === true;
     }, [selectedExamObj]);
-
-    // Active selected exam object
-    const selectedExamObj = useMemo(() => {
-        const match = allExamsList.find(a => a.id === selectedExamId);
-        if (match) return match;
-        return allExamsList[0] || {
-            id: 'exam_midterm_1',
-            title: 'Mid Term Exam',
-            name: 'Mid Term Exam',
-            type: 'CAT',
-            term: 'TERM 1',
-            year: '2026',
-            count: activeStudents.length || 477
-        };
-    }, [allExamsList, selectedExamId, activeStudents]);
 
     const isPrimarySchool = useMemo(() => {
         const type = (currentInstitution?.institutionType || '').toLowerCase();
@@ -519,112 +505,23 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
     // Student broadsheet list (combining real saved marks and student registry)
     const sampleStudents = useMemo(() => {
-        // If the selected exam is NOT published, return empty array so broadsheet stays empty!
+        // 1. If the selected exam is NOT published, return empty array so broadsheet stays empty!
         if (!isExamPublished) {
             return [];
         }
 
         const savedRows = savedBroadsheets[selectedExamId];
 
-        // Case 1: If there are saved broadsheet rows for this exam, use savedRows directly!
-        // Each saved row represents a real student in that class who has marks recorded.
-        if (savedRows && Array.isArray(savedRows) && savedRows.length > 0) {
-            return savedRows.map((stRow, idx) => {
-                const realAdmNo = getStudentAdmNo(stRow, idx) || (stRow as any).id || String(181 + idx);
-                const realName = stRow.name || (stRow as any).studentName || (stRow as any).student?.name || `Student ${idx + 1}`;
-                const realClass = stRow.class || (stRow as any).studentClass || (stRow as any).student?.studentClass || selectedYearGroup || 'Grade 6';
-
-                const subjectMarksMap: Record<string, { score: number; grade: string }> = {};
-                let total = 0;
-                let totalPts = 0;
-                let validCount = 0;
-
-                broadsheetSubjects.forEach((sub, sIdx) => {
-                    let sc = 0;
-                    let hasMark = false;
-
-                    const subName = sub.name || (sub as any).title || '';
-                    const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                    const subNameNorm = subName.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-                    Object.entries(stRow).forEach(([k, val]) => {
-                        if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo'].includes(k)) return;
-                        if (typeof val !== 'number' || isNaN(val)) return;
-
-                        const kNorm = k.toLowerCase();
-                        const isMatch =
-                            kNorm.includes(sClean) ||
-                            (subNameNorm.length >= 3 && kNorm.includes(subNameNorm)) ||
-                            (subNameNorm.includes('math') && (kNorm.includes('math') || kNorm.includes('mathp1') || kNorm.includes('mathp2'))) ||
-                            (subNameNorm.includes('eng') && (kNorm.includes('eng') || kNorm.includes('engp1') || kNorm.includes('engp2'))) ||
-                            (subNameNorm.includes('kisw') && (kNorm.includes('kisw') || kNorm.includes('kiswp1'))) ||
-                            (subNameNorm.includes('bio') && (kNorm.includes('bio') || kNorm.includes('biop1')));
-
-                        if (isMatch) {
-                            sc += val;
-                            hasMark = true;
-                        }
-                    });
-
-                    if (hasMark) {
-                        const { grade, points } = getGradeInfo(sc, isPrimarySchool);
-                        subjectMarksMap[sub.id] = { score: sc, grade };
-                        total += sc;
-                        totalPts += points;
-                        validCount++;
-                    }
-                });
-
-                const meanPts = validCount > 0 ? parseFloat((totalPts / validCount).toFixed(4)) : 0;
-                const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
-                const { grade: meanGrade } = getGradeInfo(meanScore, isPrimarySchool);
-
-                return {
-                    student: {
-                        id: realAdmNo,
-                        name: realName,
-                        admissionNo: realAdmNo,
-                        studentClass: realClass
-                    },
-                    kcpe: 250 + (idx * 5) % 150,
-                    entry: broadsheetSubjects.length || 8,
-                    subjectMarksMap,
-                    total,
-                    meanScore,
-                    meanGrade,
-                    meanPts,
-                    vap: parseFloat((3.5714 - idx * 0.12).toFixed(4))
-                };
-            }).sort((a, b) => b.total - a.total).map((r, idx) => ({
-                ...r,
-                overallPos: idx + 1,
-                streamPos: (idx % 5) + 1
-            }));
+        // 2. If an empty exam was published (no marks saved yet), return empty array so broadsheet is empty!
+        if (!savedRows || !Array.isArray(savedRows) || savedRows.length === 0) {
+            return [];
         }
 
-        // Case 2: No saved rows yet for this exam -> filter activeStudents strictly by selectedYearGroup!
-        const targetClassLower = (selectedYearGroup || '').toLowerCase().trim();
-        const filteredStudents = activeStudents.filter(st => {
-            if (!targetClassLower || targetClassLower === 'all classes' || targetClassLower === 'all') return true;
-            const stClass = String((st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || '').toLowerCase();
-            return stClass.includes(targetClassLower) || targetClassLower.includes(stClass);
-        });
-
-        const baseStudentList = filteredStudents.length > 0 ? filteredStudents : [
-            { id: '181', name: 'ABEL KIPROTICH(NAOMI)', admissionNo: '181', studentClass: `${selectedYearGroup || 'Grade 6'} Central` },
-            { id: '182', name: 'ABIGAEL JEBET', admissionNo: '182', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '435', name: 'ABISAG JEPKIRUI', admissionNo: '435', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '438', name: 'ADRIAN KIPCHUMBA', admissionNo: '438', studentClass: `${selectedYearGroup || 'Grade 6'} South` },
-            { id: '2008', name: 'Maxine Jelimo', admissionNo: '2008', studentClass: `${selectedYearGroup || 'Grade 6'} Central` },
-            { id: '2244', name: 'Dennis Kiplagat', admissionNo: '2244', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1897', name: 'Felix Kipkosgei', admissionNo: '1897', studentClass: `${selectedYearGroup || 'Grade 6'} East` },
-            { id: '1712', name: 'Job Kipkorir Kipkoech', admissionNo: '1712', studentClass: `${selectedYearGroup || 'Grade 6'} South` },
-        ];
-
-        return baseStudentList.map((st, idx) => {
-            const realAdmNo = getStudentAdmNo(st, idx) || st.id || String(181 + idx);
-            const realName = st.name;
-            const realClass = (st as any).studentClass || (st as any).class || `${selectedYearGroup || 'Grade 6'} Central`;
+        // 3. Map saved rows directly so ONLY real entered student marks are rendered!
+        return savedRows.map((stRow, idx) => {
+            const realAdmNo = getStudentAdmNo(stRow, idx) || (stRow as any).id || String(181 + idx);
+            const realName = stRow.name || (stRow as any).studentName || (stRow as any).student?.name || `Student ${idx + 1}`;
+            const realClass = stRow.class || (stRow as any).studentClass || (stRow as any).student?.studentClass || selectedYearGroup || 'Grade 6';
 
             const subjectMarksMap: Record<string, { score: number; grade: string }> = {};
             let total = 0;
@@ -632,8 +529,33 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             let validCount = 0;
 
             broadsheetSubjects.forEach((sub, sIdx) => {
-                if ((idx + sIdx) % 7 !== 0) {
-                    const sc = Math.max(20, Math.min(92, Math.round(78 - idx * 1.8 + (sIdx * 3) % 25)));
+                let sc = 0;
+                let hasMark = false;
+
+                const subName = sub.name || (sub as any).title || '';
+                const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const subNameNorm = subName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                Object.entries(stRow).forEach(([k, val]) => {
+                    if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo'].includes(k)) return;
+                    if (typeof val !== 'number' || isNaN(val)) return;
+
+                    const kNorm = k.toLowerCase();
+                    const isMatch =
+                        kNorm.includes(sClean) ||
+                        (subNameNorm.length >= 3 && kNorm.includes(subNameNorm)) ||
+                        (subNameNorm.includes('math') && (kNorm.includes('math') || kNorm.includes('mathp1') || kNorm.includes('mathp2'))) ||
+                        (subNameNorm.includes('eng') && (kNorm.includes('eng') || kNorm.includes('engp1') || kNorm.includes('engp2'))) ||
+                        (subNameNorm.includes('kisw') && (kNorm.includes('kisw') || kNorm.includes('kiswp1'))) ||
+                        (subNameNorm.includes('bio') && (kNorm.includes('bio') || kNorm.includes('biop1')));
+
+                    if (isMatch) {
+                        sc += val;
+                        hasMark = true;
+                    }
+                });
+
+                if (hasMark) {
                     const { grade, points } = getGradeInfo(sc, isPrimarySchool);
                     subjectMarksMap[sub.id] = { score: sc, grade };
                     total += sc;
