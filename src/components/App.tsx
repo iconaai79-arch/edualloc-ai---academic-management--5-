@@ -53,6 +53,7 @@ function safeLazy<T extends React.ComponentType<any>>(
 
 const PrivacyPolicy = safeLazy(() => import('../pages/PrivacyPolicy'));
 const TermsOfService = safeLazy(() => import('../pages/TermsOfService'));
+const SpeechBuddyPortal = safeLazy(() => import('./SpeechBuddyPortal').then(m => ({ default: m.SpeechBuddyPortal })));
 
 // Lazy-loaded major portals
 const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -5513,6 +5514,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         currentInstitution: activeInstitution!,
         onLogAction: handleLogAction,
     }), [currentUser, activeInstitution, handleLogAction]);
+
+    // ── EARLY ESCAPE: Public SpeechBuddy AI standalone portal — skip auth & institution boot entirely ──
+    if (window.location.search.includes('view=speechbuddy') || window.location.search.includes('view=speech-buddy') || window.location.pathname.startsWith('/speechbuddy')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <SpeechBuddyPortal />
+            </Suspense>
+        );
+    }
 
     // ── EARLY ESCAPE: Public visitor authorization URL ──
     if (window.location.search.includes('view=visitor-auth')) {

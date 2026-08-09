@@ -1,67 +1,58 @@
-// Service Worker for EduAI OS PWA
-const CACHE_NAME = 'eduai-v2';
+// SpeechBuddy AI Service Worker — Cache First Offline Strategy
 
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
+const CACHE_NAME = 'speechbuddy-cache-v1';
+const ASSETS_TO_CACHE = [
+  '/',
+  '/?view=speechbuddy',
+  '/manifest.json',
+  '/favicon.ico',
+];
+
+// Install Event
+self.addEventListener('install', (event: any) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS_TO_CACHE);
+    })
+  );
+  (self as any).skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+// Activate Event
+self.addEventListener('activate', (event: any) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
       );
-    }).then(() => clients.claim())
+    })
   );
+  (self as any).clients.claim();
 });
 
-self.addEventListener('fetch', (event) => {
-  // Only handle GET requests from the same origin
+// Fetch Event
+self.addEventListener('fetch', (event: any) => {
+  // Only handle GET requests
   if (event.request.method !== 'GET') return;
-  if (!event.request.url.startsWith(self.location.origin)) return;
 
-  const url = new URL(event.request.url);
-  // Do not intercept API, biometric, or payment calls
-  if (
-    url.pathname.startsWith('/api') ||
-    url.pathname.startsWith('/zk') ||
-    url.pathname.startsWith('/adms') ||
-    url.pathname.startsWith('/iclock')
-  ) {
-    return;
-  }
-
-  // Network-first strategy with cache fallback & graceful error handling
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (response && response.status === 200 && response.type === 'basic') {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(event.request).then((networkResponse) => {
+        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+          return networkResponse;
         }
-        return response;
-      })
-      .catch(async () => {
-        const cached = await caches.match(event.request);
-        if (cached) {
-          return cached;
-        }
-        if (event.request.mode === 'navigate') {
-          const mainIndex = await caches.match('/');
-          if (mainIndex) return mainIndex;
-        }
-        return new Response('Resource unavailable offline', {
-          status: 503,
-          statusText: 'Service Unavailable',
-          headers: new Headers({ 'Content-Type': 'text/plain' })
+        const responseToCache = networkResponse.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
         });
-      })
+        return networkResponse;
+      }).catch(() => {
+        // Fallback for offline mode when asset isn't in cache
+        return caches.match('/?view=speechbuddy');
+      });
+    })
   );
 });
-
