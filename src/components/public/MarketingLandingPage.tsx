@@ -307,9 +307,18 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
             <a href="#advantages" className="hover:text-white transition-colors">Advantages</a>
             <a href="#tutorials" className="hover:text-white transition-colors">Tutorials</a>
           </div>
-          <button onClick={onLogin} className="cta-button cta-primary px-6 py-3 rounded-xl">
-            {companyDetails?.showcaseConfig?.showLoginLink ? 'Sign In' : 'Get Started'}
-          </button>
+          <div className="flex items-center gap-3">
+            <a
+              href="/?view=speechbuddy"
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow-lg hover:scale-105 transition-all"
+            >
+              <span>🗣️</span>
+              <span>SpeechBuddy AI</span>
+            </a>
+            <button onClick={onLogin} className="cta-button cta-primary px-6 py-3 rounded-xl">
+              {companyDetails?.showcaseConfig?.showLoginLink ? 'Sign In' : 'Get Started'}
+            </button>
+          </div>
         </nav>
 
         {/* 3D Asset Marquee */}
