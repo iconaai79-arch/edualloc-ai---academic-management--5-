@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, Volume2, Gamepad2, Award, Heart, Shield, Layers, HelpCircle,
   BookOpen, Star, UserCheck, Activity, ChevronRight, User, Plus, Trash2, CheckCircle2, 
-  Globe, Unlock, UserPlus, LogIn, LogOut, Cloud, CloudUpload, Key, Mail, Stethoscope, GraduationCap, RefreshCw
+  Globe, Unlock, UserPlus, LogIn, LogOut, Cloud, CloudUpload, Key, Mail, Stethoscope, GraduationCap, RefreshCw, Download
 } from 'lucide-react';
 import SpeechPhonemeTrainer from './SpeechPhonemeTrainer';
 import VoiceControlledSpeechGame from './VoiceControlledSpeechGame';
