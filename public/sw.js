@@ -1,20 +1,9 @@
-// SpeechBuddy AI Service Worker — Cache First Offline Strategy
+// EduAI OS Service Worker — Network First with Stale Chunk Protection
 
-const CACHE_NAME = 'speechbuddy-cache-v2';
-const ASSETS_TO_CACHE = [
-  '/',
-  '/?view=speechbuddy',
-  '/manifest.json',
-  '/favicon.ico',
-];
+const CACHE_NAME = 'eduai-cache-v3';
 
 // Install Event
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
   self.skipWaiting();
 });
 
@@ -32,27 +21,30 @@ self.addEventListener('activate', (event) => {
 
 // Fetch Event
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
   if (event.request.method !== 'GET') return;
+  
+  const url = event.request.url;
+  // Ignore non-http(s) schemes (e.g. chrome-extension://, moz-extension://)
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return;
+
+  // Let browser natively handle JS/CSS bundle chunks & API calls to prevent MIME type & stale chunk errors
+  if (url.includes('/api/') || url.includes('.js') || url.includes('.css')) return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
-        }
+    fetch(event.request).then((networkResponse) => {
+      if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
         const responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
+          try {
+            cache.put(event.request, responseToCache);
+          } catch (e) {
+            // Ignore unsupported request schemes
+          }
         });
-        return networkResponse;
-      }).catch(() => {
-        // Fallback for offline mode when asset isn't in cache
-        return caches.match('/?view=speechbuddy');
-      });
+      }
+      return networkResponse;
+    }).catch(() => {
+      return caches.match(event.request).then((cached) => cached || Promise.reject('offline'));
     })
   );
 });
