@@ -43,6 +43,8 @@ import { CbeStrandRubricManager } from './Academics/CbeStrandRubricManager';
 import { CbeCoreCompetenciesManager } from './Academics/CbeCoreCompetenciesManager';
 import { CbePortfolioVaultManager } from './Academics/CbePortfolioVaultManager';
 import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
+import { RevisionMarketplaceManager } from './Academics/RevisionMarketplaceManager';
+import { StudentSubscriptionPlanManager } from './common/StudentSubscriptionPlanManager';
 
 interface AcademicsOfficerViewProps {
     currentUser?: User;
@@ -177,7 +179,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         allocations = []
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline' | 'revision_marketplace' | 'student_subscriptions'>('home');
     const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands' | 'cbe_competencies' | 'cbe_portfolio'>('summative');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
@@ -280,6 +282,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
+        { id: 'revision_marketplace', label: 'AI Revision Marketplace', icon: SparklesIcon },
+        { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CommandLineIcon },
         { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
         { id: 'lessons', label: 'Lessons & Allocations', icon: RectangleStackIcon },
@@ -291,6 +295,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const horizontalTabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
+        { id: 'revision_marketplace', label: 'AI Revision Marketplace', icon: SparklesIcon },
+        { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CommandLineIcon },
         { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
         { id: 'students', label: 'Students Registry', icon: UserPlusIcon },
@@ -721,6 +727,28 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         users={users}
                         subjects={subjects}
                         courses={courses}
+                    />
+                </div>
+            )}
+
+            {activeTab === 'revision_marketplace' && (
+                <div className="animate-fade-in space-y-6 w-full">
+                    <RevisionMarketplaceManager
+                        currentInstitution={currentInstitution}
+                        currentUser={currentUser}
+                        subjects={subjects}
+                    />
+                </div>
+            )}
+
+            {activeTab === 'student_subscriptions' && (
+                <div className="animate-fade-in space-y-6 w-full">
+                    <StudentSubscriptionPlanManager
+                        currentInstitution={currentInstitution}
+                        currentUser={currentUser}
+                        users={users}
+                        courses={courses}
+                        moduleContext="academics"
                     />
                 </div>
             )}

@@ -1151,3 +1151,101 @@ export const generateHomeCoachingAdvice = async (childName: string, subjectName:
     }
 };
 
+export interface AIRevisionPackResult {
+    title: string;
+    description: string;
+    subject: string;
+    gradeLevel: string;
+    topic: string;
+    questions: Array<{
+        id: number;
+        question: string;
+        type: 'multiple_choice' | 'structured' | 'essay';
+        options?: string[];
+        answer: string;
+        explanation: string;
+        marks: number;
+    }>;
+    totalMarks: number;
+    estimatedTimeMinutes: number;
+}
+
+export const generateRevisionPack = async (
+    subject: string,
+    gradeLevel: string,
+    topic: string,
+    numQuestions: number = 5,
+    difficulty: 'easy' | 'medium' | 'hard' = 'medium'
+): Promise<AIRevisionPackResult> => {
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as an expert curriculum designer and exam examiner for Kenyan CBC and 8-4-4 syllabi.
+            Generate a complete, high-quality assessment revision pack with detailed questions, student answer options (if multiple choice), model answers, and step-by-step marking scheme explanations.
+
+            SPECIFICATIONS:
+            - Subject: ${subject}
+            - Grade/Form Level: ${gradeLevel}
+            - Topic: ${topic}
+            - Number of Questions: ${numQuestions}
+            - Difficulty Level: ${difficulty}
+
+            Return strict JSON matching this structure:
+            {
+                "title": "Comprehensive ${subject} ${gradeLevel} Revision Pack — ${topic}",
+                "description": "Thorough assessment pack covering key concepts, problem-solving techniques, and exam marking schemes for ${topic}.",
+                "subject": "${subject}",
+                "gradeLevel": "${gradeLevel}",
+                "topic": "${topic}",
+                "totalMarks": 50,
+                "estimatedTimeMinutes": 45,
+                "questions": [
+                    {
+                        "id": 1,
+                        "question": "Question text here...",
+                        "type": "multiple_choice",
+                        "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+                        "answer": "B) Option 2",
+                        "explanation": "Step-by-step explanation and marking criteria...",
+                        "marks": 5
+                    }
+                ]
+            }
+        `;
+        const response = await safeGenerateContent(prompt, { temperature: 0.5 }, 'pro');
+        const cleanedText = (response.text || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanedText);
+        return parsed;
+    } catch (err) {
+        console.error("Failed to generate AI revision pack:", err);
+        return {
+            title: `${subject} ${gradeLevel} ${topic} Revision Pack`,
+            description: `Core revision questions and marking scheme for ${subject} ${topic}.`,
+            subject,
+            gradeLevel,
+            topic,
+            totalMarks: 30,
+            estimatedTimeMinutes: 40,
+            questions: [
+                {
+                    id: 1,
+                    question: `Explain the fundamental principles of ${topic} in ${subject}.`,
+                    type: 'structured',
+                    answer: `Key concepts include clear definition of terms, analytical framework, and standard principles of ${topic}.`,
+                    explanation: 'Award 2 marks for core definition, 3 marks for detailed explanation and examples.',
+                    marks: 5
+                },
+                {
+                    id: 2,
+                    question: `Which of the following best describes the core mechanism in ${topic}?`,
+                    type: 'multiple_choice',
+                    options: ['A) Primary Process', 'B) Secondary Synthesis', 'C) Standard Regulation', 'D) Operational Cycle'],
+                    answer: 'A) Primary Process',
+                    explanation: 'Primary process is the fundamental mechanism governed by syllabus standards.',
+                    marks: 5
+                }
+            ]
+        };
+    }
+};
+

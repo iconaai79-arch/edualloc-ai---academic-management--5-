@@ -38,6 +38,7 @@ import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import * as pdfService from '../../services/pdfService';
+import { StudentSubscriptionPlanManager } from '../common/StudentSubscriptionPlanManager';
 import { BriefcaseIcon } from '../icons/BriefcaseIcon';
 import { HomeIcon } from '../icons/HomeIcon';
 import { TrendingUpIcon } from '../icons/TrendingUpIcon';
@@ -123,7 +124,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     
     // Dynamic Tabs based on Institution Type
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
-    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics'>(isProcurementOfficer ? 'requisitions' : 'home');
+    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics' | 'student_subscriptions'>(isProcurementOfficer ? 'requisitions' : 'home');
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
@@ -5672,6 +5673,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
                         { id: 'receipts', label: 'Receipts & Income', icon: BanknotesIcon },
                         { id: 'student_invoices', label: 'Student Invoices', icon: ClipboardListIcon },
+                        { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CreditCardIcon },
                         { id: 'gok_capitation', label: 'GoK Capitation', icon: ScaleIcon },
                         { id: 'bursaries', label: 'Bursaries & Grants', icon: CreditCardIcon },
                         { id: 'expenses', label: 'Expenses & Payments', icon: CreditCardIcon },
@@ -15453,6 +15455,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             users={props.users || props.students || []}
                         />
                     </React.Suspense>
+                </div>
+            {activeTab === 'student_subscriptions' && (
+                <div className="animate-in fade-in duration-300">
+                    <StudentSubscriptionPlanManager
+                        currentInstitution={props.institution}
+                        currentUser={props.currentUser}
+                        users={props.users || props.students || []}
+                        courses={props.courses || []}
+                        moduleContext="finance"
+                    />
                 </div>
             )}
             </div>
