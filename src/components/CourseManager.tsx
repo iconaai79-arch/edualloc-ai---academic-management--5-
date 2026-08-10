@@ -26,6 +26,7 @@ import { EyeIcon } from './icons/EyeIcon';
 import { isSchoolInstitution, isPrimaryInstitution, isSecondaryInstitution } from '../utils/roleUtils';
 
 import { analyzeCourseSpreadsheet } from '../services/geminiService';
+import { apiService } from '../services/apiService';
 import { ManageLessonsModal } from './ManageLessonsModal';
 import { CourseProgressReport } from './CourseProgressReport';
 import { PdfPreviewModal } from './PdfPreviewModal';
