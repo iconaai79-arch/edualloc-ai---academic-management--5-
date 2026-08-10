@@ -282,7 +282,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
-        { id: 'revision_marketplace', label: 'AI Revision Marketplace', icon: SparklesIcon },
+        { id: 'revision_marketplace', label: 'AI Revision Generator', icon: SparklesIcon },
         { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CommandLineIcon },
         { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
@@ -295,7 +295,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const horizontalTabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
-        { id: 'revision_marketplace', label: 'AI Revision Marketplace', icon: SparklesIcon },
+        { id: 'revision_marketplace', label: 'AI Revision Generator', icon: SparklesIcon },
         { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CommandLineIcon },
         { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
