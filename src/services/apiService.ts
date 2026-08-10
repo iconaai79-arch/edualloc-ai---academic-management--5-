@@ -951,14 +951,14 @@ export const apiService = {
             }
 
             // Always merge localDb records as fallback so trial activation never fails
-            const localRecords = ls.getAll<any>('institution_module_states') || [];
+            const localRecords = (ls.get('institution_module_states') || []) as any[];
             const localFiltered = localRecords.filter((m: any) => 
                 !institutionId || institutionId === 'ALL' || m.institutionId === institutionId || m.institution_id === institutionId
-            ).map(toCamelCase);
+            ).map((item: any) => toCamelCase(item));
 
             const map = new Map<string, any>();
-            remoteRecords.forEach(r => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
-            localFiltered.forEach(r => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
+            remoteRecords.forEach((r: any) => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
+            localFiltered.forEach((r: any) => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
             return Array.from(map.values());
         }
 

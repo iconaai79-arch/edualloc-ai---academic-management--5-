@@ -353,6 +353,20 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [newStreamName, setNewStreamName] = useState('');
     const [newStreamRoomId, setNewStreamRoomId] = useState('');
 
+    const handleAddCourseInternal = onAddCourse || (async (courseData: any) => {
+        try {
+            const instId = currentInstitution?.id || currentUser?.institutionId || 'default';
+            await apiService.saveModuleRecord('courses', {
+                ...courseData,
+                institutionId: instId,
+                id: `course_${Date.now()}`
+            });
+            setIsAdding(false);
+        } catch (err) {
+            console.error("Failed to save grade/course:", err);
+        }
+    });
+
     const [editingStructureFor, setEditingStructureFor] = useState<{ course: Course, level: CourseLevel, subject: Subject, currentStructure: LessonStructure[] } | null>(null);
 
     const [newLessonCourseId, setNewLessonCourseId] = useState('');
@@ -1154,13 +1168,8 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                             </button>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    if (onAddCourse) setIsAdding(!isAdding);
-                                    else alert("Permission denied or feature unavailable.");
-                                }}
+                                onClick={() => setIsAdding(!isAdding)}
                                 className="btn-primary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-indigo-100"
-                                disabled={!onAddCourse}
-                                title={!onAddCourse ? "Feature unavailable" : ""}
                             >
                                 {isAdding ? <XIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />} {isAdding ? 'Cancel' : `New ${courseLabel}`}
                             </button>
@@ -1179,11 +1188,11 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                 </div>
             </div>
 
-            {isAdding && onAddCourse && managerTab === 'courses' && (
+            {isAdding && managerTab === 'courses' && (
                 <AddCourseForm
                     departments={visibleDepartments}
                     academicLevels={academicLevels}
-                    onAddCourse={onAddCourse}
+                    onAddCourse={handleAddCourseInternal}
                     onCancel={() => setIsAdding(false)}
                     currentUser={currentUser}
                     isPrimary={isPrimary}
