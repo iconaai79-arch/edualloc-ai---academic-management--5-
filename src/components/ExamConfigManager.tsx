@@ -596,12 +596,15 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                 const nameKey = (s.name || '').toLowerCase().trim();
                 if (nameKey && !seenNames.has(nameKey)) {
                     seenNames.add(nameKey);
+                    const existingPapers = (s as any).papers && Array.isArray((s as any).papers) && (s as any).papers.length > 0
+                        ? (s as any).papers
+                        : [{ id: `auto_paper_${s.id}_${activeClassId}`, name: 'Paper 1', maxScore: 100 }];
                     autoSubjects.push({
                         id: `auto_${s.id}_${activeClassId}`,
                         subjectId: s.id,
                         subjectCode: s.code || s.name.substring(0, 4).toUpperCase(),
                         subjectName: s.name.toUpperCase(),
-                        papers: [{ id: `auto_paper_${s.id}_${activeClassId}`, name: 'Main paper', maxScore: 100 }]
+                        papers: existingPapers
                     });
                 }
             });

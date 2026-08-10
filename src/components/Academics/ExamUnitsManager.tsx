@@ -506,14 +506,47 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 });
 
                 if (matchedSubjects.length > 0) {
-                    const paperList: TestedPaperConfig[] = matchedSubjects.map((sub, idx) => ({
-                        id: `alloc_tp_${sub?.id || idx}`,
-                        subject: sub?.name || 'Subject',
-                        paperName: 'Paper 1',
-                        maxInputScore: 100,
-                        convertToHundred: true,
-                        enabled: true
-                    }));
+                    const paperList: TestedPaperConfig[] = [];
+                    matchedSubjects.forEach((sub, idx) => {
+                        const subConfig = (savedConfigs || []).flatMap((c: any) => c.subjects || []).find((s: any) => 
+                            (s.subjectId && s.subjectId === sub.id) || 
+                            (s.subjectName && s.subjectName.toLowerCase().trim() === sub.name.toLowerCase().trim()) || 
+                            (s.subjectCode && s.subjectCode.toLowerCase().trim() === sub.code.toLowerCase().trim())
+                        );
+
+                        if (subConfig && Array.isArray(subConfig.papers) && subConfig.papers.length > 0) {
+                            subConfig.papers.forEach((p: any, pIdx: number) => {
+                                paperList.push({
+                                    id: `alloc_tp_${sub.id}_${p.id || pIdx}`,
+                                    subject: sub.name,
+                                    paperName: p.name || (subConfig.papers.length > 1 ? `Paper ${pIdx + 1}` : 'Paper 1'),
+                                    maxInputScore: p.maxScore || 100,
+                                    convertToHundred: true,
+                                    enabled: true
+                                });
+                            });
+                        } else if ((sub as any).papers && Array.isArray((sub as any).papers) && (sub as any).papers.length > 0) {
+                            (sub as any).papers.forEach((p: any, pIdx: number) => {
+                                paperList.push({
+                                    id: `alloc_tp_${sub.id}_${p.id || pIdx}`,
+                                    subject: sub.name,
+                                    paperName: p.name || `Paper ${pIdx + 1}`,
+                                    maxInputScore: p.maxScore || 100,
+                                    convertToHundred: true,
+                                    enabled: true
+                                });
+                            });
+                        } else {
+                            paperList.push({
+                                id: `alloc_tp_${sub.id}_0`,
+                                subject: sub.name,
+                                paperName: 'Paper 1',
+                                maxInputScore: 100,
+                                convertToHundred: true,
+                                enabled: true
+                            });
+                        }
+                    });
                     setTestedPaperConfigs(deduplicatePapers(paperList));
                     return;
                 }
