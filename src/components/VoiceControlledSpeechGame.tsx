@@ -4,6 +4,7 @@ import {
   Settings, Award, Heart, Play, Pause, Compass, Feather, Zap, Smile, ChevronRight,
   Flower2, Wind
 } from 'lucide-react';
+import { unlockAndroidAudio } from '../utils/androidAudioHelper';
 
 export const VoiceControlledSpeechGame: React.FC = () => {
   const [gameMode, setGameMode] = useState<'rocket' | 'balloon' | 'flower'>('rocket');
@@ -386,10 +387,14 @@ export const VoiceControlledSpeechGame: React.FC = () => {
       setMicVolume(0);
     } else {
       try {
+        unlockAndroidAudio();
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         micStreamRef.current = stream;
 
         const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
         audioContextRef.current = audioCtx;
         const analyser = audioCtx.createAnalyser();
         const source = audioCtx.createMediaStreamSource(stream);

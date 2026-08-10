@@ -4,6 +4,7 @@ import {
   Mic, MicOff, Volume2, Save, Image, Palette, Layers, ChevronDown,
   Baby, BookOpen, PenTool, Pencil, Square, Circle, Triangle, Smile
 } from 'lucide-react';
+import { unlockAndroidAudio, speakSpeechBuddyText } from '../utils/androidAudioHelper';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -318,14 +319,11 @@ export const SpeechArtStudio: React.FC<SpeechArtStudioProps> = ({
   // ── Phoneme TTS Prompt ────────────────────────────────────────────────────────
 
   const readPromptAloud = (prompt: PhonemePrompt) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(
-      `Today we paint the ${prompt.phoneme} sound! ${prompt.instruction} Ready? Go!`
-    );
-    utt.rate = 0.85;
-    utt.pitch = 1.3;
-    window.speechSynthesis.speak(utt);
+    unlockAndroidAudio();
+    speakSpeechBuddyText(`Today we paint the ${prompt.phoneme} sound! ${prompt.instruction} Ready? Go!`, {
+      rate: 0.85,
+      pitch: 1.3,
+    });
   };
 
   const pickNewPrompt = () => {

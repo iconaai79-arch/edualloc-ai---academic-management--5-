@@ -4,6 +4,7 @@ import {
   HelpCircle, VolumeX, FastForward, CheckCircle2, Heart, Smile, Info, ChevronRight,
   Zap, Flame, Settings, Layers, Music, ArrowRight
 } from 'lucide-react';
+import { unlockAndroidAudio, speakSpeechBuddyText } from '../utils/androidAudioHelper';
 
 // Phoneme Definition Interface
 interface PhonemeData {
@@ -264,26 +265,31 @@ export const SpeechPhonemeTrainer: React.FC<SpeechPhonemeTrainerProps> = ({ chil
     animationFrameRef.current = requestAnimationFrame(animate);
   };
 
-  // Text-To-Speech Synthesis (English / Kiswahili support)
+  // Unlock Android Audio on user interaction
+  useEffect(() => {
+    const handleTouch = () => unlockAndroidAudio();
+    window.addEventListener('touchstart', handleTouch, { once: true });
+    window.addEventListener('click', handleTouch, { once: true });
+    return () => {
+      window.removeEventListener('touchstart', handleTouch);
+      window.removeEventListener('click', handleTouch);
+    };
+  }, []);
+
+  // Text-To-Speech Synthesis (Android & iOS robust support)
   const playSound = (textToSpeak?: string) => {
+    unlockAndroidAudio();
     const defaultText = language === 'sw'
       ? `Sauti ya ${selectedPhoneme.symbol.replace(/\//g, '')}, ${selectedWord}`
       : selectedPhoneme.symbol.replace(/\//g, '') + ', ' + selectedWord;
     const text = textToSpeak || defaultText;
 
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = language === 'sw' ? 'sw-KE' : 'en-US';
-      utterance.rate = isSlowMo ? 0.6 : 0.9;
-      utterance.pitch = 1.2; // Friendly higher pitch for kids
-      
-      utterance.onstart = () => {
-        triggerMouthAnimation();
-      };
-      
-      window.speechSynthesis.speak(utterance);
-    }
+    speakSpeechBuddyText(text, {
+      lang: language,
+      rate: isSlowMo ? 0.6 : 0.9,
+      pitch: 1.2,
+      onStart: () => triggerMouthAnimation(),
+    });
   };
 
   // Sparkle / Confetti Effect on Canvas

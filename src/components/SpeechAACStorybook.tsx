@@ -3,6 +3,7 @@ import {
   BookOpen, Volume2, Play, RefreshCw, Star, Sparkles, Plus, Trash2, 
   Mic, MicOff, CheckCircle2, ChevronRight, Heart, Smile
 } from 'lucide-react';
+import { unlockAndroidAudio, speakSpeechBuddyText } from '../utils/androidAudioHelper';
 
 // AAC Symbol Interface
 interface AACCard {
@@ -153,65 +154,55 @@ export const SpeechAACStorybook: React.FC<SpeechAACStorybookProps> = ({ childNam
   // Play Sentence with Speech Synthesis and Mouth Animation Sync
   const handlePlaySentence = () => {
     if (sentenceStrip.length === 0) return;
-    if (!('speechSynthesis' in window)) {
-      setToast('⚠️ Speech Synthesis not supported in this browser.');
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-
-    window.speechSynthesis.cancel();
+    unlockAndroidAudio();
     setIsPlaying(true);
     const fullSentence = sentenceStrip.map(c => c.word).join(' ');
 
-    const utt = new SpeechSynthesisUtterance(fullSentence);
-    utt.rate = 0.75; // Slower pace for speech development
-    utt.pitch = 1.2;
-
-    // Word boundary event for synchronized highlighting & mouth morphing
-    utt.onboundary = (event) => {
-      if (event.name === 'word') {
-        const charIdx = event.charIndex;
-        let runningLength = 0;
-        for (let i = 0; i < sentenceStrip.length; i++) {
-          const w = sentenceStrip[i].word;
-          if (charIdx >= runningLength && charIdx < runningLength + w.length + 1) {
-            setActiveCardIndex(i);
-            setCurrentWordSpoken(w);
-            
-            // Dynamic mouth morphing based on phoneme focus
-            const phon = sentenceStrip[i].phoneme;
-            if (phon.includes('b') || phon.includes('m')) {
-              setMouthWidth(30);
-              setMouthHeight(5);
-            } else if (phon.includes('s')) {
-              setMouthWidth(55);
-              setMouthHeight(8);
-            } else if (phon.includes('f')) {
-              setMouthWidth(40);
-              setMouthHeight(18);
-            } else {
-              setMouthWidth(50);
-              setMouthHeight(25);
+    speakSpeechBuddyText(fullSentence, {
+      rate: 0.75,
+      pitch: 1.2,
+      onBoundary: (event) => {
+        if (event.name === 'word') {
+          const charIdx = event.charIndex;
+          let runningLength = 0;
+          for (let i = 0; i < sentenceStrip.length; i++) {
+            const w = sentenceStrip[i].word;
+            if (charIdx >= runningLength && charIdx < runningLength + w.length + 1) {
+              setActiveCardIndex(i);
+              setCurrentWordSpoken(w);
+              
+              // Dynamic mouth morphing based on phoneme focus
+              const phon = sentenceStrip[i].phoneme;
+              if (phon.includes('b') || phon.includes('m')) {
+                setMouthWidth(30);
+                setMouthHeight(5);
+              } else if (phon.includes('s')) {
+                setMouthWidth(55);
+                setMouthHeight(8);
+              } else if (phon.includes('f')) {
+                setMouthWidth(40);
+                setMouthHeight(18);
+              } else {
+                setMouthWidth(50);
+                setMouthHeight(25);
+              }
+              break;
             }
-            break;
+            runningLength += w.length + 1;
           }
-          runningLength += w.length + 1;
         }
+      },
+      onEnd: () => {
+        setIsPlaying(false);
+        setActiveCardIndex(null);
+        setMouthWidth(45);
+        setMouthHeight(10);
+        setCurrentWordSpoken('');
+        setStars(prev => prev + 1);
+        setToast('🌟 Story spoken! +1 Star');
+        setTimeout(() => setToast(null), 3000);
       }
-    };
-
-    utt.onend = () => {
-      setIsPlaying(false);
-      setActiveCardIndex(null);
-      setMouthWidth(45);
-      setMouthHeight(10);
-      setCurrentWordSpoken('');
-      setStars(prev => prev + 1);
-      setToast('🌟 Story spoken! +1 Star');
-      setTimeout(() => setToast(null), 3000);
-    };
-
-    window.speechSynthesis.speak(utt);
+    });
   };
 
   // Toggle Microphone for "Repeat After Me" Practice

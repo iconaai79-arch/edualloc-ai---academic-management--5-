@@ -3,6 +3,7 @@ import {
   Sparkles, RefreshCw, Star, Trophy, Award, Volume2, CheckCircle2, 
   HelpCircle, Zap, Smile, Heart, Play
 } from 'lucide-react';
+import { unlockAndroidAudio, speakSpeechBuddyText } from '../utils/androidAudioHelper';
 
 interface CardItem {
   id: string;
@@ -89,15 +90,14 @@ export const PhonemeMemoryGame: React.FC<PhonemeMemoryGameProps> = ({
     initDeck();
   }, []);
 
-  // Text-To-Speech Card Flip Sound
+  // Text-To-Speech Card Flip Sound (Android robust support)
   const speakText = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.lang = language === 'sw' ? 'sw-KE' : 'en-US';
-    utt.rate = 0.85;
-    utt.pitch = 1.2;
-    window.speechSynthesis.speak(utt);
+    unlockAndroidAudio();
+    speakSpeechBuddyText(text, {
+      lang: language,
+      rate: 0.85,
+      pitch: 1.2,
+    });
   };
 
   // Card Click Handler
