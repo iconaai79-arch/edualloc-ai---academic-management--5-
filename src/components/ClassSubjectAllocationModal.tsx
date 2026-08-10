@@ -608,7 +608,9 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             setToastMessage(`Subject "${formData.name.trim()}" updated successfully.`);
         } else {
             // Add new subject & allocate to selectedClass
+            const newId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
             const newSubjData: any = {
+                id: newId,
                 name: formData.name.trim(),
                 code: formData.code.trim().toUpperCase(),
                 departmentId: formData.departmentId || departments[0]?.id || 'dept_1',
@@ -618,21 +620,31 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 assignedClasses: [selectedClass]
             };
 
-            const newId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+            const matchingLevel = (courses || []).flatMap((c: any) => c.levels || []).find((l: any) => l.name === selectedClass || (l.name || '').toLowerCase().trim() === selectedClass.toLowerCase().trim());
 
             if (onAddSubject) {
-                onAddSubject(newSubjData);
-            }
-            if (currentInstitution?.id) {
-                await apiService.saveSubject({ ...newSubjData, id: newId, institutionId: currentInstitution.id } as Subject).catch(() => {});
+                await onAddSubject(newSubjData, matchingLevel ? [matchingLevel.id] : undefined);
+            } else if (currentInstitution?.id) {
+                await apiService.saveSubject({ ...newSubjData, institutionId: currentInstitution.id } as Subject).catch(() => {});
+                if (matchingLevel) {
+                    await apiService.onAssociateSubjectToCourseLevel(newId, matchingLevel.id).catch(() => {});
+                }
             }
 
-            const fullCreated: Subject = { ...newSubjData, id: newId, institutionId: currentInstitution?.id || 'default' } as Subject;
+            const fullCreated: Subject = { ...newSubjData, institutionId: currentInstitution?.id || 'default' } as Subject;
             setLocalSubjects(prev => [...prev, fullCreated]);
             setAssignments(prev => ({
                 ...prev,
                 [newId]: new Set([selectedClass])
             }));
+
+            // Sync with classAllocationsStore
+            const updatedStore = {
+                ...classAllocationsStore,
+                [selectedClass]: Array.from(new Set([...(classAllocationsStore[selectedClass] || []), newId])),
+                [selectedClass.toLowerCase().trim()]: Array.from(new Set([...(classAllocationsStore[selectedClass.toLowerCase().trim()] || []), newId]))
+            };
+            saveClassAllocationsStore(updatedStore);
 
             setToastMessage(`New subject "${formData.name.trim()}" created and allocated to ${selectedClass}.`);
         }
@@ -654,6 +666,15 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             delete next[subjectId];
             return next;
         });
+
+        // Clean up from classAllocationsStore
+        const updatedStore: Record<string, string[]> = {};
+        Object.keys(classAllocationsStore).forEach(cKey => {
+            if (Array.isArray(classAllocationsStore[cKey])) {
+                updatedStore[cKey] = classAllocationsStore[cKey].filter(sid => sid !== subjectId);
+            }
+        });
+        saveClassAllocationsStore(updatedStore);
 
         if (onDeleteSubject) {
             await onDeleteSubject(subjectId);

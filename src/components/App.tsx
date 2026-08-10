@@ -2281,7 +2281,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
     }, [courses, loadData]);
 
     const handleAddSubject = useCallback(async (data: any, levelIds?: string[]) => {
-        const id = `sub_${Date.now()}`;
+        const id = data.id || `sub_${Date.now()}`;
         const subject = { ...data, id, institutionId: currentUser?.institutionId };
         await apiService.saveSubject(subject);
         if (levelIds && levelIds.length > 0) {
@@ -2292,9 +2292,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
     const handleDeleteSubject = useCallback(async (id: string) => {
         try {
-            const subjObj = (subjects || []).find(s => s.id === id);
-            // 1. Clean up dependent subject allocations from DB to prevent foreign key issues
             const instId = currentUser?.institutionId || activeInstitution?.id;
+            const subjObj = (subjects || []).find(s => s.id === id);
+            
+            // 1. Clean up dependent subject allocations from DB to prevent foreign key issues
             const allAllocations = await apiService.fetchModuleRecords<any>('subject_allocations', instId).catch(() => []);
             const matchingAllocations = allAllocations.filter((a: any) => a.subjectId === id || (subjObj && a.subjectName && a.subjectName.toLowerCase().trim() === subjObj.name.toLowerCase().trim()));
             for (const alloc of matchingAllocations) {
@@ -2303,7 +2304,47 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 }
             }
 
-            // 2. Delete subject from DB
+            // 2. Clean up subjectId from courses levels
+            const allCourses = await apiService.fetchCourses(instId).catch(() => []);
+            for (const course of allCourses) {
+                if (Array.isArray(course.levels) && course.levels.some((l: any) => (l.subjectIds || []).includes(id) || ((l as any).subject_ids || []).includes(id))) {
+                    const updatedLevels = course.levels.map((l: any) => {
+                        const currentIds = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
+                        const filteredIds = Array.from(new Set(currentIds)).filter(sid => sid !== id);
+                        const metadata = (l.subjectMetadata || (l as any).subject_metadata || []).filter((m: any) => (m.subjectId || m.subject_id) !== id);
+                        return { ...l, subjectIds: filteredIds, subject_ids: filteredIds, subjectMetadata: metadata, subject_metadata: metadata };
+                    });
+                    await apiService.saveModuleRecord('courses', { ...course, levels: updatedLevels }).catch(() => {});
+                }
+            }
+
+            // 3. Clean up subjectId from classAllocationsStore in localStorage and DB
+            if (instId) {
+                const classAllocKey = `eduai_class_subject_allocations_${instId}`;
+                try {
+                    const saved = localStorage.getItem(classAllocKey);
+                    if (saved) {
+                        const store: Record<string, string[]> = JSON.parse(saved) || {};
+                        let storeChanged = false;
+                        Object.keys(store).forEach(k => {
+                            if (Array.isArray(store[k]) && store[k].includes(id)) {
+                                store[k] = store[k].filter(sid => sid !== id);
+                                storeChanged = true;
+                            }
+                        });
+                        if (storeChanged) {
+                            localStorage.setItem(classAllocKey, JSON.stringify(store));
+                            await apiService.saveModuleRecord('class_subject_allocations', {
+                                id: `alloc_${instId}`,
+                                institutionId: instId,
+                                allocations: store
+                            }).catch(() => {});
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            // 4. Delete subject from DB
             await apiService.deleteModuleRecord('subjects', id);
         } catch (err) {
             console.error("Failed to delete subject from DB:", err);
