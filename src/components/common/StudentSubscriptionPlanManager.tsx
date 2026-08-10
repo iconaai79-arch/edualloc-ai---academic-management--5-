@@ -18,6 +18,8 @@ export interface StudentSubscriptionPlan {
     description: string;
     billingCycle: 'per_term' | 'per_year' | 'monthly';
     amount: number;
+    smsAllocatedPerStudent: number;
+    smsUsageType: 'academic_results_only' | 'finance_receipts_only' | 'all';
     features: string[];
     applicableClasses: string[];
     isActive: boolean;
@@ -64,7 +66,9 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
             description: 'Covers termly CBC/8-4-4 academic records, report cards, and student attendance tracking.',
             billingCycle: 'per_term',
             amount: 150,
-            features: ['Report Cards & Transcripts', 'Attendance Tracking', 'Basic Subject Mark Entry'],
+            smsAllocatedPerStudent: 10,
+            smsUsageType: 'academic_results_only',
+            features: ['Report Cards & Transcripts', 'Attendance Tracking', 'Basic Subject Mark Entry', '10 Academic Results SMS / Student'],
             applicableClasses: ['All Classes'],
             isActive: true,
             institutionId: instId
@@ -75,7 +79,9 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
             description: 'Includes automated conflict-free timetable, exam broadsheets, SpeechBuddy AI, and parent SMS alerts.',
             billingCycle: 'per_term',
             amount: 350,
-            features: ['All Basic Features', 'Exam Units & Broadsheets', 'SpeechBuddy AI Access', 'Automated Parent SMS'],
+            smsAllocatedPerStudent: 15,
+            smsUsageType: 'all',
+            features: ['All Basic Features', 'Exam Units & Broadsheets', 'SpeechBuddy AI Access', '15 Parent Results & Fee SMS / Student'],
             applicableClasses: ['All Classes'],
             isActive: true,
             institutionId: instId
@@ -86,7 +92,9 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
             description: 'Full-year unlimited access across Academics, Exams, SpeechBuddy AI, and M-Pesa automated fee receipts.',
             billingCycle: 'per_year',
             amount: 1000,
-            features: ['Full Year Unlimited Access', 'AI Revision Marketplace', 'Automated M-Pesa Receipts', 'Priority Support'],
+            smsAllocatedPerStudent: 30,
+            smsUsageType: 'all',
+            features: ['Full Year Unlimited Access', 'AI Revision Marketplace', 'Automated M-Pesa Receipts', '30 Results & Finance SMS / Student'],
             applicableClasses: ['All Classes'],
             isActive: true,
             institutionId: instId
@@ -144,6 +152,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
     const [newPlanDesc, setNewPlanDesc] = useState('');
     const [newPlanCycle, setNewPlanCycle] = useState<'per_term' | 'per_year' | 'monthly'>('per_term');
     const [newPlanAmount, setNewPlanAmount] = useState<number>(150);
+    const [newPlanSms, setNewPlanSms] = useState<number>(10);
+    const [newPlanSmsType, setNewPlanSmsType] = useState<'academic_results_only' | 'finance_receipts_only' | 'all'>('academic_results_only');
 
     // Assign Student State
     const [assignStudentId, setAssignStudentId] = useState('');
@@ -153,7 +163,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         return users.filter(u => u.role === 'student');
     }, [users]);
 
-    // Financial Metrics
+    // Financial & SMS Metrics
     const totalTermRevenue = useMemo(() => {
         return subscriptions.reduce((sum, s) => sum + (s.billingCycle === 'per_term' ? s.amount : 0), 0);
     }, [subscriptions]);
@@ -161,6 +171,14 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
     const totalYearRevenue = useMemo(() => {
         return subscriptions.reduce((sum, s) => sum + (s.billingCycle === 'per_year' ? s.amount : 0), 0);
     }, [subscriptions]);
+
+    const totalAllocatedSms = useMemo(() => {
+        return subscriptions.reduce((sum, sub) => {
+            const matchedPlan = plans.find(p => p.id === sub.planId);
+            const quota = matchedPlan?.smsAllocatedPerStudent ?? 10;
+            return sum + quota;
+        }, 0);
+    }, [subscriptions, plans]);
 
     // Save New Plan
     const handleSavePlan = async (e: React.FormEvent) => {
@@ -176,7 +194,13 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
             description: newPlanDesc.trim() || 'Standard student subscription plan.',
             billingCycle: newPlanCycle,
             amount: newPlanAmount,
-            features: ['Report Cards', 'Academic Records', 'Attendance'],
+            smsAllocatedPerStudent: newPlanSms,
+            smsUsageType: newPlanSmsType,
+            features: [
+                'Report Cards & Academic Records',
+                'Attendance Tracking',
+                `${newPlanSms} ${newPlanSmsType === 'academic_results_only' ? 'Academic Results' : newPlanSmsType === 'finance_receipts_only' ? 'Finance Receipts' : 'Results & Billing'} SMS / Student`
+            ],
             applicableClasses: ['All Classes'],
             isActive: true,
             institutionId: currentInstitution?.id
@@ -286,8 +310,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                 </div>
             </div>
 
-            {/* Quick Financial Summary */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Quick Financial & SMS Summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Active Student Subscriptions</span>
                     <span className="text-2xl font-black text-slate-900 dark:text-white mt-1 block">
@@ -307,6 +331,14 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                     <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1 block">
                         KES {totalYearRevenue.toLocaleString()} / Year
                     </span>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 block">Allocated School SMS Pool</span>
+                    <span className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 block">
+                        {totalAllocatedSms.toLocaleString()} SMS
+                    </span>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Academic Results & Receipts</span>
                 </div>
             </div>
 
@@ -495,6 +527,37 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                         className="form-input text-xs font-black text-emerald-600"
                                         required
                                     />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-700">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                        SMS Allocated / Student *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={newPlanSms}
+                                        onChange={e => setNewPlanSms(Number(e.target.value))}
+                                        placeholder="e.g. 10"
+                                        className="form-input text-xs font-black text-amber-600"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                        SMS Usage Scope
+                                    </label>
+                                    <select
+                                        value={newPlanSmsType}
+                                        onChange={e => setNewPlanSmsType(e.target.value as any)}
+                                        className="form-select text-xs font-bold"
+                                    >
+                                        <option value="academic_results_only">Academic Results Only</option>
+                                        <option value="finance_receipts_only">Finance Receipts Only</option>
+                                        <option value="all">All SMS Alerts</option>
+                                    </select>
                                 </div>
                             </div>
 
