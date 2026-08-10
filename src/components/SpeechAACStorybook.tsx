@@ -160,8 +160,8 @@ export const SpeechAACStorybook: React.FC<SpeechAACStorybookProps> = ({ childNam
 
   // Play Sentence with Speech Synthesis and Mouth Animation Sync
   const handlePlaySentence = (cardsToPlay?: AACCard[]) => {
-    const cards = cardsToPlay || sentenceStrip;
-    if (cards.length === 0) return;
+    const cards = Array.isArray(cardsToPlay) ? cardsToPlay : sentenceStrip;
+    if (!cards || cards.length === 0) return;
     unlockAndroidAudio();
     setIsPlaying(true);
     const fullSentence = cards.map(c => c.word).join(' ');
@@ -412,7 +412,7 @@ export const SpeechAACStorybook: React.FC<SpeechAACStorybookProps> = ({ childNam
                   Clear
                 </button>
                 <button
-                  onClick={handlePlaySentence}
+                  onClick={() => handlePlaySentence()}
                   disabled={isPlaying || sentenceStrip.length === 0}
                   className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-extrabold text-xs rounded-xl flex items-center gap-2 shadow-lg disabled:opacity-40 hover:scale-105 transition-all"
                 >
