@@ -126,17 +126,24 @@ export const SpeechAACStorybook: React.FC<SpeechAACStorybookProps> = ({ childNam
   const audioCtxRef = useRef<AudioContext | null>(null);
   const recognitionRef = useRef<any>(null);
 
-  // Load selected story cards into strip
+  // Load selected story cards into strip & auto-read immediately
   const handleSelectStory = (story: Story) => {
     setSelectedStory(story);
     setSentenceStrip(story.cards);
     setActiveCardIndex(null);
+    unlockAndroidAudio();
+    // Auto-read story immediately for easy kid interaction!
+    setTimeout(() => {
+      handlePlaySentence(story.cards);
+    }, 150);
   };
 
-  // Add card to sentence strip
+  // Add card to sentence strip & play instant word sound
   const handleAddCard = (card: AACCard) => {
     if (sentenceStrip.length < 8) {
       setSentenceStrip(prev => [...prev, card]);
+      unlockAndroidAudio();
+      speakSpeechBuddyText(card.word, { rate: 0.85, pitch: 1.2 });
     }
   };
 
@@ -152,11 +159,12 @@ export const SpeechAACStorybook: React.FC<SpeechAACStorybookProps> = ({ childNam
   };
 
   // Play Sentence with Speech Synthesis and Mouth Animation Sync
-  const handlePlaySentence = () => {
-    if (sentenceStrip.length === 0) return;
+  const handlePlaySentence = (cardsToPlay?: AACCard[]) => {
+    const cards = cardsToPlay || sentenceStrip;
+    if (cards.length === 0) return;
     unlockAndroidAudio();
     setIsPlaying(true);
-    const fullSentence = sentenceStrip.map(c => c.word).join(' ');
+    const fullSentence = cards.map(c => c.word).join(' ');
 
     speakSpeechBuddyText(fullSentence, {
       rate: 0.75,
@@ -165,14 +173,14 @@ export const SpeechAACStorybook: React.FC<SpeechAACStorybookProps> = ({ childNam
         if (event.name === 'word') {
           const charIdx = event.charIndex;
           let runningLength = 0;
-          for (let i = 0; i < sentenceStrip.length; i++) {
-            const w = sentenceStrip[i].word;
+          for (let i = 0; i < cards.length; i++) {
+            const w = cards[i].word;
             if (charIdx >= runningLength && charIdx < runningLength + w.length + 1) {
               setActiveCardIndex(i);
               setCurrentWordSpoken(w);
               
               // Dynamic mouth morphing based on phoneme focus
-              const phon = sentenceStrip[i].phoneme;
+              const phon = cards[i].phoneme;
               if (phon.includes('b') || phon.includes('m')) {
                 setMouthWidth(30);
                 setMouthHeight(5);
