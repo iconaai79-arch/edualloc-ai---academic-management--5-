@@ -3373,8 +3373,10 @@ export const apiService = {
         const subjectIds = Array.isArray(subjectId) ? subjectId : [subjectId];
 
         if (course) {
+            let targetLevelName = '';
             const updatedLevels = course.levels.map(l => {
                 if (l.id === levelId) {
+                    targetLevelName = l.name;
                     const existing = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
                     const ids = new Set(existing);
                     subjectIds.forEach(id => ids.add(id));
@@ -3384,6 +3386,44 @@ export const apiService = {
                 return l;
             });
             await apiService.saveModuleRecord('courses', { ...course, levels: updatedLevels });
+
+            // ── 3-Way Sync: Update class_subject_allocations & subject targetClasses ──
+            const instId = course.institutionId;
+            if (instId && targetLevelName) {
+                const classAllocKey = `eduai_class_subject_allocations_${instId}`;
+                let store: Record<string, string[]> = {};
+                try {
+                    const saved = localStorage.getItem(classAllocKey);
+                    if (saved) store = JSON.parse(saved) || {};
+                } catch(e) {}
+
+                const updatedLevelSubjectIds = updatedLevels.find(l => l.id === levelId)?.subjectIds || subjectIds;
+                store[targetLevelName] = Array.from(new Set([...(store[targetLevelName] || []), ...updatedLevelSubjectIds]));
+                store[targetLevelName.toLowerCase().trim()] = store[targetLevelName];
+
+                try {
+                    localStorage.setItem(classAllocKey, JSON.stringify(store));
+                } catch(e) {}
+
+                await apiService.saveModuleRecord('class_subject_allocations', {
+                    id: `alloc_${instId}`,
+                    institutionId: instId,
+                    allocations: store
+                }).catch(() => {});
+
+                // Update subjects targetClasses
+                const allSubjects = await apiService.fetchSubjects(instId).catch(() => []);
+                for (const sid of subjectIds) {
+                    const subj = allSubjects.find((s: any) => s.id === sid);
+                    if (subj) {
+                        const existingTarget = Array.isArray(subj.targetClasses) ? subj.targetClasses : (Array.isArray(subj.assignedClasses) ? subj.assignedClasses : []);
+                        if (!existingTarget.includes(targetLevelName)) {
+                            const newTarget = [...existingTarget, targetLevelName];
+                            await apiService.saveSubject({ ...subj, targetClasses: newTarget, assignedClasses: newTarget }).catch(() => {});
+                        }
+                    }
+                }
+            }
         }
     },
     async onDisassociateSubjectFromCourseLevel(subjectId: string, levelId: string) {
@@ -3391,8 +3431,10 @@ export const apiService = {
         const course = courses.find(c => c.levels && c.levels.some(l => l.id === levelId));
 
         if (course) {
+            let targetLevelName = '';
             const updatedLevels = course.levels.map(l => {
                 if (l.id === levelId) {
+                    targetLevelName = l.name;
                     const existing = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
                     const ids = Array.from(new Set(existing)).filter(id => id !== subjectId);
                     const metadata = (l.subjectMetadata || (l as any).subject_metadata || []).filter((m: any) => (m.subjectId || m.subject_id) !== subjectId);
@@ -3401,6 +3443,40 @@ export const apiService = {
                 return l;
             });
             await apiService.saveModuleRecord('courses', { ...course, levels: updatedLevels });
+
+            // ── 3-Way Sync: Update class_subject_allocations & subject targetClasses ──
+            const instId = course.institutionId;
+            if (instId && targetLevelName) {
+                const classAllocKey = `eduai_class_subject_allocations_${instId}`;
+                let store: Record<string, string[]> = {};
+                try {
+                    const saved = localStorage.getItem(classAllocKey);
+                    if (saved) store = JSON.parse(saved) || {};
+                } catch(e) {}
+
+                const remIds = (store[targetLevelName] || []).filter((id: string) => id !== subjectId);
+                store[targetLevelName] = remIds;
+                store[targetLevelName.toLowerCase().trim()] = remIds;
+
+                try {
+                    localStorage.setItem(classAllocKey, JSON.stringify(store));
+                } catch(e) {}
+
+                await apiService.saveModuleRecord('class_subject_allocations', {
+                    id: `alloc_${instId}`,
+                    institutionId: instId,
+                    allocations: store
+                }).catch(() => {});
+
+                // Update subject targetClasses
+                const allSubjects = await apiService.fetchSubjects(instId).catch(() => []);
+                const subj = allSubjects.find((s: any) => s.id === subjectId);
+                if (subj) {
+                    const existingTarget = Array.isArray(subj.targetClasses) ? subj.targetClasses : (Array.isArray(subj.assignedClasses) ? subj.assignedClasses : []);
+                    const newTarget = existingTarget.filter((cName: string) => cName !== targetLevelName && cName.toLowerCase().trim() !== targetLevelName.toLowerCase().trim());
+                    await apiService.saveSubject({ ...subj, targetClasses: newTarget, assignedClasses: newTarget }).catch(() => {});
+                }
+            }
         }
     },
     async onImportUsers(imported: any[], institutionId?: string, institutionName?: string): Promise<void> {

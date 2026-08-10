@@ -419,6 +419,16 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             [selectedClass.toLowerCase().trim()]: activeIdsForSelectedClass
         };
         saveClassAllocationsStore(updatedStore);
+
+        // Sync with Course Levels in Courses table
+        const matchingLevel = (courses || []).flatMap((c: any) => c.levels || []).find((l: any) => l.name === selectedClass || (l.name || '').toLowerCase().trim() === selectedClass.toLowerCase().trim());
+        if (matchingLevel) {
+            if (!isCurrentlyAssigned) {
+                await apiService.onAssociateSubjectToCourseLevel(subjectId, matchingLevel.id).catch(() => {});
+            } else {
+                await apiService.onDisassociateSubjectFromCourseLevel(subjectId, matchingLevel.id).catch(() => {});
+            }
+        }
     };
 
     const handleSelectAll = async () => {

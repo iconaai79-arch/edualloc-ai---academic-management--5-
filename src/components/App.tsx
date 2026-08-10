@@ -1216,6 +1216,41 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             setDepartments(d || []);
             setSubjects(s || []);
             setCourses(c || []);
+
+            const instIdForAlloc = currentUser?.institutionId || activeInstitution?.id;
+            if (instIdForAlloc && c && Array.isArray(c)) {
+                try {
+                    const classAllocKey = `eduai_class_subject_allocations_${instIdForAlloc}`;
+                    let currentStore: Record<string, string[]> = {};
+                    try {
+                        const saved = localStorage.getItem(classAllocKey);
+                        if (saved) currentStore = JSON.parse(saved) || {};
+                    } catch(e) {}
+
+                    let storeChanged = false;
+                    c.forEach((course: any) => {
+                        if (Array.isArray(course.levels)) {
+                            course.levels.forEach((l: any) => {
+                                const lName = l.name;
+                                const sIds = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
+                                if (lName && sIds.length > 0) {
+                                    const existingInStore = currentStore[lName] || [];
+                                    const merged = Array.from(new Set([...existingInStore, ...sIds]));
+                                    if (merged.length !== existingInStore.length) {
+                                        currentStore[lName] = merged;
+                                        currentStore[lName.toLowerCase().trim()] = merged;
+                                        storeChanged = true;
+                                    }
+                                }
+                            });
+                        }
+                    });
+
+                    if (storeChanged) {
+                        localStorage.setItem(classAllocKey, JSON.stringify(currentStore));
+                    }
+                } catch(e) {}
+            }
             setRequests(a || []);
             setAcademicYears(ay || []);
             setSemesters(sem || []);
