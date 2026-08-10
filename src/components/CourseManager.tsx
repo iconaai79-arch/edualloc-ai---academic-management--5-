@@ -2128,6 +2128,9 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             </div>
                                         </div>
                                     </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 )
             }

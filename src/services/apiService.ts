@@ -924,6 +924,8 @@ export const apiService = {
                         inst.othersExamSettings = parsed;
                         inst.others_exam_settings = parsed;
                     }
+                });
+            }
             if (module === 'courses' && Array.isArray(finalResult)) {
                 finalResult.forEach((course: any) => {
                     if (Array.isArray(course.levels)) {
