@@ -10,6 +10,7 @@ import { SpeechArtStudio } from './SpeechArtStudio';
 import { SpeechAACStorybook } from './SpeechAACStorybook';
 import { SpeechProgressAnalytics } from './SpeechProgressAnalytics';
 import { PhonemeMemoryGame } from './PhonemeMemoryGame';
+import { SpeechAlphabetNumbers } from './SpeechAlphabetNumbers';
 
 // Child Profile Interface
 interface ChildProfile {
@@ -35,7 +36,7 @@ interface SpeechBuddyUser {
 }
 
 export const SpeechBuddyPortal: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'trainer' | 'game' | 'art' | 'storybook' | 'memory' | 'progress' | 'profiles' | 'account'>('trainer');
+  const [activeTab, setActiveTab] = useState<'trainer' | 'game' | 'art' | 'storybook' | 'memory' | 'abc' | 'progress' | 'profiles' | 'account'>('trainer');
   const [language, setLanguage] = useState<'en' | 'sw'>('en');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isOffline, setIsOffline] = useState<boolean>(!navigator.onLine);
@@ -362,6 +363,19 @@ export const SpeechBuddyPortal: React.FC = () => {
             <span>Memory Match</span>
           </button>
 
+          {/* Numbers & ABCs Tab */}
+          <button
+            onClick={() => setActiveTab('abc')}
+            className={`flex-1 md:flex-none px-4 py-2.5 rounded-xl text-xs md:text-sm font-extrabold transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'abc'
+                ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg shadow-pink-500/20 scale-105'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span className="text-base leading-none">🔤</span>
+            <span>Numbers & ABCs</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('profiles')}
             className={`flex-1 md:flex-none px-4 py-2.5 rounded-xl text-xs md:text-sm font-extrabold transition-all flex items-center justify-center gap-2 ${
@@ -443,6 +457,20 @@ export const SpeechBuddyPortal: React.FC = () => {
         {activeTab === 'memory' && (
           <PhonemeMemoryGame
             childName={activeProfile?.name}
+            language={language}
+            onStarsEarned={(newStars) => {
+              if (activeProfile) {
+                setProfiles(prev => prev.map(p => 
+                  p.id === activeProfile.id ? { ...p, stars: p.stars + newStars } : p
+                ));
+              }
+            }}
+          />
+        )}
+        {activeTab === 'abc' && (
+          <SpeechAlphabetNumbers
+            childName={activeProfile?.name}
+            childPhoto={activeProfile?.photo}
             language={language}
             onStarsEarned={(newStars) => {
               if (activeProfile) {
