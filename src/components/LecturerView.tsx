@@ -37,6 +37,7 @@ import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { AscScannerPanel } from './AscScannerPanel';
 import { ClassSupervisorAttendanceManager } from './common/ClassSupervisorAttendanceManager';
+import { TeacherLessonPlanManager } from './Academics/TeacherLessonPlanManager';
 
 const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 
@@ -282,7 +283,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     };
 
     const menuTabs = useMemo(() => {
-        const base = ['dashboard', 'class_supervisor_attendance', 'academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin', 'remedials'];
+        const base = ['dashboard', 'lesson_plans', 'class_supervisor_attendance', 'academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin', 'remedials'];
         if (useRequests) base.push('my_requests');
         if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
@@ -1034,6 +1035,16 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             </div>
                         );
                     })()}
+                    {activeTab === 'lesson_plans' && (
+                        <div className="animate-fade-in space-y-6 w-full">
+                            <TeacherLessonPlanManager
+                                currentInstitution={currentInstitution}
+                                currentUser={user}
+                                subjects={subjects}
+                                courses={courses}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -1249,3 +1249,139 @@ export const generateRevisionPack = async (
     }
 };
 
+/**
+ * Generate CBC/8-4-4 Compliant Teacher Lesson Plan using Gemini AI
+ */
+export const generateLessonPlan = async (
+    subject: string,
+    className: string,
+    topic: string,
+    subtopic: string = '',
+    duration: number = 40
+): Promise<{
+    learningOutcomes: string[];
+    keyQuestions: string[];
+    coreCompetencies: string[];
+    learningResources: string[];
+    trajectory: { introduction: string; development: string; conclusion: string };
+    assessmentMethods: string[];
+}> => {
+    const prompt = `Act as an expert Master Teacher and Curriculum Developer for ${subject} (${className}).
+Generate a highly detailed, professional, CBC/8-4-4 compliant Lesson Plan for:
+- Subject: ${subject}
+- Class/Grade: ${className}
+- Topic/Strand: ${topic}
+- Subtopic/Sub-strand: ${subtopic || 'General Overview'}
+- Duration: ${duration} minutes
+
+Return strict valid JSON (without markdown code blocks) matching this format:
+{
+  "learningOutcomes": ["Outcome 1...", "Outcome 2..."],
+  "keyQuestions": ["Key Inquiry Question 1...", "Key Inquiry Question 2..."],
+  "coreCompetencies": ["Critical thinking and problem solving", "Digital literacy", "Collaboration"],
+  "learningResources": ["Course Textbook Page 45", "Interactive Whiteboard / Charts", "Digital Tablet / Realia"],
+  "trajectory": {
+    "introduction": "5 Minutes: Hook learners with a real-world scenario. Recall prior knowledge...",
+    "development": "25 Minutes: Teacher step-by-step guidance. Group activity: Learners analyze example...",
+    "conclusion": "10 Minutes: Summary plenary, exit ticket assessment, and homework task assignment..."
+  },
+  "assessmentMethods": ["Oral Questioning", "Group Task Observation", "Written Exercise"]
+}`;
+
+    try {
+        const responseText = await generateText(prompt);
+        const cleaned = cleanJsonResponse(responseText);
+        const parsed = JSON.parse(cleaned);
+        return parsed;
+    } catch (err) {
+        console.error("Failed to generate AI Lesson Plan:", err);
+        return {
+            learningOutcomes: [
+                `By the end of the lesson, the learner should be able to define core principles of ${topic}.`,
+                `Apply concepts of ${topic} to solve standard problems.`
+            ],
+            keyQuestions: [
+                `How does ${topic} apply to daily life?`,
+                `What are the key components of ${topic}?`
+            ],
+            coreCompetencies: ['Critical Thinking', 'Communication & Collaboration', 'Self-efficacy'],
+            learningResources: ['Recommended Textbook', 'Diagram Charts & Chalkboard', 'Worksheet Handout'],
+            trajectory: {
+                introduction: `5 mins: Greet learners, review previous lesson context, and introduce ${topic}.`,
+                development: `25 mins: Teacher explains key principles. Learners work in pairs to analyze tasks.`,
+                conclusion: `10 mins: Recapitulation, answer student questions, and assign practice exercises.`
+            },
+            assessmentMethods: ['Observation', 'Oral Feedback', 'Written Worksheet']
+        };
+    }
+};
+
+/**
+ * Generate Termly Scheme of Work Matrix using Gemini AI
+ */
+export const generateSchemeOfWork = async (
+    subject: string,
+    className: string,
+    term: string = 'Term 1',
+    weeksCount: number = 8
+): Promise<Array<{
+    weekNumber: number;
+    lessonNumber: number;
+    strand: string;
+    subStrand: string;
+    outcomes: string;
+    experiences: string;
+    resources: string;
+    assessment: string;
+    remarks: string;
+}>> => {
+    const prompt = `Act as a Senior Curriculum Officer and Head of Department.
+Generate a structured termly Scheme of Work for:
+- Subject: ${subject}
+- Class/Grade: ${className}
+- Term: ${term}
+- Weeks Count: ${weeksCount} weeks (with 2 lessons per week)
+
+Return strict valid JSON array (without markdown code blocks) of objects with this schema:
+[
+  {
+    "weekNumber": 1,
+    "lessonNumber": 1,
+    "strand": "Strand Name",
+    "subStrand": "Sub-strand Name",
+    "outcomes": "By the end of the lesson, the learner should be able to...",
+    "experiences": "Learners in groups discuss and present...",
+    "resources": "Textbook, Charts, Digital Devices",
+    "assessment": "Oral Q&A, Written Task",
+    "remarks": "Completed successfully"
+  }
+]`;
+
+    try {
+        const responseText = await generateText(prompt);
+        const cleaned = cleanJsonResponse(responseText);
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed)) return parsed;
+        return [];
+    } catch (err) {
+        console.error("Failed to generate Scheme of Work:", err);
+        const mock: any[] = [];
+        for (let w = 1; w <= weeksCount; w++) {
+            for (let l = 1; l <= 2; l++) {
+                mock.push({
+                    weekNumber: w,
+                    lessonNumber: l,
+                    strand: `Strand ${w}: Introduction to ${subject} Topic ${w}`,
+                    subStrand: `Sub-strand ${w}.${l}`,
+                    outcomes: `Identify and explain fundamentals of topic ${w}.${l}.`,
+                    experiences: `Learners conduct group brainstorming and complete worksheet exercises.`,
+                    resources: `Standard Textbook, Reference Notes, Wall Charts`,
+                    assessment: `Class Discussion, Workbook Marking`,
+                    remarks: `On Track`
+                });
+            }
+        }
+        return mock;
+    }
+};
+

@@ -45,6 +45,7 @@ import { CbePortfolioVaultManager } from './Academics/CbePortfolioVaultManager';
 import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
 import { RevisionMarketplaceManager } from './Academics/RevisionMarketplaceManager';
 import { StudentSubscriptionPlanManager } from './common/StudentSubscriptionPlanManager';
+import { TeacherLessonPlanManager } from './Academics/TeacherLessonPlanManager';
 
 interface AcademicsOfficerViewProps {
     currentUser?: User;
@@ -179,7 +180,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         allocations = []
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline' | 'revision_marketplace' | 'student_subscriptions'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline' | 'revision_marketplace' | 'student_subscriptions' | 'lesson_plans'>('home');
     const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands' | 'cbe_competencies' | 'cbe_portfolio'>('summative');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
@@ -281,6 +282,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
+        { id: 'lesson_plans', label: 'Lesson Plans & Schemes', icon: BookOpenIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
         { id: 'revision_marketplace', label: 'AI Revision Generator', icon: SparklesIcon },
         { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CommandLineIcon },
@@ -294,6 +296,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const horizontalTabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
+        { id: 'lesson_plans', label: 'Lesson Plans & Schemes', icon: BookOpenIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
         { id: 'revision_marketplace', label: 'AI Revision Generator', icon: SparklesIcon },
         { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CommandLineIcon },
@@ -749,6 +752,17 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         users={users}
                         courses={courses}
                         moduleContext="academics"
+                    />
+                </div>
+            )}
+
+            {activeTab === 'lesson_plans' && (
+                <div className="animate-fade-in space-y-6 w-full">
+                    <TeacherLessonPlanManager
+                        currentInstitution={currentInstitution}
+                        currentUser={currentUser}
+                        subjects={subjects}
+                        courses={courses}
                     />
                 </div>
             )}
