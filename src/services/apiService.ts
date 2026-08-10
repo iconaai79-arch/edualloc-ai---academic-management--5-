@@ -933,17 +933,18 @@ export const apiService = {
                             const rawIds = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
                             const sIds = Array.from(new Set(rawIds));
                             const sMeta = l.subjectMetadata || (l as any).subject_metadata || [];
+                            const normalizedMeta = Array.isArray(sMeta) ? sMeta.map((m: any) => ({
+                                ...m,
+                                subjectId: m.subjectId || m.subject_id,
+                                subject_id: m.subjectId || m.subject_id,
+                                lessonStructure: m.lessonStructure || m.lesson_structure,
+                                lesson_structure: m.lessonStructure || m.lesson_structure
+                            })) : [];
                             return {
                                 ...l,
                                 subjectIds: sIds,
                                 subject_ids: sIds,
-                                subjectMetadata: (sMeta || []).map((m: any) => ({
-                                    ...m,
-                                    subjectId: m.subjectId || m.subject_id,
-                                    subject_id: m.subjectId || m.subject_id,
-                                    lessonStructure: m.lessonStructure || m.lesson_structure,
-                                    lesson_structure: m.lessonStructure || m.lesson_structure,
-                                }))
+                                subjectMetadata: normalizedMeta
                             };
                         });
                     }
