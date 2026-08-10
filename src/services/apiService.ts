@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as sharedSupabase, initSupabase } from '../lib/supabase';
 import { generateAlphanumericCode, formatPhoneNumber } from '../utils/stringUtils';
+import { localDb } from './localDb';
 import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';
 import type {
     AllocationRequest, RequestStatus, User, Institution,
