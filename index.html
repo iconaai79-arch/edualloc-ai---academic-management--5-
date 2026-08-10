@@ -157,8 +157,21 @@
     }, true);
 
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js').then(function (reg) {
+          if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          reg.onupdatefound = function () {
+            var installing = reg.installing;
+            if (installing) {
+              installing.onstatechange = function () {
+                if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                  console.log('[SW] New version ready. Updating service worker...');
+                  if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                }
+              };
+            }
+          };
+        }).catch(function (err) { console.log('SW registration failed:', err); });
       });
     }
   </script>
