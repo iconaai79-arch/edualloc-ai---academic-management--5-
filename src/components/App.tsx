@@ -2291,6 +2291,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
     }, [currentUser, loadData]);
 
     const handleDeleteSubject = useCallback(async (id: string) => {
+        // Immediately remove from React state
+        setSubjects(prev => (prev || []).filter(s => s.id !== id));
+
         try {
             const instId = currentUser?.institutionId || activeInstitution?.id;
             const subjObj = (subjects || []).find(s => s.id === id);
@@ -2344,7 +2347,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 } catch(e) {}
             }
 
-            // 4. Delete subject from DB
+            // 4. Delete subject from DB & local storage
             await apiService.deleteModuleRecord('subjects', id);
         } catch (err) {
             console.error("Failed to delete subject from DB:", err);

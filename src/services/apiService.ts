@@ -1454,13 +1454,21 @@ export const apiService = {
     async deleteModuleRecord(module: string, id: string): Promise<void> {
         const idsArray = id.split(',').map(s => s.trim()).filter(Boolean);
         if (idsArray.length === 0) return;
+        const idsSet = new Set(idsArray);
+
+        // ALWAYS purge from local storage (ls) & IndexedDB (localDb) immediately
+        try {
+            const records = ls.get(module);
+            if (Array.isArray(records)) {
+                ls.set(module, records.filter((r: any) => r && !idsSet.has(r.id)));
+            }
+            for (const singleId of idsArray) {
+                localDb.delete(module, singleId).catch(() => {});
+            }
+        } catch(e) {}
 
         // ── Tier 0: Local storage mode (no Supabase configured) ──
         if (module === 'exam_units' || module === 'exam_broadsheets' || !_supabase) {
-            const records = ls.get(module);
-            const idsSet = new Set(idsArray);
-            ls.set(module, records.filter((r: any) => !idsSet.has(r.id)));
-
             if (module === 'users') {
                 // Delete linked ds_students
                 const dsStudents = ls.get('ds_students');
