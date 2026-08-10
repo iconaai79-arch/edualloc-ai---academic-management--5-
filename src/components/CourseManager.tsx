@@ -603,7 +603,15 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     };
 
     const handleStructureSave = (courseId: string, updatedLevels: CourseLevel[]) => {
-        onUpdateCourse?.(courseId, { levels: updatedLevels });
+        const normalizedLevels = updatedLevels.map(l => {
+            const rawIds = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
+            const sIds = Array.from(new Set(rawIds));
+            return { ...l, subjectIds: sIds, subject_ids: sIds };
+        });
+        if (assigningSubjectsTo && assigningSubjectsTo.id === courseId) {
+            setAssigningSubjectsTo(prev => prev ? { ...prev, levels: normalizedLevels } : null);
+        }
+        onUpdateCourse?.(courseId, { levels: normalizedLevels });
     };
 
     const handleDeleteCourseSubmit = (courseId: string, courseName: string) => {
@@ -2056,7 +2064,8 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                             </button>
                                                             <button
                                                                 onClick={() => {
-                                                                    const updated = assigningSubjectsTo.levels.map(l => l.id === level.id ? { ...l, subjectIds: (l.subjectIds || []).filter(id => id !== sid) } : l);
+                                                                    const currentIds = (level.subjectIds || (level as any).subject_ids || []);
+                                                                    const updated = assigningSubjectsTo.levels.map(l => l.id === level.id ? { ...l, subjectIds: currentIds.filter(id => id !== sid), subject_ids: currentIds.filter(id => id !== sid) } : l);
                                                                     handleStructureSave(assigningSubjectsTo.id, updated);
                                                                 }}
                                                                 className="p-1.5 text-slate-300 hover:text-red-500 transition-all"
@@ -2092,11 +2101,14 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                             }
                                                         }
 
-                                                        const updated = assigningSubjectsTo.levels.map(l =>
-                                                            l.id === level.id
-                                                                ? { ...l, subjectIds: [...new Set([...(l.subjectIds || []), ...subjectIdsToAdd])] }
-                                                                : l
-                                                        );
+                                                        const updated = assigningSubjectsTo.levels.map(l => {
+                                                            if (l.id === level.id) {
+                                                                const currentIds = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
+                                                                const merged = [...new Set([...currentIds, ...subjectIdsToAdd])];
+                                                                return { ...l, subjectIds: merged, subject_ids: merged };
+                                                            }
+                                                            return l;
+                                                        });
                                                         handleStructureSave(assigningSubjectsTo.id, updated);
                                                         e.target.value = '';
                                                     }}
@@ -2110,15 +2122,12 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                         </optgroup>
                                                     )}
                                                     <optgroup label="All Subjects">
-                                                        {(subjects || []).filter(s => !(level.subjectIds || []).includes(s.id)).map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                                                        {(subjects || []).filter(s => !(level.subjectIds || (level as any).subject_ids || []).includes(s.id)).map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
                                                     </optgroup>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
                     </div>
                 )
             }

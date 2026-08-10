@@ -924,6 +924,27 @@ export const apiService = {
                         inst.othersExamSettings = parsed;
                         inst.others_exam_settings = parsed;
                     }
+            if (module === 'courses' && Array.isArray(finalResult)) {
+                finalResult.forEach((course: any) => {
+                    if (Array.isArray(course.levels)) {
+                        course.levels = course.levels.map((l: any) => {
+                            const rawIds = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
+                            const sIds = Array.from(new Set(rawIds));
+                            const sMeta = l.subjectMetadata || (l as any).subject_metadata || [];
+                            return {
+                                ...l,
+                                subjectIds: sIds,
+                                subject_ids: sIds,
+                                subjectMetadata: (sMeta || []).map((m: any) => ({
+                                    ...m,
+                                    subjectId: m.subjectId || m.subject_id,
+                                    subject_id: m.subjectId || m.subject_id,
+                                    lessonStructure: m.lessonStructure || m.lesson_structure,
+                                    lesson_structure: m.lessonStructure || m.lesson_structure,
+                                }))
+                            };
+                        });
+                    }
                 });
             }
             return finalResult;
@@ -3351,9 +3372,11 @@ export const apiService = {
         if (course) {
             const updatedLevels = course.levels.map(l => {
                 if (l.id === levelId) {
-                    const ids = new Set(l.subjectIds || []);
+                    const existing = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
+                    const ids = new Set(existing);
                     subjectIds.forEach(id => ids.add(id));
-                    return { ...l, subjectIds: Array.from(ids) };
+                    const arr = Array.from(ids);
+                    return { ...l, subjectIds: arr, subject_ids: arr };
                 }
                 return l;
             });
@@ -3367,9 +3390,10 @@ export const apiService = {
         if (course) {
             const updatedLevels = course.levels.map(l => {
                 if (l.id === levelId) {
-                    const ids = (l.subjectIds || []).filter(id => id !== subjectId);
-                    const metadata = (l.subjectMetadata || []).filter(m => m.subjectId !== subjectId);
-                    return { ...l, subjectIds: ids, subjectMetadata: metadata };
+                    const existing = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
+                    const ids = Array.from(new Set(existing)).filter(id => id !== subjectId);
+                    const metadata = (l.subjectMetadata || (l as any).subject_metadata || []).filter((m: any) => (m.subjectId || m.subject_id) !== subjectId);
+                    return { ...l, subjectIds: ids, subject_ids: ids, subjectMetadata: metadata, subject_metadata: metadata };
                 }
                 return l;
             });
