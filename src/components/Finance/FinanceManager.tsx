@@ -15456,6 +15456,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         />
                     </React.Suspense>
                 </div>
+            )}
             {activeTab === 'student_subscriptions' && (
                 <div className="animate-in fade-in duration-300">
                     <StudentSubscriptionPlanManager
