@@ -933,19 +933,33 @@ export const apiService = {
             return queryLocal();
         }
 
-        if (module === 'institution_module_states' && _supabase) {
-            try {
-                let query = _supabase.from('institution_module_states').select('*');
-                if (institutionId && institutionId !== 'ALL') {
-                    query = query.eq('institution_id', institutionId);
+        if (module === 'institution_module_states') {
+            let remoteRecords: any[] = [];
+            if (_supabase) {
+                try {
+                    let query = _supabase.from('institution_module_states').select('*');
+                    if (institutionId && institutionId !== 'ALL') {
+                        query = query.eq('institution_id', institutionId);
+                    }
+                    const { data: imsData, error: imsErr } = await query;
+                    if (!imsErr && imsData && imsData.length > 0) {
+                        remoteRecords = toCamelCase(imsData);
+                    }
+                } catch (e) {
+                    console.warn('[apiService] Supabase fetch for institution_module_states failed:', e);
                 }
-                const { data: imsData, error: imsErr } = await query;
-                if (!imsErr && imsData) {
-                    return toCamelCase(imsData);
-                }
-            } catch (e) {
-                console.warn('[apiService] Direct Supabase fetch for institution_module_states failed, falling back to local query:', e);
             }
+
+            // Always merge localDb records as fallback so trial activation never fails
+            const localRecords = ls.getAll<any>('institution_module_states') || [];
+            const localFiltered = localRecords.filter((m: any) => 
+                !institutionId || institutionId === 'ALL' || m.institutionId === institutionId || m.institution_id === institutionId
+            ).map(toCamelCase);
+
+            const map = new Map<string, any>();
+            remoteRecords.forEach(r => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
+            localFiltered.forEach(r => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
+            return Array.from(map.values());
         }
 
         try {
@@ -1608,17 +1622,18 @@ export const apiService = {
             return toCamelCase(payload);
         }
 
-        if (module === 'institution_module_states' && _supabase) {
-            try {
-                const { data: imsData, error: imsErr } = await _supabase.from('institution_module_states').upsert(payload).select();
-                if (!imsErr && imsData && imsData.length > 0) {
-                    ls.upsert(module, payload);
-                    return toCamelCase(imsData[0]);
-                }
-            } catch (imsErr) {
-                console.warn('[apiService] Direct Supabase upsert for institution_module_states failed, falling back locally:', imsErr);
-            }
+        if (module === 'institution_module_states') {
             ls.upsert(module, payload);
+            if (_supabase) {
+                try {
+                    const { data: imsData, error: imsErr } = await _supabase.from('institution_module_states').upsert(payload).select();
+                    if (!imsErr && imsData && imsData.length > 0) {
+                        return toCamelCase(imsData[0]);
+                    }
+                } catch (imsErr) {
+                    console.warn('[apiService] Supabase upsert for institution_module_states failed, saved locally:', imsErr);
+                }
+            }
             return toCamelCase(payload);
         }
 
@@ -1943,20 +1958,23 @@ export const apiService = {
     },
     async activateModuleTrial(moduleId: string, institutionId: string): Promise<void> {
         // First check if a record already exists to avoid unique constraint violations
-        const existing = await apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', institutionId, undefined, {
+        const existing = await apiService.fetchModuleRecords<any>('institution_module_states', institutionId, undefined, {
             filter: { module_id: moduleId }
-        });
+        }).catch(() => []);
 
         const trialDays = 14;
         const now = new Date();
         const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000).toISOString();
         
         const moduleState: Partial<InstitutionModuleState> = {
-            id: existing.length > 0 ? existing[0].id : `${institutionId}_${moduleId}_${Date.now()}`,
+            id: existing && existing.length > 0 ? (existing[0].id || `ims_${moduleId}_${institutionId}`) : `ims_${moduleId}_${institutionId}`,
             institutionId,
+            institution_id: institutionId,
             moduleId,
+            module_id: moduleId,
             status: 'trial',
             trialEndsAt,
+            trial_ends_at: trialEndsAt,
             activatedAt: now.toISOString(),
             updatedAt: now.toISOString()
         } as any;

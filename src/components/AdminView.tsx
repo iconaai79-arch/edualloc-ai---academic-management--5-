@@ -790,7 +790,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         if (moduleId === 'beauty_college' && isBC) return true;
         if (moduleId === 'remedials') return true;
 
-        const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
+        const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || (m as any).module_id === moduleId);
         if (!state) return false;
         if (state.status === 'active') return true;
         if (state.status === 'trial') {

@@ -607,7 +607,7 @@ export const App: React.FC = () => {
 
         const mergeModules = (inst: Institution) => ({
             ...inst,
-            moduleStates: (institutionModuleStates || []).filter(m => m.institutionId === inst.id)
+            moduleStates: (institutionModuleStates || []).filter(m => (m.institutionId || (m as any).institution_id) === inst.id)
         });
 
         // Support showroom/school context via URL param or subdomain (even if not logged in)
@@ -1069,7 +1069,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
             const activeInstWithModules = activeInst ? {
                 ...activeInst,
-                moduleStates: (imsPhase1 || []).filter((m: any) => m.institutionId === activeInst.id)
+                moduleStates: (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === activeInst.id)
             } : null;
             const instType = activeInst?.institutionType || 'General';
             const instId = instOverrideId || (currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId);
@@ -1255,7 +1255,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             if (currentUser && activeInst) {
                 const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'];
                 if (EDU_TYPES.includes(instType.toLowerCase())) {
-                    const schoolModules = (imsPhase1 || []).filter((m: any) => m.institutionId === activeInst.id);
+                    const schoolModules = (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === activeInst.id);
                     const hasExistingData = (d && d.length > 0) || (s && s.length > 0) || (c && c.length > 0) || (ay && ay.length > 0) || (sem && sem.length > 0);
                     if (schoolModules.length === 0 && hasExistingData) {
                         console.log(`[Auto-Migration] Seeding active modules for existing institution: ${activeInst.name}`);
@@ -1449,7 +1449,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 if (insts && insts.length > 0) {
                     const finalInsts = insts.map(i => ({
                         ...i,
-                        moduleStates: (imsPhase1 || []).filter((m: any) => m.institutionId === i.id)
+                        moduleStates: (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === i.id)
                     }));
                     setInstitutions(finalInsts);
                 }
@@ -4504,6 +4504,28 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
     const handleActivateModuleTrial = useCallback(async (moduleId: string) => {
         if (!activeInstitution) return;
         try {
+            const trialDays = 14;
+            const now = new Date();
+            const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+            const newState: any = {
+                id: `ims_${moduleId}_${activeInstitution.id}`,
+                institutionId: activeInstitution.id,
+                institution_id: activeInstitution.id,
+                moduleId,
+                module_id: moduleId,
+                status: 'trial',
+                trialEndsAt,
+                trial_ends_at: trialEndsAt,
+                activatedAt: now.toISOString(),
+                updatedAt: now.toISOString()
+            };
+
+            // Optimistically update local state immediately so UI responds instantly
+            setInstitutionModuleStates(prev => {
+                const filtered = (prev || []).filter(m => (m.moduleId || (m as any).module_id) !== moduleId || (m.institutionId || (m as any).institution_id) !== activeInstitution.id);
+                return [...filtered, newState];
+            });
+
             await apiService.activateModuleTrial(moduleId, activeInstitution.id);
             await loadData();
         } catch (e) {
