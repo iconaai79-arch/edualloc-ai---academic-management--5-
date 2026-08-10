@@ -138,6 +138,24 @@
   </script>
 
   <script>
+    // Automatic deployment sync recovery for stale JS bundle hashes / MIME errors
+    window.addEventListener('error', function (event) {
+      var isChunkError = event && (
+        (event.message && (event.message.includes('Failed to load module script') || event.message.includes('Loading chunk') || event.message.includes('MIME type'))) ||
+        (event.target && event.target.tagName === 'SCRIPT' && event.target.src && event.target.src.includes('.js'))
+      );
+      if (isChunkError) {
+        var key = 'eduai_last_chunk_reload';
+        var lastReload = sessionStorage.getItem(key);
+        var now = Date.now();
+        if (!lastReload || (now - parseInt(lastReload, 10)) > 10000) {
+          sessionStorage.setItem(key, String(now));
+          console.warn('[Deployment Sync] Stale script chunk detected. Auto-reloading page...');
+          window.location.reload(true);
+        }
+      }
+    }, true);
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
