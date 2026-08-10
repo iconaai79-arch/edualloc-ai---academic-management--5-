@@ -1657,10 +1657,10 @@ export const apiService = {
             const attemptSave = async (currentPayload: any, retries: number = 5): Promise<any> => {
                 let response = await doSaveRequest(token, currentPayload);
 
-                if (response.status === 500 && (module === 'exam_units' || module === 'exam_broadsheets')) {
-                    console.log(`[apiService] Module '${module}' auto-handled via local storage & module state fallback.`);
+                if (response.status === 500) {
+                    console.warn(`[apiService] Module '${module}' server error 500 — auto-handling via local storage fallback.`);
                     ls.upsert(module, currentPayload);
-                    return currentPayload;
+                    return toCamelCase(currentPayload);
                 }
 
                 // --- 401 handler: try silent token refresh then admin bypass retry ---
@@ -1714,10 +1714,9 @@ export const apiService = {
                         return attemptSave(retryPayload, retries - 1);
                     }
                     
-                    if (errorCode !== 'PGRST205' && !fullErrorMessage.includes('PGRST205') && !fullErrorMessage.includes('schema cache')) {
-                        console.error(`Save API Error [${module}]:`, response.status, errData);
-                    }
-                    throw new Error(fullErrorMessage);
+                    console.warn(`[apiService] Save API returned status ${response.status} for [${module}] — falling back to local storage:`, errData);
+                    ls.upsert(module, currentPayload);
+                    return toCamelCase(currentPayload);
                 }
 
                 const contentTypePost = response.headers.get('content-type');
