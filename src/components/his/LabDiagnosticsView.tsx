@@ -12,7 +12,7 @@ import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { FileTextIcon } from '../icons/FileTextIcon';
 import { PdfViewer } from '../PdfViewer';
 import { apiService } from '../../services/apiService';
-import { generateExternalLabRequisitionPdf } from '../../services/pdfService';
+import { generateExternalLabRequisitionPdf, generateSpecimenBarcodePdf } from '../../services/pdfService';
 
 interface LabDiagnosticsViewProps {
     institutionId?: string;
@@ -578,10 +578,34 @@ export function LabDiagnosticsView({ institutionId, activeRole, userName, active
             );
 
             setPdfPreviewUri(uri);
-            setPdfPreviewTitle(`Lab Requisition - ${req.testType} (${partnerInfo.name})`);
+            setPdfPreviewTitle(`External Lab Requisition — ${partnerInfo.name}`);
             setIsPdfModalOpen(true);
         } catch (err: any) {
-            alert(`PDF Generation error: ${err.message || err}`);
+            alert('PDF Generation Error: ' + (err.message || err));
+        }
+    };
+
+    const handlePrintSpecimenBarcode = async (req: any) => {
+        try {
+            const uri = await generateSpecimenBarcodePdf(
+                {
+                    barcodeNumber: req.barcodeNumber || `SPEC-${Math.floor(100000 + Math.random() * 900000)}`,
+                    patientName: req.patientName || `Patient #${req.patientId?.substring(0, 8)}`,
+                    patientId: req.patientId,
+                    testType: req.testType,
+                    specimenType: req.specimenType,
+                    priority: req.priority,
+                    doctorName: req.requestedBy || userName || 'Dr. Attending Physician',
+                    collectionTime: req.collectionTime || new Date().toLocaleTimeString()
+                },
+                institutionData || { name: 'Quantum Healthcare' }
+            );
+
+            setPdfPreviewUri(uri);
+            setPdfPreviewTitle(`Specimen Barcode Tube Label — ${req.barcodeNumber || 'SPEC'}`);
+            setIsPdfModalOpen(true);
+        } catch (err: any) {
+            alert('Barcode Label Generation Error: ' + (err.message || err));
         }
     };
 
@@ -688,7 +712,43 @@ export function LabDiagnosticsView({ institutionId, activeRole, userName, active
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6 text-right">
-                                                <div className="flex justify-end gap-2">
+                                                <div className="flex justify-end items-center gap-2">
+                                                    {/* On-Screen PDF Report Preview Button */}
+                                                    <button
+                                                        onClick={async () => {
+                                                            try {
+                                                                const { generateFbcLabReportPdf } = await import('../../services/pdfService');
+                                                                const uri = await generateFbcLabReportPdf({
+                                                                    reportId: r.id,
+                                                                    patientName: r.patientName || `Patient #${r.patientId?.substring(0, 8)}`,
+                                                                    barcodeNumber: r.barcodeNumber || `SPEC-${r.id?.substring(0, 6)}`,
+                                                                    doctorName: r.requestedBy || userName || 'Attending Physician',
+                                                                    results: r.results
+                                                                }, institutionData || { name: 'Quantum Healthcare' });
+                                                                setPdfPreviewUri(uri);
+                                                                setPdfPreviewTitle(`Diagnostic Report PDF — ${r.testType} [${r.barcodeNumber || 'SPEC'}]`);
+                                                                setIsPdfModalOpen(true);
+                                                            } catch (err: any) {
+                                                                alert('PDF Preview Error: ' + (err.message || err));
+                                                            }
+                                                        }}
+                                                        className="p-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 border border-emerald-500/20 shadow-lg italic"
+                                                        title="On-Screen PDF Report Preview"
+                                                    >
+                                                        <DocumentTextIcon className="w-3.5 h-3.5" />
+                                                        <span>PDF Screen Preview</span>
+                                                    </button>
+
+                                                    {/* Tube Label Barcode Button */}
+                                                    <button
+                                                        onClick={() => handlePrintSpecimenBarcode(r)}
+                                                        className="p-2 bg-purple-500/10 text-purple-400 hover:bg-purple-600 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 border border-purple-500/20 shadow-lg"
+                                                        title="Print Thermal Specimen Tube Label"
+                                                    >
+                                                        <FileTextIcon className="w-3.5 h-3.5" />
+                                                        <span>Tube Label</span>
+                                                    </button>
+
                                                     {r.fulfillment === 'external_partner' && (
                                                         <button
                                                             onClick={() => handlePreviewRequisitionPdf(r)}

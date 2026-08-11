@@ -11094,3 +11094,61 @@ export const generateFbcLabReportPdf = async (
     return doc.output('datauristring');
 };
 
+export const generateSpecimenBarcodePdf = async (
+    data: {
+        barcodeNumber: string;
+        patientName: string;
+        patientId?: string;
+        testType?: string;
+        specimenType?: string;
+        priority?: string;
+        doctorName?: string;
+        collectionTime?: string;
+    },
+    institution?: any
+): Promise<string> => {
+    const jsPdfObj = getJsPdf();
+    if (!jsPdfObj) throw new Error("jsPDF library not initialized");
+    const { jsPDF } = jsPdfObj;
+    const doc = new jsPDF({ unit: 'mm', format: [50, 25] });
+
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(15, 23, 42);
+    doc.rect(1, 1, 48, 23, 'S');
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(1, 1, 48, 4.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(255, 255, 255);
+    doc.text(institution?.name?.toUpperCase() || "QUANTUM MEDICAL LAB", 2.5, 4);
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`PATIENT: ${data.patientName?.toUpperCase() || 'PATIENT'}`, 2.5, 8);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`MRN: ${data.patientId || 'MRN-84920'} • ${data.priority?.toUpperCase() || 'ROUTINE'}`, 2.5, 11);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TUBE: ${data.specimenType?.toUpperCase() || 'EDTA PURPLE TOP'}`, 2.5, 14);
+    doc.text(`TEST: ${data.testType?.toUpperCase() || 'FULL BLOOD COUNT'}`, 2.5, 17);
+
+    doc.setFillColor(15, 23, 42);
+    const barcodeX = 2.5;
+    const barcodeY = 18.5;
+    const codeStr = data.barcodeNumber || 'SPEC-849102';
+    for (let i = 0; i < 35; i++) {
+        const lineWidth = (i % 3 === 0 || i % 7 === 0) ? 0.6 : 0.25;
+        doc.rect(barcodeX + (i * 0.9), barcodeY, lineWidth, 3.5, 'F');
+    }
+
+    doc.setFontSize(5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(codeStr, 2.5, 23);
+    doc.text(data.collectionTime || new Date().toLocaleDateString(), 30, 23);
+
+    return doc.output('datauristring');
+};
+
