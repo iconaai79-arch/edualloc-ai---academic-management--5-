@@ -2235,7 +2235,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         </div>
                                     </div>
                                 );
-                            })())}
+                            })()}
 
                             {/* Card 12: Car Wash Module — only for higher-ed */}
                             {isHigherEd && (() => {
