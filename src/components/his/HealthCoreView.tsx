@@ -40,6 +40,7 @@ import { ModernPharmacyManager } from './ModernPharmacyManager';
 import { PharmacyView } from './PharmacyView';
 import { EduPulseHomeDashboard } from './EduPulseHomeDashboard';
 import { EduPulsePatientsList } from './EduPulsePatientsList';
+import { ReceptionistView } from './ReceptionistView';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
@@ -49,7 +50,7 @@ import { HRManager } from '../HR/HRManager';
 import { BiometricAttendanceDashboard } from '../HR/BiometricAttendanceDashboard';
 import { PayrollRecord, LeaveRequest, Institution } from '../../types';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -255,6 +256,13 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     React.useEffect(() => {
         fetchPatients();
     }, [fetchPatients]);
+
+    // Auto-navigate receptionist to their dedicated desk
+    React.useEffect(() => {
+        if (activeRole === 'receptionist' && !isEdu) {
+            setActiveModule('receptionist');
+        }
+    }, [activeRole, isEdu]);
 
     const activePatient = React.useMemo(() => {
         if (!activePatientId) return null;
@@ -654,6 +662,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                         <div className="flex bg-slate-100/50 dark:bg-white/5 p-1.5 rounded-2xl w-full overflow-x-auto scrollbar-hide border border-slate-200 dark:border-white/5 shadow-inner no-scrollbar">
                             <div className="flex gap-1.5 min-w-max text-white">
                                 {[
+                                    { id: 'receptionist', label: 'Reception', icon: UsersIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                                     { id: 'general', label: 'Patient 360', icon: HeartIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                                     { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon, categories: ['Hospital', 'Clinic', 'Healthcare'] },
                                     { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
@@ -754,6 +763,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                                     institution={currentInst}
                                 />
                             );
+                            case 'receptionist': return <ReceptionistView institutionId={institutionId} userName={userName} users={users} />;
                             case 'broadcaster': return <HISBroadcasterView />;
                             case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} isEdu={isEdu} users={users} />;
                             case 'config': return <HISConfigView institutionId={institutionId} users={users} demoStaff={demoData?.hisStaff} onStaffUpdated={fetchPatients} />;

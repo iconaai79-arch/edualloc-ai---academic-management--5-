@@ -122,7 +122,26 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
         'Arrived': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
         'In-Progress': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
         'Completed': 'bg-slate-500/10 text-slate-400 border-slate-500/20',
-        'Rescheduled': 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+        'Rescheduled': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+        'Cancelled': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    };
+
+    const TODAY = new Date().toISOString().split('T')[0];
+    const queueCount = appointments.filter(a =>
+        (a.date || '').startsWith(TODAY) && (a.status === 'Arrived' || a.status === 'In-Progress')
+    ).length;
+
+    const handleMarkArrived = async (app: HISAppointment) => {
+        try {
+            const updated = { ...app, status: 'Arrived', arrivedAt: new Date().toISOString() };
+            await apiService.saveModuleRecord('his_appointments', updated);
+            setAppointments(prev => prev.map(a => a.id === app.id ? updated : a));
+            setNotification({ show: true, message: `${app.patientName || 'Patient'} marked as Arrived — added to queue` });
+            setTimeout(() => setNotification({ show: false, message: '' }), 5000);
+        } catch (e) {
+            console.error('Failed to mark arrived:', e);
+            alert('Failed to update status.');
+        }
     };
 
     return (
@@ -148,7 +167,15 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                         }
                     </p>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex gap-4 items-center flex-wrap">
+                    {queueCount > 0 && (
+                        <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                                {queueCount} in queue
+                            </span>
+                        </div>
+                    )}
                     {!isDoctor ? (
                         <button 
                             onClick={() => setIsAddAppointmentOpen(true)}
@@ -219,6 +246,15 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                                             </div>
                                             </td>
                                             <td className="px-8 py-6 text-right space-x-2">
+                                                {app.status === 'Scheduled' && (
+                                                    <button
+                                                        onClick={() => handleMarkArrived(app)}
+                                                        className="p-2 px-3 text-emerald-500 hover:bg-emerald-500 hover:text-white bg-emerald-500/10 border border-emerald-500/20 rounded-xl transition-all text-[8px] font-black uppercase tracking-widest mr-1"
+                                                        title="Mark as Arrived"
+                                                    >
+                                                        ✓ Arrived
+                                                    </button>
+                                                )}
                                                 <button 
                                                     onClick={() => handleReschedule(app)}
                                                     className="p-2.5 text-slate-400 hover:text-indigo-600 bg-slate-100 dark:bg-white/5 rounded-xl transition-all"

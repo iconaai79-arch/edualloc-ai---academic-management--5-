@@ -3602,6 +3602,8 @@ export interface HISAppointment {
     reason?: string;
     institutionId: string;
     createdAt: string;
+    /** ISO timestamp set when receptionist marks patient as Arrived */
+    arrivedAt?: string;
     // UI Display helpers
     patientName?: string;
     doctorName?: string;
