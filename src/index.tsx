@@ -67,8 +67,11 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("DEBUG: Top-level crash caught:", error, errorInfo);
     
-    // Handle Vite/Webpack chunk loading errors due to stale cache after deployment
-    const isChunkLoadFailed = /Failed to fetch dynamically imported module/i.test(error.message) || /Loading chunk/i.test(error.message);
+    // Handle Vite/Webpack chunk loading errors & stale cached chunk mismatches
+    const isChunkLoadFailed = 
+      /Failed to fetch dynamically imported module/i.test(error.message) || 
+      /Loading chunk/i.test(error.message) ||
+      /before initialization/i.test(error.message);
     if (isChunkLoadFailed) {
       const hasReloaded = sessionStorage.getItem('eduai_chunk_reloaded');
       if (!hasReloaded) {

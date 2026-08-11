@@ -125,7 +125,7 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id) {
             const normalizedId = id.replace(/\\/g, '/').toLowerCase();
-            if (normalizedId.includes('node_modules') || normalizedId.includes('src/services') || normalizedId.includes('src/utils') || normalizedId.includes('src/lib')) {
+            if (normalizedId.includes('node_modules')) {
               return 'vendor';
             }
             if (normalizedId.includes('src/components/icons')) {
