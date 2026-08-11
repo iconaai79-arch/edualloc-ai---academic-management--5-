@@ -3,7 +3,7 @@ import { Institution, Role } from '../types';
 /**
  * Returns the appropriate admin role for a new institution based on its type and subtype.
  */
-export const getAdminRoleForInstitution = (institution: Partial<Institution>): Role => {
+export function getAdminRoleForInstitution(institution: Partial<Institution>): Role {
     const type = institution.institutionType;
     const subType = institution.businessSubType?.toLowerCase() || '';
 
@@ -37,12 +37,12 @@ export const getAdminRoleForInstitution = (institution: Partial<Institution>): R
 
     // Default for Schools
     return 'head_teacher';
-};
+}
 
 /**
  * Checks whether an institution or user role belongs to a Health Information System (HIS / Hospital / Clinic / Medical Center).
  */
-export const isHISInstitution = (institution: Partial<Institution> | null | undefined, role?: Role | string | null): boolean => {
+export function isHISInstitution(institution: Partial<Institution> | null | undefined, role?: Role | string | null): boolean {
     const medicalRoles = ['his_admin', 'nurse', 'doctor', 'his_doctor', 'receptionist', 'pharmacist', 'lab_tech'];
     if (role && medicalRoles.includes(role)) return true;
 
@@ -56,12 +56,12 @@ export const isHISInstitution = (institution: Partial<Institution> | null | unde
            cat.includes('hospital') || cat.includes('clinic') || cat.includes('healthcare') || cat.includes('medical') || cat.includes('wellness') || cat.includes('his') ||
            subType.includes('hospital') || subType.includes('clinic') || subType.includes('his') ||
            name.includes('hospital') || name.includes('clinic') || name.includes('medical center') || name.includes('dispensary') || name.includes('health center') || name.includes('health system');
-};
+}
 
 /**
  * Returns the set of valid staff/personnel roles for a given institution.
  */
-export const getRolesForInstitution = (institution: Institution | null | undefined): Role[] => {
+export function getRolesForInstitution(institution: Institution | null | undefined): Role[] {
     if (!institution) return ['admin'];
 
     const type = institution.institutionType;
@@ -104,7 +104,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     }
 
     // HIS / Health Information System
-    if (type === 'HIS') {
+    if (type === 'HIS' || isHISInstitution(institution)) {
         return ['his_admin', 'academics_officer', 'security', 'info_desk', 'store', 'procurement_officer'];
     }
 
@@ -138,7 +138,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     }
 
     return ['admin', 'managing_director', 'hr_officer', 'finance_officer', 'procurement_officer', 'staff', 'security', 'driver', 'store', 'customer'] as any[];
-};
+}
 
 /**
  * Centralized logic to determine if an institution is a K-12 school.
@@ -223,7 +223,7 @@ export function isRestaurantInstitution(institution: Partial<Institution> | null
 /**
  * Logic to properly display role names to the user.
  */
-export const formatRoleDisplayName = (role: Role, institution?: Institution | null): string => {
+export function formatRoleDisplayName(role: Role, institution?: Institution | null): string {
     if (!role) return 'User';
     if (role === 'hod') return 'Head of Department';
 
@@ -274,7 +274,7 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
         }
     }
 
-    const isHIS = type === 'HIS';
+    const isHIS = type === 'HIS' || isHISInstitution(institution);
     if (isHIS) {
         switch (role) {
             case 'his_admin': return 'Hospital Administrator';
@@ -392,4 +392,4 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
         .split(' ')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
-};
+}
