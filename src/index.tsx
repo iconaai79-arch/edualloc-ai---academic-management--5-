@@ -71,16 +71,23 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
     const isChunkLoadFailed = 
       /Failed to fetch dynamically imported module/i.test(error.message) || 
       /Loading chunk/i.test(error.message) ||
-      /before initialization/i.test(error.message);
+      /before initialization/i.test(error.message) ||
+      /ReferenceError/i.test(error.message);
     if (isChunkLoadFailed) {
-      const hasReloaded = sessionStorage.getItem('eduai_chunk_reloaded');
-      if (!hasReloaded) {
-        sessionStorage.setItem('eduai_chunk_reloaded', 'true');
-        window.location.reload();
+      if ('caches' in window) {
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
       }
-    } else {
-      sessionStorage.removeItem('eduai_chunk_reloaded');
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+      }
+      const reloadCount = parseInt(sessionStorage.getItem('eduai_chunk_reload_count') || '0', 10);
+      if (reloadCount < 3) {
+        sessionStorage.setItem('eduai_chunk_reload_count', String(reloadCount + 1));
+        window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
+        return;
+      }
     }
+    sessionStorage.removeItem('eduai_chunk_reload_count');
   }
   render() {
     if (this.state.hasError) {
