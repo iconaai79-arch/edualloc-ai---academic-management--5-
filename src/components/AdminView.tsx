@@ -788,7 +788,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         if (props.currentInstitution?.institutionType === 'Reseller') return true;
         if (props.currentInstitution?.id?.startsWith('demo_')) return true;
         if (moduleId === 'beauty_college' && isBC) return true;
-        if (moduleId === 'remedials') return true;
+        if (moduleId === 'remedials' && (isEdu || isSchool)) return true;
 
         const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || (m as any).module_id === moduleId);
         if (!state) return false;
@@ -1013,8 +1013,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
 
             // Educational tabs
-            if (['timetable', 'courses', 'leaveout', 'boarding'].includes(tab.id)) {
-                if (!isEdu || isDS) return false;
+            if (['timetable', 'courses', 'leaveout', 'boarding', 'remedials', 'eduflow', 'eduvote', 'enrollment', 'showcase'].includes(tab.id)) {
+                if (!isEdu && !isSchool) return false;
+                if (isDS || isBC) return false;
                 return true;
             }
 
@@ -2185,7 +2186,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             })()}
 
                             {/* Card: Remedial Manager */}
-                            {(() => {
+                            {(isEdu || isSchool) && (() => {
                                 const isActive = isModuleActive('remedials');
                                 return (
                                     <div 
@@ -2234,7 +2235,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         </div>
                                     </div>
                                 );
-                            })()}
+                            })())}
 
                             {/* Card 12: Car Wash Module — only for higher-ed */}
                             {isHigherEd && (() => {
