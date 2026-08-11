@@ -549,7 +549,7 @@ export function AddPrescriptionModal({
                     <div className="flex gap-4">
                         <button onClick={onClose} className="px-10 py-4 bg-slate-100 hover:bg-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all text-slate-500">Abort</button>
                         <button 
-                            onClick={handleSave}
+                            onClick={handleSavePrescription}
                             disabled={isSaving}
                             className="bg-indigo-600 text-white px-12 py-5 rounded-2xl flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] hover:scale-105 transition-all shadow-xl shadow-indigo-600/20 disabled:opacity-50"
                         >

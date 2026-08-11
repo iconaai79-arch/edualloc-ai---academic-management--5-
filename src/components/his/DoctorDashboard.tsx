@@ -9,6 +9,7 @@ import { BeakerIcon } from '../icons/BeakerIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { BellIcon } from '../icons/BellIcon';
 import { XIcon } from '../icons/XIcon';
+import { apiService } from '../../services/apiService';
 
 interface DoctorDashboardProps {
     patients: HISPatient[];
@@ -102,6 +103,223 @@ function QuickNoteModal({ onClose, patients }: { onClose: () => void; patients: 
     );
 }
 
+function QuickLabOrderModal({ onClose, patients, institutionId, userName }: { 
+    onClose: () => void; 
+    patients: HISPatient[]; 
+    institutionId?: string; 
+    userName?: string 
+}) {
+    const [selectedPatientId, setSelectedPatientId] = useState('');
+    const [testType, setTestType] = useState('Full Blood Count (FBC)');
+    const [priority, setPriority] = useState('Routine');
+    const [fulfillment, setFulfillment] = useState<'in_house' | 'external_partner'>('in_house');
+    const [partnerLabName, setPartnerLabName] = useState('Lancet Kenya Reference Lab');
+    const [clinicalNotes, setClinicalNotes] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleCommit = async () => {
+        if (!selectedPatientId) return alert('Please select a patient first.');
+        setIsSaving(true);
+        try {
+            const patient = patients.find(p => p.id === selectedPatientId);
+            const reqId = `lab_${Date.now()}`;
+            const record = {
+                id: reqId,
+                institutionId,
+                patientId: selectedPatientId,
+                patientName: patient?.fullName || `Patient #${selectedPatientId.substring(0, 8)}`,
+                testType,
+                priority,
+                fulfillment,
+                partnerLabName: fulfillment === 'external_partner' ? partnerLabName : 'In-House',
+                specimenType: 'Whole Blood (EDTA)',
+                barcodeNumber: `SPEC-${Math.floor(100000 + Math.random() * 900000)}`,
+                requestedBy: userName || 'Dr. Attending Physician',
+                clinicalNotes,
+                createdAt: new Date().toISOString(),
+                status: fulfillment === 'external_partner' ? 'Dispatched to Partner' : 'Pending'
+            };
+
+            await apiService.saveModuleRecord('his_lab_requests', record);
+
+            // Auto-enqueue bill item onto Cashier Finance tab queue
+            await apiService.saveModuleRecord('his_billing_items', {
+                id: `bill_${reqId}`,
+                institutionId,
+                patientId: selectedPatientId,
+                patientName: patient?.fullName || 'Patient',
+                doctorName: userName || 'Dr. Attending',
+                type: fulfillment === 'external_partner' ? `Partnered Lab (${partnerLabName})` : 'In-House Diagnostic Order',
+                totalAmount: fulfillment === 'external_partner' ? 3500 : 2000,
+                status: 'pending_queue',
+                createdAt: new Date().toISOString(),
+                items: [
+                    {
+                        itemName: `${testType} [${fulfillment === 'external_partner' ? partnerLabName : 'In-House'}]`,
+                        category: 'Laboratory',
+                        quantity: 1,
+                        unitPrice: fulfillment === 'external_partner' ? 3500 : 2000
+                    }
+                ]
+            }).catch(() => null);
+
+            // Transmit back to Patient clinical timeline
+            await apiService.saveModuleRecord('his_clinical_events', {
+                id: `evt_lab_${Date.now()}`,
+                patientId: selectedPatientId,
+                institutionId,
+                date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+                time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+                event: `Lab Request: ${testType} [${fulfillment === 'external_partner' ? partnerLabName : 'In-House'}]`,
+                dept: 'Laboratory',
+                provider: userName || 'Dr. Attending Physician',
+                createdAt: new Date().toISOString()
+            }).catch(() => null);
+
+            alert(`✓ Diagnostic order committed for ${patient?.fullName || 'Patient'}!`);
+            onClose();
+        } catch (err: any) {
+            alert(`Commit failed: ${err.message || err}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl">
+            <div className="bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden animate-zoom-in">
+                <div className="p-7 border-b border-white/10 bg-gradient-to-r from-blue-600 to-indigo-600 flex justify-between items-center">
+                    <div>
+                        <h3 className="text-lg font-black text-white uppercase tracking-tighter italic">Quick <span className="text-blue-200">Diagnostic Order</span></h3>
+                        <p className="text-[9px] font-black text-blue-100 uppercase tracking-widest mt-0.5 opacity-80">Select patient &amp; generate lab requisition</p>
+                    </div>
+                    <button onClick={onClose} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all"><XIcon className="w-4 h-4" /></button>
+                </div>
+                <div className="p-7 space-y-5">
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Select Patient *</label>
+                        <select 
+                            value={selectedPatientId} 
+                            onChange={e => setSelectedPatientId(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 focus:border-blue-500 rounded-2xl px-5 py-3.5 text-xs font-bold text-white uppercase outline-none"
+                        >
+                            <option value="">— Choose Patient —</option>
+                            {patients.map(p => (
+                                <option key={p.id} value={p.id}>
+                                    {p.fullName} ({p.admissionNumber || p.patientNumber || p.id?.substring(0, 8)})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Fulfillment Facility</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setFulfillment('in_house')}
+                                className={`p-3 rounded-xl text-left border text-xs font-bold uppercase transition-all ${
+                                    fulfillment === 'in_house' ? 'bg-blue-600/30 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-slate-400'
+                                }`}
+                            >
+                                🏥 In-House Lab
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setFulfillment('external_partner')}
+                                className={`p-3 rounded-xl text-left border text-xs font-bold uppercase transition-all ${
+                                    fulfillment === 'external_partner' ? 'bg-indigo-600/30 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-400'
+                                }`}
+                            >
+                                🛡️ Partner Lab
+                            </button>
+                        </div>
+                    </div>
+
+                    {fulfillment === 'external_partner' && (
+                        <div>
+                            <label className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-2 block">Partner Reference Lab</label>
+                            <select 
+                                value={partnerLabName} 
+                                onChange={e => setPartnerLabName(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 focus:border-indigo-500 rounded-xl p-3 text-xs font-bold text-white outline-none uppercase"
+                            >
+                                <option>Lancet Kenya Reference Lab</option>
+                                <option>PathCare Kenya Diagnostics</option>
+                                <option>Cerba Lancet Africa</option>
+                                <option>Nairobi Hospital Reference Lab</option>
+                            </select>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Test Panel</label>
+                        <select 
+                            value={testType} 
+                            onChange={e => setTestType(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 focus:border-blue-500 rounded-2xl px-5 py-3.5 text-xs font-bold text-white uppercase outline-none"
+                        >
+                            <option>Full Blood Count (FBC)</option>
+                            <option>Liver Function Test (LFT)</option>
+                            <option>Renal Electrolytes &amp; Creatinine</option>
+                            <option>Urinalysis (Micro &amp; Macro)</option>
+                            <option>Blood Group &amp; Crossmatch</option>
+                            <option>Thyroid Profile (TSH, T3, T4)</option>
+                            <option>HbA1c Glycated Hemoglobin</option>
+                            <option>Lipid Profile &amp; Cholesterol</option>
+                            <option>Histopathology / Tissue Biopsy (External)</option>
+                            <option>Chest X-Ray / Diagnostic Imaging</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Diagnostic Priority</label>
+                        <div className="flex gap-3">
+                            <button 
+                                type="button" 
+                                onClick={() => setPriority('Routine')}
+                                className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                                    priority === 'Routine' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/5 border-white/10 text-slate-400'
+                                }`}
+                            >
+                                Routine
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => setPriority('Urgent')}
+                                className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                                    priority === 'Urgent' ? 'bg-rose-600 text-white border-rose-600 animate-pulse' : 'bg-white/5 border-white/10 text-slate-400'
+                                }`}
+                            >
+                                🔴 STAT / Urgent
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Clinical Observations</label>
+                        <textarea 
+                            value={clinicalNotes} 
+                            onChange={e => setClinicalNotes(e.target.value)} 
+                            rows={3}
+                            placeholder="Specific markers or differential diagnosis..."
+                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-xs font-bold outline-none text-white uppercase tracking-wider resize-none" 
+                        />
+                    </div>
+
+                    <button 
+                        onClick={handleCommit} 
+                        disabled={isSaving || !selectedPatientId}
+                        className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:scale-[1.02] transition-all shadow-xl shadow-blue-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                    >
+                        {isSaving ? 'Committing...' : <><SparklesIcon className="w-4 h-4" /> Commit Lab Order to Queue</>}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export function DoctorDashboard({
     patients, userName, institutionId,
     onAddVisit, onAddPrescription, onOpenPatient, onRegisterPatient
@@ -109,6 +327,7 @@ export function DoctorDashboard({
     const [currentTime, setCurrentTime] = useState(new Date());
     const [activeTab, setActiveTab] = useState<'queue' | 'patients' | 'vitals'>('queue');
     const [showNoteModal, setShowNoteModal] = useState(false);
+    const [showLabOrderModal, setShowLabOrderModal] = useState(false);
     const [searchPatient, setSearchPatient] = useState('');
     const [selectedSpecialty, setSelectedSpecialty] = useState('General Medicine');
 
@@ -199,6 +418,10 @@ export function DoctorDashboard({
                     <p className="text-5xl font-black text-white tracking-tight tabular-nums leading-none">{timeStr}</p>
                     <p className="text-[9px] font-black text-indigo-300/50 uppercase tracking-widest mt-2">{today}</p>
                     <div className="flex gap-2 mt-4 flex-wrap lg:justify-end">
+                        <button onClick={() => setShowLabOrderModal(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/50">
+                            <BeakerIcon className="w-3.5 h-3.5" /> Order Lab Test
+                        </button>
                         <button onClick={() => setShowNoteModal(true)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20">
                             <DocumentTextIcon className="w-3.5 h-3.5" /> Quick Note
@@ -411,6 +634,7 @@ export function DoctorDashboard({
             </div>
 
             {showNoteModal && <QuickNoteModal onClose={() => setShowNoteModal(false)} patients={patients} />}
+            {showLabOrderModal && <QuickLabOrderModal onClose={() => setShowLabOrderModal(false)} patients={patients} institutionId={institutionId} userName={userName} />}
         </div>
     );
 }

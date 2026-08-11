@@ -38,12 +38,14 @@ const DEFAULT_PARTNER_LABS = [
     { id: 'partner_4', name: 'Nairobi Hospital Reference Lab', code: 'PARTNER-TNH', phone: '0703082000', email: 'labrequests@nbihosp.org' }
 ];
 
-function AddLabRequestModal({ isOpen, onClose, onAdd, activePatientId, partnerLabsList = [] }: any) {
+function AddLabRequestModal({ isOpen, onClose, onAdd, activePatientId, partnerLabsList = [], patientsList = [] }: any) {
+    const [fetchedPatients, setFetchedPatients] = useState<any[]>(patientsList);
     const [formData, setFormData] = useState({
         testType: 'Full Blood Count (FBC)',
         priority: 'Routine',
         clinicalNotes: '',
         patientId: activePatientId || '',
+        patientName: '',
         fulfillment: 'in_house', // 'in_house' | 'external_partner'
         partnerLabId: '',
         partnerLabName: '',
@@ -58,7 +60,16 @@ function AddLabRequestModal({ isOpen, onClose, onAdd, activePatientId, partnerLa
         }
     }, [activePatientId]);
 
+    useEffect(() => {
+        if (isOpen && fetchedPatients.length === 0) {
+            apiService.fetchModuleRecords('his_patients').then(res => {
+                if (res && res.length > 0) setFetchedPatients(res);
+            }).catch(() => null);
+        }
+    }, [isOpen]);
+
     const availablePartners = partnerLabsList.length > 0 ? partnerLabsList : DEFAULT_PARTNER_LABS;
+    const availablePatients = fetchedPatients.length > 0 ? fetchedPatients : patientsList;
 
     if (!isOpen) return null;
     return (
@@ -78,6 +89,40 @@ function AddLabRequestModal({ isOpen, onClose, onAdd, activePatientId, partnerLa
                 </div>
 
                 <div className="space-y-5">
+                    {/* Patient Selection Field */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-indigo-300 ml-1 block">Patient Registry *</label>
+                        {availablePatients.length > 0 ? (
+                            <select
+                                value={formData.patientId}
+                                onChange={(e) => {
+                                    const selected = availablePatients.find((p: any) => p.id === e.target.value);
+                                    setFormData({
+                                        ...formData,
+                                        patientId: e.target.value,
+                                        patientName: selected?.fullName || e.target.value
+                                    });
+                                }}
+                                className="w-full bg-black/50 border border-indigo-500/40 rounded-2xl px-5 py-3.5 text-xs font-bold text-white outline-none focus:border-indigo-400 uppercase"
+                            >
+                                <option value="">-- Select Patient File / Name --</option>
+                                {availablePatients.map((p: any) => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.fullName} (File #: {p.admissionNumber || p.patientNumber || p.id?.substring(0, 8)})
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <input
+                                type="text"
+                                value={formData.patientId}
+                                onChange={(e) => setFormData({ ...formData, patientId: e.target.value })}
+                                placeholder="Enter Patient File Number or OP ID..."
+                                className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3.5 text-xs font-bold text-white outline-none focus:border-blue-500 uppercase"
+                            />
+                        )}
+                    </div>
+
                     {/* Fulfillment Facility Selector */}
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Fulfillment Facility</label>

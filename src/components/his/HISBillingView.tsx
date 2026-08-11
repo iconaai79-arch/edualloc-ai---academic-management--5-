@@ -996,7 +996,7 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                             </button>
                         </div>
                         <div className="flex-1 mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
-                            <PdfViewer pdfDataUri={pdfPreviewUri} title={pdfPreviewTitle} />
+                            <PdfViewer src={pdfPreviewUri} pdfDataUri={pdfPreviewUri} className="w-full h-full border-none" title={pdfPreviewTitle} />
                         </div>
                     </div>
                 </div>

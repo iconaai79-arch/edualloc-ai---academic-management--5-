@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, AlertCircle, Download } from 'lucide-react';
 
 interface PdfViewerProps extends React.IframeHTMLAttributes<HTMLIFrameElement> {
-    src: string;
+    src?: string;
+    pdfDataUri?: string;
 }
 
 // Sub-component to render each individual page
@@ -221,10 +222,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, className, title, sty
     const [objectUrl, setObjectUrl] = useState<string>('');
 
     useEffect(() => {
-        if (!src) return;
-        if (src.startsWith('data:application/pdf;base64,')) {
+        if (!effectiveSrc) return;
+        if (effectiveSrc.startsWith('data:application/pdf;base64,')) {
             try {
-                const base64 = src.split(',')[1];
+                const base64 = effectiveSrc.split(',')[1];
                 const binaryStr = atob(base64);
                 const len = binaryStr.length;
                 const bytes = new Uint8Array(len);
@@ -239,19 +240,19 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, className, title, sty
                 };
             } catch (err) {
                 console.error("Failed to convert data URI to blob URL:", err);
-                setObjectUrl(src);
+                setObjectUrl(effectiveSrc);
             }
         } else {
-            setObjectUrl(src);
+            setObjectUrl(effectiveSrc);
         }
-    }, [src]);
+    }, [effectiveSrc]);
 
     // Desktop fallback: render standard iframe
     if (!isMobile) {
         return (
             <iframe
-                src={objectUrl || src}
-                className={className}
+                src={objectUrl || effectiveSrc}
+                className={className || "w-full h-full border-none"}
                 title={title || "PDF Preview"}
                 style={style}
                 {...otherProps}
