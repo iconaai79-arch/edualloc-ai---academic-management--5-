@@ -262,22 +262,35 @@ function QuickLabOrderModal({ onClose, patients, institutionId, userName, defaul
                     )}
 
                     <div>
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Test Panel</label>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Diagnostic Test or Imaging Panel</label>
                         <select 
                             value={testType} 
                             onChange={e => setTestType(e.target.value)}
                             className="w-full bg-black/40 border border-white/10 focus:border-blue-500 rounded-2xl px-5 py-3.5 text-xs font-bold text-white uppercase outline-none"
                         >
-                            <option>Full Blood Count (FBC)</option>
-                            <option>Liver Function Test (LFT)</option>
-                            <option>Renal Electrolytes &amp; Creatinine</option>
-                            <option>Urinalysis (Micro &amp; Macro)</option>
-                            <option>Blood Group &amp; Crossmatch</option>
-                            <option>Thyroid Profile (TSH, T3, T4)</option>
-                            <option>HbA1c Glycated Hemoglobin</option>
-                            <option>Lipid Profile &amp; Cholesterol</option>
-                            <option>Histopathology / Tissue Biopsy (External)</option>
-                            <option>Chest X-Ray / Diagnostic Imaging</option>
+                            <optgroup label="🩻 RADIOLOGY &amp; DIAGNOSTIC IMAGING (X-RAY / USG / CT)">
+                                <option>X-Ray Chest PA View</option>
+                                <option>X-Ray Abdomen Erect &amp; Supine</option>
+                                <option>X-Ray Spine (Cervical / Lumbar AP &amp; Lat)</option>
+                                <option>X-Ray Extremities (Knee / Ankle / Wrist / Femur)</option>
+                                <option>Ultrasound Abdominopelvic</option>
+                                <option>Ultrasound Obstetric &amp; Fetal Doppler</option>
+                                <option>CT Scan Head / Brain (Contrast / Non-Contrast)</option>
+                                <option>CT Scan Chest &amp; Abdomen (HRCT)</option>
+                                <option>MRI Brain &amp; Spine</option>
+                                <option>Mammography Screening (Bilateral)</option>
+                            </optgroup>
+                            <optgroup label="🩸 CLINICAL LABORATORY PANELS">
+                                <option>Full Blood Count (FBC)</option>
+                                <option>Liver Function Test (LFT)</option>
+                                <option>Renal Electrolytes &amp; Creatinine (KFT)</option>
+                                <option>Urinalysis (Micro &amp; Macro)</option>
+                                <option>Blood Group &amp; Crossmatch</option>
+                                <option>Thyroid Profile (TSH, T3, T4)</option>
+                                <option>HbA1c Glycated Hemoglobin</option>
+                                <option>Lipid Profile &amp; Cholesterol</option>
+                                <option>Histopathology / Tissue Biopsy (External)</option>
+                            </optgroup>
                         </select>
                     </div>
 
@@ -559,6 +572,10 @@ export function DoctorDashboard({
                         <button onClick={() => setShowLabOrderModal(true)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/50">
                             <BeakerIcon className="w-3.5 h-3.5" /> Order Lab Test
+                        </button>
+                        <button onClick={() => setShowLabOrderModal(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-purple-900/50">
+                            <span>🩻 Order Radiology / X-Ray</span>
                         </button>
                         <button onClick={() => setShowNoteModal(true)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20">
