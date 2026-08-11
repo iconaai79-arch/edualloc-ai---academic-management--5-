@@ -17,7 +17,7 @@ interface HISConfigProps {
     onStaffUpdated?: () => void;
 }
 
-type ConfigTab = 'branding' | 'staff' | 'clinic' | 'tariffs' | 'insurance';
+type ConfigTab = 'branding' | 'staff' | 'clinic' | 'tariffs' | 'insurance' | 'billing';
 
 const FINGER_OPTIONS = [
     { index: 0, label: 'Right Thumb' },
@@ -60,6 +60,23 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         coverRate: 0,
         isActive: true,
     });
+
+    // ── Invoice & Receipt Numbering State ────────────────────────────────────
+    const [invoiceSettings, setInvoiceSettings] = useState({
+        invoicePrefix: 'INV',
+        invoiceStartNumber: 1001,
+        receiptPrefix: 'RCT',
+        receiptStartNumber: 5001,
+        claimPrefix: 'CLM',
+        claimStartNumber: 2001,
+        currency: 'KES',
+        financialYear: new Date().getFullYear().toString(),
+        paymentTermsDays: 30,
+        autoResetYearly: true,
+        includeYearInNumber: true,
+        zeroPadLength: 4,
+    });
+    const [isSavingBilling, setIsSavingBilling] = useState(false);
 
     // ── Insurance Partners & Schemes State ─────────────────────────────────────
     const [insuranceProviders, setInsuranceProviders] = useState<any[]>([]);
@@ -160,15 +177,15 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
             } else {
                 // Default sample tariffs
                 setCustomTariffs([
-                    { id: 'tar_1', name: 'Chest X-Ray (PA View)', category: 'Radiology', code: 'RAD-001', cashRate: 1500, coverRate: 2000, isActive: true },
-                    { id: 'tar_2', name: 'Abdominal Ultrasound', category: 'Radiology', code: 'RAD-002', cashRate: 2500, coverRate: 3200, isActive: true },
-                    { id: 'tar_3', name: 'Full Blood Count (FBC)', category: 'Laboratory', code: 'LAB-001', cashRate: 800, coverRate: 1200, isActive: true },
-                    { id: 'tar_4', name: 'Malaria Rapid Test (RDT)', category: 'Laboratory', code: 'LAB-002', cashRate: 400, coverRate: 600, isActive: true },
-                    { id: 'tar_5', name: 'Lipid Profile Panel', category: 'Laboratory', code: 'LAB-003', cashRate: 1800, coverRate: 2400, isActive: true },
-                    { id: 'tar_6', name: 'Minor Surgical Dressing', category: 'Procedure', code: 'PROC-001', cashRate: 500, coverRate: 800, isActive: true },
-                    { id: 'tar_7', name: 'General Ward Bed / Day', category: 'Inpatient', code: 'INP-001', cashRate: 1500, coverRate: 2200, isActive: true },
-                    { id: 'tar_8', name: 'Tooth Extraction (Simple)', category: 'Dental', code: 'DEN-001', cashRate: 2000, coverRate: 2800, isActive: true },
-                    { id: 'tar_9', name: 'Refraction & Ocular Exam', category: 'Ophthalmology', code: 'EYE-001', cashRate: 1200, coverRate: 1800, isActive: true },
+                    { id: 'tar_1', name: 'Chest X-Ray (PA View)', category: 'Radiology', code: 'RAD-001', cashRate: 1500, coverRate: 2000, isCoverable: true, isActive: true },
+                    { id: 'tar_2', name: 'Abdominal Ultrasound', category: 'Radiology', code: 'RAD-002', cashRate: 2500, coverRate: 3200, isCoverable: true, isActive: true },
+                    { id: 'tar_3', name: 'Full Blood Count (FBC)', category: 'Laboratory', code: 'LAB-001', cashRate: 800, coverRate: 1200, isCoverable: true, isActive: true },
+                    { id: 'tar_4', name: 'Malaria Rapid Test (RDT)', category: 'Laboratory', code: 'LAB-002', cashRate: 400, coverRate: 600, isCoverable: true, isActive: true },
+                    { id: 'tar_5', name: 'Lipid Profile Panel', category: 'Laboratory', code: 'LAB-003', cashRate: 1800, coverRate: 2400, isCoverable: true, isActive: true },
+                    { id: 'tar_6', name: 'Cosmetic Surgical Dressing', category: 'Procedure', code: 'PROC-001', cashRate: 1500, coverRate: 2000, isCoverable: false, isActive: true },
+                    { id: 'tar_7', name: 'General Ward Bed / Day', category: 'Inpatient', code: 'INP-001', cashRate: 1500, coverRate: 2200, isCoverable: true, isActive: true },
+                    { id: 'tar_8', name: 'Teeth Whitening / Cosmetic', category: 'Dental', code: 'DEN-001', cashRate: 8000, coverRate: 10000, isCoverable: false, isActive: true },
+                    { id: 'tar_9', name: 'Refraction & Ocular Exam', category: 'Ophthalmology', code: 'EYE-001', cashRate: 1200, coverRate: 1800, isCoverable: true, isActive: true },
                 ]);
             }
         } catch (e) {
@@ -351,6 +368,24 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
             if (onStaffUpdated) onStaffUpdated();
         } catch (err: any) {
             alert('Failed to register practitioner: ' + (err.message || err));
+        }
+    };
+
+    const handleSaveBillingSettings = async () => {
+        if (!institutionId) return;
+        setIsSavingBilling(true);
+        try {
+            await apiService.saveModuleRecord('his_billing_settings', {
+                id: `billing_${institutionId}`,
+                institutionId,
+                ...invoiceSettings,
+                updatedAt: new Date().toISOString(),
+            });
+            alert('✓ Billing & Numbering settings saved successfully!');
+        } catch (e) {
+            alert('Failed to save billing settings.');
+        } finally {
+            setIsSavingBilling(false);
         }
     };
 
@@ -785,6 +820,31 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                                     </p>
                                                 </div>
                                             </div>
+
+                                            {/* Insurance Coverage Toggle */}
+                                            <div className="pt-2">
+                                                <button
+                                                    onClick={async () => {
+                                                        const updatedCoverable = item.isCoverable === false ? true : false;
+                                                        setCustomTariffs(prev => prev.map(t => t.id === item.id ? { ...t, isCoverable: updatedCoverable } : t));
+                                                        if (institutionId) {
+                                                            try {
+                                                                await apiService.saveModuleRecord('his_tariffs', { ...item, isCoverable: updatedCoverable });
+                                                            } catch (e) {
+                                                                console.warn('Failed to update tariff coverage:', e);
+                                                            }
+                                                        }
+                                                    }}
+                                                    className={`w-full py-2 px-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-between border ${
+                                                        item.isCoverable !== false
+                                                            ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900'
+                                                            : 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900'
+                                                    }`}
+                                                >
+                                                    <span>{item.isCoverable !== false ? '🛡️ Insurance Covered' : '🚫 Excluded (Self-Pay Only)'}</span>
+                                                    <span className="underline text-[8px]">Change</span>
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                             </div>
@@ -886,6 +946,240 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                         </div>
                     </div>
                 );
+            case 'billing': {
+                const pad = (n: number) => String(n).padStart(invoiceSettings.zeroPadLength, '0');
+                const yr = invoiceSettings.includeYearInNumber ? `/${invoiceSettings.financialYear.slice(-2)}` : '';
+                const previewInvoice = `${invoiceSettings.invoicePrefix}${yr}-${pad(invoiceSettings.invoiceStartNumber)}`;
+                const previewReceipt = `${invoiceSettings.receiptPrefix}${yr}-${pad(invoiceSettings.receiptStartNumber)}`;
+                const previewClaim   = `${invoiceSettings.claimPrefix}${yr}-${pad(invoiceSettings.claimStartNumber)}`;
+                return (
+                    <div className="space-y-8 animate-fade-in pb-20">
+                        {/* ── Header ── */}
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 p-8 bg-gradient-to-br from-indigo-950 via-slate-900 to-violet-950 rounded-[2.5rem] border border-indigo-500/20 shadow-2xl relative overflow-hidden">
+                            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.12),transparent_60%)] pointer-events-none" />
+                            <div className="relative z-10">
+                                <p className="text-[9px] font-black text-indigo-300/60 uppercase tracking-[0.3em] mb-1">Nexus Finance Engine</p>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter italic text-white">Invoice & <span className="text-indigo-300">Receipt Numbering</span></h3>
+                                <p className="text-[10px] font-bold text-indigo-200/60 uppercase tracking-widest mt-1">Configure document numbering sequences, prefixes & financial year</p>
+                            </div>
+                            <button
+                                onClick={handleSaveBillingSettings}
+                                disabled={isSavingBilling}
+                                className="relative z-10 flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-900/50 disabled:opacity-50"
+                            >
+                                {isSavingBilling ? '⏳ Saving...' : '✓ Save All Settings'}
+                            </button>
+                        </div>
+
+                        {/* ── Live Preview ── */}
+                        <div className="p-8 bg-white dark:bg-white/[0.02] rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-xl">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-6">🔍 Live Number Preview</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                {[
+                                    { label: 'Invoice', preview: previewInvoice, color: 'indigo', emoji: '🧾' },
+                                    { label: 'Receipt', preview: previewReceipt, color: 'emerald', emoji: '✅' },
+                                    { label: 'Insurance Claim', preview: previewClaim, color: 'violet', emoji: '🛡️' },
+                                ].map((p, i) => (
+                                    <div key={i} className={`p-6 rounded-2xl bg-${p.color}-50 dark:bg-${p.color}-950/20 border border-${p.color}-100 dark:border-${p.color}-500/10 text-center`}>
+                                        <p className="text-2xl mb-2">{p.emoji}</p>
+                                        <p className={`text-xl font-black tracking-tight text-${p.color}-700 dark:text-${p.color}-300 font-mono`}>{p.preview}</p>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">{p.label} Number Format</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* ── Invoice Settings ── */}
+                            <div className="p-8 bg-white dark:bg-white/[0.02] rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-5">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-2xl">🧾</span>
+                                    <div>
+                                        <p className="text-sm font-black uppercase tracking-tight italic">Invoice Numbering</p>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Set prefix and starting sequence</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Invoice Prefix</label>
+                                        <input
+                                            type="text"
+                                            value={invoiceSettings.invoicePrefix}
+                                            onChange={e => setInvoiceSettings(s => ({ ...s, invoicePrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
+                                            maxLength={6}
+                                            placeholder="INV"
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black uppercase outline-none focus:border-indigo-500/50 transition-all font-mono"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Start Number</label>
+                                        <input
+                                            type="number"
+                                            value={invoiceSettings.invoiceStartNumber}
+                                            onChange={e => setInvoiceSettings(s => ({ ...s, invoiceStartNumber: Math.max(1, Number(e.target.value)) }))}
+                                            min={1}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-indigo-500/50 transition-all font-mono"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── Receipt Settings ── */}
+                            <div className="p-8 bg-white dark:bg-white/[0.02] rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-5">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-2xl">✅</span>
+                                    <div>
+                                        <p className="text-sm font-black uppercase tracking-tight italic">Receipt Numbering</p>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Payment receipt sequence</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Receipt Prefix</label>
+                                        <input
+                                            type="text"
+                                            value={invoiceSettings.receiptPrefix}
+                                            onChange={e => setInvoiceSettings(s => ({ ...s, receiptPrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
+                                            maxLength={6}
+                                            placeholder="RCT"
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black uppercase outline-none focus:border-emerald-500/50 transition-all font-mono"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Start Number</label>
+                                        <input
+                                            type="number"
+                                            value={invoiceSettings.receiptStartNumber}
+                                            onChange={e => setInvoiceSettings(s => ({ ...s, receiptStartNumber: Math.max(1, Number(e.target.value)) }))}
+                                            min={1}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-emerald-500/50 transition-all font-mono"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── Insurance Claim Settings ── */}
+                            <div className="p-8 bg-white dark:bg-white/[0.02] rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-5">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-2xl">🛡️</span>
+                                    <div>
+                                        <p className="text-sm font-black uppercase tracking-tight italic">Insurance Claim Numbering</p>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">SHA & private insurance claim sequence</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Claim Prefix</label>
+                                        <input
+                                            type="text"
+                                            value={invoiceSettings.claimPrefix}
+                                            onChange={e => setInvoiceSettings(s => ({ ...s, claimPrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
+                                            maxLength={6}
+                                            placeholder="CLM"
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black uppercase outline-none focus:border-violet-500/50 transition-all font-mono"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Start Number</label>
+                                        <input
+                                            type="number"
+                                            value={invoiceSettings.claimStartNumber}
+                                            onChange={e => setInvoiceSettings(s => ({ ...s, claimStartNumber: Math.max(1, Number(e.target.value)) }))}
+                                            min={1}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-violet-500/50 transition-all font-mono"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── Global Options ── */}
+                            <div className="p-8 bg-white dark:bg-white/[0.02] rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-5">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-2xl">⚙️</span>
+                                    <div>
+                                        <p className="text-sm font-black uppercase tracking-tight italic">Global Options</p>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Currency, year & format settings</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Currency</label>
+                                        <select
+                                            value={invoiceSettings.currency}
+                                            onChange={e => setInvoiceSettings(s => ({ ...s, currency: e.target.value }))}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-indigo-500/50 transition-all"
+                                        >
+                                            <option value="KES">KES — Kenyan Shilling</option>
+                                            <option value="USD">USD — US Dollar</option>
+                                            <option value="EUR">EUR — Euro</option>
+                                            <option value="GBP">GBP — British Pound</option>
+                                            <option value="TZS">TZS — Tanzanian Shilling</option>
+                                            <option value="UGX">UGX — Ugandan Shilling</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Financial Year</label>
+                                        <input
+                                            type="text"
+                                            value={invoiceSettings.financialYear}
+                                            onChange={e => setInvoiceSettings(s => ({ ...s, financialYear: e.target.value }))}
+                                            placeholder="2025"
+                                            maxLength={4}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-indigo-500/50 transition-all font-mono"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Payment Terms (Days)</label>
+                                        <input
+                                            type="number"
+                                            value={invoiceSettings.paymentTermsDays}
+                                            onChange={e => setInvoiceSettings(s => ({ ...s, paymentTermsDays: Math.max(0, Number(e.target.value)) }))}
+                                            min={0}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-indigo-500/50 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Number Padding (digits)</label>
+                                        <select
+                                            value={invoiceSettings.zeroPadLength}
+                                            onChange={e => setInvoiceSettings(s => ({ ...s, zeroPadLength: Number(e.target.value) }))}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-indigo-500/50 transition-all"
+                                        >
+                                            <option value={3}>3 digits (e.g. 001)</option>
+                                            <option value={4}>4 digits (e.g. 0001)</option>
+                                            <option value={5}>5 digits (e.g. 00001)</option>
+                                            <option value={6}>6 digits (e.g. 000001)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/5">
+                                    {[
+                                        { key: 'autoResetYearly', label: 'Auto-reset sequence every financial year', desc: 'Numbers restart from start value each new year' },
+                                        { key: 'includeYearInNumber', label: 'Include year code in document number', desc: `e.g. INV/25-0001` },
+                                    ].map((toggle) => (
+                                        <div key={toggle.key} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">{toggle.label}</p>
+                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{toggle.desc}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => setInvoiceSettings(s => ({ ...s, [toggle.key]: !s[toggle.key as keyof typeof s] }))}
+                                                className={`relative w-12 h-6 rounded-full transition-all flex-shrink-0 ${
+                                                    (invoiceSettings as any)[toggle.key] ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-white/10'
+                                                }`}
+                                            >
+                                                <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-all ${
+                                                    (invoiceSettings as any)[toggle.key] ? 'translate-x-6' : 'translate-x-0'
+                                                }`} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
             default:
                 return null;
         }
@@ -908,6 +1202,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     { id: 'clinic', label: 'Clinic Setup', icon: SettingsIcon },
                     { id: 'tariffs', label: 'Tariffs & Fee Schedule', icon: SettingsIcon },
                     { id: 'insurance', label: 'Insurance & Schemes', icon: GlobeAltIcon },
+                    { id: 'billing', label: 'Invoice & Receipt Numbering', icon: PencilIcon },
                 ].map((tab) => (
                     <button
                         key={tab.id}

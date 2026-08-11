@@ -19,17 +19,18 @@ interface PatientInvoice {
     invoiceNumber: string;
     patientId: string;
     patientName: string;
-    payerType: 'Self-Pay' | 'Insurance';
+    payerType: 'Self-Pay' | 'Insurance' | 'Split (Co-Pay + Insurance)';
     insuranceProvider?: string;
     policyNumber?: string;
     copayAmount?: number;
+    insuranceCoverAmount?: number;
     items: { itemName: string; category: string; quantity: number; unitPrice: number; total: number }[];
     totalAmount: number;
     amountPaid: number;
     balance: number;
     status: 'Pending' | 'Paid' | 'Partial' | 'Overdue';
     date: string;
-    paymentMethod?: 'M-Pesa' | 'Cash' | 'Card' | 'Insurance Claim';
+    paymentMethod?: 'M-Pesa' | 'Cash' | 'Card' | 'Insurance Claim' | 'Split (Co-Pay + Claim)';
 }
 
 const MOCK_PATIENT_INVOICES: PatientInvoice[] = [
@@ -38,10 +39,11 @@ const MOCK_PATIENT_INVOICES: PatientInvoice[] = [
         invoiceNumber: 'INV-2025-001',
         patientId: 'pat_1',
         patientName: 'John Kamau',
-        payerType: 'Insurance',
+        payerType: 'Split (Co-Pay + Insurance)',
         insuranceProvider: 'SHA (Social Health Authority)',
         policyNumber: 'SHA-8849-K',
         copayAmount: 500,
+        insuranceCoverAmount: 6200,
         items: [
             { itemName: 'General Practitioner Consultation', category: 'Consultation', quantity: 1, unitPrice: 2000, total: 2000 },
             { itemName: 'Full Blood Count (FBC) Lab Test', category: 'Diagnostics', quantity: 1, unitPrice: 3500, total: 3500 },
@@ -52,7 +54,7 @@ const MOCK_PATIENT_INVOICES: PatientInvoice[] = [
         balance: 0,
         status: 'Paid',
         date: '2025-03-11',
-        paymentMethod: 'Insurance Claim'
+        paymentMethod: 'Split (Co-Pay + Claim)'
     },
     {
         id: 'inv_102',
@@ -75,10 +77,11 @@ const MOCK_PATIENT_INVOICES: PatientInvoice[] = [
         invoiceNumber: 'INV-2025-003',
         patientId: 'pat_3',
         patientName: 'David Njenga',
-        payerType: 'Insurance',
+        payerType: 'Split (Co-Pay + Insurance)',
         insuranceProvider: 'Jubilee Insurance',
         policyNumber: 'JUB-99412',
         copayAmount: 1000,
+        insuranceCoverAmount: 20000,
         items: [
             { itemName: 'Inpatient Ward Admission (2 Days)', category: 'Inpatient', quantity: 2, unitPrice: 8000, total: 16000 },
             { itemName: 'IV Saline Drip & Nursing Care', category: 'Nursing', quantity: 1, unitPrice: 5000, total: 5000 }
@@ -110,10 +113,10 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     // New Invoice Form
     const [selectedPatientId, setSelectedPatientId] = useState('');
     const [manualPatientName, setManualPatientName] = useState('');
-    const [payerType, setPayerType] = useState<'Self-Pay' | 'Insurance'>('Self-Pay');
+    const [payerType, setPayerType] = useState<'Self-Pay' | 'Insurance' | 'Split (Co-Pay + Insurance)'>('Self-Pay');
     const [selectedInsurance, setSelectedInsurance] = useState('SHA (Social Health Authority)');
     const [policyNumber, setPolicyNumber] = useState('');
-    const [copayAmount, setCopayAmount] = useState('0');
+    const [copayAmount, setCopayAmount] = useState('500');
     const [lineItems, setLineItems] = useState<{ itemName: string; category: string; quantity: number; unitPrice: number }[]>([
         { itemName: 'General Consultation', category: 'Consultation', quantity: 1, unitPrice: 1500 }
     ]);
@@ -121,6 +124,8 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     // Payment Form
     const [paymentPhone, setPaymentPhone] = useState('0712345678');
     const [paymentMethod, setPaymentMethod] = useState<'M-Pesa' | 'Cash' | 'Card'>('M-Pesa');
+    const [paymentOption, setPaymentOption] = useState<'copay' | 'full' | 'custom'>('copay');
+    const [customPayAmount, setCustomPayAmount] = useState<number>(0);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
     useEffect(() => {
@@ -173,7 +178,7 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     // Financial Metrics
     const totalRevenue = useMemo(() => invoices.reduce((sum, inv) => sum + inv.totalAmount, 0), [invoices]);
     const totalCollected = useMemo(() => invoices.reduce((sum, inv) => sum + inv.amountPaid, 0), [invoices]);
-    const totalPendingInsurance = useMemo(() => invoices.filter(inv => inv.payerType === 'Insurance' && inv.status !== 'Paid').reduce((sum, inv) => sum + inv.balance, 0), [invoices]);
+    const totalPendingInsurance = useMemo(() => invoices.filter(inv => inv.payerType !== 'Self-Pay' && inv.status !== 'Paid').reduce((sum, inv) => sum + (inv.insuranceCoverAmount || inv.balance), 0), [invoices]);
     const totalPendingSelfPay = useMemo(() => invoices.filter(inv => inv.payerType === 'Self-Pay' && inv.status !== 'Paid').reduce((sum, inv) => sum + inv.balance, 0), [invoices]);
 
     const handleAddLineItem = () => {
@@ -201,15 +206,20 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
         const pObj = patients.find(p => p.id === selectedPatientId);
         const pName = pObj ? pObj.fullName : (manualPatientName || 'Walk-in Patient');
         
+        const isInsurance = payerType === 'Insurance' || payerType === 'Split (Co-Pay + Insurance)';
+        const copay = isInsurance ? Number(copayAmount) || 0 : 0;
+        const insuranceCover = isInsurance ? Math.max(0, newInvoiceSubtotal - copay) : 0;
+
         const newInv: PatientInvoice = {
             id: `inv_${Date.now()}`,
             invoiceNumber: `INV-2025-${Math.floor(100 + Math.random() * 900)}`,
             patientId: selectedPatientId || 'walkin',
             patientName: pName,
             payerType,
-            insuranceProvider: payerType === 'Insurance' ? selectedInsurance : undefined,
-            policyNumber: payerType === 'Insurance' ? policyNumber : undefined,
-            copayAmount: payerType === 'Insurance' ? Number(copayAmount) : 0,
+            insuranceProvider: isInsurance ? selectedInsurance : undefined,
+            policyNumber: isInsurance ? policyNumber : undefined,
+            copayAmount: copay,
+            insuranceCoverAmount: insuranceCover,
             items: lineItems.map(item => ({ ...item, total: Number(item.quantity) * Number(item.unitPrice) })),
             totalAmount: newInvoiceSubtotal,
             amountPaid: 0,
@@ -229,19 +239,22 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                     invoiceNumber: newInv.invoiceNumber,
                     payerType: newInv.payerType,
                     totalAmount: newInv.totalAmount,
+                    copayAmount: copay,
+                    insuranceCoverAmount: insuranceCover,
                     status: 'pending',
                     created_at: new Date().toISOString()
                 });
                 
-                // If insurance, also log to claims
-                if (payerType === 'Insurance') {
+                // If insurance involved, also log insurance claim for the remaining balance
+                if (isInsurance && insuranceCover > 0) {
                     await apiService.saveModuleRecord('his_claims', {
                         institution_id: institutionId,
                         patientId: newInv.patientId,
                         patientName: newInv.patientName,
                         insuranceProvider: selectedInsurance,
                         policyNumber,
-                        claimAmount: newInv.totalAmount - Number(copayAmount),
+                        claimAmount: insuranceCover,
+                        copayAmount: copay,
                         status: 'Pending',
                         submissionDate: new Date().toISOString()
                     });
@@ -252,20 +265,33 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
         }
 
         setIsGenerateModalOpen(false);
-        alert(`Invoice ${newInv.invoiceNumber} created successfully!`);
+        const splitMsg = isInsurance 
+            ? ` (Patient Co-pay: KES ${copay.toLocaleString()} | Insurance Claim: KES ${insuranceCover.toLocaleString()})`
+            : '';
+        alert(`Invoice ${newInv.invoiceNumber} created successfully!${splitMsg}`);
     };
 
     const handleProcessPayment = async () => {
         if (!selectedInvoice) return;
         setIsProcessingPayment(true);
 
+        const amountToPay = paymentOption === 'copay'
+            ? (selectedInvoice.copayAmount || selectedInvoice.balance)
+            : paymentOption === 'custom'
+            ? customPayAmount
+            : selectedInvoice.balance;
+
         setTimeout(async () => {
+            const newAmountPaid = selectedInvoice.amountPaid + amountToPay;
+            const newBalance = Math.max(0, selectedInvoice.totalAmount - newAmountPaid);
+            const isFullyPaid = newBalance === 0;
+
             const updatedInv: PatientInvoice = {
                 ...selectedInvoice,
-                amountPaid: selectedInvoice.totalAmount,
-                balance: 0,
-                status: 'Paid',
-                paymentMethod
+                amountPaid: newAmountPaid,
+                balance: newBalance,
+                status: isFullyPaid ? 'Paid' : 'Partial',
+                paymentMethod: selectedInvoice.payerType !== 'Self-Pay' ? 'Split (Co-Pay + Claim)' : paymentMethod
             };
 
             setInvoices(prev => prev.map(inv => inv.id === selectedInvoice.id ? updatedInv : inv));
@@ -275,7 +301,9 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                     await apiService.saveModuleRecord('his_billing_items', {
                         institution_id: institutionId,
                         id: selectedInvoice.id,
-                        status: 'paid',
+                        status: isFullyPaid ? 'paid' : 'partial',
+                        amountPaid: newAmountPaid,
+                        balance: newBalance,
                         paymentMethod,
                         paidAt: new Date().toISOString()
                     });
@@ -286,7 +314,7 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
 
             setIsProcessingPayment(false);
             setIsPaymentModalOpen(false);
-            alert(`Payment of KES ${selectedInvoice.totalAmount.toLocaleString()} recorded via ${paymentMethod}! Invoice marked as PAID.`);
+            alert(`✓ Payment of KES ${amountToPay.toLocaleString()} recorded via ${paymentMethod}!\nRemaining Outstanding Balance: KES ${newBalance.toLocaleString()}`);
         }, 1200);
     };
 
@@ -565,62 +593,86 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
 
                             {/* Payer Configuration */}
                             <div className="p-5 bg-white/[0.02] border border-white/10 rounded-2xl space-y-4">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Payer Type</label>
-                                <div className="flex gap-4">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Payer & Settlement Mode</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <button 
                                         type="button"
                                         onClick={() => setPayerType('Self-Pay')}
-                                        className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                                        className={`py-3 px-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
                                             payerType === 'Self-Pay' ? 'bg-emerald-500 text-slate-950' : 'bg-black/40 text-slate-400 border border-white/10'
                                         }`}
                                     >
-                                        Self-Pay (Cash / M-Pesa)
+                                        💵 100% Self-Pay
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setPayerType('Split (Co-Pay + Insurance)')}
+                                        className={`py-3 px-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                                            payerType === 'Split (Co-Pay + Insurance)' ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400' : 'bg-black/40 text-slate-400 border border-white/10'
+                                        }`}
+                                    >
+                                        ⚖️ Split (Co-Pay + Cover)
                                     </button>
                                     <button 
                                         type="button"
                                         onClick={() => setPayerType('Insurance')}
-                                        className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                                        className={`py-3 px-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
                                             payerType === 'Insurance' ? 'bg-rose-500 text-white' : 'bg-black/40 text-slate-400 border border-white/10'
                                         }`}
                                     >
-                                        Insurance / SHA Cover
+                                        🛡️ 100% Insurance Cover
                                     </button>
                                 </div>
 
-                                {payerType === 'Insurance' && (
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                                        <div>
-                                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Insurance Provider</label>
-                                            <select 
-                                                value={selectedInsurance}
-                                                onChange={(e) => setSelectedInsurance(e.target.value)}
-                                                className="w-full p-3 bg-black/50 border border-white/10 rounded-xl text-xs text-white"
-                                            >
-                                                {insuranceProviders.map((ins, i) => (
-                                                    <option key={i} value={ins.name}>{ins.name}</option>
-                                                ))}
-                                            </select>
+                                {payerType !== 'Self-Pay' && (
+                                    <div className="space-y-4 pt-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Insurance Provider</label>
+                                                <select 
+                                                    value={selectedInsurance}
+                                                    onChange={(e) => setSelectedInsurance(e.target.value)}
+                                                    className="w-full p-3 bg-black/50 border border-white/10 rounded-xl text-xs text-white"
+                                                >
+                                                    {insuranceProviders.map((ins, i) => (
+                                                        <option key={i} value={ins.name}>{ins.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Policy / Member SHA #</label>
+                                                <input 
+                                                    type="text"
+                                                    value={policyNumber}
+                                                    onChange={(e) => setPolicyNumber(e.target.value)}
+                                                    placeholder="e.g. SHA-90812-B"
+                                                    className="w-full p-3 bg-black/50 border border-white/10 rounded-xl text-xs text-white"
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Patient Co-Pay (KES)</label>
+                                                <input 
+                                                    type="number"
+                                                    value={copayAmount}
+                                                    onChange={(e) => setCopayAmount(e.target.value)}
+                                                    placeholder="500"
+                                                    min="0"
+                                                    className="w-full p-3 bg-black/50 border border-amber-500/50 rounded-xl text-xs text-amber-300 font-bold"
+                                                />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Policy / Member SHA #</label>
-                                            <input 
-                                                type="text"
-                                                value={policyNumber}
-                                                onChange={(e) => setPolicyNumber(e.target.value)}
-                                                placeholder="e.g. SHA-90812-B"
-                                                className="w-full p-3 bg-black/50 border border-white/10 rounded-xl text-xs text-white"
-                                                required
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Co-Pay Amount (KES)</label>
-                                            <input 
-                                                type="number"
-                                                value={copayAmount}
-                                                onChange={(e) => setCopayAmount(e.target.value)}
-                                                placeholder="500"
-                                                className="w-full p-3 bg-black/50 border border-white/10 rounded-xl text-xs text-white"
-                                            />
+
+                                        {/* Split calculation breakdown indicator */}
+                                        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex flex-wrap justify-between items-center text-[10px] font-black uppercase tracking-wider">
+                                            <div className="text-amber-300">
+                                                <span>Patient Responsibility (Co-Pay): </span>
+                                                <span className="text-sm font-bold text-white ml-1">KES {Number(copayAmount || 0).toLocaleString()}</span>
+                                            </div>
+                                            <div className="text-rose-300">
+                                                <span>Insurance Cover Claim: </span>
+                                                <span className="text-sm font-bold text-white ml-1">KES {Math.max(0, newInvoiceSubtotal - Number(copayAmount || 0)).toLocaleString()}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -719,9 +771,51 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                             </button>
                         </div>
 
-                        <div className="p-5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2">
-                            <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Amount Payable</p>
-                            <p className="text-3xl font-black text-white">KES {selectedInvoice.totalAmount.toLocaleString()}</p>
+                        {/* Split / Payment Amount Breakdown */}
+                        <div className="p-5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-3">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-400 uppercase font-bold text-[10px]">Total Bill:</span>
+                                <span className="font-black text-white">KES {selectedInvoice.totalAmount.toLocaleString()}</span>
+                            </div>
+                            {selectedInvoice.insuranceProvider && (
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-rose-400 uppercase font-bold text-[10px]">Insurance Claim ({selectedInvoice.insuranceProvider}):</span>
+                                    <span className="font-black text-rose-300">KES {(selectedInvoice.insuranceCoverAmount || (selectedInvoice.totalAmount - (selectedInvoice.copayAmount || 0))).toLocaleString()}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center text-xs pt-1 border-t border-white/10">
+                                <span className="text-amber-400 uppercase font-bold text-[10px]">Outstanding Balance:</span>
+                                <span className="font-black text-amber-300 text-lg">KES {selectedInvoice.balance.toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        {/* Select What Amount to Pay */}
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Amount Selection</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {selectedInvoice.copayAmount && selectedInvoice.copayAmount > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setPaymentOption('copay'); setCustomPayAmount(selectedInvoice.copayAmount || 0); }}
+                                        className={`p-3 rounded-xl text-left border transition-all ${
+                                            paymentOption === 'copay' ? 'bg-amber-500/20 border-amber-400 text-amber-300' : 'bg-black/40 border-white/10 text-slate-400'
+                                        }`}
+                                    >
+                                        <p className="text-[9px] font-black uppercase tracking-wider">Pay Patient Co-Pay Only</p>
+                                        <p className="text-lg font-black text-white mt-0.5">KES {selectedInvoice.copayAmount.toLocaleString()}</p>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => { setPaymentOption('full'); setCustomPayAmount(selectedInvoice.balance); }}
+                                    className={`p-3 rounded-xl text-left border transition-all ${
+                                        paymentOption === 'full' ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300' : 'bg-black/40 border-white/10 text-slate-400'
+                                    }`}
+                                >
+                                    <p className="text-[9px] font-black uppercase tracking-wider">Pay Full Balance</p>
+                                    <p className="text-lg font-black text-white mt-0.5">KES {selectedInvoice.balance.toLocaleString()}</p>
+                                </button>
+                            </div>
                         </div>
 
                         <div className="space-y-4">
@@ -769,7 +863,7 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                             ) : (
                                 <>
                                     <CheckCircleIcon className="w-5 h-5" />
-                                    <span>Confirm KES {selectedInvoice.totalAmount.toLocaleString()} Payment</span>
+                                    <span>Confirm KES {(paymentOption === 'copay' ? (selectedInvoice.copayAmount || selectedInvoice.balance) : selectedInvoice.balance).toLocaleString()} Payment</span>
                                 </>
                             )}
                         </button>
