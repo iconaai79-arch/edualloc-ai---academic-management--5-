@@ -23,7 +23,7 @@ const MOCK_MESSAGES: Broadcast[] = [
     { id: 'b3', title: 'Staff Meeting', message: 'Clinical review meeting starting in Boardroom in 10 mins', type: 'Staff', priority: 'High', timestamp: '1 hour ago' },
 ];
 
-export const HISBroadcasterView: React.FC = () => {
+export function HISBroadcasterView() {
     return (
         <div className="animate-fade-in-up space-y-8">
             <div className="flex justify-between items-end">
@@ -121,3 +121,4 @@ export const HISBroadcasterView: React.FC = () => {
     );
 };
 
+export default HISBroadcasterView;

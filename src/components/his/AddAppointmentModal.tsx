@@ -27,14 +27,14 @@ interface AddAppointmentModalProps {
     students?: Student[];
 }
 
-export const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
+export function AddAppointmentModal({
     isOpen,
     onClose,
     onAdd,
     isEdu = false,
     referredBy = '',
     students = [],
-}) => {
+}: AddAppointmentModalProps) {
     const [formData, setFormData] = useState({
         patientName: '',
         patientId: '',
@@ -463,3 +463,5 @@ export const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
         </div>
     );
 };
+
+export default AddAppointmentModal;

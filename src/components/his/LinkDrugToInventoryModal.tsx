@@ -13,12 +13,12 @@ interface LinkDrugToInventoryModalProps {
     onLinked: (drugId: string, linkedItemId: string | null, unitPrice: number) => void;
 }
 
-export const LinkDrugToInventoryModal: React.FC<LinkDrugToInventoryModalProps> = ({
+export function LinkDrugToInventoryModal({
     drug,
     institutionId,
     onClose,
     onLinked
-}) => {
+}: LinkDrugToInventoryModalProps) {
     const [retailItems, setRetailItems] = useState<RetailInventoryItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -252,3 +252,5 @@ export const LinkDrugToInventoryModal: React.FC<LinkDrugToInventoryModalProps> =
         </div>
     );
 };
+
+export default LinkDrugToInventoryModal;

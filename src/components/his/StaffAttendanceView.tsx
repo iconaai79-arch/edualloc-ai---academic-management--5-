@@ -18,7 +18,7 @@ interface StaffAttendanceProps {
     demoAttendance?: HISStaffAttendance[];
 }
 
-export const StaffAttendanceView: React.FC<StaffAttendanceProps> = ({ userName, institutionId, demoAttendance }) => {
+export function StaffAttendanceView({ userName, institutionId, demoAttendance }: StaffAttendanceProps) {
     const [isOnShift, setIsOnShift] = useState(false);
     const [currentStatus, setCurrentStatus] = useState<string>('Available');
     const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
@@ -233,3 +233,4 @@ export const StaffAttendanceView: React.FC<StaffAttendanceProps> = ({ userName, 
     );
 };
 
+export default StaffAttendanceView;

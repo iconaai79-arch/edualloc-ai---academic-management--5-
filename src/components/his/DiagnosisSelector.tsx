@@ -12,7 +12,7 @@ interface DiagnosisSelectorProps {
     placeholder?: string;
 }
 
-export const DiagnosisSelector: React.FC<DiagnosisSelectorProps> = ({ value, onChange, placeholder }) => {
+export function DiagnosisSelector({ value, onChange, placeholder }: DiagnosisSelectorProps) {
     const [search, setSearch] = useState('');
     const [results, setResults] = useState<ICDCode[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -130,3 +130,4 @@ export const DiagnosisSelector: React.FC<DiagnosisSelectorProps> = ({ value, onC
     );
 };
 
+export default DiagnosisSelector;

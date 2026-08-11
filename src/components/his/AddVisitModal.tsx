@@ -18,7 +18,7 @@ interface AddVisitModalProps {
     onAdd: (visitData: any) => Promise<void>;
 }
 
-export const AddVisitModal: React.FC<AddVisitModalProps> = ({ isOpen, onClose, patientId, patientName, patientAge, patientGender, onAdd }) => {
+export function AddVisitModal({ isOpen, onClose, patientId, patientName, patientAge, patientGender, onAdd }: AddVisitModalProps) {
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         time: new Date().toTimeString().split(' ')[0].substring(0, 5),
@@ -208,3 +208,4 @@ export const AddVisitModal: React.FC<AddVisitModalProps> = ({ isOpen, onClose, p
     );
 };
 
+export default AddVisitModal;

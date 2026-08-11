@@ -12,7 +12,7 @@ interface UpdateVitalsModalProps {
     onUpdate: (vitals: any[]) => Promise<void>;
 }
 
-export const UpdateVitalsModal: React.FC<UpdateVitalsModalProps> = ({ isOpen, onClose, patientName, patientId, onUpdate }) => {
+export function UpdateVitalsModal({ isOpen, onClose, patientName, patientId, onUpdate }: UpdateVitalsModalProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [vitals, setVitals] = useState([
         { label: 'Blood Pressure', value: '120/80', unit: 'mmHg', color: 'text-emerald-400' },
@@ -108,3 +108,4 @@ export const UpdateVitalsModal: React.FC<UpdateVitalsModalProps> = ({ isOpen, on
     );
 };
 
+export default UpdateVitalsModal;

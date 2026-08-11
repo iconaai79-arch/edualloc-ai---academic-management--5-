@@ -10,7 +10,7 @@ interface AddWardModalProps {
     onAdd: (wardData: any) => Promise<void>;
 }
 
-export const AddWardModal: React.FC<AddWardModalProps> = ({ isOpen, onClose, onAdd }) => {
+export function AddWardModal({ isOpen, onClose, onAdd }: AddWardModalProps) {
     const [formData, setFormData] = useState({
         name: '',
         wardType: 'General',
@@ -133,3 +133,4 @@ export const AddWardModal: React.FC<AddWardModalProps> = ({ isOpen, onClose, onA
     );
 };
 
+export default AddWardModal;

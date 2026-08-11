@@ -11,9 +11,9 @@ interface AddPharmacyInventoryModalProps {
     item?: Partial<HISPharmacyInventory>;
 }
 
-export const AddPharmacyInventoryModal: React.FC<AddPharmacyInventoryModalProps> = ({
+export function AddPharmacyInventoryModal({
     onClose, onAdd, institutionId, item
-}) => {
+}: AddPharmacyInventoryModalProps) {
     const [formData, setFormData] = useState({
         name: item?.name || '',
         category: item?.category || 'General',
@@ -200,3 +200,4 @@ export const AddPharmacyInventoryModal: React.FC<AddPharmacyInventoryModalProps>
     );
 };
 
+export default AddPharmacyInventoryModal;

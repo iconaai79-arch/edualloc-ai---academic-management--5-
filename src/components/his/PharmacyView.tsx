@@ -26,7 +26,7 @@ import {
     HISPrescriptionItem
 } from '../../types';
 
-export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institutionId }) => {
+export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [activeTab, setActiveTab] = useState<'dispensing' | 'inventory' | 'history' | 'requisitions'>('dispensing');
     const [inventory, setInventory] = useState<HISPharmacyInventory[]>([]);
     const [batches, setBatches] = useState<HISPharmacyBatch[]>([]);
@@ -980,3 +980,5 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
         </div>
     );
 };
+
+export default PharmacyView;

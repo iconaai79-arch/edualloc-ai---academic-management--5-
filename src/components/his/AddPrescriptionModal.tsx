@@ -19,9 +19,9 @@ interface AddPrescriptionModalProps {
     onAdd?: () => void;
 }
 
-export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({ 
+export function AddPrescriptionModal({ 
     isOpen, onClose, patientId, patientName, institutionId, doctorName, onAdd 
-}) => {
+}: AddPrescriptionModalProps) {
     const [drugs, setDrugs] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedItems, setSelectedItems] = useState<any[]>([]);
@@ -466,3 +466,4 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
     );
 };
 
+export default AddPrescriptionModal;

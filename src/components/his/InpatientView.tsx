@@ -15,7 +15,7 @@ interface InpatientViewProps {
     refreshTrigger?: number;
 }
 
-export const InpatientView: React.FC<InpatientViewProps> = ({ institutionId, onAddWard, refreshTrigger }) => {
+export function InpatientView({ institutionId, onAddWard, refreshTrigger }: InpatientViewProps) {
     const [selectedWard, setSelectedWard] = useState<any | null>(null);
     const [wards, setWards] = useState<any[]>([]);
     const [inpatientRecords, setInpatientRecords] = useState<any[]>([]);
@@ -180,3 +180,4 @@ export const InpatientView: React.FC<InpatientViewProps> = ({ institutionId, onA
     );
 };
 
+export default InpatientView;

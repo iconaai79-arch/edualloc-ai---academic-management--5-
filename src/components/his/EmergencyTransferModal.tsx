@@ -13,13 +13,13 @@ interface EmergencyTransferModalProps {
     onGenerate: (receivingFacility: string, reasonForTransfer: string, nurseNotes: string) => Promise<void>;
 }
 
-export const EmergencyTransferModal: React.FC<EmergencyTransferModalProps> = ({ 
+export function EmergencyTransferModal({ 
     isOpen, 
     onClose, 
     patient, 
     vitals, 
     onGenerate 
-}) => {
+}: EmergencyTransferModalProps) {
     const [receivingFacility, setReceivingFacility] = useState('');
     const [reasonForTransfer, setReasonForTransfer] = useState('');
     const [nurseNotes, setNurseNotes] = useState('');
@@ -161,3 +161,5 @@ export const EmergencyTransferModal: React.FC<EmergencyTransferModalProps> = ({
         </div>
     );
 };
+
+export default EmergencyTransferModal;

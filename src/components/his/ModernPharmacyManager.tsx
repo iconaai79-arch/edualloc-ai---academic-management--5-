@@ -35,11 +35,11 @@ import { DispenseMedicationModal } from './DispenseMedicationModal';
 import { PdfViewer } from '../PdfViewer';
 
 
-export const ModernPharmacyManager: React.FC<{ 
+export function ModernPharmacyManager({ institutionId, currentInstitution, currentUser }: { 
     institutionId: string; 
     currentInstitution?: Institution | null;
     currentUser: User;
-}> = ({ institutionId, currentInstitution, currentUser }) => {
+}) {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'reports' | 'sales' | 'config'>('dashboard');
     const [reportsSubTab, setReportsSubTab] = useState<'general' | 'sales'>('general');
     const [salesFilter, setSalesFilter] = useState<'day' | 'week' | 'month' | 'period'>('day');

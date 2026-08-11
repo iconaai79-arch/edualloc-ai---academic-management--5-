@@ -15,7 +15,7 @@ interface DentalViewProps {
     onAddVisit?: () => void;
 }
 
-export const DentalView: React.FC<DentalViewProps> = ({ onAddVisit }) => {
+export function DentalView({ onAddVisit }: DentalViewProps) {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [selectedTooth, setSelectedTooth] = useState<Tooth | null>(null);
     const [teeth, setTeeth] = useState<Tooth[]>(
@@ -226,3 +226,4 @@ export const DentalView: React.FC<DentalViewProps> = ({ onAddVisit }) => {
     );
 };
 
+export default DentalView;

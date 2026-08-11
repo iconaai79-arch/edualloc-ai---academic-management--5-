@@ -19,9 +19,9 @@ interface SmartPharmacyInventoryImporterModalProps {
     institutionId: string;
 }
 
-export const SmartPharmacyInventoryImporterModal: React.FC<SmartPharmacyInventoryImporterModalProps> = ({
+export function SmartPharmacyInventoryImporterModal({
     onClose, onImport, institutionId
-}) => {
+}: SmartPharmacyInventoryImporterModalProps) {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [userMapping, setUserMapping] = useState<Record<InventoryMappingField, string | null>>(ALL_INVENTORY_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<InventoryMappingField, string | null>));
@@ -247,3 +247,4 @@ export const SmartPharmacyInventoryImporterModal: React.FC<SmartPharmacyInventor
     );
 };
 
+export default SmartPharmacyInventoryImporterModal;

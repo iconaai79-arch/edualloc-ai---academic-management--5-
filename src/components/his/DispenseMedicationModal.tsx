@@ -19,9 +19,9 @@ interface DispenseMedicationModalProps {
     }) => Promise<void>;
 }
 
-export const DispenseMedicationModal: React.FC<DispenseMedicationModalProps> = ({
+export function DispenseMedicationModal({
     prescription, inventory, batches, onClose, onDispense
-}) => {
+}: DispenseMedicationModalProps) {
     const [clinicalNotes, setClinicalNotes] = useState('');
     const [medicationImage, setMedicationImage] = useState('');
     const [attachedFiles, setAttachedFiles] = useState<string[]>([]);
@@ -187,3 +187,4 @@ export const DispenseMedicationModal: React.FC<DispenseMedicationModalProps> = (
     );
 };
 
+export default DispenseMedicationModal;

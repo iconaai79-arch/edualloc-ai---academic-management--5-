@@ -51,7 +51,7 @@ interface EduPulseHomeDashboardProps {
     onSelectPatient: (patientId: string) => void;
 }
 
-export const EduPulseHomeDashboard: React.FC<EduPulseHomeDashboardProps> = ({
+export function EduPulseHomeDashboard({
     patients,
     clinicalEvents,
     appointments,
@@ -59,7 +59,7 @@ export const EduPulseHomeDashboard: React.FC<EduPulseHomeDashboardProps> = ({
     onAddVisit,
     onScheduleAppointment,
     onSelectPatient
-}) => {
+}: EduPulseHomeDashboardProps) {
     // 1. Calculate Aggregates
     const totalStudents = patients.length;
     const totalVisits = clinicalEvents.length;
@@ -357,3 +357,5 @@ export const EduPulseHomeDashboard: React.FC<EduPulseHomeDashboardProps> = ({
         </div>
     );
 };
+
+export default EduPulseHomeDashboard;

@@ -19,7 +19,7 @@ interface HISReportsProps {
     users?: User[];
 }
 
-export const HISReportsView: React.FC<HISReportsProps> = ({ activeRole, institutionId, patients = [], users = [] }) => {
+export function HISReportsView({ activeRole, institutionId, patients = [], users = [] }: HISReportsProps) {
     const [activeSubTab, setActiveSubTab] = useState<IntelligenceSubTab>('visits');
     const [patientsList, setPatientsList] = useState<HISPatient[]>(patients);
     const [clinicalEvents, setClinicalEvents] = useState<any[]>([]);
@@ -789,3 +789,5 @@ export const HISReportsView: React.FC<HISReportsProps> = ({ activeRole, institut
         </div>
     );
 };
+
+export default HISReportsView;
