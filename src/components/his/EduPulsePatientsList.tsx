@@ -551,6 +551,7 @@ function PatientHistoryModal({
                         className="px-8 py-3.5 bg-slate-900 dark:bg-white/5 text-white dark:text-slate-300 hover:bg-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
                     >
                         Close dossier
+                    </button>
                 </div>
 
             </div>
