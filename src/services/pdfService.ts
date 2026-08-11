@@ -10127,3 +10127,148 @@ export const generateClassListPdf = async (
 
     return doc.output('datauristring');
 };
+
+export const generatePatientInvoicePdf = async (
+    invoice: any,
+    institution?: any
+): Promise<string> => {
+    const jsPdfModule = getJsPdf();
+    if (!jsPdfModule) throw new Error("PDF generation library jsPDF is not available.");
+    const { jsPDF } = jsPdfModule;
+    const doc = new jsPDF('p', 'mm', 'a4');
+
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let currentY = 15;
+
+    // Header Title
+    doc.setFillColor(30, 41, 59);
+    doc.rect(0, 0, pageWidth, 28, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.text((institution?.name || 'QUANTUM HEALTHCARE & HIS').toUpperCase(), margin, 13);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(226, 232, 240);
+    doc.text('OFFICIAL PATIENT MEDICAL INVOICE & CLAIM STATEMENT', margin, 20);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(129, 140, 248);
+    doc.text(invoice.invoiceNumber || 'INV-0000', pageWidth - margin, 18, { align: 'right' });
+
+    currentY = 36;
+
+    // Bill To & Invoice Info Card
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, currentY, pageWidth - margin * 2, 32, 3, 3, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, currentY, pageWidth - margin * 2, 32, 3, 3, 'D');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text('PATIENT / BILL TO:', margin + 6, currentY + 7);
+    doc.text('PAYMENT DETAILS:', pageWidth / 2 + 10, currentY + 7);
+
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text((invoice.patientName || 'Patient').toUpperCase(), margin + 6, currentY + 14);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Patient ID: ${invoice.patientId || 'N/A'}`, margin + 6, currentY + 20);
+    doc.text(`Date Issued: ${invoice.date || new Date().toISOString().split('T')[0]}`, margin + 6, currentY + 25);
+
+    const payer = invoice.payerType || 'Self-Pay';
+    doc.text(`Payer Mode: ${payer}`, pageWidth / 2 + 10, currentY + 14);
+    if (invoice.insuranceProvider) {
+        doc.text(`Insurance: ${invoice.insuranceProvider}`, pageWidth / 2 + 10, currentY + 20);
+        doc.text(`Policy/SHA #: ${invoice.policyNumber || 'N/A'}`, pageWidth / 2 + 10, currentY + 25);
+    } else {
+        doc.text(`Status: ${invoice.status || 'Pending'}`, pageWidth / 2 + 10, currentY + 20);
+    }
+
+    currentY += 40;
+
+    // Line Items Table
+    const tableData = (invoice.items || []).map((item: any, idx: number) => [
+        idx + 1,
+        item.itemName || 'Medical Service',
+        item.category || 'General',
+        item.quantity || 1,
+        `KES ${(item.unitPrice || 0).toLocaleString()}`,
+        `KES ${((item.quantity || 1) * (item.unitPrice || 0)).toLocaleString()}`
+    ]);
+
+    (doc as any).autoTable({
+        startY: currentY,
+        head: [['#', 'Service / Medication Description', 'Category', 'Qty', 'Unit Price', 'Total (KES)']],
+        body: tableData,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 70, fontStyle: 'bold' },
+            2: { cellWidth: 30 },
+            3: { cellWidth: 15, halign: 'center' },
+            4: { cellWidth: 25, halign: 'right' },
+            5: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Summary Box
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(pageWidth - margin - 85, currentY, 85, 34, 3, 3, 'F');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('Subtotal Amount:', pageWidth - margin - 80, currentY + 7);
+    doc.text(`KES ${(invoice.totalAmount || 0).toLocaleString()}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+
+    if (invoice.copayAmount > 0) {
+        doc.text('Patient Co-Pay Share:', pageWidth - margin - 80, currentY + 13);
+        doc.text(`KES ${(invoice.copayAmount).toLocaleString()}`, pageWidth - margin - 5, currentY + 13, { align: 'right' });
+    }
+
+    if (invoice.insuranceCoverAmount > 0) {
+        doc.text('Insurance Cover Claim:', pageWidth - margin - 80, currentY + 19);
+        doc.text(`KES ${(invoice.insuranceCoverAmount).toLocaleString()}`, pageWidth - margin - 5, currentY + 19, { align: 'right' });
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Amount Paid:', pageWidth - margin - 80, currentY + 26);
+    doc.setTextColor(16, 185, 129);
+    doc.text(`KES ${(invoice.amountPaid || 0).toLocaleString()}`, pageWidth - margin - 5, currentY + 26, { align: 'right' });
+
+    doc.setTextColor(225, 29, 72);
+    doc.text(`Balance Due: KES ${(invoice.balance || 0).toLocaleString()}`, pageWidth - margin - 80, currentY + 31);
+
+    currentY += 45;
+
+    // Signature Block
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Authorized Finance Stamp & Signature:', margin, currentY);
+
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineDashPattern([2, 2], 0);
+    doc.line(margin, currentY + 12, margin + 65, currentY + 12);
+    doc.setLineDashPattern([], 0);
+
+    doc.text('Thank you for choosing Quantum Healthcare.', pageWidth - margin, currentY + 12, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+

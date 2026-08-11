@@ -13,6 +13,8 @@ import { ChartBarIcon } from '../icons/ChartBarIcon';
 import { XCircleIcon } from '../icons/XCircleIcon';
 import { ClockIcon } from '../icons/ClockIcon';
 import { ClaimsManager } from './ClaimsManager';
+import { PdfViewer } from '../PdfViewer';
+import { generatePatientInvoicePdf } from '../../services/pdfService';
 
 interface PatientInvoice {
     id: string;
@@ -110,6 +112,41 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState<PatientInvoice | null>(null);
 
+    // On-Screen PDF Preview Modal State
+    const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+    const [pdfPreviewUri, setPdfPreviewUri] = useState<string | null>(null);
+    const [pdfPreviewTitle, setPdfPreviewTitle] = useState('Invoice PDF Preview');
+
+    // Incoming Doctor Orders & Prescriptions Queue
+    const [doctorOrdersQueue, setDoctorOrdersQueue] = useState<any[]>([
+        {
+            id: 'ord_101',
+            patientName: 'Dr. Prescribed: Grace Wanjiru',
+            patientId: 'pat_10',
+            doctorName: 'Dr. John Smith',
+            type: 'Prescription',
+            items: [
+                { itemName: 'Amoxicillin 500mg Caps', category: 'Pharmacy', quantity: 2, unitPrice: 600, total: 1200 },
+                { itemName: 'Paracetamol 500mg Tabs', category: 'Pharmacy', quantity: 1, unitPrice: 200, total: 200 }
+            ],
+            totalAmount: 1400,
+            time: '10 mins ago'
+        },
+        {
+            id: 'ord_102',
+            patientName: 'Dr. Ordered: Kevin Otieno',
+            patientId: 'pat_11',
+            doctorName: 'Dr. Sarah Omondi',
+            type: 'Lab Test & Meds',
+            items: [
+                { itemName: 'Full Blood Count (FBC)', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 },
+                { itemName: 'Ciprofloxacin 500mg', category: 'Pharmacy', quantity: 1, unitPrice: 1500, total: 1500 }
+            ],
+            totalAmount: 4000,
+            time: '25 mins ago'
+        }
+    ]);
+
     // New Invoice Form
     const [selectedPatientId, setSelectedPatientId] = useState('');
     const [manualPatientName, setManualPatientName] = useState('');
@@ -127,6 +164,17 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     const [paymentOption, setPaymentOption] = useState<'copay' | 'full' | 'custom'>('copay');
     const [customPayAmount, setCustomPayAmount] = useState<number>(0);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+    const handlePreviewPdf = async (inv: PatientInvoice) => {
+        try {
+            const dataUri = await generatePatientInvoicePdf(inv);
+            setPdfPreviewUri(dataUri);
+            setPdfPreviewTitle(`Invoice ${inv.invoiceNumber} — ${inv.patientName}`);
+            setIsPdfModalOpen(true);
+        } catch (e: any) {
+            alert("Failed to render PDF preview: " + (e.message || e));
+        }
+    };
 
     useEffect(() => {
         const loadData = async () => {
@@ -414,6 +462,63 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
             {/* TAB CONTENT 1: PATIENT INVOICES */}
             {activeTab === 'invoices' && (
                 <div className="space-y-6">
+                    {/* ⚡ DOCTOR ORDERS & PRESCRIPTIONS QUEUE */}
+                    <div className="p-6 bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-transparent border border-amber-500/20 rounded-[2.5rem] space-y-4">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping inline-block" />
+                                    <h3 className="text-sm font-black uppercase tracking-wider text-white italic">
+                                        ⚡ Doctor Orders &amp; Prescriptions Queue ({doctorOrdersQueue.length} Pending)
+                                    </h3>
+                                </div>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                    Bills automatically queued from Doctor consultations for instant cashier checkout
+                                </p>
+                            </div>
+                            <span className="px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-[9px] font-black uppercase tracking-widest border border-amber-500/30">
+                                Live Feed
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {doctorOrdersQueue.map((ord) => (
+                                <div key={ord.id} className="p-4 bg-slate-900/80 rounded-2xl border border-white/10 flex items-center justify-between gap-4 hover:border-amber-400/40 transition-all">
+                                    <div className="space-y-1 min-w-0">
+                                        <p className="text-xs font-black text-white uppercase tracking-tight truncate">{ord.patientName}</p>
+                                        <p className="text-[9px] font-bold text-indigo-400 uppercase">{ord.doctorName} • {ord.type}</p>
+                                        <p className="text-[9px] text-slate-400 truncate max-w-[240px]">{ord.items.map((i: any) => `${i.itemName} (x${i.quantity})`).join(', ')}</p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0 space-y-2">
+                                        <p className="text-sm font-black text-amber-400">KES {ord.totalAmount.toLocaleString()}</p>
+                                        <button
+                                            onClick={() => {
+                                                setManualPatientName(ord.patientName.replace(/^Dr\. (Prescribed|Ordered): /, ''));
+                                                setSelectedPatientId(ord.patientId);
+                                                setLineItems(ord.items.map((i: any) => ({
+                                                    itemName: i.itemName,
+                                                    category: i.category,
+                                                    quantity: i.quantity,
+                                                    unitPrice: i.unitPrice
+                                                })));
+                                                setIsGenerateModalOpen(true);
+                                                setDoctorOrdersQueue(prev => prev.filter(q => q.id !== ord.id));
+                                            }}
+                                            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md shadow-emerald-500/20"
+                                        >
+                                            Checkout &amp; Invoice →
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {doctorOrdersQueue.length === 0 && (
+                                <div className="p-6 text-center text-slate-500 italic text-xs col-span-2">
+                                    No pending doctor prescriptions in queue. New orders from doctors will appear here automatically.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Filter & Search Bar */}
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/40 p-4 rounded-3xl border border-white/10">
                         <div className="relative w-full md:w-96">
@@ -515,11 +620,12 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                                         </button>
                                                     )}
                                                     <button 
-                                                        onClick={() => alert(`Printing Invoice ${inv.invoiceNumber} for ${inv.patientName}...`)}
-                                                        className="p-2 glass-morphism rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                                                        title="Print PDF Invoice"
+                                                        onClick={() => handlePreviewPdf(inv)}
+                                                        className="p-2 glass-morphism rounded-xl text-indigo-400 hover:text-white hover:bg-indigo-600 transition-all flex items-center gap-1 text-[10px] font-black uppercase px-3"
+                                                        title="On-Screen PDF Invoice Preview"
                                                     >
                                                         <FileTextIcon className="w-4 h-4" />
+                                                        <span>Preview PDF</span>
                                                     </button>
                                                 </div>
                                             </td>
@@ -867,6 +973,31 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                 </>
                             )}
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: ON-SCREEN INVOICE PDF PREVIEW */}
+            {isPdfModalOpen && pdfPreviewUri && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 max-w-5xl w-full h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+                        <div className="flex justify-between items-center pb-4 border-b border-white/10 flex-shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase tracking-tight italic">
+                                    📄 On-Screen <span className="text-indigo-400">Invoice PDF Preview</span>
+                                </h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{pdfPreviewTitle}</p>
+                            </div>
+                            <button
+                                onClick={() => setIsPdfModalOpen(false)}
+                                className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all"
+                            >
+                                <XCircleIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="flex-1 mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+                            <PdfViewer pdfDataUri={pdfPreviewUri} title={pdfPreviewTitle} />
+                        </div>
                     </div>
                 </div>
             )}

@@ -312,12 +312,12 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                 {isEdu && (
                                     <>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Admission Number</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Patient File / OP Number</label>
                                             <div className="relative group">
                                                 <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                                 <input
                                                     type="text"
-                                                    placeholder="E.G. ADM-1234"
+                                                    placeholder="E.G. PAT-1234"
                                                     className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
                                                     value={formData.admissionNumber}
                                                     onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
@@ -326,12 +326,12 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                         </div>
 
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Grade Level / Class</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Department / Ward</label>
                                             <div className="relative group">
                                                 <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                                 <input
                                                     type="text"
-                                                    placeholder="E.G. FORM 3"
+                                                    placeholder="E.G. GENERAL OPD"
                                                     className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
                                                     value={formData.gradeLevel}
                                                     onChange={e => setFormData({ ...formData, gradeLevel: e.target.value })}
@@ -340,12 +340,12 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                         </div>
 
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Stream</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Category / Clinic Type</label>
                                             <div className="relative group">
                                                 <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                                 <input
                                                     type="text"
-                                                    placeholder="E.G. BLUE"
+                                                    placeholder="E.G. OUTPATIENT"
                                                     className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
                                                     value={formData.stream}
                                                     onChange={e => setFormData({ ...formData, stream: e.target.value })}

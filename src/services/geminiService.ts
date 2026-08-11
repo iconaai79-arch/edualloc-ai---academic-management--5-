@@ -1289,9 +1289,10 @@ Return strict valid JSON (without markdown code blocks) matching this format:
 }`;
 
     try {
-        const responseText = await generateText(prompt);
-        const cleaned = cleanJsonResponse(responseText);
-        const parsed = JSON.parse(cleaned);
+        checkAiAvailable();
+        const response = await safeGenerateContent(prompt, { temperature: 0.5 }, 'pro');
+        const cleanedText = (response.text || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanedText);
         return parsed;
     } catch (err) {
         console.error("Failed to generate AI Lesson Plan:", err);
@@ -1358,9 +1359,10 @@ Return strict valid JSON array (without markdown code blocks) of objects with th
 ]`;
 
     try {
-        const responseText = await generateText(prompt);
-        const cleaned = cleanJsonResponse(responseText);
-        const parsed = JSON.parse(cleaned);
+        checkAiAvailable();
+        const response = await safeGenerateContent(prompt, { temperature: 0.5 }, 'pro');
+        const cleanedText = (response.text || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanedText);
         if (Array.isArray(parsed)) return parsed;
         return [];
     } catch (err) {

@@ -102,24 +102,24 @@ function EditPatientModal({
                                 className={inputCls} />
                         </div>
                         <div>
-                            <label className={labelCls}>Admission Number</label>
-                            <input type="text" placeholder="ADM-0001" value={formData.admissionNumber || ''}
+                            <label className={labelCls}>Patient File / OP Number</label>
+                            <input type="text" placeholder="PAT-0001" value={formData.admissionNumber || ''}
                                 onChange={e => setFormData(p => ({ ...p, admissionNumber: e.target.value }))}
                                 className={inputCls} />
                         </div>
                     </div>
 
-                    {/* Row: Grade Level & Stream */}
+                    {/* Row: Department & Category */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className={labelCls}>Grade Level / Class</label>
-                            <input type="text" placeholder="FORM 3" value={formData.gradeLevel || ''}
+                            <label className={labelCls}>Department / Ward</label>
+                            <input type="text" placeholder="General OPD / Female Ward" value={formData.gradeLevel || ''}
                                 onChange={e => setFormData(p => ({ ...p, gradeLevel: e.target.value }))}
                                 className={inputCls} />
                         </div>
                         <div>
-                            <label className={labelCls}>Stream</label>
-                            <input type="text" placeholder="BLUE" value={formData.stream || ''}
+                            <label className={labelCls}>Category / Clinic Type</label>
+                            <input type="text" placeholder="Outpatient / Inpatient / Clinic" value={formData.stream || ''}
                                 onChange={e => setFormData(p => ({ ...p, stream: e.target.value }))}
                                 className={inputCls} />
                         </div>
@@ -676,7 +676,7 @@ export function EduPulsePatientsList({
                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="SEARCH BY NAME, ADM NO OR CONTACT..."
+                        placeholder="SEARCH BY PATIENT NAME, FILE # OR CONTACT..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                         className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none transition-all dark:text-white"
@@ -702,19 +702,19 @@ export function EduPulsePatientsList({
                     ))}
                 </div>
 
-                {/* Class filter */}
+                {/* Department filter */}
                 <select value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}
-                    className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none min-w-[120px]">
-                    <option value="All">All Classes</option>
+                    className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none min-w-[130px]">
+                    <option value="All">All Departments</option>
                     {gradeOptions.filter(g => g !== 'All').map(g => (
                         <option key={g} value={g}>{g}</option>
                     ))}
                 </select>
 
-                {/* Stream filter */}
+                {/* Category filter */}
                 <select value={selectedStream} onChange={e => setSelectedStream(e.target.value)}
-                    className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none min-w-[120px]">
-                    <option value="All">All Streams</option>
+                    className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none min-w-[130px]">
+                    <option value="All">All Categories</option>
                     {streamOptions.filter(s => s !== 'All').map(s => (
                         <option key={s} value={s}>{s}</option>
                     ))}
@@ -724,7 +724,7 @@ export function EduPulsePatientsList({
                 <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
                     className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none">
                     <option value="name">Sort: A–Z</option>
-                    <option value="adm">Sort: Adm No</option>
+                    <option value="adm">Sort: Patient File #</option>
                     <option value="recent">Sort: Most Recent</option>
                 </select>
             </div>
@@ -747,7 +747,7 @@ export function EduPulsePatientsList({
                     <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
                         <tr>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Patient</th>
-                            <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm No</th>
+                            <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Patient File #</th>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Age / DOB</th>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Gender</th>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Contact</th>

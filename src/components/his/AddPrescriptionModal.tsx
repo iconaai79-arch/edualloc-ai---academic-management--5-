@@ -7,6 +7,7 @@ import { SparklesIcon } from '../icons/SparklesIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { SearchIcon } from '../icons/SearchIcon';
 import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
+import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
 import { apiService } from '../../services/apiService';
 
 interface AddPrescriptionModalProps {
@@ -146,12 +147,43 @@ export function AddPrescriptionModal({
                 status: 'pending'
             });
 
+            let prescriptionSubtotal = 0;
+            const lineItemsForBill = [];
+
             for (const item of selectedItems) {
                 await apiService.saveModuleRecord('his_prescription_items', {
                     id: `pri_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     prescriptionId: prescId,
                     ...item
                 });
+                const itemTotal = Number(item.quantity || 1) * Number(item.unitPrice || 0);
+                prescriptionSubtotal += itemTotal;
+                lineItemsForBill.push({
+                    itemName: item.drugName,
+                    category: 'Pharmacy',
+                    quantity: Number(item.quantity || 1),
+                    unitPrice: Number(item.unitPrice || 0),
+                    total: itemTotal
+                });
+            }
+
+            // Auto-generate bill & queue for Finance Hub
+            try {
+                await apiService.saveModuleRecord('his_billing_items', {
+                    id: `bill_auto_${prescId}`,
+                    institution_id: institutionId,
+                    patientId,
+                    patientName: patientName || 'Patient',
+                    invoiceNumber: `INV-AUTO-${Math.floor(1000 + Math.random() * 9000)}`,
+                    payerType: 'Self-Pay',
+                    totalAmount: prescriptionSubtotal,
+                    items: lineItemsForBill,
+                    status: 'pending_queue',
+                    prescriptionId: prescId,
+                    created_at: new Date().toISOString()
+                });
+            } catch (err) {
+                console.warn('Auto bill queue generation note:', err);
             }
 
             // Save revisit appointment if scheduled
