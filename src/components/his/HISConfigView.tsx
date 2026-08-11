@@ -17,7 +17,7 @@ interface HISConfigProps {
     onStaffUpdated?: () => void;
 }
 
-type ConfigTab = 'branding' | 'staff' | 'clinic' | 'tariffs';
+type ConfigTab = 'branding' | 'staff' | 'clinic' | 'tariffs' | 'insurance';
 
 export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users = [], demoStaff, onStaffUpdated }) => {
     const [activeTab, setActiveTab] = useState<ConfigTab>('branding');
@@ -45,6 +45,20 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
         code: '',
         cashRate: 0,
         coverRate: 0,
+        isActive: true,
+    });
+
+    // ── Insurance Partners & Schemes State ─────────────────────────────────────
+    const [insuranceProviders, setInsuranceProviders] = useState<any[]>([]);
+    const [isAddInsuranceOpen, setIsAddInsuranceOpen] = useState(false);
+    const [newInsurance, setNewInsurance] = useState({
+        name: '',
+        code: '',
+        category: 'SHA / National Scheme',
+        copayAmount: 0,
+        contactEmail: '',
+        contactPhone: '',
+        portalUrl: '',
         isActive: true,
     });
 
@@ -162,10 +176,34 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
         }
     }, [institutionId]);
 
+    const loadInsuranceProviders = useCallback(async () => {
+        if (!institutionId) return;
+        try {
+            const fetched = await apiService.fetchModuleRecords('his_insurance_providers', institutionId);
+            if (fetched && fetched.length > 0) {
+                setInsuranceProviders(fetched);
+            } else {
+                // Default Kenyan & Universal Insurance Partners
+                setInsuranceProviders([
+                    { id: 'ins_1', name: 'SHA (Social Health Authority)', code: 'SHA-GOV-01', category: 'SHA / National Scheme', copayAmount: 0, contactEmail: 'claims@sha.go.ke', contactPhone: '0800720601', portalUrl: 'https://sha.go.ke', isActive: true },
+                    { id: 'ins_2', name: 'Jubilee Insurance', code: 'JUB-MED-01', category: 'Private Medical Cover', copayAmount: 500, contactEmail: 'claims@jubileekenya.com', contactPhone: '0709949000', portalUrl: 'https://jubileeinsurance.com', isActive: true },
+                    { id: 'ins_3', name: 'UAP Old Mutual', code: 'UAP-MED-02', category: 'Corporate & Individual', copayAmount: 0, contactEmail: 'healthcare@uapoldmutual.com', contactPhone: '0711065000', portalUrl: 'https://uapoldmutual.com', isActive: true },
+                    { id: 'ins_4', name: 'AAR Insurance', code: 'AAR-MED-03', category: 'Private Medical Cover', copayAmount: 300, contactEmail: 'info@aar.co.ke', contactPhone: '0709490000', portalUrl: 'https://aar-insurance.com', isActive: true },
+                    { id: 'ins_5', name: 'APA Insurance', code: 'APA-MED-04', category: 'Corporate & Individual', copayAmount: 0, contactEmail: 'claims@apa.co.ke', contactPhone: '0709912000', portalUrl: 'https://apainsurance.org', isActive: true },
+                    { id: 'ins_6', name: 'Britam Health', code: 'BRIT-MED-05', category: 'Private Medical Cover', copayAmount: 500, contactEmail: 'medical@britam.com', contactPhone: '0705100100', portalUrl: 'https://britam.com', isActive: true },
+                    { id: 'ins_7', name: 'CIC Africa Group', code: 'CIC-MED-06', category: 'Micro-Insurance & Corporate', copayAmount: 200, contactEmail: 'medicalclaims@cic.co.ke', contactPhone: '0703099000', portalUrl: 'https://cic.co.ke', isActive: true },
+                ]);
+            }
+        } catch (e) {
+            console.warn('Failed to load insurance providers:', e);
+        }
+    }, [institutionId]);
+
     useEffect(() => {
         loadPractitioners();
         loadTariffs();
-    }, [loadPractitioners, loadTariffs]);
+        loadInsuranceProviders();
+    }, [loadPractitioners, loadTariffs, loadInsuranceProviders]);
 
     const handleScanBiometrics = async () => {
         setIsScanningBiometric(true);
@@ -366,6 +404,43 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
             setCustomTariffs(prev => prev.filter(t => t.id !== id));
         } catch (e) {
             alert('Failed to delete tariff item.');
+        }
+    };
+
+    const handleAddInsurance = async () => {
+        if (!newInsurance.name.trim()) return alert('Please enter insurance provider name.');
+        if (!institutionId) return;
+        try {
+            const record = {
+                id: `ins_${Date.now()}`,
+                institutionId,
+                name: newInsurance.name.trim(),
+                code: newInsurance.code.trim() || `INS-${Math.floor(100 + Math.random() * 900)}`,
+                category: newInsurance.category,
+                copayAmount: Number(newInsurance.copayAmount) || 0,
+                contactEmail: newInsurance.contactEmail.trim(),
+                contactPhone: newInsurance.contactPhone.trim(),
+                portalUrl: newInsurance.portalUrl.trim(),
+                isActive: newInsurance.isActive,
+                createdAt: new Date().toISOString(),
+            };
+            await apiService.saveModuleRecord('his_insurance_providers', record);
+            setInsuranceProviders(prev => [record, ...prev]);
+            setIsAddInsuranceOpen(false);
+            setNewInsurance({ name: '', code: '', category: 'SHA / National Scheme', copayAmount: 0, contactEmail: '', contactPhone: '', portalUrl: '', isActive: true });
+            alert(`✓ Insurance partner ${record.name} registered successfully!`);
+        } catch (e) {
+            alert('Failed to register insurance provider.');
+        }
+    };
+
+    const handleDeleteInsurance = async (id: string) => {
+        if (!confirm('Are you sure you want to unregister this insurance partner?')) return;
+        try {
+            await apiService.deleteModuleRecord('his_insurance_providers', id);
+            setInsuranceProviders(prev => prev.filter(i => i.id !== id));
+        } catch (e) {
+            alert('Failed to delete insurance provider.');
         }
     };
 
@@ -716,6 +791,101 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                         </div>
                     </div>
                 );
+            case 'insurance':
+                return (
+                    <div className="space-y-10 animate-fade-in pb-20">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight italic text-slate-900 dark:text-white">
+                                    Insurance Partners <span className="text-indigo-600">&amp; Medical Schemes</span>
+                                </h3>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+                                    Manage registered health insurance providers, SHA schemes, corporate covers, and co-pay parameters
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsAddInsuranceOpen(true)}
+                                className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-indigo-600/20"
+                            >
+                                <PlusIcon className="w-4 h-4 inline mr-2" /> Register Insurance Partner
+                            </button>
+                        </div>
+
+                        {/* Summary Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                            <div className="p-6 bg-white dark:bg-slate-900/50 rounded-3xl border border-slate-200 dark:border-white/5 shadow-xl space-y-2">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Partners</p>
+                                <p className="text-3xl font-black text-slate-900 dark:text-white">{insuranceProviders.length}</p>
+                                <p className="text-[8px] text-slate-400 font-bold uppercase">Active contracted schemes</p>
+                            </div>
+                            <div className="p-6 bg-white dark:bg-slate-900/50 rounded-3xl border border-slate-200 dark:border-white/5 shadow-xl space-y-2">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">National Scheme</p>
+                                <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
+                                    {insuranceProviders.filter(i => i.category?.includes('SHA') || i.category?.includes('National')).length || 1}
+                                </p>
+                                <p className="text-[8px] text-slate-400 font-bold uppercase">SHA / Public Health Authority</p>
+                            </div>
+                            <div className="p-6 bg-white dark:bg-slate-900/50 rounded-3xl border border-slate-200 dark:border-white/5 shadow-xl space-y-2">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500">Private &amp; Corporate</p>
+                                <p className="text-3xl font-black text-indigo-600 dark:text-indigo-400">
+                                    {insuranceProviders.filter(i => !i.category?.includes('SHA') && !i.category?.includes('National')).length}
+                                </p>
+                                <p className="text-[8px] text-slate-400 font-bold uppercase">Commercial health covers</p>
+                            </div>
+                        </div>
+
+                        {/* Insurance Providers Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {insuranceProviders.map(item => (
+                                <div key={item.id} className="p-6 bg-white dark:bg-slate-900/50 rounded-3xl border border-slate-200 dark:border-white/5 space-y-4 hover:shadow-xl transition-all group relative">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
+                                                item.category?.includes('SHA') || item.category?.includes('National')
+                                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900'
+                                                    : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900'
+                                            }`}>
+                                                {item.category}
+                                            </span>
+                                            <p className="text-sm font-black uppercase italic tracking-tight text-slate-900 dark:text-white mt-2 group-hover:text-indigo-600 transition-colors">
+                                                {item.name}
+                                            </p>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Scheme Code: {item.code}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleDeleteInsurance(item.id)}
+                                            className="text-slate-300 hover:text-rose-500 p-2 rounded-xl transition-colors"
+                                            title="Unregister Partner"
+                                        >
+                                            <XIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5 text-[9px] font-bold text-slate-500">
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400 uppercase">Co-pay Requirement:</span>
+                                            <span className="font-black text-slate-800 dark:text-white">
+                                                {item.copayAmount > 0 ? `KES ${item.copayAmount.toLocaleString()}` : 'No Co-pay (100% Cover)'}
+                                            </span>
+                                        </div>
+                                        {item.contactEmail && (
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-400 uppercase">Claims Email:</span>
+                                                <span className="font-semibold text-indigo-500">{item.contactEmail}</span>
+                                            </div>
+                                        )}
+                                        {item.contactPhone && (
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-400 uppercase">Pre-Auth Phone:</span>
+                                                <span className="font-semibold">{item.contactPhone}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
             default:
                 return null;
         }
@@ -737,6 +907,7 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                     { id: 'staff', label: 'Staff Registry', icon: UsersIcon },
                     { id: 'clinic', label: 'Clinic Setup', icon: SettingsIcon },
                     { id: 'tariffs', label: 'Tariffs & Fee Schedule', icon: SettingsIcon },
+                    { id: 'insurance', label: 'Insurance & Schemes', icon: GlobeAltIcon },
                 ].map((tab) => (
                     <button
                         key={tab.id}
@@ -1006,12 +1177,98 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                             </div>
                         </div>
 
+            {/* ═══════════ REGISTER INSURANCE PARTNER MODAL ═══════════ */}
+            {isAddInsuranceOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="px-8 py-5 bg-indigo-600 text-white flex items-center justify-between">
+                            <div>
+                                <h3 className="text-md font-black uppercase tracking-wider">Register Insurance Partner</h3>
+                                <p className="text-[10px] font-semibold opacity-80">Add SHA scheme, private medical cover, or corporate health insurance partner</p>
+                            </div>
+                            <button onClick={() => setIsAddInsuranceOpen(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-8 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Insurance Provider Name *</label>
+                                <input
+                                    type="text"
+                                    value={newInsurance.name}
+                                    onChange={e => setNewInsurance(f => ({ ...f, name: e.target.value }))}
+                                    placeholder="e.g. Jubilee Insurance, SHA, UAP Old Mutual"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Category / Type</label>
+                                    <select
+                                        value={newInsurance.category}
+                                        onChange={e => setNewInsurance(f => ({ ...f, category: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="SHA / National Scheme">SHA / National Scheme</option>
+                                        <option value="Private Medical Cover">Private Medical Cover</option>
+                                        <option value="Corporate & Individual">Corporate &amp; Individual</option>
+                                        <option value="Micro-Insurance & Corporate">Micro-Insurance</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Scheme Code / ID</label>
+                                    <input
+                                        type="text"
+                                        value={newInsurance.code}
+                                        onChange={e => setNewInsurance(f => ({ ...f, code: e.target.value }))}
+                                        placeholder="e.g. JUB-MED-01"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Fixed Co-pay (KES)</label>
+                                    <input
+                                        type="number"
+                                        value={newInsurance.copayAmount}
+                                        onChange={e => setNewInsurance(f => ({ ...f, copayAmount: Number(e.target.value) }))}
+                                        placeholder="0"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Pre-Auth Phone</label>
+                                    <input
+                                        type="text"
+                                        value={newInsurance.contactPhone}
+                                        onChange={e => setNewInsurance(f => ({ ...f, contactPhone: e.target.value }))}
+                                        placeholder="0700123456"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Claims Email</label>
+                                <input
+                                    type="email"
+                                    value={newInsurance.contactEmail}
+                                    onChange={e => setNewInsurance(f => ({ ...f, contactEmail: e.target.value }))}
+                                    placeholder="claims@insurance.com"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                        </div>
+
                         <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
-                            <button onClick={() => setIsAddTariffOpen(false)} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">
+                            <button onClick={() => setIsAddInsuranceOpen(false)} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">
                                 Cancel
                             </button>
-                            <button onClick={handleAddTariffItem} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
-                                Add to Tariff Schedule
+                            <button onClick={handleAddInsurance} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
+                                Register Insurance Partner
                             </button>
                         </div>
                     </div>
