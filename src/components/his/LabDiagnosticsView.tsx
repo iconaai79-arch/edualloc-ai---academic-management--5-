@@ -287,6 +287,27 @@ function AddLabRequestModal({ isOpen, onClose, onAdd, activePatientId, partnerLa
 function UpdateLabResultModal({ isOpen, onClose, request, onUpdate }: any) {
     const [result, setResult] = useState('');
     const [dispatchStatus, setDispatchStatus] = useState(request?.status || 'Pending');
+    const [entryMode, setEntryMode] = useState<'structured' | 'text'>('structured');
+
+    // FBC Numerical Values State
+    const [fbcValues, setFbcValues] = useState({
+        hb: '13.5',
+        hct: '41.2',
+        rbc: '4.65',
+        mcv: '88.4',
+        mch: '29.1',
+        mchc: '33.2',
+        rdw: '12.8',
+        wbc: '7.40',
+        plt: '285',
+        mpv: '9.2',
+        neut: '62.0',
+        lymph: '28.5',
+        mono: '6.2',
+        eos: '2.5',
+        baso: '0.8',
+        pbfNotes: 'Red cells are normocytic normochromic. Zero atypical blasts.'
+    });
 
     useEffect(() => {
         if (request) {
@@ -295,20 +316,33 @@ function UpdateLabResultModal({ isOpen, onClose, request, onUpdate }: any) {
         }
     }, [request]);
 
+    const isFbc = !request?.testType || request?.testType?.toLowerCase().includes('blood') || request?.testType?.toLowerCase().includes('fbc') || request?.testType?.toLowerCase().includes('cbc');
+
+    const handleCompileFbcString = () => {
+        const compiled = `Hb: ${fbcValues.hb} g/dL, HCT: ${fbcValues.hct}%, RBC: ${fbcValues.rbc} x10^12/L, MCV: ${fbcValues.mcv} fL, MCH: ${fbcValues.mch} pg, MCHC: ${fbcValues.mchc} g/dL, RDW: ${fbcValues.rdw}%, WBC: ${fbcValues.wbc} x10^9/L, PLT: ${fbcValues.plt} x10^9/L. Differential: Neut: ${fbcValues.neut}%, Lymph: ${fbcValues.lymph}%, Mono: ${fbcValues.mono}%, Eos: ${fbcValues.eos}%, Baso: ${fbcValues.baso}%. PBF: ${fbcValues.pbfNotes}`;
+        setResult(compiled);
+        return compiled;
+    };
+
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center p-8 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
-            <div className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-[3rem] p-10 relative shadow-2xl animate-zoom-in">
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 md:p-8 bg-slate-950/90 backdrop-blur-xl animate-fade-in overflow-y-auto">
+            <div className="bg-slate-900 border border-white/10 w-full max-w-2xl rounded-[3rem] p-8 md:p-10 relative shadow-2xl animate-zoom-in my-8 max-h-[90vh] overflow-y-auto">
                 <button onClick={onClose} className="absolute top-8 right-8 p-2 text-slate-400 hover:text-white rounded-xl">
                     <XIcon className="w-6 h-6" />
                 </button>
 
-                <div className="mb-8">
-                    <h3 className="text-xl font-black uppercase tracking-tight text-emerald-400 italic">
-                        Diagnostic Status <span className="text-white">&amp; Results</span>
+                <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-500/30">
+                            Diagnostic Result Entry Form
+                        </span>
+                    </div>
+                    <h3 className="text-xl font-black uppercase tracking-tight text-white italic">
+                        {request?.testType} <span className="text-emerald-400">— Result Input</span>
                     </h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                        {request?.testType} • Ref ID: {request?.id?.substring(0, 8)}
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                        Patient ID: {request?.patientId?.substring(0, 10)} • Barcode: {request?.barcodeNumber}
                     </p>
                 </div>
 
@@ -329,22 +363,143 @@ function UpdateLabResultModal({ isOpen, onClose, request, onUpdate }: any) {
                         </select>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Diagnostic Outcome / Lab Findings</label>
-                        <textarea 
-                            value={result} 
-                            onChange={e => setResult(e.target.value)} 
-                            placeholder="ENTER QUANTITATIVE & QUALITATIVE VALUES OR ATTACH PARTNER FINDINGS..." 
-                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-5 text-xs font-bold outline-none text-white tracking-wider h-36 resize-none"
-                        />
+                    {/* Entry Mode Switcher */}
+                    <div className="flex items-center justify-between p-2 bg-black/40 border border-white/10 rounded-2xl">
+                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider ml-2">Input Mode:</span>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setEntryMode('structured')}
+                                className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                    entryMode === 'structured' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                                }`}
+                            >
+                                🧪 Parameter Value Grid
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setEntryMode('text')}
+                                className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                    entryMode === 'text' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                                }`}
+                            >
+                                📝 Free-Text Summary
+                            </button>
+                        </div>
                     </div>
+
+                    {/* STRUCTURED FBC PARAMETER INPUT GRID */}
+                    {entryMode === 'structured' && isFbc ? (
+                        <div className="p-5 bg-black/50 border border-indigo-500/30 rounded-3xl space-y-5 animate-fade-in">
+                            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                <h4 className="text-xs font-black text-indigo-300 uppercase tracking-widest">FBC / CBC Quantitative Parameter Grid</h4>
+                                <button
+                                    type="button"
+                                    onClick={() => setFbcValues({
+                                        hb: '13.5', hct: '41.2', rbc: '4.65', mcv: '88.4', mch: '29.1', mchc: '33.2', rdw: '12.8',
+                                        wbc: '7.40', plt: '285', mpv: '9.2', neut: '62.0', lymph: '28.5', mono: '6.2', eos: '2.5', baso: '0.8',
+                                        pbfNotes: 'Red cells are normocytic normochromic. Zero atypical blasts.'
+                                    })}
+                                    className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-500/30 uppercase hover:bg-emerald-500/20"
+                                >
+                                    ⚡ Pre-fill Normal FBC Values
+                                </button>
+                            </div>
+
+                            {/* Red Cell Parameters */}
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Red Cell Indices &amp; Haemoglobin</label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">Hb (g/dL)</label>
+                                        <input type="text" value={fbcValues.hb} onChange={e => setFbcValues({ ...fbcValues, hb: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2.5 text-xs font-mono font-bold text-white text-center outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">HCT (%)</label>
+                                        <input type="text" value={fbcValues.hct} onChange={e => setFbcValues({ ...fbcValues, hct: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2.5 text-xs font-mono font-bold text-white text-center outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">RBC (10¹²/L)</label>
+                                        <input type="text" value={fbcValues.rbc} onChange={e => setFbcValues({ ...fbcValues, rbc: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2.5 text-xs font-mono font-bold text-white text-center outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">MCV (fL)</label>
+                                        <input type="text" value={fbcValues.mcv} onChange={e => setFbcValues({ ...fbcValues, mcv: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2.5 text-xs font-mono font-bold text-white text-center outline-none focus:border-indigo-500" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* White Cell & Platelets */}
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Total White Cells &amp; Platelets</label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">WBC (10⁹/L)</label>
+                                        <input type="text" value={fbcValues.wbc} onChange={e => setFbcValues({ ...fbcValues, wbc: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2.5 text-xs font-mono font-bold text-white text-center outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">PLT (10⁹/L)</label>
+                                        <input type="text" value={fbcValues.plt} onChange={e => setFbcValues({ ...fbcValues, plt: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2.5 text-xs font-mono font-bold text-white text-center outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">MCH (pg)</label>
+                                        <input type="text" value={fbcValues.mch} onChange={e => setFbcValues({ ...fbcValues, mch: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2.5 text-xs font-mono font-bold text-white text-center outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">RDW (%)</label>
+                                        <input type="text" value={fbcValues.rdw} onChange={e => setFbcValues({ ...fbcValues, rdw: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2.5 text-xs font-mono font-bold text-white text-center outline-none focus:border-indigo-500" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 5-Part Differential */}
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">5-Part Differential (%)</label>
+                                <div className="grid grid-cols-5 gap-2">
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">Neut %</label>
+                                        <input type="text" value={fbcValues.neut} onChange={e => setFbcValues({ ...fbcValues, neut: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2 text-xs font-mono text-center text-white outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">Lymph %</label>
+                                        <input type="text" value={fbcValues.lymph} onChange={e => setFbcValues({ ...fbcValues, lymph: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2 text-xs font-mono text-center text-white outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">Mono %</label>
+                                        <input type="text" value={fbcValues.mono} onChange={e => setFbcValues({ ...fbcValues, mono: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2 text-xs font-mono text-center text-white outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">Eos %</label>
+                                        <input type="text" value={fbcValues.eos} onChange={e => setFbcValues({ ...fbcValues, eos: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2 text-xs font-mono text-center text-white outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-bold text-slate-300 uppercase block mb-1">Baso %</label>
+                                        <input type="text" value={fbcValues.baso} onChange={e => setFbcValues({ ...fbcValues, baso: e.target.value })} className="w-full bg-slate-900 border border-white/10 rounded-xl p-2 text-xs font-mono text-center text-white outline-none" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Diagnostic Findings Summary *</label>
+                            <textarea 
+                                value={result} 
+                                onChange={e => setResult(e.target.value)} 
+                                placeholder="ENTER QUANTITATIVE & QUALITATIVE VALUES OR ATTACH FINDINGS..." 
+                                className="w-full bg-black/40 border border-white/10 rounded-2xl p-5 text-xs font-bold outline-none text-white tracking-wider h-36 resize-none"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <button 
-                    onClick={() => onUpdate({ results: result, status: dispatchStatus })} 
-                    className="w-full mt-8 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:scale-[1.02] transition-all shadow-xl shadow-emerald-600/30 italic"
+                    onClick={() => {
+                        const finalResultString = entryMode === 'structured' && isFbc ? handleCompileFbcString() : result;
+                        onUpdate({ results: finalResultString, status: dispatchStatus });
+                    }} 
+                    className="w-full mt-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:scale-[1.02] transition-all shadow-xl shadow-emerald-600/30 italic"
                 >
-                    Broadcast Result to Patient 360 ✓
+                    Save &amp; Broadcast Result to Patient 360 ✓
                 </button>
             </div>
         </div>
