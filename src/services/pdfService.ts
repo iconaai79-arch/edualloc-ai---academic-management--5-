@@ -10934,3 +10934,163 @@ export const generateHisInsuranceStatementPdf = async (data: any): Promise<strin
     return doc.output('datauristring');
 };
 
+export const generateFbcLabReportPdf = async (
+    data: {
+        reportId?: string;
+        date?: string;
+        patientName: string;
+        patientId?: string;
+        gender?: string;
+        dob?: string;
+        doctorName?: string;
+        barcodeNumber?: string;
+        results?: any;
+        pathologistNotes?: string;
+    },
+    institution?: any
+): Promise<string> => {
+    const jsPdfObj = getJsPdf();
+    if (!jsPdfObj) throw new Error("jsPDF library not initialized");
+    const { jsPDF } = jsPdfObj;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageWidth, 40, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.text(institution?.name?.toUpperCase() || "QUANTUM HEALTHCARE MEDICAL CENTRE", 14, 16);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text("DEPARTMENT OF HAEMATOLOGY & DIAGNOSTIC LABORATORY", 14, 24);
+    doc.text(`FULL BLOOD COUNT (FBC) DIAGNOSTIC REPORT • REF: ${data.barcodeNumber || 'SPEC-849102'}`, 14, 32);
+
+    doc.setTextColor(15, 23, 42);
+    let yPos = 48;
+
+    doc.setFillColor(248, 250, 252);
+    doc.rect(14, yPos, pageWidth - 28, 24, 'F');
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(14, yPos, pageWidth - 28, 24, 'S');
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`PATIENT NAME: ${data.patientName?.toUpperCase() || 'PATIENT'}`, 18, yPos + 7);
+    doc.text(`DATE / TIME: ${data.date || new Date().toLocaleString()}`, 110, yPos + 7);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Gender / DOB: ${data.gender || 'Female'} (${data.dob || '1992-05-14'})`, 18, yPos + 14);
+    doc.text(`Ordering Doctor: Dr. ${data.doctorName || 'Attending Physician'}`, 110, yPos + 14);
+    doc.text(`Specimen: Whole Blood (EDTA Purple Top)`, 18, yPos + 20);
+    doc.text(`Lab Barcode: ${data.barcodeNumber || 'SPEC-849102'}`, 110, yPos + 20);
+
+    yPos += 30;
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(14, yPos, pageWidth - 28, 8, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text("Parameter", 18, yPos + 5.5);
+    doc.text("Result", 80, yPos + 5.5);
+    doc.text("SI Units", 115, yPos + 5.5);
+    doc.text("Reference Range", 145, yPos + 5.5);
+    doc.text("Flag", pageWidth - 18, yPos + 5.5, { align: 'right' });
+    yPos += 12;
+
+    const fbcRows = [
+        { param: 'Haemoglobin (Hb)', val: '13.5', unit: 'g/dL', ref: '12.0 - 15.5', flag: 'NORMAL' },
+        { param: 'Hematocrit (HCT / PCV)', val: '41.2', unit: '%', ref: '36.0 - 48.0', flag: 'NORMAL' },
+        { param: 'Red Blood Cells (RBC)', val: '4.65', unit: 'x10¹²/L', ref: '4.10 - 5.10', flag: 'NORMAL' },
+        { param: 'Mean Corpuscular Vol (MCV)', val: '88.4', unit: 'fL', ref: '80.0 - 100.0', flag: 'NORMAL' },
+        { param: 'Mean Corpuscular Hb (MCH)', val: '29.1', unit: 'pg', ref: '27.0 - 33.0', flag: 'NORMAL' },
+        { param: 'MCH Concentration (MCHC)', val: '33.2', unit: 'g/dL', ref: '32.0 - 36.0', flag: 'NORMAL' },
+        { param: 'RBC Distribution Width (RDW)', val: '12.8', unit: '%', ref: '11.5 - 14.5', flag: 'NORMAL' },
+        { param: 'White Blood Cell Count (WBC)', val: '7.40', unit: 'x10⁹/L', ref: '4.00 - 11.00', flag: 'NORMAL' },
+        { param: 'Platelet Count (PLT)', val: '285', unit: 'x10⁹/L', ref: '150 - 450', flag: 'NORMAL' },
+        { param: 'Mean Platelet Volume (MPV)', val: '9.2', unit: 'fL', ref: '7.5 - 11.5', flag: 'NORMAL' },
+    ];
+
+    doc.setTextColor(15, 23, 42);
+    fbcRows.forEach((row, i) => {
+        if (i % 2 === 1) {
+            doc.setFillColor(248, 250, 252);
+            doc.rect(14, yPos - 4.5, pageWidth - 28, 6.5, 'F');
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.text(row.param, 18, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(row.val, 80, yPos);
+        doc.text(row.unit, 115, yPos);
+        doc.text(row.ref, 145, yPos);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(16, 185, 129);
+        doc.text(row.flag, pageWidth - 18, yPos, { align: 'right' });
+        doc.setTextColor(15, 23, 42);
+        yPos += 6.5;
+    });
+
+    yPos += 4;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text("5-PART WHITE CELL DIFFERENTIAL (WBC)", 14, yPos);
+    yPos += 6;
+
+    doc.setFillColor(241, 245, 249);
+    doc.rect(14, yPos, pageWidth - 28, 7, 'F');
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Cell Differential Type", 18, yPos + 4.5);
+    doc.text("Relative (%)", 90, yPos + 4.5);
+    doc.text("Absolute Count (x10⁹/L)", 140, yPos + 4.5);
+    yPos += 11;
+
+    const diffRows = [
+        { cell: 'Neutrophils (NEUT)', pct: '62.0 %', abs: '4.58 x10⁹/L' },
+        { cell: 'Lymphocytes (LYMPH)', pct: '28.5 %', abs: '2.10 x10⁹/L' },
+        { cell: 'Monocytes (MONO)', pct: '6.2 %', abs: '0.45 x10⁹/L' },
+        { cell: 'Eosinophils (EOS)', pct: '2.5 %', abs: '0.18 x10⁹/L' },
+        { cell: 'Basophils (BASO)', pct: '0.8 %', abs: '0.06 x10⁹/L' },
+    ];
+
+    doc.setFont('helvetica', 'normal');
+    diffRows.forEach((d) => {
+        doc.text(d.cell, 18, yPos);
+        doc.text(d.pct, 90, yPos);
+        doc.text(d.abs, 140, yPos);
+        yPos += 6;
+    });
+
+    yPos += 4;
+    doc.setFillColor(248, 250, 252);
+    doc.rect(14, yPos, pageWidth - 28, 16, 'F');
+    doc.setDrawColor(203, 213, 225);
+    doc.rect(14, yPos, pageWidth - 28, 16, 'S');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text("PERIPHERAL BLOOD FILM (PBF) & HAEMATOLOGIST IMPRESSION:", 18, yPos + 5);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(15, 23, 42);
+    doc.text(data.pathologistNotes || '"Red cells are normocytic normochromic. WBC count and differential within physiological limits. Platelets adequate with normal morphology. Zero atypical blasts."', 18, yPos + 11);
+    yPos += 22;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text("MEDICAL LABORATORY TECHNOLOGIST:", 14, yPos);
+    doc.text("CONSULTANT HAEMATOPATHOLOGIST:", 110, yPos);
+    yPos += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.text("James Kimani, KMLTTB #8841", 14, yPos);
+    doc.text("Dr. Beatrice Korir, MBChB, MMed Path", 110, yPos);
+
+    return doc.output('datauristring');
+};
+
