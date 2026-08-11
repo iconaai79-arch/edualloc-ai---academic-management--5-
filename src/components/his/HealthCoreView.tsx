@@ -456,121 +456,237 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     return (
         <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-sans selection:bg-indigo-500/30 flex">
 
-            {/* ── EduPulse Vertical Sidebar ── */}
-            {isEdu && (
-                <aside className="w-20 lg:w-64 min-h-screen bg-gradient-to-b from-indigo-700 via-indigo-800 to-indigo-900 flex flex-col flex-shrink-0 shadow-2xl shadow-indigo-950/50 z-20 sticky top-0 self-start h-screen">
-                    {/* Brand */}
-                    <div className="p-5 lg:p-6 border-b border-white/10 flex-shrink-0">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg ring-1 ring-white/20">
-                                <SparklesIcon className="w-5 h-5 text-white" />
-                            </div>
-                            <div className="hidden lg:block">
-                                <p className="text-base font-black uppercase tracking-tighter italic text-white leading-none">
-                                    Edu<span className="text-indigo-200">Pulse</span>
-                                </p>
-                                <p className="text-[8px] font-black text-indigo-300 uppercase tracking-[0.25em] mt-1">School Wellness</p>
-                            </div>
+            {/* ── Vertical Sidebar Menu for HIS ── */}
+            <aside className="w-20 lg:w-64 min-h-screen bg-gradient-to-b from-indigo-950 via-slate-900 to-slate-950 flex flex-col flex-shrink-0 shadow-2xl shadow-indigo-950/50 z-20 sticky top-0 self-start h-screen border-r border-slate-800/80">
+                {/* Brand */}
+                <div className="p-5 lg:p-6 border-b border-white/10 flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg ring-1 ring-white/20">
+                            <SparklesIcon className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="hidden lg:block">
+                            {isEdu ? (
+                                <>
+                                    <p className="text-base font-black uppercase tracking-tighter italic text-white leading-none">
+                                        Edu<span className="text-indigo-300">Pulse</span>
+                                    </p>
+                                    <p className="text-[8px] font-black text-indigo-300 uppercase tracking-[0.25em] mt-1">School Wellness</p>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-base font-black uppercase tracking-tighter italic text-white leading-none">
+                                        Quantum <span className="text-indigo-400">H.I.S</span>
+                                    </p>
+                                    <p className="text-[8px] font-black text-indigo-300/70 uppercase tracking-[0.25em] mt-1">Medical Operating System</p>
+                                </>
+                            )}
                         </div>
                     </div>
+                </div>
 
-                    {/* Top Subscription Expiry Banner */}
-                    <div className="px-3">
-                        <SubscriptionExpiryBanner
-                            institution={institutionData}
-                        />
-                    </div>
+                {/* Top Subscription Expiry Banner */}
+                <div className="px-3">
+                    <SubscriptionExpiryBanner institution={institutionData} />
+                </div>
 
-                    {/* Primary Navigation: Home, Patients, Appointment */}
-                    <nav className="flex-1 p-3 space-y-1 overflow-y-auto mt-2 no-scrollbar">
-                        <p className="hidden lg:block text-[8px] font-black text-indigo-300/50 uppercase tracking-widest px-3 mb-3">Main Menu</p>
-                        {[
-                            { id: 'home', label: 'Home', icon: HeartIcon, module: 'general' as HISModule },
-                            { id: 'patients', label: 'Patients', icon: UsersIcon, module: 'general' as HISModule },
-                            { id: 'appointment', label: 'Appointment', icon: CalendarIcon, module: 'appointments' as HISModule },
-                        ].map(item => {
-                            const isActive = eduSidebarItem === item.id;
-                            return (
-                                <button
-                                    key={item.id}
-                                    onClick={() => { 
-                                        setActiveModule(item.module); 
-                                        setEduSidebarItem(item.id); 
-                                        if (item.id === 'home') {
-                                            setActivePatientId(null);
-                                        }
-                                    }}
-                                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left transition-all duration-200 group ${
-                                        isActive
-                                            ? 'bg-white/20 text-white shadow-lg shadow-black/10'
-                                            : 'text-indigo-200 hover:bg-white/10 hover:text-white'
-                                    }`}
-                                >
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
-                                        isActive
-                                            ? 'bg-white text-indigo-600 shadow-md'
-                                            : 'bg-white/10 text-indigo-200 group-hover:bg-white/20 group-hover:text-white'
-                                    }`}>
-                                        <item.icon className="w-4 h-4" />
-                                    </div>
-                                    <span className="hidden lg:block text-[11px] font-black uppercase tracking-widest">{item.label}</span>
-                                </button>
-                            );
-                        })}
-
-                        <div className="my-4 mx-2 border-t border-white/10" />
-                        <p className="hidden lg:block text-[8px] font-black text-indigo-300/50 uppercase tracking-widest px-3 mb-2">More Tools</p>
-
-                        {[
-                            { id: 'pharmacy' as HISModule, label: 'Pharmacy', icon: BeakerIcon },
-                            { id: 'hr' as HISModule, label: 'HR & Payroll', icon: UsersIcon },
-                            { id: 'biometrics' as HISModule, label: 'Biometrics Fleet', icon: ClockIcon },
-                            { id: 'broadcaster' as HISModule, label: 'Communications', icon: BellIcon },
-                            { id: 'attendance' as HISModule, label: 'Attendance', icon: ClockIcon },
-                            { id: 'reports' as HISModule, label: 'Reports', icon: ChartBarIcon },
-                            { id: 'config' as HISModule, label: 'Settings', icon: SettingsIcon },
-                        ].map(item => {
-                            const isActive = activeModule === item.id && !['home','patients','appointment'].includes(eduSidebarItem);
-                            return (
-                                <button
-                                    key={item.id}
-                                    onClick={() => { setActiveModule(item.id); setEduSidebarItem(''); }}
-                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 group ${
-                                        isActive
-                                            ? 'bg-white/15 text-white'
-                                            : 'text-indigo-300/70 hover:bg-white/10 hover:text-white'
-                                    }`}
-                                >
-                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
-                                        isActive
-                                            ? 'bg-white text-indigo-600 shadow-md'
-                                            : 'bg-white/10 text-indigo-300 group-hover:bg-white/20 group-hover:text-white'
-                                    }`}>
-                                        <item.icon className="w-3.5 h-3.5" />
-                                    </div>
-                                    <span className="hidden lg:block text-[10px] font-black uppercase tracking-widest">{item.label}</span>
-                                </button>
-                            );
-                        })}
-                    </nav>
-
-                    {/* Bottom User Badge */}
-                    <div className="p-4 border-t border-white/10 flex-shrink-0">
-                        <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-sm font-black shadow ring-1 ring-white/20">
-                                {(userName || 'U')[0].toUpperCase()}
+                {/* Vertical Navigation Menu */}
+                <nav className="flex-1 p-3 space-y-4 overflow-y-auto mt-2 no-scrollbar">
+                    {/* EduPulse Menu Mode */}
+                    {isEdu ? (
+                        <>
+                            <div>
+                                <p className="hidden lg:block text-[8px] font-black text-indigo-300/50 uppercase tracking-widest px-3 mb-2">Main Menu</p>
+                                <div className="space-y-1">
+                                    {[
+                                        { id: 'home', label: 'Home', icon: HeartIcon, module: 'general' as HISModule },
+                                        { id: 'patients', label: 'Patients', icon: UsersIcon, module: 'general' as HISModule },
+                                        { id: 'appointment', label: 'Appointment', icon: CalendarIcon, module: 'appointments' as HISModule },
+                                    ].map(item => {
+                                        const isActive = eduSidebarItem === item.id;
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => {
+                                                    setActiveModule(item.module);
+                                                    setEduSidebarItem(item.id);
+                                                    if (item.id === 'home') setActivePatientId(null);
+                                                }}
+                                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left transition-all duration-200 group ${
+                                                    isActive
+                                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50'
+                                                        : 'text-indigo-200 hover:bg-white/10 hover:text-white'
+                                                }`}
+                                            >
+                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                                                    isActive ? 'bg-white text-indigo-600 shadow-md' : 'bg-white/10 text-indigo-200 group-hover:bg-white/20 group-hover:text-white'
+                                                }`}>
+                                                    <item.icon className="w-4 h-4" />
+                                                </div>
+                                                <span className="hidden lg:block text-[11px] font-black uppercase tracking-widest">{item.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                            <div className="hidden lg:block min-w-0 flex-1">
-                                <p className="text-[10px] font-black text-white uppercase tracking-tight truncate">{userName || 'Staff'}</p>
-                                <p className="text-[8px] font-black text-indigo-300 uppercase tracking-widest capitalize">{(activeRole || 'user').replace(/_/g, ' ')}</p>
+
+                            <div className="border-t border-white/10 pt-2">
+                                <p className="hidden lg:block text-[8px] font-black text-indigo-300/50 uppercase tracking-widest px-3 mb-2">More Tools</p>
+                                <div className="space-y-1">
+                                    {[
+                                        { id: 'pharmacy' as HISModule, label: 'Pharmacy', icon: BeakerIcon },
+                                        { id: 'hr' as HISModule, label: 'HR & Payroll', icon: UsersIcon },
+                                        { id: 'biometrics' as HISModule, label: 'Biometrics Fleet', icon: ClockIcon },
+                                        { id: 'broadcaster' as HISModule, label: 'Communications', icon: BellIcon },
+                                        { id: 'attendance' as HISModule, label: 'Attendance', icon: ClockIcon },
+                                        { id: 'reports' as HISModule, label: 'Reports', icon: ChartBarIcon },
+                                        { id: 'config' as HISModule, label: 'Settings', icon: SettingsIcon },
+                                    ].map(item => {
+                                        const isActive = activeModule === item.id && !['home','patients','appointment'].includes(eduSidebarItem);
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => { setActiveModule(item.id); setEduSidebarItem(''); }}
+                                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 group ${
+                                                    isActive ? 'bg-indigo-600/80 text-white' : 'text-indigo-300/70 hover:bg-white/10 hover:text-white'
+                                                }`}
+                                            >
+                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                                                    isActive ? 'bg-white text-indigo-600 shadow-md' : 'bg-white/10 text-indigo-300 group-hover:bg-white/20 group-hover:text-white'
+                                                }`}>
+                                                    <item.icon className="w-3.5 h-3.5" />
+                                                </div>
+                                                <span className="hidden lg:block text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
+                        </>
+                    ) : (
+                        /* Standalone Quantum Medical HIS Vertical Navigation */
+                        <>
+                            {/* Section 1: Clinical & Care */}
+                            <div>
+                                <p className="hidden lg:block text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] px-3 mb-2 italic">Clinical &amp; Care</p>
+                                <div className="space-y-1">
+                                    {[
+                                        { id: 'receptionist' as HISModule, label: 'Reception Desk', icon: UsersIcon },
+                                        { id: 'general' as HISModule, label: 'Patient 360', icon: HeartIcon },
+                                        { id: 'inpatient' as HISModule, label: 'Admissions', icon: BuildingOfficeIcon },
+                                        { id: 'appointments' as HISModule, label: 'Scheduling', icon: CalendarIcon },
+                                        { id: 'diagnostics' as HISModule, label: 'Diagnostics & Lab', icon: BeakerIcon },
+                                        { id: 'pharmacy' as HISModule, label: 'Pharmacy & Store', icon: BeakerIcon },
+                                    ].map(item => {
+                                        const isActive = activeModule === item.id;
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => setActiveModule(item.id)}
+                                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 group ${
+                                                    isActive
+                                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50'
+                                                        : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                                                }`}
+                                            >
+                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                                                    isActive ? 'bg-white text-indigo-600 shadow-md' : 'bg-white/10 text-slate-400 group-hover:bg-white/20 group-hover:text-white'
+                                                }`}>
+                                                    <item.icon className="w-4 h-4" />
+                                                </div>
+                                                <span className="hidden lg:block text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Section 2: Specialized Units */}
+                            <div className="border-t border-white/10 pt-3">
+                                <p className="hidden lg:block text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] px-3 mb-2 italic">Specialized Hubs</p>
+                                <div className="space-y-1">
+                                    {[
+                                        { id: 'dental' as HISModule, label: 'Dental Core', icon: ScissorsIcon },
+                                        { id: 'eye' as HISModule, label: 'Ocular Hub', icon: EyeIcon },
+                                        { id: 'ear' as HISModule, label: 'ENT Hub', icon: SignalIcon },
+                                    ].map(item => {
+                                        const isActive = activeModule === item.id;
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => setActiveModule(item.id)}
+                                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 group ${
+                                                    isActive
+                                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50'
+                                                        : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                                                }`}
+                                            >
+                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                                                    isActive ? 'bg-white text-indigo-600 shadow-md' : 'bg-white/10 text-slate-400 group-hover:bg-white/20 group-hover:text-white'
+                                                }`}>
+                                                    <item.icon className="w-4 h-4" />
+                                                </div>
+                                                <span className="hidden lg:block text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Section 3: Revenue & Administration */}
+                            <div className="border-t border-white/10 pt-3">
+                                <p className="hidden lg:block text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] px-3 mb-2 italic">Finance &amp; Operations</p>
+                                <div className="space-y-1">
+                                    {[
+                                        { id: 'billing' as HISModule, label: 'Revenue / SHA', icon: CreditCardIcon },
+                                        { id: 'hr' as HISModule, label: 'HR & Payroll', icon: UsersIcon },
+                                        { id: 'biometrics' as HISModule, label: 'Biometrics Fleet', icon: ClockIcon },
+                                        { id: 'attendance' as HISModule, label: 'Staff Presence', icon: ClockIcon },
+                                        { id: 'broadcaster' as HISModule, label: 'Communications', icon: BellIcon },
+                                        { id: 'reports' as HISModule, label: 'Intelligence', icon: ChartBarIcon },
+                                        { id: 'config' as HISModule, label: 'Nexus Settings', icon: SettingsIcon },
+                                    ].map(item => {
+                                        const isActive = activeModule === item.id;
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => setActiveModule(item.id)}
+                                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 group ${
+                                                    isActive
+                                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50'
+                                                        : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                                                }`}
+                                            >
+                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                                                    isActive ? 'bg-white text-indigo-600 shadow-md' : 'bg-white/10 text-slate-400 group-hover:bg-white/20 group-hover:text-white'
+                                                }`}>
+                                                    <item.icon className="w-4 h-4" />
+                                                </div>
+                                                <span className="hidden lg:block text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </nav>
+
+                {/* Bottom User Badge */}
+                <div className="p-4 border-t border-white/10 flex-shrink-0 bg-black/20">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-indigo-600/30 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-sm font-black shadow ring-1 ring-white/20">
+                            {(userName || 'U')[0].toUpperCase()}
+                        </div>
+                        <div className="hidden lg:block min-w-0 flex-1">
+                            <p className="text-[10px] font-black text-white uppercase tracking-tight truncate">{userName || 'Staff'}</p>
+                            <p className="text-[8px] font-black text-indigo-300 uppercase tracking-widest capitalize">{(activeRole || 'user').replace(/_/g, ' ')}</p>
                         </div>
                     </div>
-                </aside>
-            )}
+                </div>
+            </aside>
 
             {/* ── Main Content Wrapper ── */}
-            <div className={isEdu ? 'flex-1 min-w-0 flex flex-col overflow-y-auto' : 'w-full'}>
+            <div className="flex-1 min-w-0 flex flex-col overflow-y-auto">
                 <div className="p-8 pb-4 space-y-8">
                     <div className="flex flex-col md:flex-row justify-between md:items-end gap-6">
                         {!isEdu && (
@@ -657,40 +773,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                         </div>
                     </div>
 
-                    {/* Horizontal module tabs — shown only in HIS/clinic mode; EduPulse uses the sidebar */}
-                    {!isEdu && (
-                        <div className="flex bg-slate-100/50 dark:bg-white/5 p-1.5 rounded-2xl w-full overflow-x-auto scrollbar-hide border border-slate-200 dark:border-white/5 shadow-inner no-scrollbar">
-                            <div className="flex gap-1.5 min-w-max text-white">
-                                {[
-                                    { id: 'receptionist', label: 'Reception', icon: UsersIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'general', label: 'Patient 360', icon: HeartIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon, categories: ['Hospital', 'Clinic', 'Healthcare'] },
-                                    { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'pharmacy', label: 'Pharmacy/Store', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'hr', label: 'HR & Payroll', icon: UsersIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'biometrics', label: 'Biometrics Fleet', icon: ClockIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'dental', label: 'Dental Core', icon: ScissorsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Healthcare'] },
-                                    { id: 'eye', label: 'Ocular Hub', icon: EyeIcon, categories: ['Hospital', 'Clinic', 'Eye', 'Healthcare'] },
-                                    { id: 'ear', label: 'ENT Hub', icon: SignalIcon, categories: ['Hospital', 'Clinic', 'Ear', 'Healthcare'] },
-                                    { id: 'billing', label: 'Revenue/SHA', icon: CreditCardIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'broadcaster', label: 'Communications', icon: BellIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'appointments', label: 'Scheduling', icon: CalendarIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'attendance', label: 'Presence', icon: ClockIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'config', label: 'Nexus', icon: SettingsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                    { id: 'reports', label: 'Intelligence', icon: ChartBarIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
-                                ]
-                                .filter(mod => {
-                                    const cat = institutionData?.category || 'Hospital';
-                                    return mod.categories.some(c => cat.includes(c));
-                                })
-                                .map((mod) => (
-                                    <button key={mod.id} onClick={() => setActiveModule(mod.id as HISModule)} className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeModule === mod.id ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl border border-slate-200 dark:border-slate-700/50 scale-105' : 'text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400'}`}>
-                                        <mod.icon className="w-4 h-4" /> {mod.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+
                 </div>
 
             <main className="p-8 pt-0">
