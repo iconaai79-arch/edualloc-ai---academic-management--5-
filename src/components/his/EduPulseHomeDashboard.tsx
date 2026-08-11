@@ -162,7 +162,7 @@ export function EduPulseHomeDashboard({
                 </div>
                 <div className="flex flex-wrap gap-3">
                     <button onClick={onRegisterPatient} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/10">
-                        <PlusIcon className="w-4.5 h-4.5" /> Register Student
+                        <PlusIcon className="w-4.5 h-4.5" /> Register Patient
                     </button>
                     <button onClick={onAddVisit} className="bg-white/10 hover:bg-white/20 text-slate-800 dark:text-white border border-slate-200 dark:border-white/10 px-6 py-3 rounded-2xl flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
                         <PlusIcon className="w-4.5 h-4.5 text-indigo-500" /> Record Sick Bay Visit
