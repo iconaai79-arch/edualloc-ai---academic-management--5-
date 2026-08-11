@@ -152,8 +152,8 @@ const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').
 const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m => ({ default: m.PublicInvoiceView })));
 const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m => ({ default: m.DSInterestPage })));
 const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then(m => ({ default: m.RestaurantPOSManager })));
-const HealthCoreView = safeLazy(() => import('./his/HealthCoreView').then(m => ({ default: m.HealthCoreView })));
-const ModernPharmacyManager = safeLazy(() => import('./his/ModernPharmacyManager').then(m => ({ default: m.ModernPharmacyManager })));
+import HealthCoreView from './his/HealthCoreView';
+import ModernPharmacyManager from './his/ModernPharmacyManager';
 const CarServiceView = safeLazy(() => import('./carservice/CarServiceView').then(m => ({ default: m.CarServiceView })));
 
 
