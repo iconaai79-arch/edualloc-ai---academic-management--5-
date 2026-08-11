@@ -10272,3 +10272,210 @@ export const generatePatientInvoicePdf = async (
     return doc.output('datauristring');
 };
 
+/**
+ * Generates an External Partner Laboratory Requisition & Specimen Transfer Slip (PDF Data URI)
+ */
+export const generateExternalLabRequisitionPdf = async (
+    labRequest: {
+        id: string;
+        testType: string;
+        priority?: string;
+        clinicalNotes?: string;
+        specimenType?: string;
+        barcodeNumber?: string;
+        collectionTime?: string;
+        requestedBy?: string;
+        partnerLabName?: string;
+        partnerLabPhone?: string;
+        partnerLabEmail?: string;
+    },
+    patient: {
+        fullName: string;
+        admissionNumber?: string;
+        gender?: string;
+        dob?: string;
+        contact?: string;
+        insuranceProvider?: string;
+    },
+    institution: any
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let currentY = 15;
+
+    // Header Branding
+    doc.setFillColor(30, 41, 59); // Dark slate header
+    doc.rect(0, 0, pageWidth, 28, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(institution?.name || 'QUANTUM HEALTHCARE & DIAGNOSTICS', margin, 15);
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('EXTERNAL DIAGNOSTIC LABORATORY REQUISITION & SPECIMEN TRANSFER SLIP', margin, 21);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(251, 191, 36); // Amber badge
+    doc.text('PARTNER REFERRAL', pageWidth - margin, 18, { align: 'right' });
+
+    currentY = 38;
+
+    // Document Meta Row
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 22, 3, 3, 'F');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text('REQUISITION NO:', margin + 6, currentY + 7);
+    doc.text('DATE & TIME:', margin + 70, currentY + 7);
+    doc.text('DIAGNOSTIC PRIORITY:', margin + 130, currentY + 7);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(15, 23, 42);
+    doc.text(labRequest.id ? `REQ-${labRequest.id.substring(0, 10).toUpperCase()}` : 'REQ-LAB-REF', margin + 6, currentY + 14);
+    doc.text(labRequest.collectionTime || new Date().toLocaleString(), margin + 70, currentY + 14);
+
+    const isUrgent = (labRequest.priority || '').toLowerCase().includes('urgent') || (labRequest.priority || '').toLowerCase().includes('stat');
+    if (isUrgent) {
+        doc.setTextColor(225, 29, 72);
+        doc.setFont('helvetica', 'bold');
+        doc.text('🔴 STAT / URGENT', margin + 130, currentY + 14);
+    } else {
+        doc.setTextColor(16, 185, 129);
+        doc.setFont('helvetica', 'bold');
+        doc.text('🟢 ROUTINE DISPATCH', margin + 130, currentY + 14);
+    }
+
+    currentY += 30;
+
+    // Two-Column Grid: Patient Info vs Partnered Lab Info
+    const colWidth = (pageWidth - (margin * 2) - 10) / 2;
+
+    // Box 1: Patient Information
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(margin, currentY, colWidth, 42, 3, 3, 'F');
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('PATIENT DEMOGRAPHICS', margin + 6, currentY + 8);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Full Name: ${patient.fullName || 'N/A'}`, margin + 6, currentY + 16);
+    doc.text(`Patient OP/IP File #: ${patient.admissionNumber || 'N/A'}`, margin + 6, currentY + 22);
+    doc.text(`Gender / DOB: ${patient.gender || '—'} (${patient.dob || 'N/A'})`, margin + 6, currentY + 28);
+    doc.text(`Phone / Contact: ${patient.contact || 'N/A'}`, margin + 6, currentY + 34);
+
+    // Box 2: Target Partnered Diagnostic Facility
+    doc.setFillColor(238, 242, 255); // Indigo tint
+    doc.roundedRect(margin + colWidth + 10, currentY, colWidth, 42, 3, 3, 'F');
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(67, 56, 202);
+    doc.text('REFERRAL DIAGNOSTIC FACILITY', margin + colWidth + 16, currentY + 8);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Partner Lab: ${labRequest.partnerLabName || 'Partnered Reference Lab'}`, margin + colWidth + 16, currentY + 16);
+    doc.text(`Lab Phone: ${labRequest.partnerLabPhone || '+254 700 000 000'}`, margin + colWidth + 16, currentY + 22);
+    doc.text(`Dispatch Email: ${labRequest.partnerLabEmail || 'dispatch@partnerlab.co.ke'}`, margin + colWidth + 16, currentY + 28);
+    doc.text(`Payer Mode: ${patient.insuranceProvider || 'Self-Pay (Direct Referral)'}`, margin + colWidth + 16, currentY + 34);
+
+    currentY += 50;
+
+    // Specimen Collection & Barcode Details
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 22, 3, 3);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('SPECIMEN COLLECTION & HANDLING LOG', margin + 6, currentY + 7);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Specimen Type: ${labRequest.specimenType || 'Whole Blood / Serum'}`, margin + 6, currentY + 15);
+    doc.text(`Barcode / Specimen ID: ${labRequest.barcodeNumber || `SPEC-${Date.now().toString().slice(-6)}`}`, margin + 85, currentY + 15);
+    doc.text(`Transport Temp: 2°C – 8°C (Cold Chain)`, margin + 145, currentY + 15);
+
+    currentY += 30;
+
+    // Requested Test Table
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('REQUESTED DIAGNOSTIC TESTS & CLINICAL INDICATIONS', margin, currentY);
+
+    currentY += 4;
+
+    const testTableData = [
+        [
+            '1',
+            labRequest.testType || 'Full Diagnostics Panel',
+            labRequest.priority || 'Routine',
+            labRequest.clinicalNotes || 'Observation & Differential Diagnosis'
+        ]
+    ];
+
+    (doc as any).autoTable({
+        startY: currentY,
+        head: [['#', 'Diagnostic Test Name / Panel', 'Priority', 'Clinical Indications & Notes']],
+        body: testTableData,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8, cellPadding: 4 },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 65, fontStyle: 'bold' },
+            2: { cellWidth: 30, halign: 'center' },
+            3: { cellWidth: 77 }
+        }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 15;
+
+    // Signatures & Receipt Acknowledgment
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+
+    // Left Signature: Requesting Physician
+    doc.text('REQUESTING PHYSICIAN / CLINICIAN', margin, currentY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${labRequest.requestedBy || 'Dr. Attending Physician'}`, margin, currentY + 6);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineDashPattern([2, 2], 0);
+    doc.line(margin, currentY + 20, margin + 70, currentY + 20);
+    doc.setLineDashPattern([], 0);
+    doc.text('Doctor Signature & Stamp', margin, currentY + 25);
+
+    // Right Signature: Receiving Partner Lab Courier
+    doc.text('RECEIVING PARTNER LAB ACKNOWLEDGMENT', margin + colWidth + 10, currentY);
+    doc.text('Courier / Tech Name: _______________________', margin + colWidth + 10, currentY + 6);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineDashPattern([2, 2], 0);
+    doc.line(margin + colWidth + 10, currentY + 20, margin + colWidth + 80, currentY + 20);
+    doc.setLineDashPattern([], 0);
+    doc.text('Partner Lab Received Stamp & Time', margin + colWidth + 10, currentY + 25);
+
+    // Footer note
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Official Referral Requisition Form · Quantum Healthcare HIS Network', pageWidth - margin, currentY + 35, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+

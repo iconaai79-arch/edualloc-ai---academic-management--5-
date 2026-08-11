@@ -17,7 +17,7 @@ interface HISConfigProps {
     onStaffUpdated?: () => void;
 }
 
-type ConfigTab = 'branding' | 'staff' | 'clinic' | 'tariffs' | 'insurance' | 'billing';
+type ConfigTab = 'branding' | 'staff' | 'clinic' | 'tariffs' | 'insurance' | 'billing' | 'partner_labs';
 
 const FINGER_OPTIONS = [
     { index: 0, label: 'Right Thumb' },
@@ -89,6 +89,19 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         contactEmail: '',
         contactPhone: '',
         portalUrl: '',
+        isActive: true,
+    });
+
+    // ── Partnered Diagnostic Laboratories State ─────────────────────────────
+    const [partnerLabs, setPartnerLabs] = useState<any[]>([]);
+    const [isAddPartnerLabOpen, setIsAddPartnerLabOpen] = useState(false);
+    const [newPartnerLab, setNewPartnerLab] = useState({
+        name: '',
+        code: '',
+        phone: '',
+        email: '',
+        address: '',
+        discountRate: 10,
         isActive: true,
     });
 
@@ -216,11 +229,31 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         }
     }, [institutionId]);
 
+    const loadPartnerLabs = useCallback(async () => {
+        if (!institutionId) return;
+        try {
+            const fetched = await apiService.fetchModuleRecords('his_partner_labs', institutionId);
+            if (fetched && fetched.length > 0) {
+                setPartnerLabs(fetched);
+            } else {
+                setPartnerLabs([
+                    { id: 'partner_1', name: 'Lancet Kenya Reference Lab', code: 'PARTNER-LANCET', phone: '0703061000', email: 'dispatch@lancet.co.ke', address: 'Upper Hill, Nairobi', discountRate: 15, isActive: true },
+                    { id: 'partner_2', name: 'PathCare Kenya Diagnostics', code: 'PARTNER-PATHCARE', phone: '0709891000', email: 'results@pathcarekenya.com', address: 'Regal Plaza, Parklands', discountRate: 10, isActive: true },
+                    { id: 'partner_3', name: 'Cerba Lancet Africa', code: 'PARTNER-CERBA', phone: '0709736000', email: 'info@cerbalancetafrica.com', address: 'Ngong Road, Nairobi', discountRate: 12, isActive: true },
+                    { id: 'partner_4', name: 'Nairobi Hospital Reference Lab', code: 'PARTNER-TNH', phone: '0703082000', email: 'labrequests@nbihosp.org', address: 'Argwings Kodhek Rd', discountRate: 5, isActive: true }
+                ]);
+            }
+        } catch (e) {
+            console.warn('Failed to load partner labs:', e);
+        }
+    }, [institutionId]);
+
     useEffect(() => {
         loadPractitioners();
         loadTariffs();
         loadInsuranceProviders();
-    }, [loadPractitioners, loadTariffs, loadInsuranceProviders]);
+        loadPartnerLabs();
+    }, [loadPractitioners, loadTariffs, loadInsuranceProviders, loadPartnerLabs]);
 
     const handleScanBiometrics = async () => {
         setIsScanningBiometric(true);
@@ -476,6 +509,42 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
             setInsuranceProviders(prev => prev.filter(i => i.id !== id));
         } catch (e) {
             alert('Failed to delete insurance provider.');
+        }
+    };
+
+    const handleAddPartnerLab = async () => {
+        if (!newPartnerLab.name.trim()) return alert('Please enter partner laboratory name.');
+        if (!institutionId) return;
+        try {
+            const record = {
+                id: `partner_${Date.now()}`,
+                institutionId,
+                name: newPartnerLab.name.trim(),
+                code: newPartnerLab.code.trim() || `PARTNER-${Math.floor(100 + Math.random() * 900)}`,
+                phone: newPartnerLab.phone.trim(),
+                email: newPartnerLab.email.trim(),
+                address: newPartnerLab.address.trim(),
+                discountRate: Number(newPartnerLab.discountRate) || 0,
+                isActive: newPartnerLab.isActive,
+                createdAt: new Date().toISOString(),
+            };
+            await apiService.saveModuleRecord('his_partner_labs', record);
+            setPartnerLabs(prev => [record, ...prev]);
+            setIsAddPartnerLabOpen(false);
+            setNewPartnerLab({ name: '', code: '', phone: '', email: '', address: '', discountRate: 10, isActive: true });
+            alert(`✓ Partner diagnostic lab ${record.name} registered successfully!`);
+        } catch (e) {
+            alert('Failed to register partner lab.');
+        }
+    };
+
+    const handleDeletePartnerLab = async (id: string) => {
+        if (!confirm('Are you sure you want to unregister this partnered laboratory?')) return;
+        try {
+            await apiService.deleteModuleRecord('his_partner_labs', id);
+            setPartnerLabs(prev => prev.filter(p => p.id !== id));
+        } catch (e) {
+            alert('Failed to delete partner lab.');
         }
     };
 
@@ -1180,6 +1249,61 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     </div>
                 );
             }
+            case 'partner_labs': {
+                return (
+                    <div className="space-y-8 animate-fade-in">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/40 p-6 rounded-[2.5rem] border border-white/10">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-white italic">
+                                    🔬 Partnered Diagnostic <span className="text-indigo-400">Labs & Referral Facilities</span>
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                    Configure external reference laboratories for out-sourced pathology, radiology & specialized diagnostics
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsAddPartnerLabOpen(true)}
+                                className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-600/30 flex items-center gap-2"
+                            >
+                                <PlusIcon className="w-4 h-4" /> Register Partnered Lab
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {partnerLabs.map((lab) => (
+                                <div key={lab.id} className="p-6 bg-slate-900/60 rounded-[2.5rem] border border-white/10 space-y-4 hover:border-indigo-500/40 transition-all group relative overflow-hidden">
+                                    <div className="flex justify-between items-start">
+                                        <div className="space-y-1">
+                                            <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-[8px] font-black uppercase tracking-widest border border-indigo-500/30">
+                                                {lab.code}
+                                            </span>
+                                            <h4 className="text-base font-black text-white uppercase tracking-tight italic pt-1">{lab.name}</h4>
+                                        </div>
+                                        <button
+                                            onClick={() => handleDeletePartnerLab(lab.id)}
+                                            className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
+                                            title="Unregister Partner"
+                                        >
+                                            <XIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-2 text-xs text-slate-300">
+                                        <p className="flex items-center gap-2 font-mono"><span className="text-slate-500 text-[10px] uppercase font-bold">Phone:</span> {lab.phone || 'N/A'}</p>
+                                        <p className="flex items-center gap-2 font-mono truncate"><span className="text-slate-500 text-[10px] uppercase font-bold">Email:</span> {lab.email || 'N/A'}</p>
+                                        <p className="flex items-center gap-2"><span className="text-slate-500 text-[10px] uppercase font-bold">Facility:</span> {lab.address || 'Standard Reference Node'}</p>
+                                    </div>
+
+                                    <div className="pt-3 border-t border-white/5 flex justify-between items-center text-[10px] font-black uppercase">
+                                        <span className="text-emerald-400">Referral Rate: {lab.discountRate}% Contracted</span>
+                                        <span className="text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg">Active Partner</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
             default:
                 return null;
         }
@@ -1203,6 +1327,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     { id: 'tariffs', label: 'Tariffs & Fee Schedule', icon: SettingsIcon },
                     { id: 'insurance', label: 'Insurance & Schemes', icon: GlobeAltIcon },
                     { id: 'billing', label: 'Invoice & Receipt Numbering', icon: PencilIcon },
+                    { id: 'partner_labs', label: 'Partnered Diagnostic Labs', icon: SettingsIcon },
                 ].map((tab) => (
                     <button
                         key={tab.id}
@@ -1574,6 +1699,98 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                             </button>
                             <button onClick={handleAddInsurance} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
                                 Register Insurance Partner
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {isAddPartnerLabOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="px-8 py-5 bg-indigo-600 text-white flex items-center justify-between">
+                            <div>
+                                <h3 className="text-md font-black uppercase tracking-wider">Register Partnered Diagnostic Facility</h3>
+                                <p className="text-[10px] font-semibold opacity-80">Add reference laboratory or specialized diagnostic partner</p>
+                            </div>
+                            <button onClick={() => setIsAddPartnerLabOpen(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-8 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Partner Laboratory Name *</label>
+                                <input
+                                    type="text"
+                                    value={newPartnerLab.name}
+                                    onChange={e => setNewPartnerLab(f => ({ ...f, name: e.target.value }))}
+                                    placeholder="e.g. Lancet Kenya Ltd, PathCare Diagnostics"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Partner Code / SKU</label>
+                                    <input
+                                        type="text"
+                                        value={newPartnerLab.code}
+                                        onChange={e => setNewPartnerLab(f => ({ ...f, code: e.target.value }))}
+                                        placeholder="e.g. PARTNER-LANCET"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Contract Discount (%)</label>
+                                    <input
+                                        type="number"
+                                        value={newPartnerLab.discountRate}
+                                        onChange={e => setNewPartnerLab(f => ({ ...f, discountRate: Number(e.target.value) }))}
+                                        placeholder="10"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Dispatch Phone</label>
+                                    <input
+                                        type="text"
+                                        value={newPartnerLab.phone}
+                                        onChange={e => setNewPartnerLab(f => ({ ...f, phone: e.target.value }))}
+                                        placeholder="0703061000"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Dispatch Email</label>
+                                    <input
+                                        type="email"
+                                        value={newPartnerLab.email}
+                                        onChange={e => setNewPartnerLab(f => ({ ...f, email: e.target.value }))}
+                                        placeholder="dispatch@partnerlab.com"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Facility Address / Pickup Point</label>
+                                <input
+                                    type="text"
+                                    value={newPartnerLab.address}
+                                    onChange={e => setNewPartnerLab(f => ({ ...f, address: e.target.value }))}
+                                    placeholder="e.g. Upper Hill, Fifth Avenue, Nairobi"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                            <button onClick={() => setIsAddPartnerLabOpen(false)} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">
+                                Cancel
+                            </button>
+                            <button onClick={handleAddPartnerLab} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
+                                Register Partner Lab
                             </button>
                         </div>
                     </div>

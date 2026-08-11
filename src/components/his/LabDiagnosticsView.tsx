@@ -9,13 +9,17 @@ import { SparklesIcon } from '../icons/SparklesIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { ClockIcon } from '../icons/ClockIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
+import { FileTextIcon } from '../icons/FileTextIcon';
+import { PdfViewer } from '../PdfViewer';
 import { apiService } from '../../services/apiService';
+import { generateExternalLabRequisitionPdf } from '../../services/pdfService';
 
 interface LabDiagnosticsViewProps {
     institutionId?: string;
     activeRole?: string;
     userName?: string;
     activePatientId?: string | null;
+    institutionData?: any;
 }
 
 function XIcon(props: any) {
@@ -26,26 +30,210 @@ function XIcon(props: any) {
     );
 }
 
-function AddLabRequestModal({ isOpen, onClose, onAdd, activePatientId }: any) {
-    const [formData, setFormData] = useState({ testType: 'Full Blood Count (FBC)', priority: 'Routine', clinicalNotes: '', patientId: activePatientId || '' });
+// ── Default Kenyan & East Africa Partnered Reference Laboratories ─────────────
+const DEFAULT_PARTNER_LABS = [
+    { id: 'partner_1', name: 'Lancet Kenya Reference Lab', code: 'PARTNER-LANCET', phone: '0703061000', email: 'dispatch@lancet.co.ke' },
+    { id: 'partner_2', name: 'PathCare Kenya Diagnostics', code: 'PARTNER-PATHCARE', phone: '0709891000', email: 'results@pathcarekenya.com' },
+    { id: 'partner_3', name: 'Cerba Lancet Africa', code: 'PARTNER-CERBA', phone: '0709736000', email: 'info@cerbalancetafrica.com' },
+    { id: 'partner_4', name: 'Nairobi Hospital Reference Lab', code: 'PARTNER-TNH', phone: '0703082000', email: 'labrequests@nbihosp.org' }
+];
+
+function AddLabRequestModal({ isOpen, onClose, onAdd, activePatientId, partnerLabsList = [] }: any) {
+    const [formData, setFormData] = useState({
+        testType: 'Full Blood Count (FBC)',
+        priority: 'Routine',
+        clinicalNotes: '',
+        patientId: activePatientId || '',
+        fulfillment: 'in_house', // 'in_house' | 'external_partner'
+        partnerLabId: '',
+        partnerLabName: '',
+        specimenType: 'Whole Blood (EDTA)',
+        barcodeNumber: `SPEC-${Math.floor(100000 + Math.random() * 900000)}`,
+        collectionTime: new Date().toISOString().slice(0, 16).replace('T', ' ')
+    });
 
     useEffect(() => {
         if (activePatientId) {
             setFormData(prev => ({ ...prev, patientId: activePatientId }));
         }
     }, [activePatientId]);
+
+    const availablePartners = partnerLabsList.length > 0 ? partnerLabsList : DEFAULT_PARTNER_LABS;
+
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center p-8 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 border border-white/10 w-full max-w-lg rounded-[3rem] p-12 relative shadow-2xl animate-zoom-in">
-                <button onClick={onClose} className="absolute top-10 right-10 p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl"><XIcon className="w-6 h-6" /></button>
-                <div className="mb-10"><h3 className="text-2xl font-black uppercase tracking-tight italic">Initiate <span className="text-blue-500">Lab Order</span></h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Diagnostic Signaling Protocol</p></div>
-                <div className="space-y-6">
-                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Specimen / Test Type</label><select value={formData.testType} onChange={e => setFormData({ ...formData, testType: e.target.value })} className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-blue-500/50 rounded-2xl px-6 py-5 text-sm font-black outline-none transition-all dark:text-white appearance-none uppercase tracking-widest whitespace-nowrap"><option>Full Blood Count (FBC)</option><option>Liver Function Test (LFT)</option><option>Urinalysis (Micro & Macro)</option><option>Blood Group & Crossmatch</option><option>Electrolytes & Creatinine</option><option>Chest X-Ray / CT Hub</option></select></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Diagnostic Priority</label><div className="flex gap-4"><button type="button" onClick={() => setFormData({ ...formData, priority: 'Routine' })} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${formData.priority === 'Routine' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/5 border-white/5 text-slate-500 hover:border-blue-400'}`}>Routine</button><button type="button" onClick={() => setFormData({ ...formData, priority: 'Urgent' })} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${formData.priority === 'Urgent' ? 'bg-rose-600 text-white border-rose-600 animate-pulse' : 'bg-white/5 border-white/5 text-slate-500 hover:border-rose-400'}`}>Urgent</button></div></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Clinical Observations</label><textarea value={formData.clinicalNotes} onChange={e => setFormData({ ...formData, clinicalNotes: e.target.value })} placeholder="SPECIFIC MARKERS TO OBSERVE..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-blue-500/50 rounded-2xl px-6 py-5 text-[10px] font-bold outline-none transition-all dark:text-white uppercase tracking-[0.2em] h-32"></textarea></div>
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-xl animate-fade-in overflow-y-auto">
+            <div className="bg-slate-900 border border-white/10 w-full max-w-xl rounded-[3rem] p-8 md:p-10 relative shadow-2xl animate-zoom-in my-8">
+                <button onClick={onClose} className="absolute top-8 right-8 p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-all">
+                    <XIcon className="w-6 h-6" />
+                </button>
+
+                <div className="mb-8">
+                    <h3 className="text-2xl font-black uppercase tracking-tight italic text-white">
+                        Initiate <span className="text-blue-400">Diagnostic Order</span>
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                        In-House Processing &amp; External Partner Lab Referrals
+                    </p>
                 </div>
-                <button onClick={() => onAdd(formData)} className="w-full mt-10 py-6 bg-blue-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-[0.4em] hover:scale-105 transition-all shadow-2xl shadow-blue-600/30 italic">Commit Order to Node</button>
+
+                <div className="space-y-5">
+                    {/* Fulfillment Facility Selector */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Fulfillment Facility</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, fulfillment: 'in_house' })}
+                                className={`p-4 rounded-2xl text-left border transition-all ${
+                                    formData.fulfillment === 'in_house'
+                                        ? 'bg-blue-600/20 border-blue-500 text-white'
+                                        : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
+                                }`}
+                            >
+                                <p className="text-xs font-black uppercase tracking-tight">🏥 In-House Lab</p>
+                                <p className="text-[9px] text-slate-400 mt-0.5">Processed by internal laboratory</p>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const firstLab = availablePartners[0];
+                                    setFormData({ 
+                                        ...formData, 
+                                        fulfillment: 'external_partner',
+                                        partnerLabId: firstLab?.id || '',
+                                        partnerLabName: firstLab?.name || 'Lancet Kenya Reference Lab'
+                                    });
+                                }}
+                                className={`p-4 rounded-2xl text-left border transition-all ${
+                                    formData.fulfillment === 'external_partner'
+                                        ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                                        : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
+                                }`}
+                            >
+                                <p className="text-xs font-black uppercase tracking-tight">🛡️ External Partner Lab</p>
+                                <p className="text-[9px] text-slate-400 mt-0.5">Outsourced pathology referral</p>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* External Partner Selection Dropdown */}
+                    {formData.fulfillment === 'external_partner' && (
+                        <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-3">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-indigo-300 block">Select Partnered Reference Lab</label>
+                            <select
+                                value={formData.partnerLabId}
+                                onChange={(e) => {
+                                    const selected = availablePartners.find(p => p.id === e.target.value);
+                                    setFormData({
+                                        ...formData,
+                                        partnerLabId: e.target.value,
+                                        partnerLabName: selected?.name || e.target.value
+                                    });
+                                }}
+                                className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-indigo-500 uppercase"
+                            >
+                                {availablePartners.map((lab: any) => (
+                                    <option key={lab.id} value={lab.id}>
+                                        {lab.name} ({lab.code || 'REF-LAB'})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Specimen / Test Type */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Specimen / Diagnostic Test Panel</label>
+                        <select 
+                            value={formData.testType} 
+                            onChange={e => setFormData({ ...formData, testType: e.target.value })} 
+                            className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3.5 text-xs font-bold outline-none focus:border-blue-500 text-white appearance-none uppercase tracking-wider"
+                        >
+                            <option>Full Blood Count (FBC)</option>
+                            <option>Liver Function Test (LFT)</option>
+                            <option>Renal Electrolytes &amp; Creatinine</option>
+                            <option>Urinalysis (Micro &amp; Macro)</option>
+                            <option>Blood Group &amp; Crossmatch</option>
+                            <option>Thyroid Profile (TSH, T3, T4)</option>
+                            <option>HbA1c Glycated Hemoglobin</option>
+                            <option>Lipid Profile &amp; Cholesterol</option>
+                            <option>Histopathology / Tissue Biopsy (External)</option>
+                            <option>Chest X-Ray / Diagnostic Imaging</option>
+                        </select>
+                    </div>
+
+                    {/* Specimen Collection Details */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-black uppercase text-slate-400">Specimen Type</label>
+                            <select
+                                value={formData.specimenType}
+                                onChange={e => setFormData({ ...formData, specimenType: e.target.value })}
+                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-blue-500"
+                            >
+                                <option>Whole Blood (EDTA)</option>
+                                <option>Serum (Gel Tube)</option>
+                                <option>Plasma (Citrate)</option>
+                                <option>Urine (Mid-Stream)</option>
+                                <option>Tissue Biopsy / Formalin</option>
+                                <option>Swab / Culture</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-black uppercase text-slate-400">Barcode / Specimen ID</label>
+                            <input
+                                type="text"
+                                value={formData.barcodeNumber}
+                                onChange={e => setFormData({ ...formData, barcodeNumber: e.target.value })}
+                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-mono font-bold text-indigo-400 outline-none focus:border-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Diagnostic Priority */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Diagnostic Urgency</label>
+                        <div className="flex gap-4">
+                            <button 
+                                type="button" 
+                                onClick={() => setFormData({ ...formData, priority: 'Routine' })} 
+                                className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                                    formData.priority === 'Routine' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/5 border-white/10 text-slate-400'
+                                }`}
+                            >
+                                Routine
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => setFormData({ ...formData, priority: 'Urgent' })} 
+                                className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                                    formData.priority === 'Urgent' ? 'bg-rose-600 text-white border-rose-600 animate-pulse' : 'bg-white/5 border-white/10 text-slate-400'
+                                }`}
+                            >
+                                🔴 STAT / Urgent
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Clinical Observations */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Clinical Observations &amp; Indications</label>
+                        <textarea 
+                            value={formData.clinicalNotes} 
+                            onChange={e => setFormData({ ...formData, clinicalNotes: e.target.value })} 
+                            placeholder="SPECIFIC MARKERS, DIFFERENTIAL DIAGNOSIS, OR SPECIAL HANDLING..." 
+                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-xs font-bold outline-none text-white uppercase tracking-wider h-24 resize-none"
+                        />
+                    </div>
+                </div>
+
+                <button 
+                    onClick={() => onAdd(formData)} 
+                    className="w-full mt-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:scale-[1.02] transition-all shadow-xl shadow-blue-600/30 italic"
+                >
+                    Commit Lab Order to Queue →
+                </button>
             </div>
         </div>
     );
@@ -53,29 +241,84 @@ function AddLabRequestModal({ isOpen, onClose, onAdd, activePatientId }: any) {
 
 function UpdateLabResultModal({ isOpen, onClose, request, onUpdate }: any) {
     const [result, setResult] = useState('');
+    const [dispatchStatus, setDispatchStatus] = useState(request?.status || 'Pending');
+
+    useEffect(() => {
+        if (request) {
+            setDispatchStatus(request.status || 'Pending');
+            setResult(request.results || '');
+        }
+    }, [request]);
+
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[600] flex items-center justify-center p-8 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 border border-white/10 w-full max-w-lg rounded-[3rem] p-12 relative shadow-2xl animate-zoom-in">
-                <button onClick={onClose} className="absolute top-10 right-10 p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl"><XIcon className="w-6 h-6" /></button>
-                <div className="mb-10 text-emerald-500"><h3 className="text-2xl font-black uppercase tracking-tight italic">Capture <span className="text-slate-900 dark:text-white">Diagnostic Result</span></h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">{request?.testType} for Registry ID {request?.id?.substring(0, 8)}</p></div>
-                <div className="space-y-6">
-                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Diagnostic Outcome / Values</label><textarea value={result} onChange={e => setResult(e.target.value)} placeholder="ENTER QUANTITATIVE & QUALITATIVE DATA..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-emerald-500/50 rounded-2xl px-6 py-5 text-[10px] font-bold outline-none transition-all dark:text-white uppercase tracking-[0.2em] h-48"></textarea></div>
+            <div className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-[3rem] p-10 relative shadow-2xl animate-zoom-in">
+                <button onClick={onClose} className="absolute top-8 right-8 p-2 text-slate-400 hover:text-white rounded-xl">
+                    <XIcon className="w-6 h-6" />
+                </button>
+
+                <div className="mb-8">
+                    <h3 className="text-xl font-black uppercase tracking-tight text-emerald-400 italic">
+                        Diagnostic Status <span className="text-white">&amp; Results</span>
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                        {request?.testType} • Ref ID: {request?.id?.substring(0, 8)}
+                    </p>
                 </div>
-                <button onClick={() => onUpdate({ results: result })} className="w-full mt-10 py-6 bg-emerald-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-[0.4em] hover:scale-105 transition-all shadow-2xl shadow-emerald-600/30 italic">Broadcast Result back to Portfolio</button>
+
+                <div className="space-y-6">
+                    {/* Status lifecycle update */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Lifecycle Status</label>
+                        <select
+                            value={dispatchStatus}
+                            onChange={(e) => setDispatchStatus(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-3.5 text-xs font-bold text-white outline-none uppercase"
+                        >
+                            <option value="Pending">Pending Specimen Collection</option>
+                            <option value="Sample Collected">Sample Collected / In-Transit</option>
+                            <option value="Dispatched to Partner">Dispatched to Partner Lab</option>
+                            <option value="Acknowledged by Partner">Acknowledged by Partner Lab</option>
+                            <option value="Completed">Completed &amp; Broadcast Results</option>
+                        </select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Diagnostic Outcome / Lab Findings</label>
+                        <textarea 
+                            value={result} 
+                            onChange={e => setResult(e.target.value)} 
+                            placeholder="ENTER QUANTITATIVE & QUALITATIVE VALUES OR ATTACH PARTNER FINDINGS..." 
+                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-5 text-xs font-bold outline-none text-white tracking-wider h-36 resize-none"
+                        />
+                    </div>
+                </div>
+
+                <button 
+                    onClick={() => onUpdate({ results: result, status: dispatchStatus })} 
+                    className="w-full mt-8 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:scale-[1.02] transition-all shadow-xl shadow-emerald-600/30 italic"
+                >
+                    Broadcast Result to Patient 360 ✓
+                </button>
             </div>
         </div>
     );
 }
 
-export function LabDiagnosticsView({ institutionId, activeRole, userName, activePatientId }: LabDiagnosticsViewProps) {
-    const isLabTech = activeRole === 'admin' || activeRole === 'staff'; // Or specialized role
+export function LabDiagnosticsView({ institutionId, activeRole, userName, activePatientId, institutionData }: LabDiagnosticsViewProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [requests, setRequests] = useState<any[]>([]);
+    const [partnerLabsList, setPartnerLabsList] = useState<any[]>([]);
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [isResultModalOpen, setIsResultModalOpen] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+
+    // On-Screen PDF Requisition Preview modal state
+    const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+    const [pdfPreviewUri, setPdfPreviewUri] = useState<string | null>(null);
+    const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
 
     const fetchLabs = async () => {
         if (!institutionId) return;
@@ -83,6 +326,11 @@ export function LabDiagnosticsView({ institutionId, activeRole, userName, active
         try {
             const data = await apiService.fetchModuleRecords('his_lab_requests', institutionId);
             setRequests(data || []);
+
+            const partners = await apiService.fetchModuleRecords('his_partner_labs', institutionId);
+            if (partners && partners.length > 0) {
+                setPartnerLabsList(partners);
+            }
         } catch (error) {
             console.error(error);
         } finally {
@@ -94,17 +342,62 @@ export function LabDiagnosticsView({ institutionId, activeRole, userName, active
         fetchLabs();
     }, [institutionId]);
 
+    const handlePreviewRequisitionPdf = async (req: any) => {
+        try {
+            const partnerInfo = partnerLabsList.find(p => p.id === req.partnerLabId || p.name === req.partnerLabName) || {
+                name: req.partnerLabName || 'Lancet Kenya Reference Lab',
+                phone: req.partnerLabPhone || '+254 703 061000',
+                email: req.partnerLabEmail || 'dispatch@lancet.co.ke'
+            };
+
+            const patientInfo = {
+                fullName: req.patientName || `Patient #${req.patientId?.substring(0, 8)}`,
+                admissionNumber: req.patientAdmissionNumber || 'PAT-0001',
+                gender: req.patientGender || 'Male',
+                dob: req.patientDob || '1995-05-12',
+                contact: req.patientContact || '+254 700 000 000',
+                insuranceProvider: req.insuranceProvider || 'Self-Pay (Direct Referral)'
+            };
+
+            const uri = await generateExternalLabRequisitionPdf(
+                {
+                    id: req.id,
+                    testType: req.testType,
+                    priority: req.priority,
+                    clinicalNotes: req.clinicalNotes,
+                    specimenType: req.specimenType,
+                    barcodeNumber: req.barcodeNumber,
+                    collectionTime: req.collectionTime || req.createdAt,
+                    requestedBy: req.requestedBy || userName || 'Dr. Attending Physician',
+                    partnerLabName: partnerInfo.name,
+                    partnerLabPhone: partnerInfo.phone,
+                    partnerLabEmail: partnerInfo.email
+                },
+                patientInfo,
+                institutionData || { name: 'Quantum Healthcare' }
+            );
+
+            setPdfPreviewUri(uri);
+            setPdfPreviewTitle(`Lab Requisition - ${req.testType} (${partnerInfo.name})`);
+            setIsPdfModalOpen(true);
+        } catch (err: any) {
+            alert(`PDF Generation error: ${err.message || err}`);
+        }
+    };
+
     const filteredRequests = requests.filter(r => 
         r.testType?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        r.patientId?.toLowerCase().includes(searchTerm.toLowerCase())
+        r.patientId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.partnerLabName?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
         <div className="animate-fade-in-up space-y-10">
-            <div className="flex justify-between items-end">
+            {/* Header */}
+            <div className="flex justify-between items-end flex-wrap gap-4">
                 <div>
                     <h2 className="text-4xl font-black uppercase tracking-tighter">Diagnostics <span className="text-blue-400">Hub</span></h2>
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Unified Laboratory & Imaging Registry</p>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Unified In-House &amp; Partnered Laboratory Referral Registry</p>
                 </div>
                 <div className="flex gap-4">
                     <button onClick={fetchLabs} className="glass-morphism px-6 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-all">
@@ -112,7 +405,7 @@ export function LabDiagnosticsView({ institutionId, activeRole, userName, active
                     </button>
                     <button 
                         onClick={() => setIsRequestModalOpen(true)}
-                        className="bg-blue-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-500/20"
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-500/20"
                     >
                         <PlusIcon className="w-4 h-4" /> New Lab Order
                     </button>
@@ -121,155 +414,250 @@ export function LabDiagnosticsView({ institutionId, activeRole, userName, active
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <div className="md:col-span-3 space-y-6">
+                    {/* Search bar */}
+                    <div className="relative">
+                        <SearchIcon className="w-4 h-4 absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Search by test panel, patient ID, or partnered lab..."
+                            className="w-full bg-slate-900/60 border border-white/10 rounded-2xl pl-12 pr-6 py-4 text-xs font-bold text-white placeholder-slate-500 outline-none focus:border-indigo-500"
+                        />
+                    </div>
+
                     <div className="bg-white dark:bg-slate-900/50 rounded-[3rem] border border-slate-200 dark:border-white/5 shadow-xl overflow-hidden min-h-[500px]">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
-                                <tr>
-                                    <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Test Specification</th>
-                                    <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Priority / Note</th>
-                                    <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Tech</th>
-                                    <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Phase</th>
-                                    <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                {isLoading ? (
-                                    [1,2,3].map(i => <tr key={i} className="animate-pulse h-20 bg-white/5"></tr>)
-                                ) : filteredRequests.length > 0 ? filteredRequests.map((r, i) => (
-                                    <tr key={r.id || i} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-all group">
-                                        <td className="px-8 py-6">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500">
-                                                    <BeakerIcon className="w-5 h-5 transition-transform group-hover:rotate-12" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-black uppercase tracking-tight italic">{r.testType}</p>
-                                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">ID: {r.id?.substring(0, 8)}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-rose-500/20 text-rose-500 bg-rose-500/5 ${r.priority === 'Urgent' ? 'animate-pulse' : ''}`}>{r.priority || 'Routine'}</span>
-                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tight mt-2 truncate max-w-[150px] italic">"{r.clinicalNotes || 'No notes'}"</p>
-                                        </td>
-                                        <td className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                            {r.technicianId || 'Awaiting Node...'}
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <div className={`px-4 py-1.5 rounded-xl border text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-2 ${
-                                                r.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse'
-                                            }`}>
-                                                {r.status === 'Completed' ? <CheckCircleIcon className="w-3 h-3" /> : <ClockIcon className="w-3 h-3" />}
-                                                {r.status || 'Pending'}
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            {r.status !== 'Completed' ? (
-                                                <button 
-                                                    onClick={() => { setSelectedRequest(r); setIsResultModalOpen(true); }}
-                                                    className="bg-blue-600/10 text-blue-400 p-2.5 px-5 rounded-xl text-[9px] font-black uppercase border border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all shadow-lg"
-                                                >
-                                                    Capture Result
-                                                </button>
-                                            ) : (
-                                                <button className="p-2.5 text-slate-400 hover:text-blue-500 bg-slate-100 dark:bg-white/5 rounded-xl transition-all">
-                                                    <ChevronRightIcon className="w-4 h-4" />
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                )) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
                                     <tr>
-                                        <td colSpan={5} className="p-20 text-center opacity-30 grayscale italic">
-                                            <BeakerIcon className="w-16 h-16 mx-auto mb-6 opacity-20" />
-                                            <p className="text-[10px] font-black uppercase tracking-[0.4em]">Zero Diagnostic Signals <br/>Waiting for Lab Orders</p>
-                                        </td>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Test Panel &amp; Facility</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Specimen / Barcode</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Priority</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                                    {isLoading ? (
+                                        [1,2,3].map(i => <tr key={i} className="animate-pulse h-20 bg-white/5"></tr>)
+                                    ) : filteredRequests.length > 0 ? filteredRequests.map((r, i) => (
+                                        <tr key={r.id || i} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-all group">
+                                            <td className="px-8 py-6">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                                                        r.fulfillment === 'external_partner' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-blue-500/20 text-blue-400'
+                                                    }`}>
+                                                        <BeakerIcon className="w-5 h-5 transition-transform group-hover:rotate-12" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-black uppercase tracking-tight italic text-slate-900 dark:text-white">{r.testType}</p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            {r.fulfillment === 'external_partner' ? (
+                                                                <span className="text-[9px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 uppercase">
+                                                                    🛡️ {r.partnerLabName || 'Partner Lab'}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 uppercase">
+                                                                    🏥 In-House Lab
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <p className="text-xs font-mono font-bold text-indigo-400">{r.barcodeNumber || `SPEC-${r.id?.substring(0, 6)}`}</p>
+                                                <p className="text-[9px] text-slate-500 mt-0.5">{r.specimenType || 'Whole Blood'}</p>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${
+                                                    r.priority === 'Urgent' ? 'border-rose-500/30 text-rose-400 bg-rose-500/10 animate-pulse' : 'border-blue-500/20 text-blue-400 bg-blue-500/10'
+                                                }`}>
+                                                    {r.priority || 'Routine'}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <div className={`px-4 py-1.5 rounded-xl border text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-2 ${
+                                                    r.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                                                    r.status === 'Dispatched to Partner' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                                                    'bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse'
+                                                }`}>
+                                                    {r.status === 'Completed' ? <CheckCircleIcon className="w-3 h-3" /> : <ClockIcon className="w-3 h-3" />}
+                                                    {r.status || 'Pending'}
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    {r.fulfillment === 'external_partner' && (
+                                                        <button
+                                                            onClick={() => handlePreviewRequisitionPdf(r)}
+                                                            className="p-2 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-600 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1 px-3 border border-indigo-500/20"
+                                                            title="Print External Lab Requisition Slip"
+                                                        >
+                                                            <FileTextIcon className="w-3.5 h-3.5" />
+                                                            <span>Requisition PDF</span>
+                                                        </button>
+                                                    )}
+
+                                                    <button 
+                                                        onClick={() => { setSelectedRequest(r); setIsResultModalOpen(true); }}
+                                                        className="bg-blue-600/10 text-blue-400 p-2 py-2 px-4 rounded-xl text-[9px] font-black uppercase border border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all shadow-lg"
+                                                    >
+                                                        Update / Result
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan={5} className="p-20 text-center opacity-40 italic">
+                                                <BeakerIcon className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                                                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Zero Diagnostic Orders in Queue</p>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                <div className="space-y-8">
-                    <div className="glass-morphism p-10 rounded-[3rem] border border-white/5 bg-gradient-to-br from-blue-500/5 to-transparent shadow-xl">
-                        <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] mb-8 italic">Device Health Status</p>
-                        <div className="space-y-6">
-                            {[
-                                { name: 'Optima PCR', status: 'Calibration Valid', color: 'text-emerald-400' },
-                                { name: 'Full Blood Scan', status: 'Maintenance Due', color: 'text-amber-400' },
-                                { name: 'Imaging / X-Ray', status: 'Online', color: 'text-blue-400' }
-                            ].map((dev, i) => (
-                                <div key={i} className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5">
-                                    <div><p className="text-xs font-black italic">{dev.name}</p><p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 opacity-60">ID: DIAG-{i+200}</p></div>
-                                    <div className={`text-[9px] font-black uppercase tracking-widest ${dev.color} italic underline underline-offset-4`}>{dev.status}</div>
+                {/* Right sidebar */}
+                <div className="space-y-6">
+                    <div className="glass-morphism p-8 rounded-[3rem] border border-white/5 bg-gradient-to-br from-blue-500/5 to-transparent shadow-xl space-y-6">
+                        <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] italic">Active Reference Networks</p>
+                        <div className="space-y-4">
+                            {(partnerLabsList.length > 0 ? partnerLabsList : DEFAULT_PARTNER_LABS).map((lab, i) => (
+                                <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-1">
+                                    <p className="text-xs font-black text-white italic">{lab.name}</p>
+                                    <p className="text-[9px] font-mono text-indigo-400">{lab.phone || '0700123456'} • {lab.email || 'partner@lab.com'}</p>
                                 </div>
                             ))}
                         </div>
                     </div>
-
-                    <div className="p-10 rounded-[3rem] bg-blue-600 shadow-2xl text-white relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16 blur-2xl"></div>
-                        <DocumentTextIcon className="w-10 h-10 mb-6 opacity-40 group-hover:rotate-12 transition-transform" />
-                        <h4 className="text-xl font-black mb-2 italic">Global Directive</h4>
-                        <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest">Diagnostic Integrity Code</p>
-                        <p className="text-[11px] font-bold mt-6 opacity-80 leading-relaxed italic">"All results must be verified by the Clinical Director before transmission to Patient 360 portfolios."</p>
-                    </div>
                 </div>
             </div>
 
+            {/* MODAL: ADD LAB ORDER */}
             <AddLabRequestModal 
                 isOpen={isRequestModalOpen} 
                 onClose={() => setIsRequestModalOpen(false)} 
                 activePatientId={activePatientId}
+                partnerLabsList={partnerLabsList}
                 onAdd={async (data: any) => {
                     try {
                         if (!activePatientId && !data.patientId) {
                             alert("Please select a patient first in the Patient 360 view.");
                             return;
                         }
-                        await apiService.saveModuleRecord('his_lab_requests', { 
+                        
+                        const reqId = `lab_${Date.now()}`;
+                        const record = { 
                             ...data, 
                             patientId: data.patientId || activePatientId,
                             institutionId, 
-                            requestedBy: userName || 'DR. JANE', 
-                            id: `lab_${Date.now()}` 
-                        });
+                            requestedBy: userName || 'DR. ATTENDING', 
+                            id: reqId,
+                            createdAt: new Date().toISOString(),
+                            status: data.fulfillment === 'external_partner' ? 'Dispatched to Partner' : 'Pending'
+                        };
+
+                        await apiService.saveModuleRecord('his_lab_requests', record);
+
+                        // Auto-enqueue bill item onto Cashier Finance tab queue
+                        await apiService.saveModuleRecord('his_billing_items', {
+                            id: `bill_${reqId}`,
+                            institutionId,
+                            patientId: data.patientId || activePatientId,
+                            patientName: `Patient #${(data.patientId || activePatientId).substring(0, 8)}`,
+                            doctorName: userName || 'Dr. Attending',
+                            type: data.fulfillment === 'external_partner' ? `Partnered Lab (${data.partnerLabName})` : 'In-House Diagnostic Order',
+                            totalAmount: data.fulfillment === 'external_partner' ? 3500 : 2000,
+                            status: 'pending_queue',
+                            createdAt: new Date().toISOString(),
+                            items: [
+                                {
+                                    itemName: `${data.testType} [${data.fulfillment === 'external_partner' ? data.partnerLabName : 'In-House'}]`,
+                                    category: 'Laboratory',
+                                    quantity: 1,
+                                    unitPrice: data.fulfillment === 'external_partner' ? 3500 : 2000
+                                }
+                            ]
+                        }).catch(() => null);
+
                         setIsRequestModalOpen(false);
                         fetchLabs();
+                        alert(`✓ Diagnostic order committed! ${data.fulfillment === 'external_partner' ? `Dispatched to ${data.partnerLabName}` : 'In-house queue updated.'}`);
                     } catch (error: any) {
                         alert(`Submission failed: ${error.message || 'Unknown error'}`);
                     }
                 }} 
             />
 
-            <UpdateLabResultModal isOpen={isResultModalOpen} onClose={() => setIsResultModalOpen(false)} request={selectedRequest} onUpdate={async (data: any) => {
-                try {
-                    const completeData = { ...selectedRequest, ...data, status: 'Completed', technicianId: userName || 'TECH_SYS', completedAt: new Date().toISOString() };
-                    await apiService.saveModuleRecord('his_lab_requests', completeData);
-                    
-                    // Transmit back to Doctor's clinical timeline
-                    await apiService.saveModuleRecord('his_clinical_events', {
-                        id: `evt_lab_${Date.now()}`,
-                        patientId: selectedRequest.patientId,
-                        institutionId: institutionId,
-                        date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
-                        time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-                        event: `Lab Result: ${selectedRequest.testType} - Result: ${data.results.substring(0, 30)}...`,
-                        dept: 'Laboratory',
-                        provider: userName || 'Lab Technician',
-                        createdAt: new Date().toISOString()
-                    });
+            {/* MODAL: UPDATE RESULT & DISPATCH */}
+            <UpdateLabResultModal 
+                isOpen={isResultModalOpen} 
+                onClose={() => setIsResultModalOpen(false)} 
+                request={selectedRequest} 
+                onUpdate={async (data: any) => {
+                    try {
+                        const completeData = { 
+                            ...selectedRequest, 
+                            ...data, 
+                            technicianId: userName || 'TECH_SYS', 
+                            completedAt: new Date().toISOString() 
+                        };
+                        await apiService.saveModuleRecord('his_lab_requests', completeData);
+                        
+                        // Transmit back to Patient 360 dossier
+                        await apiService.saveModuleRecord('his_clinical_events', {
+                            id: `evt_lab_${Date.now()}`,
+                            patientId: selectedRequest.patientId,
+                            institutionId: institutionId,
+                            date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+                            time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+                            event: `Lab Result [${selectedRequest.fulfillment === 'external_partner' ? selectedRequest.partnerLabName : 'In-House'}]: ${selectedRequest.testType} - ${data.results.substring(0, 35)}...`,
+                            dept: 'Laboratory',
+                            provider: userName || 'Lab Technician',
+                            createdAt: new Date().toISOString()
+                        });
 
-                    setIsResultModalOpen(false);
-                    fetchLabs();
-                } catch (error: any) {
-                    alert(`Broadcast failed: ${error.message || 'Unknown error'}`);
-                }
-            }} />
+                        setIsResultModalOpen(false);
+                        fetchLabs();
+                        alert(`✓ Result broadcasted to Patient Dossier successfully!`);
+                    } catch (error: any) {
+                        alert(`Broadcast failed: ${error.message || 'Unknown error'}`);
+                    }
+                }} 
+            />
+
+            {/* MODAL: ON-SCREEN REQUISITION PDF PREVIEW */}
+            {isPdfModalOpen && pdfPreviewUri && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 max-w-5xl w-full h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+                        <div className="flex justify-between items-center pb-4 border-b border-white/10 flex-shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase tracking-tight italic">
+                                    📄 External Lab <span className="text-indigo-400">Requisition PDF Preview</span>
+                                </h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{pdfPreviewTitle}</p>
+                            </div>
+                            <button
+                                onClick={() => setIsPdfModalOpen(false)}
+                                className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="flex-1 mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+                            <PdfViewer pdfDataUri={pdfPreviewUri} title={pdfPreviewTitle} />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 export default LabDiagnosticsView;
-
