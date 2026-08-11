@@ -138,10 +138,10 @@
   </script>
 
   <script>
-    // Automatic deployment sync recovery for stale JS bundle hashes / MIME errors
+    // Automatic deployment sync recovery for stale JS bundle hashes / MIME / initialization errors
     window.addEventListener('error', function (event) {
       var isChunkError = event && (
-        (event.message && (event.message.includes('Failed to load module script') || event.message.includes('Loading chunk') || event.message.includes('MIME type'))) ||
+        (event.message && (event.message.includes('Failed to load module script') || event.message.includes('Loading chunk') || event.message.includes('MIME type') || event.message.includes('before initialization') || event.message.includes('ReferenceError'))) ||
         (event.target && event.target.tagName === 'SCRIPT' && event.target.src && event.target.src.includes('.js'))
       );
       if (isChunkError) {

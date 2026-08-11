@@ -1,6 +1,6 @@
 // EduAI OS Service Worker — Network First with Stale Chunk Protection
 
-const CACHE_NAME = 'eduai-cache-v3';
+const CACHE_NAME = 'eduai-cache-v4';
 
 // Install Event
 self.addEventListener('install', (event) => {
