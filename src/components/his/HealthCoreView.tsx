@@ -636,6 +636,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <p className="hidden lg:block text-[8px] font-black text-indigo-300/50 uppercase tracking-widest px-3 mb-2">More Tools</p>
                                 <div className="space-y-1">
                                     {[
+                                        { id: 'billing' as HISModule, label: 'Finance & Invoicing', icon: CreditCardIcon },
                                         { id: 'pharmacy' as HISModule, label: 'Pharmacy', icon: BeakerIcon },
                                         { id: 'hr' as HISModule, label: 'HR & Payroll', icon: UsersIcon },
                                         { id: 'biometrics' as HISModule, label: 'Biometrics Fleet', icon: ClockIcon },
@@ -741,7 +742,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <p className="hidden lg:block text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] px-3 mb-2 italic">Finance &amp; Operations</p>
                                 <div className="space-y-1">
                                     {[
-                                        { id: 'billing' as HISModule, label: 'Revenue / SHA', icon: CreditCardIcon },
+                                        { id: 'billing' as HISModule, label: 'Finance & Invoicing', icon: CreditCardIcon },
                                         { id: 'hr' as HISModule, label: 'HR & Payroll', icon: UsersIcon },
                                         { id: 'biometrics' as HISModule, label: 'Biometrics Fleet', icon: ClockIcon },
                                         { id: 'attendance' as HISModule, label: 'Staff Presence', icon: ClockIcon },
