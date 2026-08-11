@@ -453,8 +453,8 @@ export function DoctorDashboard({
     const timeStr = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     const filteredPatients = patients.filter(p =>
-        p.fullName.toLowerCase().includes(searchPatient.toLowerCase()) ||
-        (p.contact || '').includes(searchPatient)
+        (p.fullName || '').toLowerCase().includes((searchPatient || '').toLowerCase()) ||
+        (p.contact || '').includes(searchPatient || '')
     );
 
     const queueItems = patients.slice(0, 6).map((p, i) => ({
@@ -888,8 +888,9 @@ export function DoctorDashboard({
 
                             <button
                                 onClick={() => {
-                                    const p = patients.find(pat => pat.fullName === selectedLabReport.patientName);
-                                    setEmailRecipient(p?.contact && p.contact.includes('@') ? p.contact : `${selectedLabReport.patientName.toLowerCase().replace(/[^a-z]/g, '')}@quantumhealth.co.ke`);
+                                    const p = patients.find(pat => pat.fullName === selectedLabReport?.patientName);
+                                    const safeName = (selectedLabReport?.patientName || 'patient').toLowerCase().replace(/[^a-z0-9]/g, '');
+                                    setEmailRecipient(p?.contact && p.contact.includes('@') ? p.contact : `${safeName}@quantumhealth.co.ke`);
                                     setEmailSuccess(false);
                                     setIsEmailModalOpen(true);
                                 }}
