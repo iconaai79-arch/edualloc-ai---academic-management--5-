@@ -17,7 +17,7 @@ interface HISConfigProps {
     onStaffUpdated?: () => void;
 }
 
-type ConfigTab = 'branding' | 'staff' | 'clinic';
+type ConfigTab = 'branding' | 'staff' | 'clinic' | 'tariffs';
 
 export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users = [], demoStaff, onStaffUpdated }) => {
     const [activeTab, setActiveTab] = useState<ConfigTab>('branding');
@@ -26,6 +26,26 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
         motto: 'Precision in Care, Excellence in Service',
         primaryColor: '#6366f1',
         logoUrl: ''
+    });
+
+    // ── Tariffs & Fee Schedule State ──────────────────────────────────────────
+    const [consultationRates, setConsultationRates] = useState({
+        cashConsultation: 1000,
+        coverConsultation: 1500,
+        emergencySurcharge: 500,
+        revisitFee: 500,
+    });
+    const [customTariffs, setCustomTariffs] = useState<any[]>([]);
+    const [tariffCategory, setTariffCategory] = useState<string>('All');
+    const [isAddTariffOpen, setIsAddTariffOpen] = useState(false);
+    const [isSavingTariffs, setIsSavingTariffs] = useState(false);
+    const [newTariff, setNewTariff] = useState({
+        name: '',
+        category: 'Laboratory',
+        code: '',
+        cashRate: 0,
+        coverRate: 0,
+        isActive: true,
     });
 
     const [isAddPractitionerOpen, setIsAddPractitionerOpen] = useState(false);
@@ -113,9 +133,39 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
         }
     }, [institutionId, users, demoStaff]);
 
+    const loadTariffs = useCallback(async () => {
+        if (!institutionId) return;
+        try {
+            const rates = await apiService.fetchModuleRecords('his_consultation_rates', institutionId);
+            if (rates && rates.length > 0) {
+                setConsultationRates(rates[0]);
+            }
+            const tariffs = await apiService.fetchModuleRecords('his_tariffs', institutionId);
+            if (tariffs && tariffs.length > 0) {
+                setCustomTariffs(tariffs);
+            } else {
+                // Default sample tariffs
+                setCustomTariffs([
+                    { id: 'tar_1', name: 'Chest X-Ray (PA View)', category: 'Radiology', code: 'RAD-001', cashRate: 1500, coverRate: 2000, isActive: true },
+                    { id: 'tar_2', name: 'Abdominal Ultrasound', category: 'Radiology', code: 'RAD-002', cashRate: 2500, coverRate: 3200, isActive: true },
+                    { id: 'tar_3', name: 'Full Blood Count (FBC)', category: 'Laboratory', code: 'LAB-001', cashRate: 800, coverRate: 1200, isActive: true },
+                    { id: 'tar_4', name: 'Malaria Rapid Test (RDT)', category: 'Laboratory', code: 'LAB-002', cashRate: 400, coverRate: 600, isActive: true },
+                    { id: 'tar_5', name: 'Lipid Profile Panel', category: 'Laboratory', code: 'LAB-003', cashRate: 1800, coverRate: 2400, isActive: true },
+                    { id: 'tar_6', name: 'Minor Surgical Dressing', category: 'Procedure', code: 'PROC-001', cashRate: 500, coverRate: 800, isActive: true },
+                    { id: 'tar_7', name: 'General Ward Bed / Day', category: 'Inpatient', code: 'INP-001', cashRate: 1500, coverRate: 2200, isActive: true },
+                    { id: 'tar_8', name: 'Tooth Extraction (Simple)', category: 'Dental', code: 'DEN-001', cashRate: 2000, coverRate: 2800, isActive: true },
+                    { id: 'tar_9', name: 'Refraction & Ocular Exam', category: 'Ophthalmology', code: 'EYE-001', cashRate: 1200, coverRate: 1800, isActive: true },
+                ]);
+            }
+        } catch (e) {
+            console.warn('Failed to load tariffs:', e);
+        }
+    }, [institutionId]);
+
     useEffect(() => {
         loadPractitioners();
-    }, [loadPractitioners]);
+        loadTariffs();
+    }, [loadPractitioners, loadTariffs]);
 
     const handleScanBiometrics = async () => {
         setIsScanningBiometric(true);
@@ -263,6 +313,57 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
             if (onStaffUpdated) onStaffUpdated();
         } catch (err: any) {
             alert('Failed to register practitioner: ' + (err.message || err));
+        }
+    const handleSaveConsultationRates = async () => {
+        if (!institutionId) return;
+        setIsSavingTariffs(true);
+        try {
+            await apiService.saveModuleRecord('his_consultation_rates', {
+                id: `rate_${institutionId}`,
+                institutionId,
+                ...consultationRates,
+                updatedAt: new Date().toISOString(),
+            });
+            alert('✓ Consultation Rates updated successfully!');
+        } catch (e) {
+            alert('Failed to save consultation rates.');
+        } finally {
+            setIsSavingTariffs(false);
+        }
+    };
+
+    const handleAddTariffItem = async () => {
+        if (!newTariff.name.trim()) return alert('Please enter service name.');
+        if (!institutionId) return;
+        try {
+            const tariffRecord = {
+                id: `tar_${Date.now()}`,
+                institutionId,
+                name: newTariff.name.trim(),
+                category: newTariff.category,
+                code: newTariff.code || `SRV-${Math.floor(100 + Math.random() * 900)}`,
+                cashRate: Number(newTariff.cashRate) || 0,
+                coverRate: Number(newTariff.coverRate) || 0,
+                isActive: newTariff.isActive,
+                createdAt: new Date().toISOString(),
+            };
+            await apiService.saveModuleRecord('his_tariffs', tariffRecord);
+            setCustomTariffs(prev => [tariffRecord, ...prev]);
+            setIsAddTariffOpen(false);
+            setNewTariff({ name: '', category: 'Laboratory', code: '', cashRate: 0, coverRate: 0, isActive: true });
+            alert(`✓ ${tariffRecord.name} added to tariff schedule!`);
+        } catch (e) {
+            alert('Failed to add tariff item.');
+        }
+    };
+
+    const handleDeleteTariffItem = async (id: string) => {
+        if (!confirm('Are you sure you want to remove this service tariff?')) return;
+        try {
+            await apiService.deleteModuleRecord('his_tariffs', id);
+            setCustomTariffs(prev => prev.filter(t => t.id !== id));
+        } catch (e) {
+            alert('Failed to delete tariff item.');
         }
     };
 
@@ -426,6 +527,193 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                         </div>
                     </div>
                 );
+            case 'tariffs':
+                return (
+                    <div className="space-y-10 animate-fade-in pb-20">
+                        {/* ── Consultation Rates Configuration ── */}
+                        <div className="bg-white dark:bg-slate-900/50 p-10 rounded-[3.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-8">
+                            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-100 dark:border-white/5 pb-6">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight italic text-slate-900 dark:text-white">
+                                        Consultation <span className="text-indigo-600">Tariff Rates</span>
+                                    </h3>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+                                        Configure doctor consultation fees for Cash vs. Insurance Cover patients
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleSaveConsultationRates}
+                                    disabled={isSavingTariffs}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+                                >
+                                    {isSavingTariffs ? 'Saving Rates...' : '✓ Save Consultation Rates'}
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {/* Cash Consultation */}
+                                <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200/60 dark:border-white/5 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-900">
+                                            💵 Cash Pay
+                                        </span>
+                                    </div>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">Cash Patient Consultation</p>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">KES</span>
+                                        <input
+                                            type="number"
+                                            value={consultationRates.cashConsultation}
+                                            onChange={e => setConsultationRates(r => ({ ...r, cashConsultation: Number(e.target.value) }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl pl-14 pr-4 py-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Base fee for walk-in cash patients</p>
+                                </div>
+
+                                {/* Cover Consultation */}
+                                <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200/60 dark:border-white/5 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-3 py-1 rounded-full border border-indigo-100 dark:border-indigo-900">
+                                            🛡️ Insurance / Cover
+                                        </span>
+                                    </div>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">Cover Patient Consultation</p>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">KES</span>
+                                        <input
+                                            type="number"
+                                            value={consultationRates.coverConsultation}
+                                            onChange={e => setConsultationRates(r => ({ ...r, coverConsultation: Number(e.target.value) }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl pl-14 pr-4 py-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Rate billed to SHA / Insurance providers</p>
+                                </div>
+
+                                {/* Emergency Surcharge */}
+                                <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200/60 dark:border-white/5 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-3 py-1 rounded-full border border-rose-100 dark:border-rose-900">
+                                            🚨 Emergency
+                                        </span>
+                                    </div>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">After-Hours / Emergency</p>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">KES</span>
+                                        <input
+                                            type="number"
+                                            value={consultationRates.emergencySurcharge}
+                                            onChange={e => setConsultationRates(r => ({ ...r, emergencySurcharge: Number(e.target.value) }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl pl-14 pr-4 py-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Surcharge added for night/A&amp;E visits</p>
+                                </div>
+
+                                {/* Revisit Rate */}
+                                <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200/60 dark:border-white/5 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-1 rounded-full border border-amber-100 dark:border-amber-900">
+                                            🔄 Follow-up
+                                        </span>
+                                    </div>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">Revisit / Follow-up Fee</p>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">KES</span>
+                                        <input
+                                            type="number"
+                                            value={consultationRates.revisitFee}
+                                            onChange={e => setConsultationRates(r => ({ ...r, revisitFee: Number(e.target.value) }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl pl-14 pr-4 py-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Discounted rate for review visits</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── Custom Services & Procedures Tariff Schedule ── */}
+                        <div className="bg-white dark:bg-slate-900/50 p-10 rounded-[3.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-8">
+                            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight italic text-slate-900 dark:text-white">
+                                        Custom Services <span className="text-indigo-600">&amp; Procedures Tariff Schedule</span>
+                                    </h3>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+                                        Configure custom prices for X-Ray, Laboratory tests, Procedures, Bed charges &amp; Dental/Eye services
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setIsAddTariffOpen(true)}
+                                    className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-indigo-600/20"
+                                >
+                                    <PlusIcon className="w-4 h-4 inline mr-2" /> Add Custom Service Tariff
+                                </button>
+                            </div>
+
+                            {/* Category Filter */}
+                            <div className="flex bg-slate-100 dark:bg-white/5 p-1.5 rounded-2xl overflow-x-auto no-scrollbar gap-1.5">
+                                {['All', 'Laboratory', 'Radiology', 'Procedure', 'Inpatient', 'Dental', 'Ophthalmology', 'General'].map(cat => (
+                                    <button
+                                        key={cat}
+                                        onClick={() => setTariffCategory(cat)}
+                                        className={`px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                                            tariffCategory === cat
+                                                ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-md'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Tariff Cards Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {customTariffs
+                                    .filter(t => tariffCategory === 'All' || t.category === tariffCategory)
+                                    .map(item => (
+                                        <div key={item.id} className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200/60 dark:border-white/5 space-y-4 hover:shadow-xl transition-all group relative">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <span className="text-[8px] font-black uppercase tracking-widest px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-full border border-indigo-100 dark:border-indigo-900">
+                                                        {item.category}
+                                                    </span>
+                                                    <p className="text-sm font-black uppercase italic tracking-tight text-slate-900 dark:text-white mt-2 group-hover:text-indigo-600 transition-colors">
+                                                        {item.name}
+                                                    </p>
+                                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Code: {item.code}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDeleteTariffItem(item.id)}
+                                                    className="text-slate-300 hover:text-rose-500 p-2 rounded-xl transition-colors"
+                                                    title="Delete tariff"
+                                                >
+                                                    <XIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200/60 dark:border-white/5">
+                                                <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-white/5">
+                                                    <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Cash Rate</p>
+                                                    <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                                                        KES {(item.cashRate || 0).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-white/5">
+                                                    <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Cover Rate</p>
+                                                    <p className="text-sm font-black text-indigo-600 dark:text-indigo-400">
+                                                        KES {(item.coverRate || 0).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+                );
             default:
                 return null;
         }
@@ -446,6 +734,7 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                     { id: 'branding', label: 'Identity & DNA', icon: SparklesIcon },
                     { id: 'staff', label: 'Staff Registry', icon: UsersIcon },
                     { id: 'clinic', label: 'Clinic Setup', icon: SettingsIcon },
+                    { id: 'tariffs', label: 'Tariffs & Fee Schedule', icon: SettingsIcon },
                 ].map((tab) => (
                     <button
                         key={tab.id}
@@ -631,6 +920,96 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
                             </button>
                             <button onClick={handleAddPractitioner} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
                                 Save Practitioner
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════ ADD CUSTOM TARIFF MODAL ═══════════ */}
+            {isAddTariffOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="px-8 py-5 bg-indigo-600 text-white flex items-center justify-between">
+                            <div>
+                                <h3 className="text-md font-black uppercase tracking-wider">Add Custom Service Tariff</h3>
+                                <p className="text-[10px] font-semibold opacity-80">Define cash &amp; cover rates for X-Ray, Lab, Procedure, Beds &amp; Services</p>
+                            </div>
+                            <button onClick={() => setIsAddTariffOpen(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-8 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Service Name *</label>
+                                <input
+                                    type="text"
+                                    value={newTariff.name}
+                                    onChange={e => setNewTariff(f => ({ ...f, name: e.target.value }))}
+                                    placeholder="e.g. Chest X-Ray, Full Blood Count, Abdominal Scan"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Category</label>
+                                    <select
+                                        value={newTariff.category}
+                                        onChange={e => setNewTariff(f => ({ ...f, category: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="Laboratory">Laboratory</option>
+                                        <option value="Radiology">Radiology / Imaging</option>
+                                        <option value="Procedure">Clinical Procedure</option>
+                                        <option value="Inpatient">Inpatient Ward Bed</option>
+                                        <option value="Dental">Dental Care</option>
+                                        <option value="Ophthalmology">Ophthalmology / Eye</option>
+                                        <option value="General">General Care</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Service Code / SKU</label>
+                                    <input
+                                        type="text"
+                                        value={newTariff.code}
+                                        onChange={e => setNewTariff(f => ({ ...f, code: e.target.value }))}
+                                        placeholder="e.g. RAD-XRAY-01"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Cash Rate (KES) *</label>
+                                    <input
+                                        type="number"
+                                        value={newTariff.cashRate}
+                                        onChange={e => setNewTariff(f => ({ ...f, cashRate: Number(e.target.value) }))}
+                                        placeholder="1500"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Cover / Insurance Rate (KES)</label>
+                                    <input
+                                        type="number"
+                                        value={newTariff.coverRate}
+                                        onChange={e => setNewTariff(f => ({ ...f, coverRate: Number(e.target.value) }))}
+                                        placeholder="2000"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                            <button onClick={() => setIsAddTariffOpen(false)} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">
+                                Cancel
+                            </button>
+                            <button onClick={handleAddTariffItem} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
+                                Add to Tariff Schedule
                             </button>
                         </div>
                     </div>
