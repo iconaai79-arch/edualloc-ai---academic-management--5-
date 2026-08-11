@@ -185,6 +185,8 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
     const [hisPayrollRecords, setHisPayrollRecords] = useState<PayrollRecord[]>([]);
     const [hisLeaveRequests, setHisLeaveRequests] = useState<LeaveRequest[]>([]);
 
+    const isEdu = isEduInstitution(institutionData);
+
     const fetchAllWellnessData = React.useCallback(async () => {
         if (!institutionId) return;
         try {
@@ -396,7 +398,6 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
         );
     }, [searchTerm, patients]);
 
-    const isEdu = isEduInstitution(institutionData);
 
     const filteredDirectoryUsers = React.useMemo(() => {
         if (!isEdu || !searchTerm.trim()) return [];
