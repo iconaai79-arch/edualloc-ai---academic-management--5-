@@ -50,7 +50,7 @@ import { HRManager } from '../HR/HRManager';
 import { BiometricAttendanceDashboard } from '../HR/BiometricAttendanceDashboard';
 import { PayrollRecord, LeaveRequest, Institution } from '../../types';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -602,7 +602,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <div className="space-y-1">
                                     {[
                                         { id: 'home', label: 'Home', icon: HeartIcon, module: 'general' as HISModule },
-                                        { id: 'patients', label: 'Patients', icon: UsersIcon, module: 'general' as HISModule },
+                                        { id: 'patients', label: 'Manage Patients', icon: UsersIcon, module: 'patients' as HISModule },
                                         { id: 'appointment', label: 'Appointment', icon: CalendarIcon, module: 'appointments' as HISModule },
                                     ].map(item => {
                                         const isActive = eduSidebarItem === item.id;
@@ -642,7 +642,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                         { id: 'broadcaster' as HISModule, label: 'Communications', icon: BellIcon },
                                         { id: 'attendance' as HISModule, label: 'Attendance', icon: ClockIcon },
                                         { id: 'reports' as HISModule, label: 'Reports', icon: ChartBarIcon },
-                                        { id: 'config' as HISModule, label: 'Settings', icon: SettingsIcon },
+                                        { id: 'config' as HISModule, label: 'Nexus Settings', icon: SettingsIcon },
                                     ].map(item => {
                                         const isActive = activeModule === item.id && !['home','patients','appointment'].includes(eduSidebarItem);
                                         return (
@@ -674,6 +674,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <div className="space-y-1">
                                     {[
                                         { id: 'receptionist' as HISModule, label: 'Reception Desk', icon: UsersIcon },
+                                        { id: 'patients' as HISModule, label: 'Manage Patients', icon: UsersIcon },
                                         { id: 'general' as HISModule, label: 'Patient 360', icon: HeartIcon },
                                         { id: 'inpatient' as HISModule, label: 'Admissions', icon: BuildingOfficeIcon },
                                         { id: 'appointments' as HISModule, label: 'Scheduling', icon: CalendarIcon },
@@ -950,6 +951,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 />
                             );
                             case 'receptionist': return <ReceptionistView institutionId={institutionId} userName={userName} users={users} />;
+                            case 'patients': return <EduPulsePatientsList patients={patients} searchTerm={searchTerm} setSearchTerm={setSearchTerm} onSelectPatient={(p) => { setActivePatientId(p.id); setActiveModule('general'); }} onOpenRegister={() => setIsRegisterModalOpen(true)} isEdu={isEdu} />;
                             case 'broadcaster': return <HISBroadcasterView />;
                             case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} isEdu={isEdu} users={users} />;
                             case 'config': return <HISConfigView institutionId={institutionId} users={users} demoStaff={demoData?.hisStaff} onStaffUpdated={fetchPatients} />;
