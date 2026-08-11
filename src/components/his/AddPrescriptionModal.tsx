@@ -9,6 +9,7 @@ import { SearchIcon } from '../icons/SearchIcon';
 import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
 import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
 import { apiService } from '../../services/apiService';
+import { ensureHisPharmacyPreloaded } from '../../utils/preloadHisDrugs';
 
 interface AddPrescriptionModalProps {
     isOpen: boolean;
@@ -42,7 +43,11 @@ export function AddPrescriptionModal({
         const loadDrugs = async () => {
              if (isOpen && institutionId) {
                  // Load from HIS pharmacy inventory first
-                 const hisData = await apiService.fetchModuleRecords('his_pharmacy_inventory', institutionId);
+                 let hisData = await apiService.fetchModuleRecords('his_pharmacy_inventory', institutionId);
+                 if (!hisData || hisData.length === 0) {
+                     hisData = await ensureHisPharmacyPreloaded(institutionId);
+                 }
+
                  // Also load from retail inventory (pharmacy store) as fallback/supplement
                  let retailData: any[] = [];
                  try {

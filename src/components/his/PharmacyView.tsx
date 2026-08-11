@@ -27,6 +27,7 @@ import {
 } from '../../types';
 import { PdfViewer } from '../PdfViewer';
 import { generateExternalPrescriptionPdf, generateExternalPrescriptionEposThermalPdf } from '../../services/pdfService';
+import { ensureHisPharmacyPreloaded } from '../../utils/preloadHisDrugs';
 
 export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [activeTab, setActiveTab] = useState<'dispensing' | 'inventory' | 'history' | 'requisitions'>('dispensing');
@@ -95,8 +96,12 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
         if (!institutionId) return;
         setIsLoading(true);
         try {
-            const [inv, batchRecords, intercs, prescs, patients, reqs] = await Promise.all([
-                apiService.fetchModuleRecords('his_pharmacy_inventory', institutionId),
+            let inv = await apiService.fetchModuleRecords('his_pharmacy_inventory', institutionId);
+            if (!inv || inv.length === 0) {
+                inv = await ensureHisPharmacyPreloaded(institutionId);
+            }
+
+            const [batchRecords, intercs, prescs, patients, reqs] = await Promise.all([
                 apiService.fetchModuleRecords('his_pharmacy_batches', institutionId),
                 apiService.fetchModuleRecords('his_pharmacy_interactions', institutionId),
                 apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { order: 'created_at.desc' }),
