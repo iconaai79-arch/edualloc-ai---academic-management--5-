@@ -1020,3 +1020,5 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     );
 };
 
+export default HealthCoreView;
+

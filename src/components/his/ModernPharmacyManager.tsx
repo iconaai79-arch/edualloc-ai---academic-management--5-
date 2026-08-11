@@ -2410,3 +2410,5 @@ export const ModernPharmacyManager: React.FC<{
     );
 };
 
+export default ModernPharmacyManager;
+
