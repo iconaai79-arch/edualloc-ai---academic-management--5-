@@ -80,7 +80,7 @@ function EditPatientModal({
                 <div className="p-7 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-indigo-600 to-violet-600">
                     <div>
                         <h2 className="text-xl font-black text-white uppercase tracking-tighter italic">
-                            Edit <span className="text-indigo-200">Student Record</span>
+                            Edit <span className="text-indigo-200">Patient Record</span>
                         </h2>
                         <p className="text-[9px] font-black text-indigo-100 uppercase tracking-widest mt-1 opacity-80">
                             Adm No: {patient.admissionNumber || (patient as any).admission_number || 'N/A'}
@@ -97,7 +97,7 @@ function EditPatientModal({
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className={labelCls}>Full Name</label>
-                            <input type="text" required placeholder="STUDENT FULL NAME" value={formData.fullName}
+                            <input type="text" required placeholder="PATIENT FULL NAME" value={formData.fullName}
                                 onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))}
                                 className={inputCls} />
                         </div>
@@ -193,7 +193,7 @@ function EditPatientModal({
                     {/* Save Button */}
                     <button type="submit" disabled={isSaving}
                         className="w-full py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.3em] hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50 flex items-center justify-center gap-3 italic">
-                        {isSaving ? 'SAVING CHANGES...' : 'SAVE STUDENT RECORD'} <SparklesIcon className="w-4 h-4" />
+                        {isSaving ? 'SAVING CHANGES...' : 'SAVE PATIENT RECORD'} <SparklesIcon className="w-4 h-4" />
                     </button>
                 </form>
             </div>
@@ -657,15 +657,15 @@ export function EduPulsePatientsList({
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5 p-7 rounded-[2rem] bg-gradient-to-r from-indigo-900/40 via-indigo-950/10 to-transparent border border-indigo-500/10">
                 <div>
-                    <h3 className="text-2xl font-black uppercase tracking-tighter">Student <span className="text-indigo-400">Health Registry</span></h3>
+                    <h3 className="text-2xl font-black uppercase tracking-tighter">Patient <span className="text-indigo-400">Health Registry</span></h3>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
-                        {patients.length} student{patients.length !== 1 ? 's' : ''} registered in wellness programme
+                        {patients.length} patient{patients.length !== 1 ? 's' : ''} registered
                     </p>
                 </div>
                 <button
                     onClick={onRegisterPatient}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-7 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20 flex-shrink-0">
-                    <PlusIcon className="w-4 h-4" /> Register New Student
+                    <PlusIcon className="w-4 h-4" /> Register New Patient
                 </button>
             </div>
 
@@ -746,7 +746,7 @@ export function EduPulsePatientsList({
                 <table className="w-full text-left">
                     <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
                         <tr>
-                            <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                            <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Patient</th>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm No</th>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Age / DOB</th>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Gender</th>
@@ -760,9 +760,9 @@ export function EduPulsePatientsList({
                             <tr>
                                 <td colSpan={7} className="px-7 py-16 text-center">
                                     <UsersIcon className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-4" />
-                                    <p className="text-sm font-black text-slate-400 uppercase tracking-widest italic">No students match your search</p>
+                                    <p className="text-sm font-black text-slate-400 uppercase tracking-widest italic">No patients match your search</p>
                                     <button onClick={onRegisterPatient} className="mt-4 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
-                                        Register First Student
+                                        Register First Patient
                                     </button>
                                 </td>
                             </tr>
@@ -865,9 +865,9 @@ export function EduPulsePatientsList({
                 {filtered.length === 0 && (
                     <div className="text-center py-16">
                         <UsersIcon className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-4" />
-                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest italic">No students match your search</p>
+                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest italic">No patients match your search</p>
                         <button onClick={onRegisterPatient} className="mt-4 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
-                            Register First Student
+                            Register First Patient
                         </button>
                     </div>
                 )}
