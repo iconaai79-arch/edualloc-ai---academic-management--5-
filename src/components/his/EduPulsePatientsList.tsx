@@ -559,8 +559,7 @@ function PatientHistoryModal({
     );
 }
 
-/* ─── Main Component ─── */
-export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
+export function EduPulsePatientsList({
     patients,
     onRegisterPatient,
     onSelectPatient,
@@ -568,7 +567,7 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
     institutionId,
     institutionData,
     onPreviewPdf,
-}) => {
+}: EduPulsePatientsListProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [genderFilter, setGenderFilter] = useState<'All' | 'Male' | 'Female'>('All');
     const [selectedGrade, setSelectedGrade] = useState<string>('All');
@@ -1011,3 +1010,5 @@ export const EduPulsePatientsList: React.FC<EduPulsePatientsListProps> = ({
         </div>
     );
 };
+
+export default EduPulsePatientsList;

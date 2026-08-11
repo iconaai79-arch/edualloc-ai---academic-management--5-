@@ -68,7 +68,7 @@ function UpdateLabResultModal({ isOpen, onClose, request, onUpdate }: any) {
     );
 }
 
-export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institutionId, activeRole, userName, activePatientId }) => {
+export function LabDiagnosticsView({ institutionId, activeRole, userName, activePatientId }: LabDiagnosticsViewProps) {
     const isLabTech = activeRole === 'admin' || activeRole === 'staff'; // Or specialized role
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -270,4 +270,6 @@ export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institut
         </div>
     );
 };
+
+export default LabDiagnosticsView;
 

@@ -161,7 +161,7 @@ function GeneralMedicineView({ activePatient, vitals, events, onOpenVitals, onOp
     );
 }
 
-export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName, institutionId, users = [] }) => {
+export function HealthCoreView({ activeRole, userName, institutionId, users = [] }: HealthCoreProps) {
     const [activeModule, setActiveModule] = useState<HISModule>('general');
     const [searchTerm, setSearchTerm] = useState('');
     const [patients, setPatients] = useState<HISPatient[]>([]);

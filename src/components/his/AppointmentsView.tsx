@@ -26,7 +26,7 @@ interface AppointmentsViewProps {
     users?: any[];
 }
 
-export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, userName, institutionId, demoAppointments, isEdu, users = [] }) => {
+export function AppointmentsView({ activeRole, userName, institutionId, demoAppointments, isEdu, users = [] }: AppointmentsViewProps) {
     // In hospital/clinic context, lecturers (doctors) see a read-only mode with no scheduling button.
     // In EduPulse (school) context, 'lecturer' is a school teacher — they should still be able to add visits.
     const isDoctor = !isEdu && activeRole === 'lecturer';
@@ -428,4 +428,6 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
         </div>
     );
 };
+
+export default AppointmentsView;
 

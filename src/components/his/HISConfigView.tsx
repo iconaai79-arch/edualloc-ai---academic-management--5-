@@ -32,7 +32,7 @@ const FINGER_OPTIONS = [
     { index: 9, label: 'Left Little' }
 ];
 
-export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users = [], demoStaff, onStaffUpdated }) => {
+export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpdated }: HISConfigProps) {
     const [activeTab, setActiveTab] = useState<ConfigTab>('branding');
     const [branding, setBranding] = useState({
         hospitalName: 'Quantum Health Hospital/Clinic',
@@ -1287,4 +1287,6 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
         </div>
     );
 };
+
+export default HISConfigView;
 

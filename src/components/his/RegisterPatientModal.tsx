@@ -17,19 +17,23 @@ interface RegisterPatientModalProps {
     isEdu?: boolean;
 }
 
-const ChevronRightIcon = (props: any) => (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-    </svg>
-);
+function ChevronRightIcon(props: any) {
+    return (
+        <svg fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        </svg>
+    );
+}
 
-const ChevronLeftIcon = (props: any) => (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-    </svg>
-);
+function ChevronLeftIcon(props: any) {
+    return (
+        <svg fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+    );
+}
 
-export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOpen, onClose, onRegister, users = [], isEdu = false }) => {
+export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], isEdu = false }: RegisterPatientModalProps) {
     const [currentStep, setCurrentStep] = useState(1);
     const [formData, setFormData] = useState({
         fullName: '',

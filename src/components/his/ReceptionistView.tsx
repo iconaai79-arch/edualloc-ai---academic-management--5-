@@ -36,7 +36,7 @@ const statusStyles: Record<string, string> = {
     Rescheduled:'bg-orange-500/10 text-orange-500 border-orange-500/20',
 };
 
-export const ReceptionistView: React.FC<ReceptionistViewProps> = ({ institutionId, userName, users = [] }) => {
+export function ReceptionistView({ institutionId, userName, users = [] }: ReceptionistViewProps) {
     const [patients, setPatients] = useState<HISPatient[]>([]);
     const [appointments, setAppointments] = useState<HISAppointment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -574,3 +574,5 @@ export const ReceptionistView: React.FC<ReceptionistViewProps> = ({ institutionI
         </div>
     );
 };
+
+export default ReceptionistView;
