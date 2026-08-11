@@ -18,6 +18,56 @@ interface LabDiagnosticsViewProps {
     activePatientId?: string | null;
 }
 
+function XIcon(props: any) {
+    return (
+        <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+    );
+}
+
+function AddLabRequestModal({ isOpen, onClose, onAdd, activePatientId }: any) {
+    const [formData, setFormData] = useState({ testType: 'Full Blood Count (FBC)', priority: 'Routine', clinicalNotes: '', patientId: activePatientId || '' });
+
+    useEffect(() => {
+        if (activePatientId) {
+            setFormData(prev => ({ ...prev, patientId: activePatientId }));
+        }
+    }, [activePatientId]);
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-8 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 border border-white/10 w-full max-w-lg rounded-[3rem] p-12 relative shadow-2xl animate-zoom-in">
+                <button onClick={onClose} className="absolute top-10 right-10 p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl"><XIcon className="w-6 h-6" /></button>
+                <div className="mb-10"><h3 className="text-2xl font-black uppercase tracking-tight italic">Initiate <span className="text-blue-500">Lab Order</span></h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Diagnostic Signaling Protocol</p></div>
+                <div className="space-y-6">
+                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Specimen / Test Type</label><select value={formData.testType} onChange={e => setFormData({ ...formData, testType: e.target.value })} className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-blue-500/50 rounded-2xl px-6 py-5 text-sm font-black outline-none transition-all dark:text-white appearance-none uppercase tracking-widest whitespace-nowrap"><option>Full Blood Count (FBC)</option><option>Liver Function Test (LFT)</option><option>Urinalysis (Micro & Macro)</option><option>Blood Group & Crossmatch</option><option>Electrolytes & Creatinine</option><option>Chest X-Ray / CT Hub</option></select></div>
+                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Diagnostic Priority</label><div className="flex gap-4"><button type="button" onClick={() => setFormData({ ...formData, priority: 'Routine' })} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${formData.priority === 'Routine' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/5 border-white/5 text-slate-500 hover:border-blue-400'}`}>Routine</button><button type="button" onClick={() => setFormData({ ...formData, priority: 'Urgent' })} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${formData.priority === 'Urgent' ? 'bg-rose-600 text-white border-rose-600 animate-pulse' : 'bg-white/5 border-white/5 text-slate-500 hover:border-rose-400'}`}>Urgent</button></div></div>
+                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Clinical Observations</label><textarea value={formData.clinicalNotes} onChange={e => setFormData({ ...formData, clinicalNotes: e.target.value })} placeholder="SPECIFIC MARKERS TO OBSERVE..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-blue-500/50 rounded-2xl px-6 py-5 text-[10px] font-bold outline-none transition-all dark:text-white uppercase tracking-[0.2em] h-32"></textarea></div>
+                </div>
+                <button onClick={() => onAdd(formData)} className="w-full mt-10 py-6 bg-blue-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-[0.4em] hover:scale-105 transition-all shadow-2xl shadow-blue-600/30 italic">Commit Order to Node</button>
+            </div>
+        </div>
+    );
+}
+
+function UpdateLabResultModal({ isOpen, onClose, request, onUpdate }: any) {
+    const [result, setResult] = useState('');
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-8 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 border border-white/10 w-full max-w-lg rounded-[3rem] p-12 relative shadow-2xl animate-zoom-in">
+                <button onClick={onClose} className="absolute top-10 right-10 p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl"><XIcon className="w-6 h-6" /></button>
+                <div className="mb-10 text-emerald-500"><h3 className="text-2xl font-black uppercase tracking-tight italic">Capture <span className="text-slate-900 dark:text-white">Diagnostic Result</span></h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">{request?.testType} for Registry ID {request?.id?.substring(0, 8)}</p></div>
+                <div className="space-y-6">
+                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Diagnostic Outcome / Values</label><textarea value={result} onChange={e => setResult(e.target.value)} placeholder="ENTER QUANTITATIVE & QUALITATIVE DATA..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-emerald-500/50 rounded-2xl px-6 py-5 text-[10px] font-bold outline-none transition-all dark:text-white uppercase tracking-[0.2em] h-48"></textarea></div>
+                </div>
+                <button onClick={() => onUpdate({ results: result })} className="w-full mt-10 py-6 bg-emerald-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-[0.4em] hover:scale-105 transition-all shadow-2xl shadow-emerald-600/30 italic">Broadcast Result back to Portfolio</button>
+            </div>
+        </div>
+    );
+}
+
 export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institutionId, activeRole, userName, activePatientId }) => {
     const isLabTech = activeRole === 'admin' || activeRole === 'staff'; // Or specialized role
     const [searchTerm, setSearchTerm] = useState('');
@@ -220,54 +270,4 @@ export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institut
         </div>
     );
 };
-
-// Internal Modals for Speed (Wait! I'll break them out for clarity)
-const AddLabRequestModal = ({ isOpen, onClose, onAdd, activePatientId }: any) => {
-    const [formData, setFormData] = useState({ testType: 'Full Blood Count (FBC)', priority: 'Routine', clinicalNotes: '', patientId: activePatientId || '' });
-
-    useEffect(() => {
-        if (activePatientId) {
-            setFormData(prev => ({ ...prev, patientId: activePatientId }));
-        }
-    }, [activePatientId]);
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center p-8 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 border border-white/10 w-full max-w-lg rounded-[3rem] p-12 relative shadow-2xl animate-zoom-in">
-                <button onClick={onClose} className="absolute top-10 right-10 p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl"><XIcon className="w-6 h-6" /></button>
-                <div className="mb-10"><h3 className="text-2xl font-black uppercase tracking-tight italic">Initiate <span className="text-blue-500">Lab Order</span></h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Diagnostic Signaling Protocol</p></div>
-                <div className="space-y-6">
-                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Specimen / Test Type</label><select value={formData.testType} onChange={e => setFormData({ ...formData, testType: e.target.value })} className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-blue-500/50 rounded-2xl px-6 py-5 text-sm font-black outline-none transition-all dark:text-white appearance-none uppercase tracking-widest whitespace-nowrap"><option>Full Blood Count (FBC)</option><option>Liver Function Test (LFT)</option><option>Urinalysis (Micro & Macro)</option><option>Blood Group & Crossmatch</option><option>Electrolytes & Creatinine</option><option>Chest X-Ray / CT Hub</option></select></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Diagnostic Priority</label><div className="flex gap-4"><button type="button" onClick={() => setFormData({ ...formData, priority: 'Routine' })} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${formData.priority === 'Routine' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/5 border-white/5 text-slate-500 hover:border-blue-400'}`}>Routine</button><button type="button" onClick={() => setFormData({ ...formData, priority: 'Urgent' })} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${formData.priority === 'Urgent' ? 'bg-rose-600 text-white border-rose-600 animate-pulse' : 'bg-white/5 border-white/5 text-slate-500 hover:border-rose-400'}`}>Urgent</button></div></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Clinical Observations</label><textarea value={formData.clinicalNotes} onChange={e => setFormData({ ...formData, clinicalNotes: e.target.value })} placeholder="SPECIFIC MARKERS TO OBSERVE..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-blue-500/50 rounded-2xl px-6 py-5 text-[10px] font-bold outline-none transition-all dark:text-white uppercase tracking-[0.2em] h-32"></textarea></div>
-                </div>
-                <button onClick={() => onAdd(formData)} className="w-full mt-10 py-6 bg-blue-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-[0.4em] hover:scale-105 transition-all shadow-2xl shadow-blue-600/30 italic">Commit Order to Node</button>
-            </div>
-        </div>
-    );
-};
-
-const UpdateLabResultModal = ({ isOpen, onClose, request, onUpdate }: any) => {
-    const [result, setResult] = useState('');
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center p-8 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 border border-white/10 w-full max-w-lg rounded-[3rem] p-12 relative shadow-2xl animate-zoom-in">
-                <button onClick={onClose} className="absolute top-10 right-10 p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl"><XIcon className="w-6 h-6" /></button>
-                <div className="mb-10 text-emerald-500"><h3 className="text-2xl font-black uppercase tracking-tight italic">Capture <span className="text-slate-900 dark:text-white">Diagnostic Result</span></h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">{request?.testType} for Registry ID {request?.id?.substring(0, 8)}</p></div>
-                <div className="space-y-6">
-                    <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-500 ml-4">Diagnostic Outcome / Values</label><textarea value={result} onChange={e => setResult(e.target.value)} placeholder="ENTER QUANTITATIVE & QUALITATIVE DATA..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-emerald-500/50 rounded-2xl px-6 py-5 text-[10px] font-bold outline-none transition-all dark:text-white uppercase tracking-[0.2em] h-48"></textarea></div>
-                </div>
-                <button onClick={() => onUpdate({ results: result })} className="w-full mt-10 py-6 bg-emerald-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-[0.4em] hover:scale-105 transition-all shadow-2xl shadow-emerald-600/30 italic">Broadcast Result back to Portfolio</button>
-            </div>
-        </div>
-    );
-};
-
-// Help icons from HealthIcons or from elsewhere
-const XIcon = (props: any) => (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-);
 
