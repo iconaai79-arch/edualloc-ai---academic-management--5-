@@ -42,6 +42,7 @@ import { EduPulseHomeDashboard } from './EduPulseHomeDashboard';
 import { EduPulsePatientsList } from './EduPulsePatientsList';
 import { ReceptionistView } from './ReceptionistView';
 import { DoctorDashboard } from './DoctorDashboard';
+import { HISQueueManagerView } from './HISQueueManagerView';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
@@ -51,7 +52,7 @@ import { HRManager } from '../HR/HRManager';
 import { BiometricAttendanceDashboard } from '../HR/BiometricAttendanceDashboard';
 import { PayrollRecord, LeaveRequest, Institution } from '../../types';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor' | 'queuing';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -677,6 +678,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                     {[
                                         { id: 'receptionist' as HISModule, label: 'Reception Desk', icon: UsersIcon },
                                         { id: 'doctor' as HISModule, label: 'Doctor Dashboard', icon: ActivityIcon },
+                                        { id: 'queuing' as HISModule, label: 'Queuing & TV Screen', icon: BellIcon },
                                         { id: 'patients' as HISModule, label: 'Manage Patients', icon: UsersIcon },
                                         { id: 'general' as HISModule, label: 'Patient 360', icon: HeartIcon },
                                         { id: 'inpatient' as HISModule, label: 'Admissions', icon: BuildingOfficeIcon },
@@ -965,7 +967,8 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 />
                             );
                             case 'receptionist': return <ReceptionistView institutionId={institutionId} userName={userName} users={users} />;
-                            case 'patients': return <EduPulsePatientsList patients={patients} searchTerm={searchTerm} setSearchTerm={setSearchTerm} onSelectPatient={(p) => { setActivePatientId(p.id); setActiveModule('general'); }} onOpenRegister={() => setIsRegisterModalOpen(true)} isEdu={isEdu} />;
+                            case 'queuing': return <HISQueueManagerView institutionId={institutionId} userName={userName} activeRole={activeRole} />;
+                            case 'patients': return <EduPulsePatientsList patients={patients} searchTerm={searchTerm} setSearchTerm={setSearchTerm} onSelectPatient={(p) => { setActivePatientId(p.id); setActiveModule('general'); }} onOpenRegister={() => setIsRegisterModalOpen(false)} isEdu={isEdu} />;
                             case 'broadcaster': return <HISBroadcasterView />;
                             case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} isEdu={isEdu} users={users} />;
                             case 'config': return <HISConfigView institutionId={institutionId} users={users} demoStaff={demoData?.hisStaff} onStaffUpdated={fetchPatients} />;

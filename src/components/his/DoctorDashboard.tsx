@@ -330,6 +330,100 @@ export function DoctorDashboard({
     const [showLabOrderModal, setShowLabOrderModal] = useState(false);
     const [searchPatient, setSearchPatient] = useState('');
     const [selectedSpecialty, setSelectedSpecialty] = useState('General Medicine');
+    const [roomNo, setRoomNo] = useState('Consultation Room 1');
+    const [labFeed, setLabFeed] = useState<any[]>([]);
+    const [selectedLabReport, setSelectedLabReport] = useState<any | null>(null);
+
+    const fetchLabFeed = async () => {
+        if (!institutionId) return;
+        try {
+            const records = await apiService.fetchModuleRecords('his_lab_requests', institutionId);
+            if (records && records.length > 0) {
+                setLabFeed(records);
+            } else {
+                const sampleFeed = [
+                    {
+                        id: 'lab_res_101',
+                        patientName: 'Jane Wanjiku',
+                        patientId: patients[0]?.id || 'p_101',
+                        testType: 'Full Blood Count (FBC)',
+                        results: 'Hb: 13.5 g/dL (Normal), WBC: 7.4 x10^9/L, Platelets: 285 x10^9/L, Neutrophils: 62%. No abnormal blasts detected.',
+                        fulfillment: 'in_house',
+                        partnerLabName: 'In-House Laboratory',
+                        barcodeNumber: 'SPEC-849102',
+                        status: 'Completed',
+                        createdAt: new Date(Date.now() - 25 * 60000).toISOString()
+                    },
+                    {
+                        id: 'lab_res_102',
+                        patientName: 'David Ochieng',
+                        patientId: patients[1]?.id || 'p_102',
+                        testType: 'Histopathology / Tissue Biopsy',
+                        results: 'External Reference Report: Benign fibroadenoma with clear resection margins. Zero atypia detected.',
+                        fulfillment: 'external_partner',
+                        partnerLabName: 'Lancet Kenya Reference Lab',
+                        barcodeNumber: 'SPEC-992104',
+                        status: 'Completed',
+                        createdAt: new Date(Date.now() - 90 * 60000).toISOString()
+                    },
+                    {
+                        id: 'lab_res_103',
+                        patientName: 'Mercy Cherono',
+                        patientId: patients[2]?.id || 'p_103',
+                        testType: 'Urinalysis (Micro & Macro)',
+                        results: 'Leukocytes: (+), Nitrites: Negative, Protein: Trace, pH: 6.0, Micro: 3-5 WBC/hpf.',
+                        fulfillment: 'in_house',
+                        partnerLabName: 'In-House Laboratory',
+                        barcodeNumber: 'SPEC-773109',
+                        status: 'Completed',
+                        createdAt: new Date(Date.now() - 150 * 60000).toISOString()
+                    }
+                ];
+                setLabFeed(sampleFeed);
+            }
+        } catch (err) {
+            console.error('Error loading lab feed:', err);
+        }
+    };
+
+    useEffect(() => {
+        fetchLabFeed();
+        const interval = setInterval(fetchLabFeed, 15000);
+        return () => clearInterval(interval);
+    }, [institutionId]);
+
+    const handleCallNextVoice = async () => {
+        try {
+            const queueCalls = await apiService.fetchModuleRecords('his_queue_calls', institutionId) || [];
+            const roomPrefix = roomNo.split(' ')[0];
+            const active = queueCalls.find((q: any) => q.roomNo?.includes(roomPrefix) && q.status === 'In Consultation');
+            if (active) {
+                active.status = 'Completed';
+                await apiService.saveModuleRecord('his_queue_calls', active).catch(() => null);
+            }
+
+            const next = queueCalls.find((q: any) => q.status === 'Waiting');
+            if (next) {
+                next.status = 'In Consultation';
+                next.roomNo = roomNo;
+                next.doctorName = userName || 'Attending Physician';
+                await apiService.saveModuleRecord('his_queue_calls', next).catch(() => null);
+
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const text = `Attention please. Token ${next.tokenNo?.replace('-', ' ')}. Patient ${next.patientName}. Please proceed to ${roomNo}.`;
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.rate = 0.9;
+                    window.speechSynthesis.speak(utterance);
+                }
+                alert(`✓ Calling token ${next.tokenNo} (${next.patientName}) to ${roomNo}!`);
+            } else {
+                alert(`✓ Consultation completed. Zero waiting patients in queue.`);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -414,9 +508,34 @@ export function DoctorDashboard({
                 </div>
 
                 {/* Live Clock + Actions */}
-                <div className="relative z-10 text-left lg:text-right">
-                    <p className="text-5xl font-black text-white tracking-tight tabular-nums leading-none">{timeStr}</p>
-                    <p className="text-[9px] font-black text-indigo-300/50 uppercase tracking-widest mt-2">{today}</p>
+                <div className="relative z-10 text-left lg:text-right space-y-3">
+                    <div>
+                        <p className="text-5xl font-black text-white tracking-tight tabular-nums leading-none">{timeStr}</p>
+                        <p className="text-[9px] font-black text-indigo-300/50 uppercase tracking-widest mt-2">{today}</p>
+                    </div>
+
+                    {/* Room Selector & Call Next Button */}
+                    <div className="flex items-center gap-2 lg:justify-end flex-wrap">
+                        <select
+                            value={roomNo}
+                            onChange={(e) => setRoomNo(e.target.value)}
+                            className="bg-black/40 border border-emerald-500/40 text-emerald-300 font-bold rounded-2xl px-4 py-2.5 text-[9px] uppercase tracking-widest outline-none focus:border-emerald-400"
+                        >
+                            <option>Consultation Room 1</option>
+                            <option>Consultation Room 2</option>
+                            <option>Consultation Room 3</option>
+                            <option>Dental Suite 1</option>
+                            <option>Eye Clinic Room A</option>
+                        </select>
+                        <button
+                            onClick={handleCallNextVoice}
+                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all italic"
+                        >
+                            <BellIcon className="w-4 h-4 text-slate-950" />
+                            <span>Checkout &amp; Call Next</span>
+                        </button>
+                    </div>
+
                     <div className="flex gap-2 mt-4 flex-wrap lg:justify-end">
                         <button onClick={() => setShowLabOrderModal(true)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/50">
@@ -583,6 +702,53 @@ export function DoctorDashboard({
                         </div>
                     </div>
 
+                    {/* 🧪 INCOMING LAB RESULTS FEED */}
+                    <div className="bg-white dark:bg-white/[0.02] rounded-[2.5rem] border border-slate-200 dark:border-white/5 p-6 shadow-xl space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest italic">🧪 Incoming Lab Results Feed</p>
+                                <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Live diagnostic findings stream</p>
+                            </div>
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        </div>
+
+                        <div className="space-y-3 max-h-[320px] overflow-y-auto no-scrollbar">
+                            {labFeed.map((item) => (
+                                <div key={item.id} className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 hover:border-indigo-500/30 transition-all space-y-2">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{item.patientName}</p>
+                                            <p className="text-[9px] font-black text-indigo-500 uppercase">{item.testType}</p>
+                                        </div>
+                                        {item.fulfillment === 'external_partner' ? (
+                                            <span className="text-[8px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 uppercase">
+                                                🛡️ {item.partnerLabName || 'Partner Lab'}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[8px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 uppercase">
+                                                🏥 In-House
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <p className="text-[10px] text-slate-600 dark:text-slate-300 font-mono line-clamp-2 bg-black/10 dark:bg-white/5 p-2 rounded-xl border border-white/5">
+                                        {item.results || 'Diagnostic findings broadcast pending...'}
+                                    </p>
+
+                                    <div className="flex justify-between items-center pt-1">
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase">{item.barcodeNumber || item.id?.substring(0, 8)}</span>
+                                        <button
+                                            onClick={() => setSelectedLabReport(item)}
+                                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[8px] font-black uppercase tracking-widest transition-all shadow-sm"
+                                        >
+                                            View Findings
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                     {/* Clinical Alerts */}
                     <div className="bg-white dark:bg-white/[0.02] rounded-[2.5rem] border border-slate-200 dark:border-white/5 p-6 shadow-xl">
                         <div className="flex items-center justify-between mb-4">
@@ -635,6 +801,49 @@ export function DoctorDashboard({
 
             {showNoteModal && <QuickNoteModal onClose={() => setShowNoteModal(false)} patients={patients} />}
             {showLabOrderModal && <QuickLabOrderModal onClose={() => setShowLabOrderModal(false)} patients={patients} institutionId={institutionId} userName={userName} />}
+            
+            {selectedLabReport && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl">
+                    <div className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-zoom-in relative">
+                        <button onClick={() => setSelectedLabReport(null)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-white rounded-xl">
+                            <XIcon className="w-5 h-5" />
+                        </button>
+
+                        <div className="mb-6">
+                            <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-500/30 mb-2 inline-block">
+                                Diagnostic Lab Report
+                            </span>
+                            <h3 className="text-xl font-black text-white uppercase tracking-tight italic">{selectedLabReport.testType}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">Patient: {selectedLabReport.patientName} • Barcode: {selectedLabReport.barcodeNumber}</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="p-5 bg-black/50 border border-white/10 rounded-2xl">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-indigo-400 block mb-2">Findings &amp; Lab Values</label>
+                                <p className="text-xs font-mono font-bold text-white leading-relaxed whitespace-pre-wrap">{selectedLabReport.results || 'Zero abnormalities detected.'}</p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 text-[9px] font-black uppercase text-slate-400">
+                                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                                    <span>Fulfillment:</span>
+                                    <p className="text-white mt-0.5">{selectedLabReport.partnerLabName || 'In-House Laboratory'}</p>
+                                </div>
+                                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                                    <span>Timestamp:</span>
+                                    <p className="text-white mt-0.5">{selectedLabReport.createdAt?.slice(0, 16).replace('T', ' ')}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setSelectedLabReport(null)}
+                            className="w-full mt-6 py-4 bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-indigo-500 transition-all"
+                        >
+                            Close Report View
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

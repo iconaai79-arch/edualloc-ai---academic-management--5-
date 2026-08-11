@@ -122,7 +122,9 @@ const PageRenderer: React.FC<{ doc: any; pageNum: number; zoom: number }> = ({ d
     );
 };
 
-export const PdfViewer: React.FC<PdfViewerProps> = ({ src, className, title, style, ...otherProps }) => {
+export const PdfViewer: React.FC<PdfViewerProps> = ({ src, pdfDataUri, className, title, style, ...otherProps }) => {
+    const effectiveSrc = pdfDataUri || src || '';
+
     // Detect mobile WebView (Android/iOS)
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
                      (window as any).Capacitor?.getPlatform() === 'android' || 
@@ -217,7 +219,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, className, title, sty
         return () => {
             active = false;
         };
-    }, [src, isMobile]);
+    }, [effectiveSrc, isMobile]);
 
     const [objectUrl, setObjectUrl] = useState<string>('');
 
