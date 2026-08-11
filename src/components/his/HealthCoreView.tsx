@@ -44,6 +44,7 @@ import { ReceptionistView } from './ReceptionistView';
 import { DoctorDashboard } from './DoctorDashboard';
 import { HISQueueManagerView } from './HISQueueManagerView';
 import { HISOverviewView } from './HISOverviewView';
+import { ReferenceLabPortalView } from './ReferenceLabPortalView';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
@@ -53,7 +54,7 @@ import { HRManager } from '../HR/HRManager';
 import { BiometricAttendanceDashboard } from '../HR/BiometricAttendanceDashboard';
 import { PayrollRecord, LeaveRequest, Institution } from '../../types';
 
-type HISModule = 'overview' | 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor' | 'queuing';
+type HISModule = 'overview' | 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor' | 'queuing' | 'reflab';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -717,6 +718,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <p className="hidden lg:block text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] px-3 mb-2 italic">Specialized Hubs</p>
                                 <div className="space-y-1">
                                     {[
+                                        { id: 'reflab' as HISModule, label: 'Reference Lab Hub', icon: BeakerIcon },
                                         { id: 'dental' as HISModule, label: 'Dental Core', icon: ScissorsIcon },
                                         { id: 'eye' as HISModule, label: 'Ocular Hub', icon: EyeIcon },
                                         { id: 'ear' as HISModule, label: 'ENT Hub', icon: SignalIcon },
@@ -949,6 +951,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
 
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
                             case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} activePatientId={activePatientId} />;
+                            case 'reflab': return <ReferenceLabPortalView institutionId={institutionId} userName={userName} />;
                             case 'pharmacy': return <PharmacyView institutionId={institutionId} />;
                             case 'dental': return <DentalView onAddVisit={() => setIsAddVisitOpen(true)} />;
                             case 'eye': return <OphthalmologyView onAddVisit={() => setIsAddVisitOpen(true)} onPrintRx={handlePrintOphthalRx} />;
