@@ -24,7 +24,7 @@ export function getAdminRoleForInstitution(institution: Partial<Institution>): R
 
     if (subType.includes('coop') || subType.includes('dairy') || subType.includes('tea') || subType.includes('coffee')) return 'cooperative_manager';
 
-    if (type === 'HIS') return 'his_admin';
+    if (type === 'HIS' || isHISInstitution(institution)) return 'his_admin';
 
     if (type === 'Church') return 'church_admin';
     if (type === 'Community' || (type as any) === 'Political Campaign' || subType.includes('campaign') || subType.includes('politics')) return 'campaign_admin';
@@ -105,7 +105,7 @@ export function getRolesForInstitution(institution: Institution | null | undefin
 
     // HIS / Health Information System
     if (type === 'HIS' || isHISInstitution(institution)) {
-        return ['his_admin', 'academics_officer', 'security', 'info_desk', 'store', 'procurement_officer'];
+        return ['his_admin', 'nurse', 'doctor', 'his_doctor', 'receptionist', 'pharmacist', 'lab_tech', 'security', 'info_desk', 'store', 'procurement_officer'];
     }
 
     // Church System

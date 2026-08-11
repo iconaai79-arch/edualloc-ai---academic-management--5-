@@ -670,14 +670,13 @@ export const App: React.FC = () => {
 
         const roleToUse = selectedRole || currentUser.role;
 
-        // Force Reseller role for admins of Reseller institutions
-        const inst = institutions.find(i => (i as any).id === currentUser.institutionId);
-        if (inst?.institutionType === 'Reseller' && roleToUse === 'admin') {
-            return 'reseller';
+        // Force HIS Admin role for HIS/Hospital/Clinic institutions (independent from EduPulse, do not login as principal/head_teacher)
+        if (isHISInstitution(activeInstitution) && (roleToUse === 'admin' || roleToUse === 'head_teacher' || roleToUse === 'principal' || roleToUse === 'teacher' || roleToUse === 'headmaster')) {
+            return 'his_admin';
         }
 
         return roleToUse;
-    }, [impersonatedRole, currentUser, institutions, selectedRole]);
+    }, [impersonatedRole, currentUser, institutions, selectedRole, activeInstitution]);
 
     const isHIS = useMemo(() => {
         return isHISInstitution(activeInstitution, activeRole);
