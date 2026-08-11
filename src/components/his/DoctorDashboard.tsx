@@ -103,19 +103,26 @@ function QuickNoteModal({ onClose, patients }: { onClose: () => void; patients: 
     );
 }
 
-function QuickLabOrderModal({ onClose, patients, institutionId, userName }: { 
+function QuickLabOrderModal({ onClose, patients, institutionId, userName, defaultPatientId }: { 
     onClose: () => void; 
     patients: HISPatient[]; 
     institutionId?: string; 
-    userName?: string 
+    userName?: string;
+    defaultPatientId?: string;
 }) {
-    const [selectedPatientId, setSelectedPatientId] = useState('');
+    const [selectedPatientId, setSelectedPatientId] = useState(defaultPatientId || (patients.length > 0 ? patients[0].id : ''));
     const [testType, setTestType] = useState('Full Blood Count (FBC)');
     const [priority, setPriority] = useState('Routine');
     const [fulfillment, setFulfillment] = useState<'in_house' | 'external_partner'>('in_house');
     const [partnerLabName, setPartnerLabName] = useState('Lancet Kenya Reference Lab');
     const [clinicalNotes, setClinicalNotes] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (defaultPatientId) {
+            setSelectedPatientId(defaultPatientId);
+        }
+    }, [defaultPatientId]);
 
     const handleCommit = async () => {
         if (!selectedPatientId) return alert('Please select a patient first.');
@@ -800,7 +807,15 @@ export function DoctorDashboard({
             </div>
 
             {showNoteModal && <QuickNoteModal onClose={() => setShowNoteModal(false)} patients={patients} />}
-            {showLabOrderModal && <QuickLabOrderModal onClose={() => setShowLabOrderModal(false)} patients={patients} institutionId={institutionId} userName={userName} />}
+            {showLabOrderModal && (
+                <QuickLabOrderModal 
+                    onClose={() => setShowLabOrderModal(false)} 
+                    patients={patients} 
+                    institutionId={institutionId} 
+                    userName={userName} 
+                    defaultPatientId={queueItems.find(q => q.status === 'in-consultation')?.patient?.id || patients[0]?.id}
+                />
+            )}
             
             {selectedLabReport && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl">

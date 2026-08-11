@@ -754,7 +754,6 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                         { id: 'attendance' as HISModule, label: 'Staff Presence', icon: ClockIcon },
                                         { id: 'broadcaster' as HISModule, label: 'Communications', icon: BellIcon },
                                         { id: 'reports' as HISModule, label: 'Intelligence', icon: ChartBarIcon },
-                                        { id: 'config' as HISModule, label: 'Nexus Settings', icon: SettingsIcon },
                                     ].map(item => {
                                         const isActive = activeModule === item.id;
                                         return (
@@ -777,6 +776,26 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                         );
                                     })}
                                 </div>
+                            </div>
+
+                            {/* Section 4: System Administration (Absolute Last Tab) */}
+                            <div className="border-t border-white/10 pt-3">
+                                <p className="hidden lg:block text-[8px] font-black text-indigo-400/60 uppercase tracking-[0.2em] px-3 mb-2 italic">System Control</p>
+                                <button
+                                    onClick={() => setActiveModule('config')}
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 group ${
+                                        activeModule === 'config'
+                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50'
+                                            : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                                    }`}
+                                >
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                                        activeModule === 'config' ? 'bg-white text-indigo-600 shadow-md' : 'bg-white/10 text-slate-400 group-hover:bg-white/20 group-hover:text-white'
+                                    }`}>
+                                        <SettingsIcon className="w-4 h-4" />
+                                    </div>
+                                    <span className="hidden lg:block text-[10px] font-black uppercase tracking-widest">Nexus Settings</span>
+                                </button>
                             </div>
                         </>
                     )}
