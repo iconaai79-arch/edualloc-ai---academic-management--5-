@@ -69,11 +69,11 @@ interface DrivingSchoolContextType {
 
 export const DrivingSchoolContext = createContext<DrivingSchoolContextType | undefined>(undefined);
 
-export const useDrivingSchool = () => {
+export function useDrivingSchool() {
     const context = useContext(DrivingSchoolContext);
     if (!context) throw new Error('useDrivingSchool must be used within a DrivingSchoolProvider');
     return context;
-};
+}
 
 export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionId: string | undefined }> = ({ children, institutionId }) => {
     const { success, error, info } = useToast();

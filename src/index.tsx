@@ -2,6 +2,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './components/App';
+import { ToastProvider } from './services/ToastContext';
 import '../index.css';
 
 // Suppress sensitive info and non-essential logs
@@ -93,8 +94,6 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
     return this.props.children;
   }
 }
-
-import { ToastProvider } from './services/ToastContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error("Root element not found");
