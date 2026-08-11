@@ -29,7 +29,7 @@ const MOCK_CLAIMS: Claim[] = [
     { id: 'cl_4', patient: 'Sarah Atieno', provider: 'UAP Old Mutual', amount: 95400, status: 'Queried', date: '2025-03-08' },
 ];
 
-export const HISBillingView: React.FC<{ institutionId?: string }> = ({ institutionId }) => {
+export function HISBillingView({ institutionId }: { institutionId?: string }) {
     const [billingItems, setBillingItems] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -154,4 +154,6 @@ export const HISBillingView: React.FC<{ institutionId?: string }> = ({ instituti
             </div>
     );
 };
+
+export default HISBillingView;
 

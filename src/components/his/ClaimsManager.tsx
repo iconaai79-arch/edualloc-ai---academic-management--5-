@@ -13,7 +13,7 @@ interface ClaimsManagerProps {
     institutionId?: string;
 }
 
-export const ClaimsManager: React.FC<ClaimsManagerProps> = ({ institutionId }) => {
+export function ClaimsManager({ institutionId }: ClaimsManagerProps) {
     const [claims, setClaims] = useState<HISClaim[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [patients, setPatients] = useState<HISPatient[]>([]);
@@ -160,4 +160,6 @@ export const ClaimsManager: React.FC<ClaimsManagerProps> = ({ institutionId }) =
         </div>
     );
 };
+
+export default ClaimsManager;
 
