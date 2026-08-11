@@ -19,6 +19,19 @@ interface HISConfigProps {
 
 type ConfigTab = 'branding' | 'staff' | 'clinic' | 'tariffs' | 'insurance';
 
+const FINGER_OPTIONS = [
+    { index: 0, label: 'Right Thumb' },
+    { index: 1, label: 'Right Index' },
+    { index: 2, label: 'Right Middle' },
+    { index: 3, label: 'Right Ring' },
+    { index: 4, label: 'Right Little' },
+    { index: 5, label: 'Left Thumb' },
+    { index: 6, label: 'Left Index' },
+    { index: 7, label: 'Left Middle' },
+    { index: 8, label: 'Left Ring' },
+    { index: 9, label: 'Left Little' }
+];
+
 export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users = [], demoStaff, onStaffUpdated }) => {
     const [activeTab, setActiveTab] = useState<ConfigTab>('branding');
     const [branding, setBranding] = useState({
@@ -78,19 +91,6 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
         devicePin: '',
         fingerIndex: 0
     });
-
-    const FINGER_OPTIONS = [
-        { index: 0, label: 'Right Thumb' },
-        { index: 1, label: 'Right Index' },
-        { index: 2, label: 'Right Middle' },
-        { index: 3, label: 'Right Ring' },
-        { index: 4, label: 'Right Little' },
-        { index: 5, label: 'Left Thumb' },
-        { index: 6, label: 'Left Index' },
-        { index: 7, label: 'Left Middle' },
-        { index: 8, label: 'Left Ring' },
-        { index: 9, label: 'Left Little' }
-    ];
 
     const loadPractitioners = useCallback(async () => {
         if (institutionId) {

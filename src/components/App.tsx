@@ -30,6 +30,59 @@ import { AlumnaeLoginView } from './AlumnaeLoginView';
 import { InstitutionClaimView } from './InstitutionClaimView';
 import { ConstructionManager } from './ConstructionManager';
 import { ConstructionProjectView } from './ConstructionProjectView';
+
+import { apiService, initSupabaseClient, setSessionUser } from '../services/apiService';
+import { BuildingSecurityManager } from './BuildingSecurityManager';
+import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution } from '../utils/roleUtils';
+import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
+import { generateUserId, generateId } from '../utils/idGenerator';
+import { generateFullSqlScript } from '../utils/sqlGenerator';
+import { detectTimetableConflicts } from '../utils/conflictUtils';
+import { generateInstitutionalDemoData } from '../utils/demoData';
+import {
+    INITIAL_USERS, INITIAL_INSTITUTIONS, INITIAL_COMPANY_DETAILS,
+    INITIAL_ACADEMIC_LEVELS, INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS,
+    INITIAL_ACADEMIC_YEARS, INITIAL_SEMESTERS, DEFAULT_GRADING_SYSTEMS
+} from '../constants';
+import type {
+    User, Role, Institution, Branch, AllocationRequest, TimetableEntry,
+    Priority, RequestStatus, CompanyDetails, Room, Subject, Course,
+    Department, AcademicYear, Semester, UserTask, ActivityLog,
+    MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
+    ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
+    ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
+    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, Constituency, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
+    BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
+    TransportVehicle, TransportOnboarding, VehicleLog, PMLandlord,
+    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
+    ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay, DemoRequest,
+    InstitutionModuleState,
+    LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, LawAgreement,
+    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment,
+    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction,
+    DisciplineIncident, Expense, FinancialGoal, PayrollRecord, CampaignProfile,
+    AcademicsOfficerProps, LecturerProps, ParentProps,
+    CountyAdminProps, HROfficerProps, FinanceOfficerProps, SupportStaffProps
+} from '../types';
+import type { BuildingFloor, BuildingOffice, BuildingVisitorLog, BuildingVisitorAsset } from '../types';
+import { XIcon } from './icons/XIcon';
+import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { SimulatorLeadModal } from './public/SimulatorLeadModal';
+import { SystemPulseLoader } from './common/SystemPulseLoader';
+import { PerspectiveReturnButton } from './common/PerspectiveReturnButton';
+import { SchemaInitializationView } from './common/SchemaInitializationView';
+import { AppErrorBoundary } from './common/AppErrorBoundary';
+import { ToastProvider, useToast } from '../services/ToastContext';
+import { DrivingSchoolProvider } from '../services/DrivingSchoolContext';
+import { DSStudentPortal } from './ds/DSStudentPortal';
+import { SecurityKiosk } from './security/SecurityKiosk';
+import { ModuleOnboardingWizard } from './ModuleOnboardingWizard';
+import { localDb } from '../services/localDb';
+import { syncEngine } from '../services/syncEngine';
+import { OfflineSyncWidget } from './common/OfflineSyncWidget';
 // Robust dynamic chunk loading handler with automatic browser recovery
 function safeLazy<T extends React.ComponentType<any>>(
     importFn: () => Promise<{ default: T } | T>
@@ -103,60 +156,6 @@ const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m
 const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m => ({ default: m.DSInterestPage })));
 const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then(m => ({ default: m.RestaurantPOSManager })));
 
-
-
-import { apiService, initSupabaseClient, setSessionUser } from '../services/apiService';
-import { BuildingSecurityManager } from './BuildingSecurityManager';
-import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution } from '../utils/roleUtils';
-import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
-import { generateUserId, generateId } from '../utils/idGenerator';
-import { generateFullSqlScript } from '../utils/sqlGenerator';
-import { detectTimetableConflicts } from '../utils/conflictUtils';
-import { generateInstitutionalDemoData } from '../utils/demoData';
-import {
-    INITIAL_USERS, INITIAL_INSTITUTIONS, INITIAL_COMPANY_DETAILS,
-    INITIAL_ACADEMIC_LEVELS, INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS,
-    INITIAL_ACADEMIC_YEARS, INITIAL_SEMESTERS, DEFAULT_GRADING_SYSTEMS
-} from '../constants';
-import type {
-    User, Role, Institution, Branch, AllocationRequest, TimetableEntry,
-    Priority, RequestStatus, CompanyDetails, Room, Subject, Course,
-    Department, AcademicYear, Semester, UserTask, ActivityLog,
-    MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
-    ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
-    ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
-    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, Constituency, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
-    BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
-    TransportVehicle, TransportOnboarding, VehicleLog, PMLandlord,
-    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
-    ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay, DemoRequest,
-    InstitutionModuleState,
-    LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, LawAgreement,
-    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment,
-    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction,
-    DisciplineIncident, Expense, FinancialGoal, PayrollRecord, CampaignProfile,
-    AcademicsOfficerProps, LecturerProps, ParentProps,
-    CountyAdminProps, HROfficerProps, FinanceOfficerProps, SupportStaffProps
-} from '../types';
-import type { BuildingFloor, BuildingOffice, BuildingVisitorLog, BuildingVisitorAsset } from '../types';
-import { XIcon } from './icons/XIcon';
-import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
-import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
-import { ArrowPathIcon } from './icons/ArrowPathIcon';
-import { SparklesIcon } from './icons/SparklesIcon';
-import { SimulatorLeadModal } from './public/SimulatorLeadModal';
-import { SystemPulseLoader } from './common/SystemPulseLoader';
-import { PerspectiveReturnButton } from './common/PerspectiveReturnButton';
-import { SchemaInitializationView } from './common/SchemaInitializationView';
-import { AppErrorBoundary } from './common/AppErrorBoundary';
-import { ToastProvider, useToast } from '../services/ToastContext';
-import { DrivingSchoolProvider } from '../services/DrivingSchoolContext';
-import { DSStudentPortal } from './ds/DSStudentPortal';
-import { SecurityKiosk } from './security/SecurityKiosk';
-import { ModuleOnboardingWizard } from './ModuleOnboardingWizard';
-import { localDb } from '../services/localDb';
-import { syncEngine } from '../services/syncEngine';
-import { OfflineSyncWidget } from './common/OfflineSyncWidget';
 
 
 
