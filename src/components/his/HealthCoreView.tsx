@@ -45,6 +45,7 @@ import { DoctorDashboard } from './DoctorDashboard';
 import { HISQueueManagerView } from './HISQueueManagerView';
 import { HISOverviewView } from './HISOverviewView';
 import { ReferenceLabPortalView } from './ReferenceLabPortalView';
+import { NursePortalView } from './NursePortalView';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
@@ -54,7 +55,7 @@ import { HRManager } from '../HR/HRManager';
 import { BiometricAttendanceDashboard } from '../HR/BiometricAttendanceDashboard';
 import { PayrollRecord, LeaveRequest, Institution } from '../../types';
 
-type HISModule = 'overview' | 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor' | 'queuing' | 'reflab';
+type HISModule = 'overview' | 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor' | 'queuing' | 'reflab' | 'nurse';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -681,6 +682,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                         { id: 'overview' as HISModule, label: 'HIS Overview', icon: ChartBarIcon },
                                         { id: 'receptionist' as HISModule, label: 'Reception Desk', icon: UsersIcon },
                                         { id: 'doctor' as HISModule, label: 'Doctor Dashboard', icon: ActivityIcon },
+                                        { id: 'nurse' as HISModule, label: 'Nurse Care Portal', icon: UsersIcon },
                                         { id: 'queuing' as HISModule, label: 'Queuing & TV Screen', icon: BellIcon },
                                         { id: 'patients' as HISModule, label: 'Manage Patients', icon: UsersIcon },
                                         { id: 'general' as HISModule, label: 'Patient 360', icon: HeartIcon },
@@ -973,6 +975,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                     onRegisterPatient={() => setIsRegisterModalOpen(true)}
                                 />
                             );
+                            case 'nurse': return <NursePortalView institutionId={institutionId} userName={userName} />;
                             case 'billing': return <HISBillingView institutionId={institutionId} />;
                             case 'hr': return (
                                 <HRManager 
