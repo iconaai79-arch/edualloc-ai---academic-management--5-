@@ -11,6 +11,7 @@ import { CheckIcon } from '../icons/CheckIcon';
 import { XIcon } from '../icons/XIcon';
 import { StarIcon } from '../icons/StarIcon';
 import { BookOpenIcon } from '../icons/BookOpenIcon';
+import { getPreloadedTopics } from '../../utils/curriculumTopics';
 
 export interface RevisionMarketplacePack {
     id: string;
@@ -205,6 +206,17 @@ export const RevisionMarketplaceManager: React.FC<RevisionMarketplaceManagerProp
     const [genPrice, setGenPrice] = useState<number>(0);
     const [isGenerating, setIsGenerating] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+    // Preloaded Topics for selected Subject & Grade Level
+    const preloadedTopics = useMemo(() => {
+        return getPreloadedTopics(genSubject, genGradeLevel);
+    }, [genSubject, genGradeLevel]);
+
+    useEffect(() => {
+        if (preloadedTopics.length > 0 && !preloadedTopics.includes(genTopic)) {
+            setGenTopic(preloadedTopics[0]);
+        }
+    }, [genSubject, genGradeLevel, preloadedTopics]);
 
     // Filtered Packs
     const filteredPacks = useMemo(() => {
@@ -521,14 +533,43 @@ export const RevisionMarketplaceManager: React.FC<RevisionMarketplaceManagerProp
                         </div>
 
                         <div>
-                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">
-                                Topic or Learning Area Focus *
-                            </label>
+                            <div className="flex justify-between items-center mb-1.5 ml-1">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Topic or Learning Area Focus *
+                                </label>
+                                {preloadedTopics.length > 0 && (
+                                    <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                                        ✨ {preloadedTopics.length} Preloaded Syllabus Topics
+                                    </span>
+                                )}
+                            </div>
+
+                            {preloadedTopics.length > 0 && (
+                                <div className="mb-2">
+                                    <select
+                                        value={preloadedTopics.includes(genTopic) ? genTopic : 'custom'}
+                                        onChange={e => {
+                                            if (e.target.value !== 'custom') {
+                                                setGenTopic(e.target.value);
+                                            }
+                                        }}
+                                        className="form-select text-xs font-bold text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
+                                    >
+                                        {preloadedTopics.map((top, idx) => (
+                                            <option key={idx} value={top}>
+                                                📚 {top}
+                                            </option>
+                                        ))}
+                                        <option value="custom">✍️ -- Custom / Specific Subtopic Write-In --</option>
+                                    </select>
+                                </div>
+                            )}
+
                             <input
                                 type="text"
                                 value={genTopic}
                                 onChange={e => setGenTopic(e.target.value)}
-                                placeholder="e.g. Genetics & Inheritance, Trigonometry, Organic Chemistry, Plant Nutrition..."
+                                placeholder="e.g. Genetics & Inheritance, Trigonometry, Organic Chemistry..."
                                 className="form-input text-xs font-bold"
                                 required
                             />

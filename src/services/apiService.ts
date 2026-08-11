@@ -91,7 +91,8 @@ const PROTECTED_KEYS = new Set([
     'classExamConfigs', 'class_exam_configs',
     'classTeacherCommentsConfig', 'class_teacher_comments_config',
     'classRankingConfigs', 'class_ranking_configs',
-    'othersExamSettings', 'others_exam_settings'
+    'othersExamSettings', 'others_exam_settings',
+    'imConfig', 'im_config'
 ]);
 
 function toSnakeCase(obj: any): any {
@@ -2081,7 +2082,7 @@ export const apiService = {
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return apiService.fetchModuleRecords('institutions', institutionId); },
 
     async saveInstitution(inst: Institution): Promise<void> { 
-        const { countyId, moduleStates, coopConfig, coopSettings, treeGradingNodes, tree_grading_nodes, classExamConfigs, class_exam_configs, classTeacherCommentsConfig, class_teacher_comments_config, classRankingConfigs, class_ranking_configs, othersExamSettings, others_exam_settings, ...rest } = inst as any;
+        const { countyId, moduleStates, coopConfig, coopSettings, treeGradingNodes, tree_grading_nodes, classExamConfigs, class_exam_configs, classTeacherCommentsConfig, class_teacher_comments_config, classRankingConfigs, class_ranking_configs, othersExamSettings, others_exam_settings, imConfig, im_config, ...rest } = inst as any;
         const coop_settings = {
             ...(coopSettings || {}),
             ...(coopConfig || {})
@@ -2091,6 +2092,8 @@ export const apiService = {
         const finalCommentsConfig = classTeacherCommentsConfig || class_teacher_comments_config;
         const finalRankingConfigs = classRankingConfigs || class_ranking_configs;
         const finalOthersSettings = othersExamSettings || others_exam_settings;
+        // Merge imConfig (camelCase from frontend) and im_config (snake_case from DB read)
+        const finalImConfig = imConfig || im_config || undefined;
 
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
@@ -2105,6 +2108,7 @@ export const apiService = {
             classRankingConfigs: finalRankingConfigs,
             others_exam_settings: finalOthersSettings,
             othersExamSettings: finalOthersSettings,
+            im_config: finalImConfig,
             county_id: countyId
         }); 
     },

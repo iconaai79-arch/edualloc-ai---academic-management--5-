@@ -10,6 +10,7 @@ import { TrashIcon } from '../icons/TrashIcon';
 import { XIcon } from '../icons/XIcon';
 import { BookOpenIcon } from '../icons/BookOpenIcon';
 import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
+import { getPreloadedTopics } from '../../utils/curriculumTopics';
 
 export interface LessonPlanRecord {
     id: string;
@@ -131,6 +132,17 @@ export const TeacherLessonPlanManager: React.FC<TeacherLessonPlanManagerProps> =
     const [genSubtopic, setGenSubtopic] = useState('');
     const [genDuration, setGenDuration] = useState<number>(40);
     const [isGenerating, setIsGenerating] = useState(false);
+
+    // Preloaded Syllabus Topics
+    const preloadedTopics = useMemo(() => {
+        return getPreloadedTopics(genSubject, genClass);
+    }, [genSubject, genClass]);
+
+    useEffect(() => {
+        if (preloadedTopics.length > 0 && !preloadedTopics.includes(genTopic)) {
+            setGenTopic(preloadedTopics[0]);
+        }
+    }, [genSubject, genClass, preloadedTopics]);
 
     // Active Active Generated Plan
     const [currentPlan, setCurrentPlan] = useState<LessonPlanRecord | null>(null);
@@ -375,9 +387,38 @@ export const TeacherLessonPlanManager: React.FC<TeacherLessonPlanManagerProps> =
                             </div>
 
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                    Topic / Strand *
-                                </label>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        Topic / Strand *
+                                    </label>
+                                    {preloadedTopics.length > 0 && (
+                                        <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
+                                            ✨ {preloadedTopics.length} Preloaded Topics
+                                        </span>
+                                    )}
+                                </div>
+
+                                {preloadedTopics.length > 0 && (
+                                    <div className="mb-2">
+                                        <select
+                                            value={preloadedTopics.includes(genTopic) ? genTopic : 'custom'}
+                                            onChange={e => {
+                                                if (e.target.value !== 'custom') {
+                                                    setGenTopic(e.target.value);
+                                                }
+                                            }}
+                                            className="form-select text-xs font-bold text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800"
+                                        >
+                                            {preloadedTopics.map((top, idx) => (
+                                                <option key={idx} value={top}>
+                                                    📚 {top}
+                                                </option>
+                                            ))}
+                                            <option value="custom">✍️ -- Custom / Subtopic Write-In --</option>
+                                        </select>
+                                    </div>
+                                )}
+
                                 <input
                                     type="text"
                                     value={genTopic}
