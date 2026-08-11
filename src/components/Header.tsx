@@ -4,7 +4,7 @@ import { NotificationBell } from './NotificationBell';
 import { InstallAppButton } from './InstallAppButton';
 import { OfflineSyncWidget } from './common/OfflineSyncWidget';
 import { getInitials } from '../utils/stringUtils';
-import { formatRoleDisplayName, isEduInstitution } from '../utils/roleUtils';
+import { formatRoleDisplayName, isEduInstitution, isHISInstitution } from '../utils/roleUtils';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
 import { PencilIcon } from './icons/PencilIcon';
@@ -190,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({
                             </div>
                         )}
 
-                        {(currentInstitution?.institutionType === 'HIS') && (() => {
+                        {isHISInstitution(currentInstitution, activeRole) && (() => {
                             const isPropertyManagement = activeRole === 'property_admin' || 
                                                          activeRole === 'landlord' || 
                                                          activeRole === 'tenant' || 

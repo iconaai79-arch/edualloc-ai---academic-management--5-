@@ -19,6 +19,7 @@ import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { CarServiceView } from './carservice/CarServiceView';
 import { HealthCoreView } from './his/HealthCoreView';
 import { ModernPharmacyManager } from './his/ModernPharmacyManager';
+import { isEduInstitution, isHISInstitution } from '../utils/roleUtils';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 import { BookDemoModal } from './public/BookDemoModal';
@@ -679,6 +680,10 @@ export const App: React.FC = () => {
 
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
+
+    const isHIS = useMemo(() => {
+        return isHISInstitution(activeInstitution, activeRole);
+    }, [activeInstitution, activeRole]);
 
     const isAdminCatchAll = ['super_admin', 'group_admin', 'school_group_admin', 'school_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'teacher', 'practice_teacher', 'county_teacher', 'agrovet_admin', 'property_admin', 'his_admin', 'nurse', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception', 'mechanic_admin', 'finance_officer', 'procurement_officer', 'managing_director', 'hoi', 'operation_manager', 'operations_manager', 'principal', 'headmaster', 'headmistress', 'manager'].includes(activeRole || '');
 
@@ -5903,7 +5908,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                              currentInstitution={activeInstitution}
                                          />
                                     </div>
-                                ) : (isHealthSystemOpen || activeRole === 'his_admin' || activeRole === 'nurse' || (activeRole === 'admin' && activeInstitution?.institutionType === 'HIS')) ? (
+                                ) : (!isPharmacySystemOpen && (isHealthSystemOpen || isHIS || ['his_admin', 'nurse', 'doctor', 'his_doctor', 'receptionist', 'pharmacist'].includes(activeRole || ''))) ? (
                                     <ModuleAccessGuard
                                         moduleId="his"
                                         moduleName={isEduInstitution(activeInstitution) ? "EduPulse Wellness" : "HealthCore HIS"}

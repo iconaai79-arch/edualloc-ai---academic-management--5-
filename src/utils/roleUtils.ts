@@ -40,6 +40,25 @@ export const getAdminRoleForInstitution = (institution: Partial<Institution>): R
 };
 
 /**
+ * Checks whether an institution or user role belongs to a Health Information System (HIS / Hospital / Clinic / Medical Center).
+ */
+export const isHISInstitution = (institution: Partial<Institution> | null | undefined, role?: Role | string | null): boolean => {
+    const medicalRoles = ['his_admin', 'nurse', 'doctor', 'his_doctor', 'receptionist', 'pharmacist', 'lab_tech'];
+    if (role && medicalRoles.includes(role)) return true;
+
+    if (!institution) return false;
+    const type = (institution.institutionType || '').toLowerCase();
+    const cat = (institution.category || '').toLowerCase();
+    const subType = (institution.businessSubType || '').toLowerCase();
+    const name = (institution.name || '').toLowerCase();
+
+    return type === 'his' || type === 'hospital' || type === 'clinic' || type === 'healthcare' ||
+           cat.includes('hospital') || cat.includes('clinic') || cat.includes('healthcare') || cat.includes('medical') || cat.includes('wellness') || cat.includes('his') ||
+           subType.includes('hospital') || subType.includes('clinic') || subType.includes('his') ||
+           name.includes('hospital') || name.includes('clinic') || name.includes('medical center') || name.includes('dispensary') || name.includes('health center') || name.includes('health system');
+};
+
+/**
  * Returns the set of valid staff/personnel roles for a given institution.
  */
 export const getRolesForInstitution = (institution: Institution | null | undefined): Role[] => {
