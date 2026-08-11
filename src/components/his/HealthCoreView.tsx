@@ -41,6 +41,7 @@ import { PharmacyView } from './PharmacyView';
 import { EduPulseHomeDashboard } from './EduPulseHomeDashboard';
 import { EduPulsePatientsList } from './EduPulsePatientsList';
 import { ReceptionistView } from './ReceptionistView';
+import { DoctorDashboard } from './DoctorDashboard';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
@@ -50,7 +51,7 @@ import { HRManager } from '../HR/HRManager';
 import { BiometricAttendanceDashboard } from '../HR/BiometricAttendanceDashboard';
 import { PayrollRecord, LeaveRequest, Institution } from '../../types';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -604,6 +605,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                         { id: 'home', label: 'Home', icon: HeartIcon, module: 'general' as HISModule },
                                         { id: 'patients', label: 'Manage Patients', icon: UsersIcon, module: 'patients' as HISModule },
                                         { id: 'appointment', label: 'Appointment', icon: CalendarIcon, module: 'appointments' as HISModule },
+                                        { id: 'doctor', label: 'Doctor Dashboard', icon: ActivityIcon, module: 'doctor' as HISModule },
                                     ].map(item => {
                                         const isActive = eduSidebarItem === item.id;
                                         return (
@@ -636,7 +638,6 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <p className="hidden lg:block text-[8px] font-black text-indigo-300/50 uppercase tracking-widest px-3 mb-2">More Tools</p>
                                 <div className="space-y-1">
                                     {[
-                                        { id: 'billing' as HISModule, label: 'Finance & Invoicing', icon: CreditCardIcon },
                                         { id: 'pharmacy' as HISModule, label: 'Pharmacy', icon: BeakerIcon },
                                         { id: 'hr' as HISModule, label: 'HR & Payroll', icon: UsersIcon },
                                         { id: 'biometrics' as HISModule, label: 'Biometrics Fleet', icon: ClockIcon },
@@ -675,12 +676,14 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <div className="space-y-1">
                                     {[
                                         { id: 'receptionist' as HISModule, label: 'Reception Desk', icon: UsersIcon },
+                                        { id: 'doctor' as HISModule, label: 'Doctor Dashboard', icon: ActivityIcon },
                                         { id: 'patients' as HISModule, label: 'Manage Patients', icon: UsersIcon },
                                         { id: 'general' as HISModule, label: 'Patient 360', icon: HeartIcon },
                                         { id: 'inpatient' as HISModule, label: 'Admissions', icon: BuildingOfficeIcon },
                                         { id: 'appointments' as HISModule, label: 'Scheduling', icon: CalendarIcon },
                                         { id: 'diagnostics' as HISModule, label: 'Diagnostics & Lab', icon: BeakerIcon },
                                         { id: 'pharmacy' as HISModule, label: 'Pharmacy & Store', icon: BeakerIcon },
+                                        { id: 'billing' as HISModule, label: 'Finance & Invoicing', icon: CreditCardIcon },
                                     ].map(item => {
                                         const isActive = activeModule === item.id;
                                         return (
@@ -742,7 +745,6 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <p className="hidden lg:block text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] px-3 mb-2 italic">Finance &amp; Operations</p>
                                 <div className="space-y-1">
                                     {[
-                                        { id: 'billing' as HISModule, label: 'Finance & Invoicing', icon: CreditCardIcon },
                                         { id: 'hr' as HISModule, label: 'HR & Payroll', icon: UsersIcon },
                                         { id: 'biometrics' as HISModule, label: 'Biometrics Fleet', icon: ClockIcon },
                                         { id: 'attendance' as HISModule, label: 'Staff Presence', icon: ClockIcon },
@@ -932,6 +934,17 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                     <h3 className="text-xl font-black uppercase tracking-widest text-slate-400">ENT Hub (Ear, Nose & Throat)</h3>
                                     <p className="text-xs font-black uppercase tracking-[0.4em] text-slate-500 mt-2">Specialized ENT clinical workflows are being synchronized.<br/>Please use Patient 360 for general ENT consultations.</p>
                                 </div>
+                            );
+                            case 'doctor': return (
+                                <DoctorDashboard
+                                    patients={patients}
+                                    userName={userName}
+                                    institutionId={institutionId}
+                                    onAddVisit={() => setIsAddVisitOpen(true)}
+                                    onAddPrescription={() => setIsPrescriptionModalOpen(true)}
+                                    onOpenPatient={(pId) => { setActivePatientId(pId); setActiveModule('general'); isEdu && setEduSidebarItem('patients'); }}
+                                    onRegisterPatient={() => setIsRegisterModalOpen(true)}
+                                />
                             );
                             case 'billing': return <HISBillingView institutionId={institutionId} />;
                             case 'hr': return (
