@@ -415,19 +415,73 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
                                     </div>
                                 </div>
 
-                                <div className="space-y-2 md:col-span-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Insurance Provider Unit</label>
-                                    <div className="relative group">
-                                        <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                        <input
-                                            type="text"
-                                            placeholder="E.G. APA, NHIF, SHA..."
-                                            className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
-                                            value={formData.insuranceProvider}
-                                            onChange={e => setFormData({ ...formData, insuranceProvider: e.target.value })}
-                                        />
+                                <div className="space-y-3 md:col-span-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Intake Payment Method *</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, insuranceProvider: '' })}
+                                            className={`p-4 rounded-2xl border-2 flex items-center justify-center gap-3 transition-all text-[10px] font-black uppercase tracking-wider ${
+                                                !formData.insuranceProvider
+                                                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-md'
+                                                    : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-500 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            💵 Cash / Mobile Money (Direct)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, insuranceProvider: 'SHA (Social Health Authority)' })}
+                                            className={`p-4 rounded-2xl border-2 flex items-center justify-center gap-3 transition-all text-[10px] font-black uppercase tracking-wider ${
+                                                !!formData.insuranceProvider
+                                                    ? 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400 shadow-md'
+                                                    : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-500 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            🛡️ Insurance Cover / SHA Scheme
+                                        </button>
                                     </div>
                                 </div>
+
+                                {!!formData.insuranceProvider && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Insurance Partner / Cover Scheme</label>
+                                            <div className="relative group">
+                                                <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                                <select
+                                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white appearance-none"
+                                                    value={formData.insuranceProvider}
+                                                    onChange={e => setFormData({ ...formData, insuranceProvider: e.target.value })}
+                                                >
+                                                    <option value="SHA (Social Health Authority)">SHA (Social Health Authority)</option>
+                                                    <option value="Jubilee Insurance">Jubilee Insurance</option>
+                                                    <option value="UAP Old Mutual">UAP Old Mutual</option>
+                                                    <option value="AAR Insurance">AAR Insurance</option>
+                                                    <option value="APA Insurance">APA Insurance</option>
+                                                    <option value="Britam Health">Britam Health</option>
+                                                    <option value="CIC Africa Group">CIC Africa Group</option>
+                                                    <option value="School Coverage">School Coverage / EduPulse</option>
+                                                    <option value="Other Commercial Cover">Other Commercial Cover</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Policy / SHA Member ID</label>
+                                            <div className="relative group">
+                                                <ShieldCheckIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="SHA-XXXXXX OR POLICY NO..."
+                                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                    value={formData.shaNumber}
+                                                    onChange={e => setFormData({ ...formData, shaNumber: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}

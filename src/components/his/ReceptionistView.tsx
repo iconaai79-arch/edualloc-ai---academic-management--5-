@@ -354,7 +354,16 @@ export const ReceptionistView: React.FC<ReceptionistViewProps> = ({ institutionI
 
                                         {/* Info */}
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-black uppercase tracking-tight truncate">{app.patientName || app.patientId}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs font-black uppercase tracking-tight truncate">{app.patientName || app.patientId}</p>
+                                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                                    (app as any).paymentMethod === 'Cover' || (app as any).insuranceProvider
+                                                        ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
+                                                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                                                }`}>
+                                                    {(app as any).paymentMethod === 'Cover' || (app as any).insuranceProvider ? `🛡️ ${(app as any).insuranceProvider || 'Cover'}` : '💵 Cash'}
+                                                </span>
+                                            </div>
                                             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider truncate">{app.type} &bull; {app.doctorName || 'Unassigned'}</p>
                                             {app.reason && <p className="text-[8px] text-slate-400 italic truncate mt-0.5">{app.reason}</p>}
                                         </div>
@@ -456,7 +465,16 @@ export const ReceptionistView: React.FC<ReceptionistViewProps> = ({ institutionI
                                         #{idx + 1}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-[11px] font-black uppercase tracking-tight truncate">{app.patientName}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-[11px] font-black uppercase tracking-tight truncate">{app.patientName}</p>
+                                            <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                (app as any).paymentMethod === 'Cover' || (app as any).insuranceProvider
+                                                    ? 'bg-indigo-500/30 text-indigo-200 border border-indigo-400/30'
+                                                    : 'bg-emerald-500/30 text-emerald-200 border border-emerald-400/30'
+                                            }`}>
+                                                {(app as any).paymentMethod === 'Cover' || (app as any).insuranceProvider ? `🛡️ ${(app as any).insuranceProvider || 'Cover'}` : '💵 Cash'}
+                                            </span>
+                                        </div>
                                         <p className="text-[9px] text-indigo-200 font-bold truncate">{app.time} &bull; {app.doctorName || 'General'}</p>
                                     </div>
                                     <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest flex-shrink-0 ${app.status === 'In-Progress' ? 'bg-amber-400/30 text-amber-300' : 'bg-emerald-400/20 text-emerald-300'}`}>

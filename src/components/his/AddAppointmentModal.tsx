@@ -48,6 +48,9 @@ export const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
         type: isEdu ? 'Health Check' : 'Initial Consultation',
         reason: '',
         status: 'Scheduled',
+        paymentMethod: 'Cash',
+        insuranceProvider: '',
+        insurancePolicyNumber: '',
     });
 
     const [studentSearch, setStudentSearch] = useState('');
@@ -316,6 +319,71 @@ export const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
                             />
                         </div>
                     </div>
+
+                    {/* ── Payment Method (Cash vs Cover) ── */}
+                    {!isEdu && (
+                        <div className="space-y-3 p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                                Payment Method for Visit
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(p => ({ ...p, paymentMethod: 'Cash', insuranceProvider: '' }))}
+                                    className={`py-3 px-4 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        formData.paymentMethod === 'Cash'
+                                            ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                                            : 'bg-white dark:bg-slate-900 border-transparent text-slate-400'
+                                    }`}
+                                >
+                                    💵 Cash / Cash Rate
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(p => ({ ...p, paymentMethod: 'Cover', insuranceProvider: p.insuranceProvider || 'SHA (Social Health Authority)' }))}
+                                    className={`py-3 px-4 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        formData.paymentMethod === 'Cover'
+                                            ? 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                            : 'bg-white dark:bg-slate-900 border-transparent text-slate-400'
+                                    }`}
+                                >
+                                    🛡️ Cover / Insurance Rate
+                                </button>
+                            </div>
+
+                            {formData.paymentMethod === 'Cover' && (
+                                <div className="grid grid-cols-2 gap-3 pt-2">
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Insurance Provider</label>
+                                        <select
+                                            value={formData.insuranceProvider}
+                                            onChange={e => setFormData(p => ({ ...p, insuranceProvider: e.target.value }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider outline-none dark:text-white"
+                                        >
+                                            <option value="SHA (Social Health Authority)">SHA (Social Health Authority)</option>
+                                            <option value="Jubilee Insurance">Jubilee Insurance</option>
+                                            <option value="UAP Old Mutual">UAP Old Mutual</option>
+                                            <option value="AAR Insurance">AAR Insurance</option>
+                                            <option value="APA Insurance">APA Insurance</option>
+                                            <option value="Britam Health">Britam Health</option>
+                                            <option value="CIC Africa Group">CIC Africa Group</option>
+                                            <option value="Other Commercial Cover">Other Commercial Cover</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Policy / Card ID</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. SHA-94820"
+                                            value={formData.insurancePolicyNumber}
+                                            onChange={e => setFormData(p => ({ ...p, insurancePolicyNumber: e.target.value }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider outline-none dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* ── Visit Type ── */}
                     <div className="space-y-3">
