@@ -104,3 +104,11 @@ export function ShieldCheckIcon(props: any) {
         </svg>
     );
 }
+
+export function BuildingOfficeIcon(props: any) {
+    return (
+        <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m-.75 3h.75m3-12h.75m-.75 3h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3a1.5 1.5 0 011.5-1.5h1.5a1.5 1.5 0 011.5 1.5v3m0 0h3" />
+        </svg>
+    );
+}

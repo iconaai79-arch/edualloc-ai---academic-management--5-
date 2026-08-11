@@ -98,7 +98,7 @@ const MOCK_PATIENT_INVOICES: PatientInvoice[] = [
 ];
 
 export function HISBillingView({ institutionId }: { institutionId?: string }) {
-    const [activeTab, setActiveTab] = useState<'invoices' | 'insurance' | 'analytics'>('invoices');
+    const [activeTab, setActiveTab] = useState<'invoices' | 'revenue' | 'statements' | 'claims'>('invoices');
     const [billingItems, setBillingItems] = useState<any[]>([]);
     const [invoices, setInvoices] = useState<PatientInvoice[]>(MOCK_PATIENT_INVOICES);
     const [patients, setPatients] = useState<any[]>([]);
@@ -106,6 +106,14 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+
+    // Revenue Period Generator state
+    const [revenuePeriod, setRevenuePeriod] = useState<'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'>('month');
+    const [customStartDate, setCustomStartDate] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
+    const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().slice(0, 10));
+
+    // Insurance Statement Filter state
+    const [selectedProviderFilter, setSelectedProviderFilter] = useState('all');
     
     // Modal states
     const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
@@ -378,30 +386,65 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                         Comprehensive Patient Checkout, Direct Billing &amp; Insurance Company Claims Console
                     </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <button 
-                        onClick={() => setActiveTab('invoices')}
-                        className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                            activeTab === 'invoices' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 text-slate-400 hover:bg-white/10'
-                        }`}
-                    >
-                        Patient Invoices
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('insurance')}
-                        className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                            activeTab === 'insurance' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 text-slate-400 hover:bg-white/10'
-                        }`}
-                    >
-                        Insurance &amp; SHA Claims
-                    </button>
+                <div className="flex items-center gap-3">
                     <button 
                         onClick={() => setIsGenerateModalOpen(true)}
-                        className="bg-emerald-500 text-slate-950 px-6 py-2.5 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-emerald-500/20"
+                        className="bg-emerald-500 text-slate-950 px-6 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-emerald-500/20 italic"
                     >
-                        <PlusIcon className="w-4 h-4" /> Generate Invoice
+                        <PlusIcon className="w-4 h-4 text-slate-950" /> Generate Invoice
                     </button>
                 </div>
+            </div>
+
+            {/* ── RICH HORIZONTAL FINANCE SUB-MENU ── */}
+            <div className="flex items-center gap-2 p-2 bg-slate-900/60 border border-white/10 rounded-[2.5rem] overflow-x-auto no-scrollbar shadow-2xl">
+                <button 
+                    onClick={() => setActiveTab('invoices')}
+                    className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                        activeTab === 'invoices' 
+                            ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/50' 
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <CreditCardIcon className="w-4 h-4" />
+                    <span>Patient Invoices &amp; Checkout Queue</span>
+                </button>
+
+                <button 
+                    onClick={() => setActiveTab('revenue')}
+                    className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                        activeTab === 'revenue' 
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-900/50' 
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <ChartBarIcon className="w-4 h-4" />
+                    <span>Period Revenue Generator</span>
+                </button>
+
+                <button 
+                    onClick={() => setActiveTab('statements')}
+                    className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                        activeTab === 'statements' 
+                            ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-lg shadow-rose-900/50' 
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <FileTextIcon className="w-4 h-4" />
+                    <span>Insurance Statements &amp; Balances</span>
+                </button>
+
+                <button 
+                    onClick={() => setActiveTab('claims')}
+                    className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                        activeTab === 'claims' 
+                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-900/50' 
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <ShieldIcon className="w-4 h-4" />
+                    <span>Insurance Claims Management</span>
+                </button>
             </div>
 
             {/* Financial Overview Metrics */}
@@ -645,9 +688,227 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                 </div>
             )}
 
-            {/* TAB CONTENT 2: INSURANCE & SHA CLAIMS */}
-            {activeTab === 'insurance' && (
-                <div className="space-y-6">
+            {/* TAB CONTENT 2: PERIOD REVENUE GENERATOR */}
+            {activeTab === 'revenue' && (
+                <div className="space-y-6 animate-fade-in">
+                    {/* Period Controls Header */}
+                    <div className="p-6 bg-slate-900 border border-white/10 rounded-[2.5rem] flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                        <div>
+                            <h3 className="text-xl font-black uppercase tracking-tight text-white italic">
+                                Financial <span className="text-emerald-400">Revenue Performance Generator</span>
+                            </h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                Filter hospital earnings by period, date range &amp; service department
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/10">
+                                {(['today', 'week', 'month', 'year', 'custom'] as const).map((p) => (
+                                    <button
+                                        key={p}
+                                        onClick={() => setRevenuePeriod(p)}
+                                        className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                            revenuePeriod === p ? 'bg-emerald-500 text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        {p}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {revenuePeriod === 'custom' && (
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="date" 
+                                        value={customStartDate} 
+                                        onChange={(e) => setCustomStartDate(e.target.value)} 
+                                        className="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none" 
+                                    />
+                                    <span className="text-slate-500 text-xs font-black">TO</span>
+                                    <input 
+                                        type="date" 
+                                        value={customEndDate} 
+                                        onChange={(e) => setCustomEndDate(e.target.value)} 
+                                        className="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none" 
+                                    />
+                                </div>
+                            )}
+
+                            <button
+                                onClick={async () => {
+                                    const categoryBreakdown = [
+                                        { category: 'General Practitioner Consultation', amount: invoices.reduce((s, i) => s + (i.items.filter(it => it.category === 'Consultation').reduce((sum, item) => sum + item.total, 0)), 0) + 18500 },
+                                        { category: 'Pharmacy & Prescriptions', amount: invoices.reduce((s, i) => s + (i.items.filter(it => it.category === 'Pharmacy').reduce((sum, item) => sum + item.total, 0)), 0) + 34200 },
+                                        { category: 'Laboratory & Diagnostics', amount: invoices.reduce((s, i) => s + (i.items.filter(it => it.category === 'Diagnostics').reduce((sum, item) => sum + item.total, 0)), 0) + 29400 },
+                                        { category: 'Dental & Eye Clinic', amount: invoices.reduce((s, i) => s + (i.items.filter(it => it.category === 'Dental' || it.category === 'Eye').reduce((sum, item) => sum + item.total, 0)), 0) + 14500 },
+                                        { category: 'Inpatient Ward Admission', amount: invoices.reduce((s, i) => s + (i.items.filter(it => it.category === 'Inpatient').reduce((sum, item) => sum + item.total, 0)), 0) + 42000 }
+                                    ];
+                                    const pdfUri = await generateHisPeriodRevenuePdf({
+                                        periodLabel: revenuePeriod,
+                                        totalRevenue,
+                                        totalCollected,
+                                        totalPendingInsurance,
+                                        categoryBreakdown
+                                    });
+                                    setPdfPreviewUri(pdfUri);
+                                    setPdfPreviewTitle(`Period Revenue Performance Report (${revenuePeriod.toUpperCase()})`);
+                                    setIsPdfModalOpen(true);
+                                }}
+                                className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 italic"
+                            >
+                                <FileTextIcon className="w-4 h-4 text-slate-950" />
+                                <span>Export Revenue PDF</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Department Revenue Breakdown */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 space-y-6">
+                            <h4 className="text-sm font-black text-white uppercase tracking-widest italic">Revenue by Clinical Department</h4>
+                            <div className="space-y-4">
+                                {[
+                                    { category: 'General Consultations', amount: 18500, color: 'bg-indigo-500', pct: 22 },
+                                    { category: 'Pharmacy & Medication', amount: 34200, color: 'bg-emerald-500', pct: 40 },
+                                    { category: 'Laboratory & Diagnostics', amount: 29400, color: 'bg-blue-500', pct: 35 },
+                                    { category: 'Dental & Ophthalmology', amount: 14500, color: 'bg-purple-500', pct: 18 },
+                                    { category: 'Inpatient Ward Admission', amount: 42000, color: 'bg-rose-500', pct: 50 },
+                                ].map((cat, i) => (
+                                    <div key={i} className="space-y-2">
+                                        <div className="flex justify-between items-center text-xs font-bold text-white uppercase">
+                                            <span>{cat.category}</span>
+                                            <span className="font-mono text-emerald-400">KES {cat.amount.toLocaleString()}</span>
+                                        </div>
+                                        <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                            <div className={`h-full ${cat.color} rounded-full transition-all duration-1000`} style={{ width: `${cat.pct}%` }} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 space-y-6">
+                            <h4 className="text-sm font-black text-white uppercase tracking-widest italic">Payment Method Distribution</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-5 rounded-2xl bg-black/40 border border-emerald-500/20 text-center">
+                                    <MpesaIcon className="w-8 h-8 mx-auto text-emerald-400 mb-2" />
+                                    <p className="text-2xl font-black text-white">KES {(totalCollected * 0.75).toLocaleString()}</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">M-Pesa Express (75%)</p>
+                                </div>
+                                <div className="p-5 rounded-2xl bg-black/40 border border-indigo-500/20 text-center">
+                                    <CreditCardIcon className="w-8 h-8 mx-auto text-indigo-400 mb-2" />
+                                    <p className="text-2xl font-black text-white">KES {(totalCollected * 0.25).toLocaleString()}</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Cash / Card / POS (25%)</p>
+                                </div>
+                                <div className="p-5 rounded-2xl bg-black/40 border border-rose-500/20 text-center col-span-2">
+                                    <ShieldIcon className="w-8 h-8 mx-auto text-rose-400 mb-2" />
+                                    <p className="text-2xl font-black text-rose-400">KES {totalPendingInsurance.toLocaleString()}</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Pending Insurance Claims (SHA/Private Insurers)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB CONTENT 3: INSURANCE STATEMENTS & OUTSTANDING BALANCES */}
+            {activeTab === 'statements' && (
+                <div className="space-y-6 animate-fade-in">
+                    {/* Header Controls */}
+                    <div className="p-6 bg-slate-900 border border-white/10 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h3 className="text-xl font-black uppercase tracking-tight text-white italic">
+                                Insurance Provider <span className="text-rose-400">Statements &amp; Outstanding Balances</span>
+                            </h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                Real-time audit of insurance cover claimed, co-pay settlements &amp; insurer balance due
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <select
+                                value={selectedProviderFilter}
+                                onChange={(e) => setSelectedProviderFilter(e.target.value)}
+                                className="bg-black/50 border border-rose-500/40 rounded-2xl px-5 py-3 text-xs font-bold text-white outline-none uppercase"
+                            >
+                                <option value="all">All Insurance Providers</option>
+                                {insuranceProviders.map((p, i) => (
+                                    <option key={i} value={p.name}>{p.name}</option>
+                                ))}
+                            </select>
+
+                            <button
+                                onClick={async () => {
+                                    const providerData = [
+                                        { name: 'SHA (Social Health Authority)', count: 14, billed: 128000, outstanding: 128000 },
+                                        { name: 'Jubilee Insurance', count: 8, billed: 64500, outstanding: 45000 },
+                                        { name: 'AAR Insurance', count: 5, billed: 38000, outstanding: 38000 },
+                                        { name: 'APA Insurance', count: 4, billed: 29000, outstanding: 29000 },
+                                        { name: 'UAP Old Mutual', count: 6, billed: 42000, outstanding: 22000 }
+                                    ];
+                                    const pdfUri = await generateHisInsuranceStatementPdf({
+                                        providerName: selectedProviderFilter,
+                                        providers: providerData
+                                    });
+                                    setPdfPreviewUri(pdfUri);
+                                    setPdfPreviewTitle(`Insurance Statement & Outstanding Balances Report (${selectedProviderFilter.toUpperCase()})`);
+                                    setIsPdfModalOpen(true);
+                                }}
+                                className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-950/50 flex items-center gap-2 italic"
+                            >
+                                <FileTextIcon className="w-4 h-4" />
+                                <span>Export Statement PDF</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Per-Provider Balance Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {[
+                            { name: 'SHA (Social Health Authority)', code: 'SHA-NAT-01', invoices: 14, totalBilled: 128000, copay: 7000, outstanding: 121000, status: 'Overdue Batch' },
+                            { name: 'Jubilee Insurance', code: 'JUB-MED-01', invoices: 8, totalBilled: 64500, copay: 4000, outstanding: 60500, status: 'Pending Payout' },
+                            { name: 'AAR Insurance', code: 'AAR-MED-03', invoices: 5, totalBilled: 38000, copay: 2500, outstanding: 35500, status: 'Pending Payout' },
+                        ].map((prov, i) => (
+                            <div key={i} className="bg-slate-900 border border-rose-500/30 rounded-[2.5rem] p-6 space-y-4 shadow-xl">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="text-sm font-black text-white uppercase tracking-tight">{prov.name}</p>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">Code: {prov.code}</p>
+                                    </div>
+                                    <span className="px-3 py-1 bg-rose-500/20 text-rose-300 rounded-full text-[9px] font-black uppercase tracking-widest border border-rose-500/30">
+                                        {prov.status}
+                                    </span>
+                                </div>
+
+                                <div className="p-4 bg-black/40 rounded-2xl border border-white/5 space-y-2">
+                                    <div className="flex justify-between text-xs font-bold text-slate-400 uppercase">
+                                        <span>Total Claims Invoices:</span>
+                                        <span className="text-white">{prov.invoices} Invoices</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs font-bold text-slate-400 uppercase">
+                                        <span>Total Billed Cover:</span>
+                                        <span className="text-white">KES {prov.totalBilled.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs font-bold text-slate-400 uppercase">
+                                        <span>Co-Pay Collected:</span>
+                                        <span className="text-emerald-400">KES {prov.copay.toLocaleString()}</span>
+                                    </div>
+                                </div>
+
+                                <div className="pt-2 border-t border-white/10 flex justify-between items-center">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">OUTSTANDING BALANCE DUE:</span>
+                                    <span className="text-xl font-mono font-black text-rose-400">KES {prov.outstanding.toLocaleString()}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* TAB CONTENT 4: INSURANCE CLAIMS MANAGEMENT */}
+            {activeTab === 'claims' && (
+                <div className="space-y-6 animate-fade-in">
                     <ClaimsManager institutionId={institutionId} />
                 </div>
             )}

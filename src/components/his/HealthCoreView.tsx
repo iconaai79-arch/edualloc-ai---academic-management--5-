@@ -43,6 +43,7 @@ import { EduPulsePatientsList } from './EduPulsePatientsList';
 import { ReceptionistView } from './ReceptionistView';
 import { DoctorDashboard } from './DoctorDashboard';
 import { HISQueueManagerView } from './HISQueueManagerView';
+import { HISOverviewView } from './HISOverviewView';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
@@ -52,7 +53,7 @@ import { HRManager } from '../HR/HRManager';
 import { BiometricAttendanceDashboard } from '../HR/BiometricAttendanceDashboard';
 import { PayrollRecord, LeaveRequest, Institution } from '../../types';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor' | 'queuing';
+type HISModule = 'overview' | 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor' | 'queuing';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -676,6 +677,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <p className="hidden lg:block text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] px-3 mb-2 italic">Clinical &amp; Care</p>
                                 <div className="space-y-1">
                                     {[
+                                        { id: 'overview' as HISModule, label: 'HIS Overview', icon: ChartBarIcon },
                                         { id: 'receptionist' as HISModule, label: 'Reception Desk', icon: UsersIcon },
                                         { id: 'doctor' as HISModule, label: 'Doctor Dashboard', icon: ActivityIcon },
                                         { id: 'queuing' as HISModule, label: 'Queuing & TV Screen', icon: BellIcon },
@@ -890,6 +892,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 blur-[120px] rounded-full -mr-64 -mt-64"></div>
                     {(() => {
                         switch (activeModule) {
+                            case 'overview': return <HISOverviewView institutionId={institutionId} userName={userName} activeRole={activeRole?.name} patients={patients} />;
                             case 'general': 
                                 if (isEdu && eduSidebarItem === 'home' && !activePatient) {
                                     return (

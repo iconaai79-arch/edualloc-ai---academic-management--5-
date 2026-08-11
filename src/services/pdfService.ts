@@ -10826,3 +10826,111 @@ export const generateExternalPrescriptionEposThermalPdf = async (
     return doc.output('datauristring');
 };
 
+export const generateHisPeriodRevenuePdf = async (data: any): Promise<string> => {
+    const jsPdfObj = getJsPdf();
+    if (!jsPdfObj) throw new Error("jsPDF library not initialized");
+    const { jsPDF } = jsPdfObj;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageWidth, 36, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.text("QUANTUM HEALTHCARE MEDICAL CENTRE", 14, 16);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`FINANCIAL REVENUE PERFORMANCE REPORT • PERIOD: ${data.periodLabel?.toUpperCase() || 'CUSTOM'}`, 14, 24);
+
+    doc.setTextColor(15, 23, 42);
+    let yPos = 46;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`REPORT GENERATED: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 14, yPos);
+    yPos += 8;
+
+    // Metrics Box
+    doc.setFillColor(248, 250, 252);
+    doc.rect(14, yPos, pageWidth - 28, 24, 'F');
+    doc.setFontSize(9);
+    doc.text(`Total Invoiced Revenue: KES ${Number(data.totalRevenue || 0).toLocaleString()}`, 18, yPos + 7);
+    doc.text(`Total Collected (M-Pesa/Cash): KES ${Number(data.totalCollected || 0).toLocaleString()}`, 18, yPos + 14);
+    doc.text(`Outstanding Insurance Claims: KES ${Number(data.totalPendingInsurance || 0).toLocaleString()}`, 18, yPos + 21);
+    yPos += 30;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text("DEPARTMENT REVENUE BREAKDOWN", 14, yPos);
+    yPos += 6;
+
+    doc.setFillColor(241, 245, 249);
+    doc.rect(14, yPos, pageWidth - 28, 8, 'F');
+    doc.setFontSize(9);
+    doc.text("Department / Service Category", 18, yPos + 5.5);
+    doc.text("Amount (KES)", pageWidth - 18, yPos + 5.5, { align: 'right' });
+    yPos += 12;
+
+    doc.setFont('helvetica', 'normal');
+    (data.categoryBreakdown || []).forEach((cat: any) => {
+        doc.text(cat.category || 'Service', 18, yPos);
+        doc.text(`KES ${Number(cat.amount || 0).toLocaleString()}`, pageWidth - 18, yPos, { align: 'right' });
+        yPos += 7;
+    });
+
+    return doc.output('datauristring');
+};
+
+export const generateHisInsuranceStatementPdf = async (data: any): Promise<string> => {
+    const jsPdfObj = getJsPdf();
+    if (!jsPdfObj) throw new Error("jsPDF library not initialized");
+    const { jsPDF } = jsPdfObj;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageWidth, 36, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.text("QUANTUM HEALTHCARE MEDICAL CENTRE", 14, 16);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`INSURANCE PROVIDER STATEMENT & OUTSTANDING BALANCES`, 14, 24);
+
+    doc.setTextColor(15, 23, 42);
+    let yPos = 46;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`STATEMENT FOR PROVIDER: ${data.providerName?.toUpperCase() || 'ALL INSURANCE PROVIDERS'}`, 14, yPos);
+    yPos += 8;
+
+    doc.setFillColor(241, 245, 249);
+    doc.rect(14, yPos, pageWidth - 28, 8, 'F');
+    doc.setFontSize(9);
+    doc.text("Insurance Provider", 18, yPos + 5.5);
+    doc.text("Invoices", 95, yPos + 5.5);
+    doc.text("Total Cover Billed", 130, yPos + 5.5);
+    doc.text("Outstanding Balance", pageWidth - 18, yPos + 5.5, { align: 'right' });
+    yPos += 12;
+
+    doc.setFont('helvetica', 'normal');
+    (data.providers || []).forEach((p: any) => {
+        doc.text(p.name || 'Provider', 18, yPos);
+        doc.text(String(p.count || 0), 95, yPos);
+        doc.text(`KES ${Number(p.billed || 0).toLocaleString()}`, 130, yPos);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`KES ${Number(p.outstanding || 0).toLocaleString()}`, pageWidth - 18, yPos, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        yPos += 7;
+    });
+
+    return doc.output('datauristring');
+};
+
