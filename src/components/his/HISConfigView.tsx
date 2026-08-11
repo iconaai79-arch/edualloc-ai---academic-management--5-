@@ -314,6 +314,8 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ institutionId, users =
         } catch (err: any) {
             alert('Failed to register practitioner: ' + (err.message || err));
         }
+    };
+
     const handleSaveConsultationRates = async () => {
         if (!institutionId) return;
         setIsSavingTariffs(true);
