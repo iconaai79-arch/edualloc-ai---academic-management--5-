@@ -19,7 +19,6 @@ import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { CarServiceView } from './carservice/CarServiceView';
 import { HealthCoreView } from './his/HealthCoreView';
 import { ModernPharmacyManager } from './his/ModernPharmacyManager';
-import { isEduInstitution, isHISInstitution } from '../utils/roleUtils';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 import { BookDemoModal } from './public/BookDemoModal';
@@ -108,7 +107,7 @@ const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSMa
 
 import { apiService, initSupabaseClient, setSessionUser } from '../services/apiService';
 import { BuildingSecurityManager } from './BuildingSecurityManager';
-import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution } from '../utils/roleUtils';
+import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
