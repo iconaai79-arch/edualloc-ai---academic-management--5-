@@ -59,6 +59,108 @@ interface HealthCoreProps {
     users?: User[];
 }
 
+function GeneralMedicineView({ activePatient, vitals, events, onOpenVitals, onOpenRegister, onAddVisit, onAddPrescription, onOpenTransferLetter }: { activePatient?: HISPatient | null, vitals?: any[], events?: any[], onOpenVitals: () => void, onOpenRegister: () => void, onAddVisit: () => void, onAddPrescription: () => void, onOpenTransferLetter: () => void }) {
+    return (
+        <div className="animate-fade-in-up">
+            <div className="flex justify-between items-end mb-10">
+                <div>
+                    <h2 className="text-4xl font-black uppercase tracking-tighter">{activePatient ? (<>Patient <span className="text-indigo-400">Portfolio</span></>) : (<>Registry <span className="text-indigo-400">Overview</span></>)}</h2>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">{activePatient ? `Displaying clinical file for ${activePatient.fullName}` : 'Unified 360-degree clinical profile registry'}</p>
+                </div>
+                <button onClick={onOpenRegister} className="bg-indigo-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20"><PlusIcon className="w-4 h-4" /> Register Patient</button>
+            </div>
+
+            {activePatient ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-slate-900 dark:text-white">
+                    <div className="md:col-span-2 space-y-8">
+                        <div className="glass-morphism p-10 rounded-[3rem] border border-slate-200 dark:border-white/5 relative overflow-hidden bg-slate-50 dark:bg-white/5">
+                            <div className="flex flex-col md:flex-row gap-8 items-start">
+                                <div className="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center text-3xl font-black text-white shadow-2xl">{activePatient.fullName[0].toUpperCase()}</div>
+                                <div className="flex-1 space-y-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                        <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Full Identity</p><p className="text-lg font-black uppercase tracking-tighter text-slate-900 dark:text-white">{activePatient.fullName}</p></div>
+                                        <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Registry DOB</p><p className="text-sm font-black text-slate-700 dark:text-slate-300">{activePatient.dob || 'NOT SET'}</p></div>
+                                        <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Gender Node</p><p className="text-sm font-black uppercase text-slate-700 dark:text-slate-300">{activePatient.gender}</p></div>
+                                        <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Blood Registry</p><p className="text-sm font-black uppercase text-rose-500">{activePatient.bloodGroup || 'UNK'}</p></div>
+                                    </div>
+                                    <div className="h-px w-full bg-slate-200 dark:bg-white/5 my-4"></div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Contact Line</p><p className="text-xs font-black tracking-widest text-slate-700 dark:text-slate-300">{activePatient.contact || 'N/A'}</p></div>
+                                        <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">S.H.A Number</p><p className="text-xs font-black tracking-widest text-indigo-500 dark:text-indigo-400">{activePatient.shaNumber || 'NOT UPDATED'}</p></div>
+                                        <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Insurance Unit</p><p className="text-xs font-black tracking-widest uppercase text-slate-700 dark:text-slate-300">{activePatient.insuranceProvider || 'PRIVATE PAY'}</p></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="glass-morphism p-10 rounded-[3rem] border border-slate-200 dark:border-white/5 min-h-[500px] relative overflow-hidden bg-slate-50 dark:bg-white/5">
+                            <div className="flex justify-between items-center mb-8">
+                                <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] italic">Clinical Timeline</p>
+                                <div className="flex gap-4">
+                                    <button 
+                                        onClick={onOpenTransferLetter}
+                                        className="bg-rose-500/10 text-rose-500 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2"
+                                    >
+                                        <PlusIcon className="w-3 h-3" /> Emergency Transfer
+                                    </button>
+                                    <button 
+                                        onClick={onAddPrescription}
+                                        className="bg-indigo-500/10 text-indigo-400 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-indigo-400/20 hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-2"
+                                    >
+                                        <DocumentTextIcon className="w-3 h-3" /> New Prescription
+                                    </button>
+                                    <button 
+                                        onClick={onAddVisit}
+                                        className="bg-emerald-500/10 text-emerald-500 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-2"
+                                    >
+                                        <PlusIcon className="w-3 h-3" /> Add Visit
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="space-y-12">
+                                {(events || [
+                                    { date: 'Oct 12', time: '14:30', event: 'Dental Extraction (Tooth 14)', dept: 'Dental', provider: 'Dr. Sarah' },
+                                    { date: 'Sep 28', time: '10:15', event: 'Refraction Exam (OD: -2.25)', dept: 'Ophthalmology', provider: 'Dr. Mike' },
+                                    { date: 'Sep 15', time: '09:00', event: 'General Consultation', dept: 'OPD', provider: 'Dr. Jane' }
+                                ]).map((item, i) => (
+                                    <div key={i} className="flex gap-8 group">
+                                        <div className="text-right w-20 pt-1"><p className="text-xs font-black text-slate-900 dark:text-white">{item.date}</p><p className="text-[10px] font-bold text-slate-500 uppercase">{item.time}</p></div>
+                                        <div className="relative"><div className="w-px h-full bg-slate-200 dark:bg-white/5 absolute left-1/2 -translate-x-1/2 top-4"></div><div className="w-3 h-3 rounded-full bg-indigo-500 relative z-10 border-4 border-white dark:border-slate-950 group-hover:scale-150 transition-transform"></div></div>
+                                        <div className="flex-1 pb-10 border-b border-slate-200 dark:border-white/5"><h4 className="text-sm font-black uppercase tracking-tight mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors text-slate-900 dark:text-white">{item.event}</h4><div className="flex gap-4"><span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-white/5 px-3 py-1 rounded-full">{item.dept}</span><span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest border border-indigo-200 dark:border-indigo-400/20 px-3 py-1 rounded-full">{item.provider}</span></div></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-8">
+                        <div className="glass-morphism p-10 rounded-[3rem] border border-slate-200 dark:border-white/5 bg-gradient-to-br from-indigo-500/5 to-transparent">
+                            <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] mb-8 italic">Vital Statistics</p>
+                            <div className="space-y-6">
+                                {(!vitals || vitals.length === 0 ? [
+                                    { label: 'Blood Pressure', value: '—', unit: 'mmHg', trend: '—', color: 'text-emerald-500' },
+                                    { label: 'Heart Rate', value: '—', unit: 'BPM', trend: '—', color: 'text-slate-900 dark:text-white' },
+                                    { label: 'Oxygen Saturation', value: '—', unit: 'SpO2', trend: '—', color: 'text-blue-500' },
+                                    { label: 'Body Temp', value: '—', unit: '°C', trend: '—', color: 'text-slate-900 dark:text-white' }
+                                ] : vitals).map((vital, i) => (
+                                    <div key={i} className="flex justify-between items-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/5 hover:bg-slate-200/50 dark:hover:bg-white/10 transition-all cursor-pointer">
+                                        <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 italic">{vital.label}</p><p className="text-2xl font-black text-slate-900 dark:text-white">{vital.value} <span className="text-xs font-bold text-slate-500 tracking-tight">{vital.unit}</span></p></div>
+                                        <div className={`text-[10px] font-black uppercase tracking-widest ${vital.color} italic underline underline-offset-4 decoration-2`}>{vital.trend}</div>
+                                    </div>
+                                ))}
+                            </div>
+                            <button onClick={onOpenVitals} className="w-full mt-10 py-5 bg-indigo-600 text-white dark:bg-white dark:text-slate-950 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.3em] hover:scale-105 transition-all shadow-xl shadow-indigo-600/20 dark:shadow-white/5 italic">Update Vitals</button>
+                        </div>
+                        <div className="p-8 rounded-[3rem] bg-rose-500/10 border border-rose-500/20"><p className="text-[9px] font-black text-rose-500 uppercase tracking-[0.3em] mb-4">Emergency Contact</p><h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white mb-2">{activePatient.emergencyContactName || 'NONE REGISTERED'}</h4><p className="text-lg font-black tracking-[0.2em] text-rose-600 dark:text-rose-400 italic">{activePatient.emergencyContactPhone || '--- --- ---'}</p></div>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex flex-col items-center justify-center py-20 text-center opacity-50 grayscale"><UsersIcon className="w-20 h-20 text-slate-700 mb-6" /><p className="text-xs font-black uppercase tracking-[0.4em] text-slate-500">Search or Select a patient from the registry <br/>to initialize clinical 360 view</p></div>
+            )}
+        </div>
+    );
+}
+
 export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName, institutionId, users = [] }) => {
     const [activeModule, setActiveModule] = useState<HISModule>('general');
     const [searchTerm, setSearchTerm] = useState('');
@@ -917,104 +1019,4 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
         </div>
     );
 };
-
-const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOpenRegister, onAddVisit, onAddPrescription, onOpenTransferLetter }: { activePatient?: HISPatient | null, vitals?: any[], events?: any[], onOpenVitals: () => void, onOpenRegister: () => void, onAddVisit: () => void, onAddPrescription: () => void, onOpenTransferLetter: () => void }) => (
-    <div className="animate-fade-in-up">
-        <div className="flex justify-between items-end mb-10">
-            <div>
-                <h2 className="text-4xl font-black uppercase tracking-tighter">{activePatient ? (<>Patient <span className="text-indigo-400">Portfolio</span></>) : (<>Registry <span className="text-indigo-400">Overview</span></>)}</h2>
-                <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">{activePatient ? `Displaying clinical file for ${activePatient.fullName}` : 'Unified 360-degree clinical profile registry'}</p>
-            </div>
-            <button onClick={onOpenRegister} className="bg-indigo-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20"><PlusIcon className="w-4 h-4" /> Register Patient</button>
-        </div>
-
-        {activePatient ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-slate-900 dark:text-white">
-                <div className="md:col-span-2 space-y-8">
-                    <div className="glass-morphism p-10 rounded-[3rem] border border-slate-200 dark:border-white/5 relative overflow-hidden bg-slate-50 dark:bg-white/5">
-                        <div className="flex flex-col md:flex-row gap-8 items-start">
-                            <div className="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center text-3xl font-black text-white shadow-2xl">{activePatient.fullName[0].toUpperCase()}</div>
-                            <div className="flex-1 space-y-4">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                    <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Full Identity</p><p className="text-lg font-black uppercase tracking-tighter text-slate-900 dark:text-white">{activePatient.fullName}</p></div>
-                                    <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Registry DOB</p><p className="text-sm font-black text-slate-700 dark:text-slate-300">{activePatient.dob || 'NOT SET'}</p></div>
-                                    <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Gender Node</p><p className="text-sm font-black uppercase text-slate-700 dark:text-slate-300">{activePatient.gender}</p></div>
-                                    <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Blood Registry</p><p className="text-sm font-black uppercase text-rose-500">{activePatient.bloodGroup || 'UNK'}</p></div>
-                                </div>
-                                <div className="h-px w-full bg-slate-200 dark:bg-white/5 my-4"></div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Contact Line</p><p className="text-xs font-black tracking-widest text-slate-700 dark:text-slate-300">{activePatient.contact || 'N/A'}</p></div>
-                                    <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">S.H.A Number</p><p className="text-xs font-black tracking-widest text-indigo-500 dark:text-indigo-400">{activePatient.shaNumber || 'NOT UPDATED'}</p></div>
-                                    <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Insurance Unit</p><p className="text-xs font-black tracking-widest uppercase text-slate-700 dark:text-slate-300">{activePatient.insuranceProvider || 'PRIVATE PAY'}</p></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="glass-morphism p-10 rounded-[3rem] border border-slate-200 dark:border-white/5 min-h-[500px] relative overflow-hidden bg-slate-50 dark:bg-white/5">
-                        <div className="flex justify-between items-center mb-8">
-                            <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] italic">Clinical Timeline</p>
-                            <div className="flex gap-4">
-                                <button 
-                                    onClick={onOpenTransferLetter}
-                                    className="bg-rose-500/10 text-rose-500 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2"
-                                >
-                                    <PlusIcon className="w-3 h-3" /> Emergency Transfer
-                                </button>
-                                <button 
-                                    onClick={onAddPrescription}
-                                    className="bg-indigo-500/10 text-indigo-400 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-indigo-400/20 hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-2"
-                                >
-                                    <DocumentTextIcon className="w-3 h-3" /> New Prescription
-                                </button>
-                                <button 
-                                    onClick={onAddVisit}
-                                    className="bg-emerald-500/10 text-emerald-500 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-2"
-                                >
-                                    <PlusIcon className="w-3 h-3" /> Add Visit
-                                </button>
-                            </div>
-                        </div>
-                        <div className="space-y-12">
-                            {(events || [
-                                { date: 'Oct 12', time: '14:30', event: 'Dental Extraction (Tooth 14)', dept: 'Dental', provider: 'Dr. Sarah' },
-                                { date: 'Sep 28', time: '10:15', event: 'Refraction Exam (OD: -2.25)', dept: 'Ophthalmology', provider: 'Dr. Mike' },
-                                { date: 'Sep 15', time: '09:00', event: 'General Consultation', dept: 'OPD', provider: 'Dr. Jane' }
-                            ]).map((item, i) => (
-                                <div key={i} className="flex gap-8 group">
-                                    <div className="text-right w-20 pt-1"><p className="text-xs font-black text-slate-900 dark:text-white">{item.date}</p><p className="text-[10px] font-bold text-slate-500 uppercase">{item.time}</p></div>
-                                    <div className="relative"><div className="w-px h-full bg-slate-200 dark:bg-white/5 absolute left-1/2 -translate-x-1/2 top-4"></div><div className="w-3 h-3 rounded-full bg-indigo-500 relative z-10 border-4 border-white dark:border-slate-950 group-hover:scale-150 transition-transform"></div></div>
-                                    <div className="flex-1 pb-10 border-b border-slate-200 dark:border-white/5"><h4 className="text-sm font-black uppercase tracking-tight mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors text-slate-900 dark:text-white">{item.event}</h4><div className="flex gap-4"><span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-white/5 px-3 py-1 rounded-full">{item.dept}</span><span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest border border-indigo-200 dark:border-indigo-400/20 px-3 py-1 rounded-full">{item.provider}</span></div></div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-8">
-                    <div className="glass-morphism p-10 rounded-[3rem] border border-slate-200 dark:border-white/5 bg-gradient-to-br from-indigo-500/5 to-transparent">
-                        <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] mb-8 italic">Vital Statistics</p>
-                        <div className="space-y-6">
-                            {(!vitals || vitals.length === 0 ? [
-                                { label: 'Blood Pressure', value: '—', unit: 'mmHg', trend: '—', color: 'text-emerald-500' },
-                                { label: 'Heart Rate', value: '—', unit: 'BPM', trend: '—', color: 'text-slate-900 dark:text-white' },
-                                { label: 'Oxygen Saturation', value: '—', unit: 'SpO2', trend: '—', color: 'text-blue-500' },
-                                { label: 'Body Temp', value: '—', unit: '°C', trend: '—', color: 'text-slate-900 dark:text-white' }
-                            ] : vitals).map((vital, i) => (
-                                <div key={i} className="flex justify-between items-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/5 hover:bg-slate-200/50 dark:hover:bg-white/10 transition-all cursor-pointer">
-                                    <div><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 italic">{vital.label}</p><p className="text-2xl font-black text-slate-900 dark:text-white">{vital.value} <span className="text-xs font-bold text-slate-500 tracking-tight">{vital.unit}</span></p></div>
-                                    <div className={`text-[10px] font-black uppercase tracking-widest ${vital.color} italic underline underline-offset-4 decoration-2`}>{vital.trend}</div>
-                                </div>
-                            ))}
-                        </div>
-                        <button onClick={onOpenVitals} className="w-full mt-10 py-5 bg-indigo-600 text-white dark:bg-white dark:text-slate-950 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.3em] hover:scale-105 transition-all shadow-xl shadow-indigo-600/20 dark:shadow-white/5 italic">Update Vitals</button>
-                    </div>
-                    <div className="p-8 rounded-[3rem] bg-rose-500/10 border border-rose-500/20"><p className="text-[9px] font-black text-rose-500 uppercase tracking-[0.3em] mb-4">Emergency Contact</p><h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white mb-2">{activePatient.emergencyContactName || 'NONE REGISTERED'}</h4><p className="text-lg font-black tracking-[0.2em] text-rose-600 dark:text-rose-400 italic">{activePatient.emergencyContactPhone || '--- --- ---'}</p></div>
-                </div>
-            </div>
-        ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-center opacity-50 grayscale"><UsersIcon className="w-20 h-20 text-slate-700 mb-6" /><p className="text-xs font-black uppercase tracking-[0.4em] text-slate-500">Search or Select a patient from the registry <br/>to initialize clinical 360 view</p></div>
-        )}
-    </div>
-);
 
