@@ -94,8 +94,8 @@ export function AddPrescriptionModal({
     };
 
     const addItem = (drug: any) => {
-        if (isOutOfStock(drug)) return;
         if (selectedItems.find(i => i.drugId === drug.id)) return;
+        const outOfStock = isOutOfStock(drug);
         setSelectedItems([...selectedItems, {
             drugId: drug.id,
             drugName: drug.name,
@@ -103,9 +103,27 @@ export function AddPrescriptionModal({
             frequency: '1x Daily',
             duration: '5 Days',
             quantity: 1,
-            unitPrice: drug.unitPrice || 0,
-            totalPrice: drug.unitPrice || 0,
+            unitPrice: outOfStock ? 0 : (drug.unitPrice || 0),
+            totalPrice: outOfStock ? 0 : (drug.unitPrice || 0),
             availableStock: getStock(drug),
+            isExternalPurchase: outOfStock, // Default out-of-stock items to Buy Outside!
+        }]);
+        setSearchTerm('');
+    };
+
+    const addCustomExternalItem = () => {
+        if (!searchTerm.trim()) return;
+        setSelectedItems([...selectedItems, {
+            drugId: `ext_${Date.now()}`,
+            drugName: searchTerm.trim().toUpperCase(),
+            dosage: '500mg',
+            frequency: '1x Daily',
+            duration: '5 Days',
+            quantity: 1,
+            unitPrice: 0,
+            totalPrice: 0,
+            availableStock: 0,
+            isExternalPurchase: true,
         }]);
         setSearchTerm('');
     };
@@ -114,7 +132,10 @@ export function AddPrescriptionModal({
         const newItems = [...selectedItems];
         newItems[index] = { ...newItems[index], [field]: value };
         if (field === 'quantity') {
-            newItems[index].totalPrice = newItems[index].unitPrice * value;
+            newItems[index].totalPrice = (newItems[index].isExternalPurchase ? 0 : newItems[index].unitPrice) * value;
+        }
+        if (field === 'isExternalPurchase' && value === true) {
+            newItems[index].totalPrice = 0;
         }
         setSelectedItems(newItems);
     };
@@ -123,8 +144,8 @@ export function AddPrescriptionModal({
         setSelectedItems(selectedItems.filter((_, i) => i !== index));
     };
 
-    const handleSave = async () => {
-        if (selectedItems.length === 0) return alert("Please select at least one medication.");
+    const handleSavePrescription = async () => {
+        if (selectedItems.length === 0) return alert('Please add at least one medication to prescribe.');
         setIsSaving(true);
         try {
             const prescId = `prc_${Date.now()}`;
@@ -147,7 +168,7 @@ export function AddPrescriptionModal({
                 status: 'pending'
             });
 
-            let prescriptionSubtotal = 0;
+            let inHousePrescriptionSubtotal = 0;
             const lineItemsForBill = [];
 
             for (const item of selectedItems) {
@@ -156,34 +177,40 @@ export function AddPrescriptionModal({
                     prescriptionId: prescId,
                     ...item
                 });
-                const itemTotal = Number(item.quantity || 1) * Number(item.unitPrice || 0);
-                prescriptionSubtotal += itemTotal;
-                lineItemsForBill.push({
-                    itemName: item.drugName,
-                    category: 'Pharmacy',
-                    quantity: Number(item.quantity || 1),
-                    unitPrice: Number(item.unitPrice || 0),
-                    total: itemTotal
-                });
+
+                // ONLY bill items fulfilled by hospital pharmacy (Exclude external purchase!)
+                if (!item.isExternalPurchase) {
+                    const itemTotal = Number(item.quantity || 1) * Number(item.unitPrice || 0);
+                    inHousePrescriptionSubtotal += itemTotal;
+                    lineItemsForBill.push({
+                        itemName: item.drugName,
+                        category: 'Pharmacy',
+                        quantity: Number(item.quantity || 1),
+                        unitPrice: Number(item.unitPrice || 0),
+                        total: itemTotal
+                    });
+                }
             }
 
-            // Auto-generate bill & queue for Finance Hub
-            try {
-                await apiService.saveModuleRecord('his_billing_items', {
-                    id: `bill_auto_${prescId}`,
-                    institution_id: institutionId,
-                    patientId,
-                    patientName: patientName || 'Patient',
-                    invoiceNumber: `INV-AUTO-${Math.floor(1000 + Math.random() * 9000)}`,
-                    payerType: 'Self-Pay',
-                    totalAmount: prescriptionSubtotal,
-                    items: lineItemsForBill,
-                    status: 'pending_queue',
-                    prescriptionId: prescId,
-                    created_at: new Date().toISOString()
-                });
-            } catch (err) {
-                console.warn('Auto bill queue generation note:', err);
+            // Auto-generate bill ONLY if there are billable in-house medications
+            if (lineItemsForBill.length > 0) {
+                try {
+                    await apiService.saveModuleRecord('his_billing_items', {
+                        id: `bill_auto_${prescId}`,
+                        institution_id: institutionId,
+                        patientId,
+                        patientName: patientName || 'Patient',
+                        invoiceNumber: `INV-AUTO-${Math.floor(1000 + Math.random() * 9000)}`,
+                        payerType: 'Self-Pay',
+                        totalAmount: inHousePrescriptionSubtotal,
+                        items: lineItemsForBill,
+                        status: 'pending_queue',
+                        prescriptionId: prescId,
+                        created_at: new Date().toISOString()
+                    });
+                } catch (err) {
+                    console.warn('Auto bill queue generation note:', err);
+                }
             }
 
             // Save revisit appointment if scheduled
@@ -254,46 +281,46 @@ export function AddPrescriptionModal({
                                     {searchTerm ? 'No drugs matching search' : 'No pharmacy inventory loaded'}
                                 </div>
                             )}
-                            {filteredDrugs.map(drug => {
+                            {filteredDrugs.map((drug) => {
                                 const stock = getStock(drug);
                                 const outOfStock = isOutOfStock(drug);
                                 const alreadyAdded = selectedItems.some(i => i.drugId === drug.id);
                                 return (
-                                    <button 
-                                        key={drug.id} 
+                                    <button
+                                        key={drug.id}
+                                        type="button"
                                         onClick={() => addItem(drug)}
-                                        disabled={outOfStock}
-                                        className={`w-full p-4 rounded-2xl text-left border transition-all group ${
-                                            outOfStock
-                                                ? 'opacity-50 cursor-not-allowed border-rose-100 bg-rose-50/50'
-                                                : alreadyAdded
-                                                    ? 'border-indigo-200 bg-indigo-50 cursor-default'
-                                                    : 'hover:bg-slate-100 border-transparent hover:border-slate-100'
+                                        className={`w-full text-left p-4 rounded-2xl border transition-all group ${
+                                            alreadyAdded
+                                                ? 'bg-indigo-50 border-indigo-200'
+                                                : 'bg-white border-slate-200 hover:border-indigo-400 hover:shadow-md'
                                         }`}
                                     >
-                                        <div className="flex justify-between items-start gap-2">
-                                            <div className="flex-1 min-w-0">
-                                                <p className={`text-xs font-black uppercase italic tracking-tighter truncate ${
-                                                    outOfStock ? 'text-rose-400' : alreadyAdded ? 'text-indigo-600' : 'text-slate-900 group-hover:text-indigo-600'
-                                                }`}>{drug.name}</p>
-                                                <p className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">{drug.unit} &bull; KES {(drug.unitPrice || 0).toLocaleString()}</p>
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-black uppercase text-slate-800 group-hover:text-indigo-600 transition-colors truncate">
+                                                    {drug.name}
+                                                </p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                                    KES {(drug.unitPrice || 0).toLocaleString()} • {drug.unit || 'unit'}
+                                                </p>
                                             </div>
                                             <div className="flex flex-col items-end gap-1 flex-shrink-0">
                                                 {stock !== null && (
                                                     <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border ${
                                                         outOfStock
-                                                            ? 'bg-rose-100 text-rose-600 border-rose-200'
+                                                            ? 'bg-amber-100 text-amber-700 border-amber-300'
                                                             : stock <= 5
                                                                 ? 'bg-amber-100 text-amber-700 border-amber-200'
                                                                 : 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                                     }`}>
-                                                        {outOfStock ? 'Out of Stock' : `${stock} left`}
+                                                        {outOfStock ? '🛒 Buy Outside' : `${stock} left`}
                                                     </span>
                                                 )}
-                                                {alreadyAdded && !outOfStock && (
+                                                {alreadyAdded && (
                                                     <span className="text-[8px] font-black text-indigo-500 uppercase">✓ Added</span>
                                                 )}
-                                                {!alreadyAdded && !outOfStock && (
+                                                {!alreadyAdded && (
                                                     <PlusIcon className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors" />
                                                 )}
                                             </div>
@@ -301,6 +328,17 @@ export function AddPrescriptionModal({
                                     </button>
                                 );
                             })}
+
+                            {searchTerm.trim() && !filteredDrugs.some(d => (d.name || '').toLowerCase() === searchTerm.trim().toLowerCase()) && (
+                                <button
+                                    type="button"
+                                    onClick={addCustomExternalItem}
+                                    className="w-full p-4 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-between hover:bg-amber-500/20 transition-all"
+                                >
+                                    <span>+ Prescribe Custom "{searchTerm}" (Buy Outside)</span>
+                                    <PlusIcon className="w-4 h-4" />
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -313,34 +351,55 @@ export function AddPrescriptionModal({
 
                          <div className="space-y-4">
                              {selectedItems.map((item, idx) => (
-                                 <div key={idx} className="p-8 bg-slate-50 rounded-[2rem] border border-slate-200 relative group animate-scale-in">
+                                 <div key={idx} className={`p-8 rounded-[2rem] border relative group animate-scale-in transition-all ${
+                                     item.isExternalPurchase ? 'bg-amber-500/5 border-amber-400/40' : 'bg-slate-50 border-slate-200'
+                                 }`}>
                                      <button onClick={() => removeItem(idx)} className="absolute top-6 right-6 p-2 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"><TrashIcon className="w-4 h-4" /></button>
-                                     <div className="grid grid-cols-2 gap-8">
-                                         <div className="space-y-4">
-                                             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block italic">Medication Formulation</label>
-                                             <p className="text-lg font-black uppercase italic tracking-tighter text-indigo-600">{item.drugName}</p>
+                                     
+                                     <div className="space-y-6">
+                                         {/* Fulfillment toggle banner */}
+                                         <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white rounded-2xl border border-slate-200">
+                                             <span className="text-[9px] font-black uppercase text-slate-500">Fulfillment Mode:</span>
+                                             <button
+                                                 type="button"
+                                                 onClick={() => updateItem(idx, 'isExternalPurchase', !item.isExternalPurchase)}
+                                                 className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                                     item.isExternalPurchase
+                                                         ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+                                                         : 'bg-indigo-600 text-white'
+                                                 }`}
+                                             >
+                                                 {item.isExternalPurchase ? '🛒 Buy Outside / External Chemist (Unbilled)' : '🏥 Hospital Pharmacy (Billable)'}
+                                             </button>
                                          </div>
-                                         <div className="space-y-4">
-                                             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block italic">Dosage Strategy (e.g. 500mg)</label>
-                                             <input 
-                                                type="text" 
-                                                value={item.dosage}
-                                                onChange={(e) => updateItem(idx, 'dosage', e.target.value)}
-                                                className="bg-white border border-slate-200 rounded-xl px-4 py-2 w-full text-xs font-black text-slate-800 outline-none focus:border-indigo-500/50 transition-all"
-                                             />
-                                         </div>
-                                         <div className="grid grid-cols-3 gap-4 col-span-2">
-                                             <div>
-                                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Freq</label>
-                                                 <input type="text" value={item.frequency} onChange={(e) => updateItem(idx, 'frequency', e.target.value)} className="bg-white border border-slate-200 rounded-xl px-4 py-2 w-full text-xs text-slate-800" />
+
+                                         <div className="grid grid-cols-2 gap-8">
+                                             <div className="space-y-4">
+                                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block italic">Medication Name</label>
+                                                 <p className="text-lg font-black uppercase italic tracking-tighter text-indigo-600">{item.drugName}</p>
                                              </div>
-                                             <div>
-                                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Duration</label>
-                                                 <input type="text" value={item.duration} onChange={(e) => updateItem(idx, 'duration', e.target.value)} className="bg-white border border-slate-200 rounded-xl px-4 py-2 w-full text-xs text-slate-800" />
+                                             <div className="space-y-4">
+                                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block italic">Dosage Strategy (e.g. 500mg)</label>
+                                                 <input 
+                                                    type="text" 
+                                                    value={item.dosage}
+                                                    onChange={(e) => updateItem(idx, 'dosage', e.target.value)}
+                                                    className="bg-white border border-slate-200 rounded-xl px-4 py-2 w-full text-xs font-black text-slate-800 outline-none focus:border-indigo-500/50 transition-all"
+                                                 />
                                              </div>
-                                             <div>
-                                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Qty</label>
-                                                 <input type="number" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', parseInt(e.target.value) || 0)} className="bg-white border border-slate-200 rounded-xl px-4 py-2 w-full text-xs text-slate-800 font-black" />
+                                             <div className="grid grid-cols-3 gap-4 col-span-2">
+                                                 <div>
+                                                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Freq</label>
+                                                     <input type="text" value={item.frequency} onChange={(e) => updateItem(idx, 'frequency', e.target.value)} className="bg-white border border-slate-200 rounded-xl px-4 py-2 w-full text-xs text-slate-800" />
+                                                 </div>
+                                                 <div>
+                                                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Duration</label>
+                                                     <input type="text" value={item.duration} onChange={(e) => updateItem(idx, 'duration', e.target.value)} className="bg-white border border-slate-200 rounded-xl px-4 py-2 w-full text-xs text-slate-800" />
+                                                 </div>
+                                                 <div>
+                                                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Qty</label>
+                                                     <input type="number" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', parseInt(e.target.value) || 0)} className="bg-white border border-slate-200 rounded-xl px-4 py-2 w-full text-xs text-slate-800 font-black" />
+                                                 </div>
                                              </div>
                                          </div>
                                      </div>

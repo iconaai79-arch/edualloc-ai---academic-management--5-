@@ -10479,3 +10479,350 @@ export const generateExternalLabRequisitionPdf = async (
     return doc.output('datauristring');
 };
 
+/**
+ * Generates an Official External Doctor Prescription & Chemist Purchase Note (PDF Data URI)
+ */
+export const generateExternalPrescriptionPdf = async (
+    prescription: {
+        id?: string;
+        date?: string;
+        doctorName?: string;
+        doctorLicense?: string;
+        notes?: string;
+        items: Array<{
+            drugName: string;
+            formulation?: string;
+            dosage?: string;
+            frequency?: string;
+            duration?: string;
+            quantity?: number | string;
+            isExternalPurchase?: boolean;
+            notes?: string;
+        }>;
+    },
+    patient: {
+        fullName: string;
+        admissionNumber?: string;
+        gender?: string;
+        dob?: string;
+        contact?: string;
+        allergies?: string;
+    },
+    institution: any
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let currentY = 15;
+
+    // Header Branding
+    doc.setFillColor(15, 23, 42); // Dark slate header
+    doc.rect(0, 0, pageWidth, 28, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(institution?.name || 'QUANTUM HEALTHCARE MEDICAL CENTRE', margin, 15);
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('OFFICIAL EXTERNAL PRESCRIPTION & CHEMIST PURCHASE ADVICE NOTE', margin, 21);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(234, 179, 8); // Amber badge
+    doc.text('🛒 EXTERNAL CHEMIST PURSUIT', pageWidth - margin, 18, { align: 'right' });
+
+    currentY = 38;
+
+    // Document Meta Box
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 22, 3, 3, 'F');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text('PRESCRIPTION REF:', margin + 6, currentY + 7);
+    doc.text('ISSUE DATE:', margin + 70, currentY + 7);
+    doc.text('BILLING STATUS:', margin + 130, currentY + 7);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(15, 23, 42);
+    doc.text(prescription.id ? `RX-EXT-${prescription.id.substring(0, 8).toUpperCase()}` : `RX-EXT-${Date.now().toString().slice(-6)}`, margin + 6, currentY + 14);
+    doc.text(prescription.date || new Date().toLocaleDateString(), margin + 70, currentY + 14);
+
+    doc.setTextColor(16, 185, 129);
+    doc.setFont('helvetica', 'bold');
+    doc.text('✓ UNBILLED (SELF-PROCURE)', margin + 130, currentY + 14);
+
+    currentY += 30;
+
+    // Two-Column Grid: Patient vs Physician Details
+    const colWidth = (pageWidth - (margin * 2) - 10) / 2;
+
+    // Box 1: Patient Information
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(margin, currentY, colWidth, 40, 3, 3, 'F');
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('PATIENT PARTICULARS', margin + 6, currentY + 8);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Patient Name: ${patient.fullName || 'N/A'}`, margin + 6, currentY + 16);
+    doc.text(`OP/IP File Number: ${patient.admissionNumber || 'PAT-0001'}`, margin + 6, currentY + 22);
+    doc.text(`Gender / DOB: ${patient.gender || '—'} (${patient.dob || 'N/A'})`, margin + 6, currentY + 28);
+
+    if (patient.allergies) {
+        doc.setTextColor(225, 29, 72);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`⚠ Known Allergies: ${patient.allergies}`, margin + 6, currentY + 34);
+    } else {
+        doc.text(`Phone Contact: ${patient.contact || 'N/A'}`, margin + 6, currentY + 34);
+    }
+
+    // Box 2: Prescribing Practitioner Details
+    doc.setFillColor(238, 242, 255);
+    doc.roundedRect(margin + colWidth + 10, currentY, colWidth, 40, 3, 3, 'F');
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(67, 56, 202);
+    doc.text('PRESCRIBING PHYSICIAN', margin + colWidth + 16, currentY + 8);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Doctor Name: ${prescription.doctorName || 'Dr. Attending Physician'}`, margin + colWidth + 16, currentY + 16);
+    doc.text(`Medical License: ${prescription.doctorLicense || 'MPDB-10042'}`, margin + colWidth + 16, currentY + 22);
+    doc.text(`Facility: ${institution?.name || 'Quantum Medical Centre'}`, margin + colWidth + 16, currentY + 28);
+    doc.text(`Fulfillment: External Chemist Self-Purchase`, margin + colWidth + 16, currentY + 34);
+
+    currentY += 48;
+
+    // Prescription Table
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('PRESCRIBED MEDICATIONS & DISPENSING INSTRUCTIONS', margin, currentY);
+
+    currentY += 4;
+
+    const tableRows = prescription.items.map((item, idx) => [
+        idx + 1,
+        `${item.drugName || 'Medication'} ${item.formulation ? `(${item.formulation})` : ''}`,
+        item.dosage || '500mg',
+        `${item.frequency || 'TID'} x ${item.duration || '7 days'}`,
+        item.quantity || 1,
+        item.isExternalPurchase ? '🛒 Buy Outside' : '🏥 Hospital Dispensed'
+    ]);
+
+    (doc as any).autoTable({
+        startY: currentY,
+        head: [['#', 'Medication Name & Formulation', 'Dosage Strategy', 'Frequency & Duration', 'Qty', 'Fulfillment']],
+        body: tableRows,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8, cellPadding: 3.5 },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 65, fontStyle: 'bold' },
+            2: { cellWidth: 30 },
+            3: { cellWidth: 35 },
+            4: { cellWidth: 15, halign: 'center' },
+            5: { cellWidth: 27, fontStyle: 'bold' }
+        }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+
+    // Clinical Notes & Special Instructions
+    if (prescription.notes) {
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 18, 3, 3, 'F');
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(71, 85, 105);
+        doc.text('DOCTOR CLINICAL ADDENDUM & INSTRUCTIONS:', margin + 6, currentY + 6);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(30, 41, 59);
+        doc.text(`"${prescription.notes}"`, margin + 6, currentY + 12);
+
+        currentY += 24;
+    }
+
+    // Doctor Signature & License Stamp Block
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+
+    doc.text('PRESCRIBING DOCTOR SIGNATURE & OFFICIAL STAMP', margin, currentY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Dr. ${prescription.doctorName || 'Attending Physician'} (Reg No: ${prescription.doctorLicense || 'MPDB-10042'})`, margin, currentY + 6);
+    
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineDashPattern([2, 2], 0);
+    doc.line(margin, currentY + 20, margin + 75, currentY + 20);
+    doc.setLineDashPattern([], 0);
+    doc.text('Official Doctor Stamp & Signature', margin, currentY + 25);
+
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Valid for presentation at any licensed retail chemist or external pharmacy. Unbilled by hospital.', pageWidth - margin, currentY + 25, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+
+/**
+ * Generates an 80mm EPOS Thermal Spool PDF Data URI for External Doctor Prescriptions
+ */
+export const generateExternalPrescriptionEposThermalPdf = async (
+    prescription: {
+        id?: string;
+        date?: string;
+        doctorName?: string;
+        doctorLicense?: string;
+        notes?: string;
+        items: Array<{
+            drugName: string;
+            formulation?: string;
+            dosage?: string;
+            frequency?: string;
+            duration?: string;
+            quantity?: number | string;
+            isExternalPurchase?: boolean;
+            notes?: string;
+        }>;
+    },
+    patient: {
+        fullName: string;
+        admissionNumber?: string;
+        gender?: string;
+        dob?: string;
+        contact?: string;
+    },
+    institution: any
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+
+    const itemsCount = (prescription.items || []).length || 1;
+    const estimatedHeight = Math.max(160, 120 + (itemsCount * 22));
+
+    const doc = new lib.jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [80, estimatedHeight]
+    });
+
+    const margin = 4;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = 6;
+
+    const centerText = (text: string, y: number, fontSize = 8, isBold = false) => {
+        doc.setFontSize(fontSize);
+        doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+        const textWidth = doc.getTextWidth(text);
+        doc.text(text, (pageWidth - textWidth) / 2, y);
+    };
+
+    const drawDashedDivider = (y: number) => {
+        doc.setDrawColor(150, 150, 150);
+        doc.setLineDashPattern([1, 1], 0);
+        doc.line(margin, y, pageWidth - margin, y);
+        doc.setLineDashPattern([], 0);
+    };
+
+    // Header
+    doc.setTextColor(0, 0, 0);
+    centerText(institution?.name?.toUpperCase() || 'QUANTUM HEALTHCARE', yPos, 9, true);
+    yPos += 5;
+    centerText('EXTERNAL PRESCRIPTION SLIP', yPos, 8, true);
+    yPos += 4;
+    centerText('(UNBILLED - CHEMIST SELF-PROCURE)', yPos, 7, false);
+    yPos += 5;
+
+    drawDashedDivider(yPos);
+    yPos += 4;
+
+    // Prescription & Patient Metadata
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`RX REF: ${prescription.id ? `RX-EXT-${prescription.id.substring(0, 8).toUpperCase()}` : `RX-EXT-${Date.now().toString().slice(-6)}`}`, margin, yPos);
+    yPos += 4;
+    doc.text(`DATE: ${prescription.date || new Date().toLocaleDateString()}`, margin, yPos);
+    yPos += 4;
+    doc.text(`PATIENT: ${patient.fullName?.toUpperCase() || 'PATIENT'}`, margin, yPos);
+    yPos += 4;
+    doc.text(`PATIENT FILE #: ${patient.admissionNumber || 'PAT-0001'}`, margin, yPos);
+    yPos += 4;
+    doc.text(`DOCTOR: Dr. ${prescription.doctorName || 'Attending Physician'}`, margin, yPos);
+    yPos += 4;
+    doc.text(`LICENSE #: ${prescription.doctorLicense || 'MPDB-10042'}`, margin, yPos);
+    yPos += 5;
+
+    drawDashedDivider(yPos);
+    yPos += 4;
+
+    centerText('PRESCRIBED MEDICATIONS & DOSAGE', yPos, 7, true);
+    yPos += 5;
+
+    prescription.items.forEach((item, idx) => {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${idx + 1}. ${item.drugName.toUpperCase()}`, margin, yPos);
+        yPos += 4;
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`   Dosage: ${item.dosage || '500mg'} | ${item.frequency || '1x Daily'}`, margin, yPos);
+        yPos += 4;
+        doc.text(`   Duration: ${item.duration || '5 Days'} | Qty: ${item.quantity || 1}`, margin, yPos);
+        yPos += 4;
+        
+        doc.setFont('helvetica', 'bold');
+        doc.text(`   Status: [BUY OUTSIDE - KES 0 UNBILLED]`, margin, yPos);
+        yPos += 5;
+    });
+
+    drawDashedDivider(yPos);
+    yPos += 4;
+
+    if (prescription.notes) {
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`CLINICAL INSTRUCTIONS:`, margin, yPos);
+        yPos += 4;
+        doc.setFont('helvetica', 'italic');
+        doc.text(`"${prescription.notes}"`, margin, yPos);
+        yPos += 6;
+        drawDashedDivider(yPos);
+        yPos += 4;
+    }
+
+    // Doctor Signature Line
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`PHYSICIAN SIGNATURE & STAMP:`, margin, yPos);
+    yPos += 12;
+
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 4;
+
+    centerText(`Dr. ${prescription.doctorName || 'Attending Physician'}`, yPos, 7, false);
+    yPos += 4;
+    centerText('Valid at any external retail pharmacy', yPos, 6, false);
+
+    return doc.output('datauristring');
+};
+

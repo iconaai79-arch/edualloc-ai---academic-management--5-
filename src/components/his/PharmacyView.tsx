@@ -25,6 +25,8 @@ import {
     HISPrescription,
     HISPrescriptionItem
 } from '../../types';
+import { PdfViewer } from '../PdfViewer';
+import { generateExternalPrescriptionPdf, generateExternalPrescriptionEposThermalPdf } from '../../services/pdfService';
 
 export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [activeTab, setActiveTab] = useState<'dispensing' | 'inventory' | 'history' | 'requisitions'>('dispensing');
@@ -44,6 +46,50 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [reqItems, setReqItems] = useState<{ name: string; quantity: number; unitCost: number; unit: string }[]>([{ name: '', quantity: 1, unitCost: 0, unit: 'Tablet' }]);
     const [reqNotes, setReqNotes] = useState('');
     const [isSubmittingReq, setIsSubmittingReq] = useState(false);
+
+    // External Prescription PDF Preview modal state
+    const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+    const [pdfPreviewUri, setPdfPreviewUri] = useState<string | null>(null);
+    const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
+
+    const handlePreviewExternalRxPdf = async (presc: HISPrescription, isEposThermal = false) => {
+        try {
+            const generator = isEposThermal ? generateExternalPrescriptionEposThermalPdf : generateExternalPrescriptionPdf;
+            const uri = await generator(
+                {
+                    id: presc.id,
+                    date: presc.createdAt ? new Date(presc.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
+                    doctorName: presc.doctorName || 'Dr. Attending Physician',
+                    doctorLicense: 'MPDB-10042',
+                    notes: presc.notes,
+                    items: (presc.items || []).map((i: any) => ({
+                        drugName: i.drugName,
+                        formulation: i.formulation || 'Tablet / Syrup',
+                        dosage: i.dosage || '500mg',
+                        frequency: i.frequency || '1x Daily',
+                        duration: i.duration || '5 Days',
+                        quantity: i.quantity || 1,
+                        isExternalPurchase: i.isExternalPurchase || false,
+                        notes: i.notes
+                    }))
+                },
+                {
+                    fullName: presc.patientName || 'Patient',
+                    admissionNumber: 'PAT-0001',
+                    gender: 'Male',
+                    dob: '1995-05-12',
+                    contact: '+254 700 000 000'
+                },
+                { name: 'Quantum Healthcare Medical Centre' }
+            );
+
+            setPdfPreviewUri(uri);
+            setPdfPreviewTitle(isEposThermal ? `EPOS Thermal Print (80mm) - ${presc.patientName || 'Patient'}` : `External Prescription A4 - ${presc.patientName || 'Patient'}`);
+            setIsPdfModalOpen(true);
+        } catch (err: any) {
+            alert(`PDF Generation error: ${err.message || err}`);
+        }
+    };
 
     const loadData = async () => {
         if (!institutionId) return;
@@ -505,14 +551,25 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                 
                                 <div className="space-y-6 mb-10">
                                     {selectedPrescription.items?.map((item, idx) => (
-                                        <div key={idx} className="p-6 bg-black/40 rounded-2xl border border-white/5 flex justify-between items-center group">
+                                        <div key={idx} className={`p-6 rounded-2xl border flex justify-between items-center group transition-all ${
+                                            item.isExternalPurchase ? 'bg-amber-500/10 border-amber-500/30' : 'bg-black/40 border-white/5'
+                                        }`}>
                                             <div>
-                                                <p className="text-sm font-black uppercase italic tracking-tighter">{item.drugName}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-black uppercase italic tracking-tighter">{item.drugName}</p>
+                                                    {item.isExternalPurchase && (
+                                                        <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[8px] font-black uppercase rounded-full">
+                                                            🛒 Buy Outside
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">{item.dosage} • {item.frequency} • {item.duration}</p>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-xs font-black text-emerald-400">x{item.quantity}</p>
-                                                <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1">KES {item.totalPrice?.toLocaleString()}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                                    {item.isExternalPurchase ? 'UNBILLED (Self-Procure)' : `KES ${(item.totalPrice || 0).toLocaleString()}`}
+                                                </p>
                                             </div>
                                         </div>
                                     ))}
@@ -536,17 +593,36 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                 )}
 
                                 <div className="p-6 bg-white/5 rounded-2xl mb-8 flex justify-between items-center border border-white/5">
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Billing Impact</p>
-                                    <p className="text-lg font-black text-indigo-400 italic">KES {selectedPrescription.items?.reduce((s, i) => s + i.totalPrice, 0)?.toLocaleString()}</p>
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">In-House Billing Impact</p>
+                                    <p className="text-lg font-black text-indigo-400 italic">
+                                        KES {selectedPrescription.items?.filter(i => !i.isExternalPurchase).reduce((s, i) => s + (i.totalPrice || 0), 0)?.toLocaleString()}
+                                    </p>
                                 </div>
 
-                                <div className="flex gap-4">
+                                <div className="flex flex-col gap-3">
                                     <button 
                                         onClick={() => handleDispense(selectedPrescription)}
-                                        className="flex-1 bg-emerald-500 text-slate-950 py-5 rounded-2xl flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] hover:scale-105 transition-all shadow-xl shadow-emerald-500/20"
+                                        className="w-full bg-emerald-500 text-slate-950 py-4 rounded-2xl flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] hover:scale-105 transition-all shadow-xl shadow-emerald-500/20"
                                     >
-                                        <CheckCircleIcon className="w-5 h-5" /> Dispense Entry
+                                        <CheckCircleIcon className="w-5 h-5" /> Dispense In-House Items
                                     </button>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={() => handlePreviewExternalRxPdf(selectedPrescription, false)}
+                                            className="bg-amber-500/20 border border-amber-500/30 text-amber-300 py-3 px-3 rounded-2xl flex items-center justify-center gap-1.5 text-[9px] font-black uppercase tracking-widest hover:bg-amber-500/30 transition-all"
+                                            title="Print full page A4 prescription document"
+                                        >
+                                            <DocumentTextIcon className="w-4 h-4" /> 📄 A4 PDF Slip
+                                        </button>
+                                        <button
+                                            onClick={() => handlePreviewExternalRxPdf(selectedPrescription, true)}
+                                            className="bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 py-3 px-3 rounded-2xl flex items-center justify-center gap-1.5 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-500/30 transition-all"
+                                            title="Print on EPOS 80mm thermal receipt printer"
+                                        >
+                                            <span>🖨️ EPOS Thermal (80mm)</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ) : (
@@ -976,6 +1052,31 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                         ));
                     }}
                 />
+            )}
+
+            {/* MODAL: ON-SCREEN EXTERNAL PRESCRIPTION PDF PREVIEW */}
+            {isPdfModalOpen && pdfPreviewUri && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 max-w-5xl w-full h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+                        <div className="flex justify-between items-center pb-4 border-b border-white/10 flex-shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase tracking-tight italic">
+                                    📄 External Doctor Prescription <span className="text-amber-400">PDF Preview</span>
+                                </h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{pdfPreviewTitle}</p>
+                            </div>
+                            <button
+                                onClick={() => setIsPdfModalOpen(false)}
+                                className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="flex-1 mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+                            <PdfViewer pdfDataUri={pdfPreviewUri} title={pdfPreviewTitle} />
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

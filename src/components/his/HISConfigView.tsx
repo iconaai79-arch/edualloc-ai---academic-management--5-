@@ -1703,6 +1703,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                         </div>
                     </div>
                 </div>
+            )}
             {isAddPartnerLabOpen && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
