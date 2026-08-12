@@ -1238,6 +1238,114 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                 </div>
             )}
 
+            {/* Edit Medication Modal Overlay */}
+            {editingDrug && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="glass-morphism p-10 rounded-[3rem] border border-white/10 w-full max-w-xl shadow-2xl relative">
+                        <div className="flex justify-between items-center mb-8">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter italic text-amber-400">
+                                Edit Medication
+                            </h3>
+                            <button 
+                                onClick={() => setEditingDrug(null)}
+                                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleSaveEditDrug} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Drug Name</label>
+                                <input 
+                                    name="name" 
+                                    required 
+                                    defaultValue={editingDrug.name}
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Category</label>
+                                    <input 
+                                        name="category" 
+                                        defaultValue={editingDrug.category}
+                                        placeholder="Antibiotic, Analgesic, etc" 
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Base Unit</label>
+                                    <input 
+                                        name="unit" 
+                                        defaultValue={editingDrug.unit}
+                                        placeholder="Tablet, Vial, Bottle" 
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Unit Price (KES)</label>
+                                    <input 
+                                        name="unitPrice" 
+                                        type="number" 
+                                        step="0.01" 
+                                        required 
+                                        defaultValue={editingDrug.unitPrice}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Stock Quantity</label>
+                                    <input 
+                                        name="stockQuantity" 
+                                        type="number" 
+                                        required 
+                                        defaultValue={editingDrug.stockQuantity}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Reorder Level</label>
+                                    <input 
+                                        name="reorderLevel" 
+                                        type="number" 
+                                        defaultValue={editingDrug.reorderLevel || 10}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl">
+                                <input 
+                                    type="checkbox" 
+                                    name="isNarcotic" 
+                                    defaultChecked={editingDrug.isNarcotic}
+                                    className="w-4 h-4 rounded border-white/10 bg-white/5" 
+                                />
+                                <label className="text-[10px] font-black uppercase text-rose-400">Classified Narcotic / Controlled Substance</label>
+                            </div>
+
+                            <div className="flex gap-4 pt-4">
+                                <button 
+                                    type="submit"
+                                    className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 cursor-pointer"
+                                >
+                                    Save Changes
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setEditingDrug(null)}
+                                    className="px-8 bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* ── Pharmacist Payment STK Prompt Modal ── */}
             {showStkPromptModal && selectedPrescription && (
                 <PharmacistPaymentPromptModal
@@ -1466,113 +1574,6 @@ function PharmacistPaymentPromptModal({
                     )}
                 </div>
             </div>
-            {/* Edit Medication Modal Overlay */}
-            {editingDrug && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="glass-morphism p-10 rounded-[3rem] border border-white/10 w-full max-w-xl shadow-2xl relative">
-                        <div className="flex justify-between items-center mb-8">
-                            <h3 className="text-2xl font-black uppercase tracking-tighter italic text-amber-400">
-                                Edit Medication
-                            </h3>
-                            <button 
-                                onClick={() => setEditingDrug(null)}
-                                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
-                            >
-                                ✕
-                            </button>
-                        </div>
-                        
-                        <form onSubmit={handleSaveEditDrug} className="space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Drug Name</label>
-                                <input 
-                                    name="name" 
-                                    required 
-                                    defaultValue={editingDrug.name}
-                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Category</label>
-                                    <input 
-                                        name="category" 
-                                        defaultValue={editingDrug.category}
-                                        placeholder="Antibiotic, Analgesic, etc" 
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Base Unit</label>
-                                    <input 
-                                        name="unit" 
-                                        defaultValue={editingDrug.unit}
-                                        placeholder="Tablet, Vial, Bottle" 
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Unit Price (KES)</label>
-                                    <input 
-                                        name="unitPrice" 
-                                        type="number" 
-                                        step="0.01" 
-                                        required 
-                                        defaultValue={editingDrug.unitPrice}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Stock Quantity</label>
-                                    <input 
-                                        name="stockQuantity" 
-                                        type="number" 
-                                        required 
-                                        defaultValue={editingDrug.stockQuantity}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Reorder Level</label>
-                                    <input 
-                                        name="reorderLevel" 
-                                        type="number" 
-                                        defaultValue={editingDrug.reorderLevel || 10}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3 p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl">
-                                <input 
-                                    type="checkbox" 
-                                    name="isNarcotic" 
-                                    defaultChecked={editingDrug.isNarcotic}
-                                    className="w-4 h-4 rounded border-white/10 bg-white/5" 
-                                />
-                                <label className="text-[10px] font-black uppercase text-rose-400">Classified Narcotic / Controlled Substance</label>
-                            </div>
-
-                            <div className="flex gap-4 pt-4">
-                                <button 
-                                    type="submit"
-                                    className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 cursor-pointer"
-                                >
-                                    Save Changes
-                                </button>
-                                <button 
-                                    type="button"
-                                    onClick={() => setEditingDrug(null)}
-                                    className="px-8 bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
