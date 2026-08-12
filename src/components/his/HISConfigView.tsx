@@ -1761,7 +1761,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
             {/* ═══════════ ADD PRACTITIONER MODAL ═══════════ */}
             {isAddPractitionerOpen && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
                         <div className="px-8 py-5 bg-indigo-600 text-white flex items-center justify-between">
                             <div>
                                 <h3 className="text-md font-black uppercase tracking-wider">{editingPractitioner ? 'Edit Healthcare Practitioner Profile' : 'Register Healthcare Practitioner'}</h3>
@@ -1771,7 +1771,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                 <XIcon className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-8 space-y-4">
+                        <div className="p-8 space-y-4 max-h-[78vh] overflow-y-auto custom-scrollbar">
                             <div>
                                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Full Name *</label>
                                 <input 

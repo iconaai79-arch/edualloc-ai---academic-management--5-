@@ -72,7 +72,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
         name: '',
         email: '',
         phoneNumber: '',
-        role: 'teacher',
+        role: 'doctor',
         password: '',
         employmentDate: '',
         nationalId: '',
@@ -93,7 +93,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
             name: member.name || '',
             email: member.email || '',
             phoneNumber: member.phoneNumber || '',
-            role: member.role || 'teacher',
+            role: member.role || 'doctor',
             password: '',
             employmentDate: m.employmentDate || (member as any).employmentDate || '',
             nationalId: m.nationalId || (member as any).nationalId || '',
@@ -774,7 +774,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                         </div>
 
                         {/* Form */}
-                        <form onSubmit={handleOnboardSubmit} className="p-8 space-y-5 overflow-y-auto max-h-[78vh]">
+                        <form onSubmit={handleOnboardSubmit} className="p-8 space-y-5 overflow-y-auto max-h-[78vh] custom-scrollbar">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Full Name *</label>
@@ -818,7 +818,6 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                         onChange={e => setOnboardForm(prev => ({ ...prev, role: e.target.value }))}
                                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                                     >
-                                        <option value="teacher">Teacher / Academic Instructor</option>
                                         <option value="doctor">Doctor / Physician</option>
                                         <option value="nurse">Nurse / Triage Officer</option>
                                         <option value="receptionist">Receptionist / Front Desk Officer</option>
