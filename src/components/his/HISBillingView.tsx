@@ -98,8 +98,89 @@ const MOCK_PATIENT_INVOICES: PatientInvoice[] = [
 ];
 
 export function HISBillingView({ institutionId }: { institutionId?: string }) {
-    const [activeTab, setActiveTab] = useState<'invoices' | 'revenue' | 'statements' | 'claims' | 'accumulated_b2b' | 'insurance_remittance'>('invoices');
+    const [activeTab, setActiveTab] = useState<'invoices' | 'revenue' | 'statements' | 'claims' | 'accumulated_b2b' | 'insurance_remittance' | 'expenditure'>('invoices');
     const [billingItems, setBillingItems] = useState<any[]>([]);
+
+    // ── HIS Expenditure Module State ─────────────────────────────────────
+    const [expenditures, setExpenditures] = useState<any[]>([
+        {
+            id: 'exp_101',
+            title: 'Bulk Medical Oxygen Cylinders Refill',
+            category: 'Medical & Surgical Supplies',
+            vendor: 'BOC Gases Kenya Ltd',
+            amount: 145000,
+            date: '2026-08-01',
+            paymentMethod: 'Bank Transfer (EFT / RTGS)',
+            voucherNo: 'EXP-2026-001',
+            status: 'Paid',
+            notes: '20 x 50L High Pressure Medical Oxygen cylinders for ICU & Wards'
+        },
+        {
+            id: 'exp_102',
+            title: 'Pharmaceutical Stock Replenishment (Antibiotics & Analgesics)',
+            category: 'Pharmaceutical Inventory',
+            vendor: 'KEMSA / Meds Kenya',
+            amount: 380000,
+            date: '2026-08-04',
+            paymentMethod: 'Bank Transfer (EFT / RTGS)',
+            voucherNo: 'EXP-2026-002',
+            status: 'Paid',
+            notes: 'Monthly pharmacy stock replenishment per LPO #LPO-8849'
+        },
+        {
+            id: 'exp_103',
+            title: 'Standby Generator Diesel Fuel Supply (1,000L)',
+            category: 'Facility Utilities & Fuel',
+            vendor: 'TotalEnergies Kenya',
+            amount: 65000,
+            date: '2026-08-07',
+            paymentMethod: 'M-Pesa Business Paybill',
+            voucherNo: 'EXP-2026-003',
+            status: 'Paid',
+            notes: 'Emergency backup power fuel tank refilling'
+        },
+        {
+            id: 'exp_104',
+            title: 'Outsourced Histopathology & Tumor Biopsy Tests',
+            category: 'External Partner Lab Fees',
+            vendor: 'Lancet Kenya / PathCare',
+            amount: 92000,
+            date: '2026-08-09',
+            paymentMethod: 'Bank Transfer (EFT / RTGS)',
+            voucherNo: 'EXP-2026-004',
+            status: 'Approved',
+            notes: 'Contracted referral lab test fees for July 2026'
+        },
+        {
+            id: 'exp_105',
+            title: 'Mindray Anesthesia Workstation Routine Servicing',
+            category: 'Biomedical Equipment Repair',
+            vendor: 'Mindray Medical Kenya',
+            amount: 45000,
+            date: '2026-08-11',
+            paymentMethod: 'Cheque',
+            voucherNo: 'EXP-2026-005',
+            status: 'Pending Approval',
+            notes: 'Biomedical preventive maintenance service voucher'
+        }
+    ]);
+
+    const [expenseSearch, setExpenseSearch] = useState('');
+    const [expenseCategoryFilter, setExpenseCategoryFilter] = useState('all');
+    const [expenseStatusFilter, setExpenseStatusFilter] = useState('all');
+
+    const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
+    const [newExpense, setNewExpense] = useState({
+        title: '',
+        category: 'Medical & Surgical Supplies',
+        vendor: '',
+        amount: 0,
+        date: new Date().toISOString().split('T')[0],
+        paymentMethod: 'Bank Transfer (EFT / RTGS)',
+        voucherNo: '',
+        status: 'Paid',
+        notes: ''
+    });
     const [invoices, setInvoices] = useState<PatientInvoice[]>(MOCK_PATIENT_INVOICES);
     const [patients, setPatients] = useState<any[]>([]);
     const [insuranceProviders, setInsuranceProviders] = useState<any[]>([]);
@@ -559,6 +640,76 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
         }, 800);
     };
 
+    useEffect(() => {
+        if (institutionId) {
+            apiService.fetchModuleRecords('his_expenditures', institutionId)
+                .then(res => {
+                    if (res && res.length > 0) {
+                        setExpenditures(res);
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [institutionId]);
+
+    const handleAddExpense = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newExpense.title.trim() || !newExpense.amount) {
+            return alert('Please fill in expense title and amount.');
+        }
+        const voucher = newExpense.voucherNo.trim() || `EXP-2026-${Math.floor(100 + Math.random() * 900)}`;
+        const record = {
+            id: `exp_${Date.now()}`,
+            institution_id: institutionId || 'his_inst_1',
+            institutionId: institutionId || 'his_inst_1',
+            title: newExpense.title.trim(),
+            category: newExpense.category,
+            vendor: newExpense.vendor.trim() || 'General Vendor',
+            amount: Number(newExpense.amount),
+            date: newExpense.date,
+            paymentMethod: newExpense.paymentMethod,
+            voucherNo: voucher,
+            status: newExpense.status,
+            notes: newExpense.notes.trim(),
+            created_at: new Date().toISOString()
+        };
+
+        setExpenditures(prev => [record, ...prev]);
+
+        if (institutionId) {
+            await apiService.saveModuleRecord('his_expenditures', record).catch(() => null);
+        }
+
+        setIsAddExpenseModalOpen(false);
+        setNewExpense({
+            title: '',
+            category: 'Medical & Surgical Supplies',
+            vendor: '',
+            amount: 0,
+            date: new Date().toISOString().split('T')[0],
+            paymentMethod: 'Bank Transfer (EFT / RTGS)',
+            voucherNo: '',
+            status: 'Paid',
+            notes: ''
+        });
+        alert(`✓ Expenditure "${record.title}" (Voucher: ${voucher}) recorded successfully!`);
+    };
+
+    const handleUpdateExpenseStatus = async (id: string, newStatus: string) => {
+        setExpenditures(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+        if (institutionId) {
+            await apiService.updateModuleRecord('his_expenditures', id, { status: newStatus }).catch(() => null);
+        }
+    };
+
+    const handleDeleteExpense = async (id: string, title: string) => {
+        if (!confirm(`Are you sure you want to delete expenditure "${title}"?`)) return;
+        setExpenditures(prev => prev.filter(e => e.id !== id));
+        if (institutionId) {
+            await apiService.deleteModuleRecord('his_expenditures', id).catch(() => null);
+        }
+    };
+
     return (
         <div className="animate-fade-in-up space-y-8 pb-12">
             {/* Top Bar Header */}
@@ -572,6 +723,12 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setIsAddExpenseModalOpen(true)}
+                        className="bg-rose-600 hover:bg-rose-500 text-white px-6 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-600/30 italic"
+                    >
+                        <PlusIcon className="w-4 h-4 text-white" /> Record Outflow / Expense
+                    </button>
                     <button 
                         onClick={() => setIsGenerateModalOpen(true)}
                         className="bg-emerald-500 text-slate-950 px-6 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-emerald-500/20 italic"
@@ -651,6 +808,17 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                     }`}
                 >
                     <span>💵 Insurance Remittance &amp; Partial Payment</span>
+                </button>
+
+                <button 
+                    onClick={() => setActiveTab('expenditure')}
+                    className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                        activeTab === 'expenditure' 
+                            ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-lg shadow-rose-900/50' 
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <span>💸 Expenditure &amp; Outflows Module</span>
                 </button>
             </div>
 
@@ -1380,6 +1548,324 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════ EXPENDITURE & OUTFLOWS MODULE ═══════════ */}
+            {activeTab === 'expenditure' && (
+                <div className="space-y-8 animate-fade-in">
+                    {/* Expenditure Metrics Bar */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                        <div className="p-6 bg-slate-900/60 rounded-[2.5rem] border border-rose-500/20 relative overflow-hidden">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Operational Outflow</span>
+                            <h3 className="text-2xl font-black text-white italic mt-1 font-mono">
+                                KES {expenditures.reduce((s, e) => s + (Number(e.amount) || 0), 0).toLocaleString()}
+                            </h3>
+                            <span className="text-[9px] font-bold text-rose-400 uppercase tracking-widest mt-1 block">Hospital Expenses &amp; Disbursements</span>
+                        </div>
+
+                        <div className="p-6 bg-slate-900/60 rounded-[2.5rem] border border-emerald-500/20 relative overflow-hidden">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Settled &amp; Paid Expenses</span>
+                            <h3 className="text-2xl font-black text-emerald-400 italic mt-1 font-mono">
+                                KES {expenditures.filter(e => e.status === 'Paid').reduce((s, e) => s + (Number(e.amount) || 0), 0).toLocaleString()}
+                            </h3>
+                            <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest mt-1 block">Completed Payments</span>
+                        </div>
+
+                        <div className="p-6 bg-slate-900/60 rounded-[2.5rem] border border-amber-500/20 relative overflow-hidden">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Approved / Pending Payment</span>
+                            <h3 className="text-2xl font-black text-amber-300 italic mt-1 font-mono">
+                                KES {expenditures.filter(e => e.status !== 'Paid').reduce((s, e) => s + (Number(e.amount) || 0), 0).toLocaleString()}
+                            </h3>
+                            <span className="text-[9px] font-bold text-amber-400 uppercase tracking-widest mt-1 block">Outstanding Vendor Liabilities</span>
+                        </div>
+
+                        <div className="p-6 bg-slate-900/60 rounded-[2.5rem] border border-indigo-500/20 relative overflow-hidden">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Recorded Vouchers</span>
+                            <h3 className="text-2xl font-black text-indigo-300 italic mt-1 font-mono">
+                                {expenditures.length} Vouchers
+                            </h3>
+                            <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mt-1 block">Audited Outflows</span>
+                        </div>
+                    </div>
+
+                    {/* Filter & Action Controls */}
+                    <div className="p-6 bg-slate-900/40 rounded-[2.5rem] border border-white/10 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
+                        <div className="flex flex-wrap items-center gap-3 flex-1">
+                            <div className="relative flex-1 min-w-[200px]">
+                                <SearchIcon className="w-4 h-4 text-slate-500 absolute left-4 top-3.5" />
+                                <input
+                                    type="text"
+                                    placeholder="Search expense title, voucher # or vendor..."
+                                    value={expenseSearch}
+                                    onChange={e => setExpenseSearch(e.target.value)}
+                                    className="w-full bg-slate-950 border border-white/10 rounded-2xl pl-11 pr-4 py-2.5 text-xs text-white outline-none focus:border-rose-500"
+                                />
+                            </div>
+
+                            <select
+                                value={expenseCategoryFilter}
+                                onChange={e => setExpenseCategoryFilter(e.target.value)}
+                                className="bg-slate-950 border border-white/10 text-white rounded-2xl px-4 py-2.5 text-xs font-bold outline-none focus:border-rose-500"
+                            >
+                                <option value="all">All Categories</option>
+                                <option value="Medical & Surgical Supplies">Medical &amp; Surgical Supplies</option>
+                                <option value="Pharmaceutical Inventory">Pharmaceutical Inventory</option>
+                                <option value="Laboratory & Diagnostic Reagents">Laboratory &amp; Diagnostic Reagents</option>
+                                <option value="Biomedical Equipment Repair">Biomedical Equipment Repair</option>
+                                <option value="Facility Utilities & Fuel">Facility Utilities &amp; Fuel</option>
+                                <option value="Staff Payroll & Allowances">Staff Payroll &amp; Allowances</option>
+                                <option value="Administrative & Office">Administrative &amp; Office</option>
+                                <option value="External Partner Lab Fees">External Partner Lab Fees</option>
+                            </select>
+
+                            <select
+                                value={expenseStatusFilter}
+                                onChange={e => setExpenseStatusFilter(e.target.value)}
+                                className="bg-slate-950 border border-white/10 text-white rounded-2xl px-4 py-2.5 text-xs font-bold outline-none focus:border-rose-500"
+                            >
+                                <option value="all">All Statuses</option>
+                                <option value="Paid">Paid</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Pending Approval">Pending Approval</option>
+                            </select>
+                        </div>
+
+                        <button
+                            onClick={() => setIsAddExpenseModalOpen(true)}
+                            className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-rose-600/30 flex items-center justify-center gap-2"
+                        >
+                            <PlusIcon className="w-4 h-4" /> Log Hospital Expenditure
+                        </button>
+                    </div>
+
+                    {/* Expenditures Audit Table */}
+                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] overflow-hidden">
+                        <div className="p-6 border-b border-white/10 bg-black/20 flex justify-between items-center">
+                            <div>
+                                <h4 className="text-sm font-black text-white uppercase tracking-widest">Hospital Expenditure Audit Journal</h4>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Approved operational expenses, vendor invoices &amp; disbursement vouchers</p>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs text-white">
+                                <thead className="bg-black/40 text-[9px] uppercase tracking-widest text-slate-400 font-black">
+                                    <tr>
+                                        <th className="p-4">Voucher #</th>
+                                        <th className="p-4">Date</th>
+                                        <th className="p-4">Expense Title &amp; Category</th>
+                                        <th className="p-4">Supplier / Vendor</th>
+                                        <th className="p-4">Payment Method</th>
+                                        <th className="p-4 text-right">Amount (KES)</th>
+                                        <th className="p-4 text-center">Status</th>
+                                        <th className="p-4 text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5 font-semibold text-slate-300">
+                                    {expenditures
+                                        .filter(e => {
+                                            const matchSearch = !expenseSearch || 
+                                                e.title?.toLowerCase().includes(expenseSearch.toLowerCase()) || 
+                                                e.vendor?.toLowerCase().includes(expenseSearch.toLowerCase()) ||
+                                                e.voucherNo?.toLowerCase().includes(expenseSearch.toLowerCase());
+                                            const matchCat = expenseCategoryFilter === 'all' || e.category === expenseCategoryFilter;
+                                            const matchStat = expenseStatusFilter === 'all' || e.status === expenseStatusFilter;
+                                            return matchSearch && matchCat && matchStat;
+                                        })
+                                        .map(exp => (
+                                            <tr key={exp.id} className="hover:bg-white/[0.02]">
+                                                <td className="p-4 text-rose-400 font-mono font-bold">{exp.voucherNo}</td>
+                                                <td className="p-4 text-slate-400">{exp.date}</td>
+                                                <td className="p-4">
+                                                    <div className="font-bold text-white">{exp.title}</div>
+                                                    <span className="text-[8px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                                        {exp.category}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-slate-200 font-semibold">{exp.vendor}</td>
+                                                <td className="p-4 text-slate-400">{exp.paymentMethod}</td>
+                                                <td className="p-4 text-right font-black text-rose-300 font-mono text-sm">
+                                                    KES {(Number(exp.amount) || 0).toLocaleString()}
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${
+                                                        exp.status === 'Paid'
+                                                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                                            : exp.status === 'Approved'
+                                                            ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                                                            : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                                    }`}>
+                                                        {exp.status}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        {exp.status !== 'Paid' && (
+                                                            <button
+                                                                onClick={() => handleUpdateExpenseStatus(exp.id, 'Paid')}
+                                                                className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-[9px] font-bold uppercase tracking-wider"
+                                                            >
+                                                                Mark Paid
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleDeleteExpense(exp.id, exp.title)}
+                                                            className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
+                                                            title="Delete Expenditure Record"
+                                                        >
+                                                            <XCircleIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════ MODAL: RECORD EXPENDITURE ═══════════ */}
+            {isAddExpenseModalOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="px-8 py-5 bg-gradient-to-r from-rose-600 to-red-600 text-white flex items-center justify-between">
+                            <div>
+                                <h3 className="text-md font-black uppercase tracking-wider">Log Hospital Expenditure</h3>
+                                <p className="text-[10px] font-semibold opacity-80">Record operational expense, vendor invoice, or supply payment voucher</p>
+                            </div>
+                            <button onClick={() => setIsAddExpenseModalOpen(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                                <XCircleIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddExpense} className="p-8 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Expense Title / Description *</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={newExpense.title}
+                                    onChange={e => setNewExpense(f => ({ ...f, title: e.target.value }))}
+                                    placeholder="e.g. Oxygen Cylinder Refills, Lab Reagent Purchase"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Expense Category *</label>
+                                    <select
+                                        value={newExpense.category}
+                                        onChange={e => setNewExpense(f => ({ ...f, category: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500"
+                                    >
+                                        <option value="Medical & Surgical Supplies">Medical &amp; Surgical Supplies</option>
+                                        <option value="Pharmaceutical Inventory">Pharmaceutical Inventory</option>
+                                        <option value="Laboratory & Diagnostic Reagents">Laboratory &amp; Diagnostic Reagents</option>
+                                        <option value="Biomedical Equipment Repair">Biomedical Equipment Repair</option>
+                                        <option value="Facility Utilities & Fuel">Facility Utilities &amp; Fuel</option>
+                                        <option value="Staff Payroll & Allowances">Staff Payroll &amp; Allowances</option>
+                                        <option value="Administrative & Office">Administrative &amp; Office</option>
+                                        <option value="External Partner Lab Fees">External Partner Lab Fees</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Vendor / Supplier</label>
+                                    <input
+                                        type="text"
+                                        value={newExpense.vendor}
+                                        onChange={e => setNewExpense(f => ({ ...f, vendor: e.target.value }))}
+                                        placeholder="e.g. BOC Gases Kenya, KEMSA"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Amount (KES) *</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        value={newExpense.amount || ''}
+                                        onChange={e => setNewExpense(f => ({ ...f, amount: Number(e.target.value) }))}
+                                        placeholder="150000"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500 text-rose-600 dark:text-rose-400"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Expense Date</label>
+                                    <input
+                                        type="date"
+                                        value={newExpense.date}
+                                        onChange={e => setNewExpense(f => ({ ...f, date: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Payment Method</label>
+                                    <select
+                                        value={newExpense.paymentMethod}
+                                        onChange={e => setNewExpense(f => ({ ...f, paymentMethod: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500"
+                                    >
+                                        <option value="Bank Transfer (EFT / RTGS)">Bank Transfer (EFT / RTGS)</option>
+                                        <option value="M-Pesa Business Paybill">M-Pesa Business Paybill</option>
+                                        <option value="Petty Cash">Petty Cash</option>
+                                        <option value="Cheque">Cheque</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Status</label>
+                                    <select
+                                        value={newExpense.status}
+                                        onChange={e => setNewExpense(f => ({ ...f, status: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500"
+                                    >
+                                        <option value="Paid">Paid</option>
+                                        <option value="Approved">Approved</option>
+                                        <option value="Pending Approval">Pending Approval</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Voucher / LPO Reference No.</label>
+                                <input
+                                    type="text"
+                                    value={newExpense.voucherNo}
+                                    onChange={e => setNewExpense(f => ({ ...f, voucherNo: e.target.value }))}
+                                    placeholder="e.g. EXP-2026-009 or LPO-8492"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500 font-mono"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Notes / Description Memo</label>
+                                <input
+                                    type="text"
+                                    value={newExpense.notes}
+                                    onChange={e => setNewExpense(f => ({ ...f, notes: e.target.value }))}
+                                    placeholder="Details of expense, LPO number or payment receipt..."
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500"
+                                />
+                            </div>
+
+                            <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" onClick={() => setIsAddExpenseModalOpen(false)} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">
+                                    Cancel
+                                </button>
+                                <button type="submit" className="px-8 py-3 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-md">
+                                    ✓ Save Expenditure Record
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

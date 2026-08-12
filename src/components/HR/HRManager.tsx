@@ -170,6 +170,78 @@ export const HRManager: React.FC<HRManagerProps> = ({
         }
     };
 
+    // Reports Form States
+    const [selectedStaffId, setSelectedStaffId] = useState('');
+    const [selectedMonth, setSelectedMonth] = useState('January 2026');
+    const [selectedP9StaffId, setSelectedP9StaffId] = useState('');
+    const [selectedYear, setSelectedYear] = useState('2026');
+    const [selectedStatutoryMonth, setSelectedStatutoryMonth] = useState('January 2026');
+    
+    // Preview State
+    const [selectedReportUrl, setSelectedReportUrl] = useState<string | null>(null);
+    const [previewTitle, setPreviewTitle] = useState('');
+
+    // Salary Bank Disbursement Advice States
+    const [showBankScheduleModal, setShowBankScheduleModal] = useState(false);
+    const [schedulePeriod, setSchedulePeriod] = useState('');
+    const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
+    const [scheduleStaffAccounts, setScheduleStaffAccounts] = useState<any[]>([]);
+    const [scheduleSourceBankId, setScheduleSourceBankId] = useState('');
+    const [scheduleChequeNumber, setScheduleChequeNumber] = useState('');
+    const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+
+    React.useEffect(() => {
+        if (showBankScheduleModal) {
+            apiService.fetchModuleRecords<any>('school_bank_accounts', institution.id)
+                .then(res => setBankAccounts(res || []))
+                .catch(() => setBankAccounts([]));
+        }
+    }, [showBankScheduleModal, institution]);
+
+    React.useEffect(() => {
+        if (showBankScheduleModal && (schedulePeriod || selectedStatutoryMonth)) {
+            const period = schedulePeriod || selectedStatutoryMonth;
+            const periodRecords = payrollRecords.filter(r => r.month === period);
+            const mapped = periodRecords.map(r => {
+                const s = staff.find(st => st.id === r.staffId);
+                return {
+                    payrollId: r.id,
+                    staffId: r.staffId,
+                    staffName: r.staffName || s?.name || 'Staff',
+                    netPay: r.netSalary || 0,
+                    bankName: s?.metadata?.bankName || 'Equity Bank',
+                    bankBranch: s?.metadata?.bankBranch || 'Main Branch',
+                    accountNumber: s?.metadata?.bankAccountNumber || '1234567890'
+                };
+            });
+            
+            if (mapped.length === 0 && staff) {
+                const staffUsers = staff.filter(u => ['teacher', 'staff', 'admin', 'lecturer'].includes(u.role));
+                const fallbackMapped = staffUsers.map((u, i) => ({
+                    payrollId: `man_${Date.now()}_${i}`,
+                    staffId: u.id,
+                    staffName: u.name,
+                    netPay: 0,
+                    bankName: u.metadata?.bankName || 'Equity Bank',
+                    bankBranch: u.metadata?.bankBranch || 'Main Branch',
+                    accountNumber: u.metadata?.bankAccountNumber || '1234567890'
+                }));
+                setScheduleStaffAccounts(fallbackMapped);
+            } else {
+                setScheduleStaffAccounts(mapped);
+            }
+        }
+    }, [showBankScheduleModal, schedulePeriod, selectedStatutoryMonth, payrollRecords, staff]);
+
+    const tabs = [
+        { id: 'roster', label: 'Staff Roster', icon: UserGroupIcon },
+        { id: 'payroll', label: 'Payroll Hub', icon: BanknotesIcon },
+        { id: 'leave', label: 'Leave Governance', icon: CalendarDaysIcon },
+        { id: 'attendance', label: 'Attendance Tracker', icon: ClockIcon },
+        { id: 'reports', label: 'Compliance Reports', icon: DocumentTextIcon },
+        { id: 'analytics', label: 'Workforce Intel', icon: BarChart3Icon },
+    ] as const;
+
     const handleGeneratePayslip = async () => {
         if (!selectedStaffId) {
             alert('Please select an employee first.');
