@@ -34,12 +34,39 @@ const FINGER_OPTIONS = [
 
 export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpdated }: HISConfigProps) {
     const [activeTab, setActiveTab] = useState<ConfigTab>('branding');
-    const [branding, setBranding] = useState({
-        hospitalName: 'Quantum Health Hospital/Clinic',
-        motto: 'Precision in Care, Excellence in Service',
-        primaryColor: '#6366f1',
-        logoUrl: ''
+    const [branding, setBranding] = useState(() => {
+        try {
+            const saved = localStorage.getItem(`his_branding_${institutionId}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {
+            hospitalName: 'Quantum Health Hospital/Clinic',
+            motto: 'Precision in Care, Excellence in Service',
+            primaryColor: '#6366f1',
+            logoUrl: ''
+        };
     });
+    const [isSavingBranding, setIsSavingBranding] = useState(false);
+
+    const handleSaveBranding = async () => {
+        setIsSavingBranding(true);
+        try {
+            localStorage.setItem(`his_branding_${institutionId}`, JSON.stringify(branding));
+            await apiService.saveModuleRecord('his_branding', {
+                id: `his_branding_${institutionId}`,
+                institutionId,
+                institution_id: institutionId,
+                ...branding,
+                updatedAt: new Date().toISOString()
+            }).catch(() => null);
+            alert('✓ Hospital identity & Visual DNA committed successfully!');
+        } catch (e) {
+            console.error('Failed to save HIS branding:', e);
+            alert('Failed to save branding settings.');
+        } finally {
+            setIsSavingBranding(false);
+        }
+    };
 
     // ── Tariffs & Fee Schedule State ──────────────────────────────────────────
     const [consultationRates, setConsultationRates] = useState({
@@ -978,24 +1005,52 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         </div>
                                     </div>
                                     <div className="flex-1 flex items-end justify-end">
-                                        <button className="bg-indigo-600 text-white px-10 py-5 rounded-3xl text-[10px] font-black uppercase tracking-[0.2em] italic hover:scale-105 transition-all shadow-2xl shadow-indigo-600/30 ring-4 ring-indigo-500/20">
-                                            Commit DNA
+                                        <button 
+                                            type="button"
+                                            onClick={handleSaveBranding}
+                                            disabled={isSavingBranding}
+                                            className="bg-indigo-600 text-white px-10 py-5 rounded-3xl text-[10px] font-black uppercase tracking-[0.2em] italic hover:scale-105 transition-all shadow-2xl shadow-indigo-600/30 ring-4 ring-indigo-500/20 cursor-pointer disabled:opacity-50"
+                                        >
+                                            {isSavingBranding ? 'Committing...' : 'Commit DNA'}
                                         </button>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="bg-slate-50 dark:bg-slate-900/30 p-12 rounded-[3.5rem] border-2 border-dashed border-slate-200 dark:border-white/10 flex flex-col items-center justify-center space-y-8 text-center group cursor-pointer hover:border-indigo-500/50 hover:bg-slate-100 dark:hover:bg-white/5 transition-all relative overflow-hidden">
+                            <label className="bg-slate-50 dark:bg-slate-900/30 p-12 rounded-[3.5rem] border-2 border-dashed border-slate-200 dark:border-white/10 flex flex-col items-center justify-center space-y-8 text-center group cursor-pointer hover:border-indigo-500/50 hover:bg-slate-100 dark:hover:bg-white/5 transition-all relative overflow-hidden">
+                                <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    className="hidden" 
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => {
+                                                setBranding(b => ({ ...b, logoUrl: reader.result as string }));
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }} 
+                                />
                                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.02] to-transparent pointer-events-none"></div>
-                                <div className="w-28 h-28 rounded-4xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform relative z-10">
-                                    <PhotoIcon className="w-12 h-12 text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                                <div className="w-28 h-28 rounded-4xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform relative z-10 overflow-hidden">
+                                    {branding.logoUrl ? (
+                                        <img src={branding.logoUrl} alt="Emblem" className="w-full h-full object-contain p-2" />
+                                    ) : (
+                                        <PhotoIcon className="w-12 h-12 text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                                    )}
                                 </div>
                                 <div className="relative z-10">
                                     <p className="text-sm font-black uppercase tracking-[0.2em] italic">Institutional Emblem</p>
-                                    <p className="text-[10px] text-slate-500 font-bold uppercase mt-3 tracking-widest max-w-[200px] leading-relaxed italic">Quantum-ready SVG or high-fidelity PNG preferred (Max 10MB)</p>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase mt-3 tracking-widest max-w-[200px] leading-relaxed italic">
+                                        {branding.logoUrl ? 'Click to upload new emblem' : 'SVG or high-fidelity PNG preferred (Max 10MB)'}
+                                    </p>
                                 </div>
-                                <div className="px-6 py-2 bg-slate-200 dark:bg-white/10 rounded-full text-[8px] font-bold text-slate-500 uppercase tracking-widest relative z-10">DRAG & DROP SECURE NODE</div>
-                            </div>
+                                <div className="px-6 py-2 bg-slate-200 dark:bg-white/10 rounded-full text-[8px] font-bold text-slate-500 uppercase tracking-widest relative z-10">
+                                    {branding.logoUrl ? 'EMBLEM ATTACHED' : 'DRAG & DROP SECURE NODE'}
+                                </div>
+                            </label>
                         </div>
                     </div>
                 );
