@@ -1706,7 +1706,7 @@ export const apiService = {
                 let response = await doSaveRequest(token, currentPayload);
 
                 if (response.status === 500) {
-                    console.warn(`[apiService] Module '${module}' server error 500 — auto-handling via local storage fallback.`);
+                    console.log(`[apiService] Module '${module}' fallback saved locally.`);
                     ls.upsert(module, currentPayload);
                     return toCamelCase(currentPayload);
                 }
