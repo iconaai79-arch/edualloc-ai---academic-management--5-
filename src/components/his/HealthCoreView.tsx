@@ -825,12 +825,6 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                 <div className="pt-4 px-8 pb-2">
                     <div className="flex items-center gap-2 p-2 bg-slate-900/90 backdrop-blur-2xl border border-indigo-500/30 rounded-[2rem] overflow-x-auto no-scrollbar shadow-2xl">
                         {[
-                            { id: 'overview' as HISModule, label: 'Overview', icon: '📊' },
-                            { id: 'receptionist' as HISModule, label: 'Reception', icon: '📋' },
-                            { id: 'doctor' as HISModule, label: 'Doctor Consult', icon: '🩺' },
-                            { id: 'nurse' as HISModule, label: 'Nurse Care & MAR', icon: '👩‍⚕️' },
-                            { id: 'queuing' as HISModule, label: 'Queue & TV', icon: '📺' },
-                            { id: 'patients' as HISModule, label: 'Patients', icon: '👥' },
                             { id: 'general' as HISModule, label: 'Patient 360', icon: '📁' },
                             { id: 'inpatient' as HISModule, label: 'Admissions', icon: '🛌' },
                             { id: 'appointments' as HISModule, label: 'Scheduling', icon: '📅' },
