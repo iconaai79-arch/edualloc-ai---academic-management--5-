@@ -137,7 +137,17 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         phoneNumber: '',
         email: '',
         devicePin: '',
-        fingerIndex: 0
+        fingerIndex: 0,
+        employmentDate: '',
+        nationalId: '',
+        employmentTerms: 'Permanent & Pensionable',
+        basicSalary: 0,
+        kraPin: '',
+        nssfNo: '',
+        shifNumber: '',
+        bankName: 'Equity Bank',
+        bankBranch: '',
+        bankAccountNumber: ''
     });
 
     const loadPractitioners = useCallback(async () => {
@@ -441,6 +451,24 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                 : 'nurse';
             const assignedPin = practitionerForm.devicePin || String(Math.floor(1000 + Math.random() * 9000));
 
+            const hrMetadata = {
+                titleRole: practitionerForm.role,
+                specialty: practitionerForm.specialty || 'General Practitioner',
+                medicalLicense: practitionerForm.medicalLicense || `MPDB-${Math.floor(10000 + Math.random() * 90000)}`,
+                isPractitioner: true,
+                devicePin: assignedPin,
+                employmentDate: practitionerForm.employmentDate,
+                nationalId: practitionerForm.nationalId,
+                employmentTerms: practitionerForm.employmentTerms,
+                basicSalary: Number(practitionerForm.basicSalary) || 0,
+                kraPin: practitionerForm.kraPin,
+                nssfNo: practitionerForm.nssfNo,
+                shifNumber: practitionerForm.shifNumber,
+                bankName: practitionerForm.bankName,
+                bankBranch: practitionerForm.bankBranch,
+                bankAccountNumber: practitionerForm.bankAccountNumber
+            };
+
             if (editingPractitioner) {
                 // Update Existing Practitioner
                 const updatedRecord: any = {
@@ -450,10 +478,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     role: sysRole,
                     metadata: {
                         ...(editingPractitioner.metadata || {}),
-                        titleRole: practitionerForm.role,
-                        specialty: practitionerForm.specialty || 'General Practitioner',
-                        medicalLicense: practitionerForm.medicalLicense || `MPDB-${Math.floor(10000 + Math.random() * 90000)}`,
-                        devicePin: assignedPin,
+                        ...hrMetadata
                     }
                 };
 
@@ -466,7 +491,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     metadata: updatedRecord.metadata 
                 } : s));
 
-                alert(`✓ Practitioner profile for ${practitionerForm.name} updated successfully!`);
+                alert(`✓ Practitioner profile & HR file for ${practitionerForm.name} updated successfully!`);
             } else {
                 // Create New Practitioner
                 const newId = `user_prac_${Date.now()}`;
@@ -479,13 +504,9 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     phoneNumber: practitionerForm.phoneNumber || '',
                     role: sysRole,
                     metadata: {
-                        titleRole: practitionerForm.role,
-                        specialty: practitionerForm.specialty || 'General Practitioner',
-                        medicalLicense: practitionerForm.medicalLicense || `MPDB-${Math.floor(10000 + Math.random() * 90000)}`,
-                        isPractitioner: true,
+                        ...hrMetadata,
                         webauthnCredentials: scannedBiometricData?.credentials || null,
                         fingerprintTemplate: scannedBiometricData?.templateHash || null,
-                        devicePin: assignedPin,
                         hasBiometrics: !!scannedBiometricData
                     },
                     status: 'active',
@@ -515,7 +536,10 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
             setIsAddPractitionerOpen(false);
             setEditingPractitioner(null);
             setScannedBiometricData(null);
-            setPractitionerForm({ name: '', role: 'doctor', specialty: '', medicalLicense: '', phoneNumber: '', email: '', devicePin: '', fingerIndex: 0 });
+            setPractitionerForm({
+                name: '', role: 'doctor', specialty: '', medicalLicense: '', phoneNumber: '', email: '', devicePin: '', fingerIndex: 0,
+                employmentDate: '', nationalId: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0, kraPin: '', nssfNo: '', shifNumber: '', bankName: 'Equity Bank', bankBranch: '', bankAccountNumber: ''
+            });
             await loadPractitioners();
             if (onStaffUpdated) onStaffUpdated();
         } catch (err: any) {
@@ -537,15 +561,26 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
 
     const handleOpenEditPractitioner = (staff: any) => {
         setEditingPractitioner(staff);
+        const m = staff.metadata || {};
         setPractitionerForm({
             name: staff.name || '',
-            role: staff.metadata?.titleRole || staff.role || 'doctor',
-            specialty: staff.specialty || staff.metadata?.specialty || '',
-            medicalLicense: staff.medicalLicense || staff.metadata?.medicalLicense || '',
+            role: m.titleRole || staff.role || 'doctor',
+            specialty: staff.specialty || m.specialty || '',
+            medicalLicense: staff.medicalLicense || m.medicalLicense || '',
             phoneNumber: staff.phoneNumber || '',
             email: staff.email || '',
-            devicePin: staff.metadata?.devicePin || '',
-            fingerIndex: 0
+            devicePin: m.devicePin || '',
+            fingerIndex: 0,
+            employmentDate: m.employmentDate || staff.employmentDate || '',
+            nationalId: m.nationalId || staff.nationalId || '',
+            employmentTerms: m.employmentTerms || 'Permanent & Pensionable',
+            basicSalary: m.basicSalary || staff.basicSalary || 0,
+            kraPin: m.kraPin || staff.kraPin || '',
+            nssfNo: m.nssfNo || staff.nssfNo || '',
+            shifNumber: m.shifNumber || m.nhifNo || staff.shifNumber || '',
+            bankName: m.bankName || staff.bankName || 'Equity Bank',
+            bankBranch: m.bankBranch || staff.bankBranch || '',
+            bankAccountNumber: m.bankAccountNumber || staff.accountNumber || ''
         });
         setIsAddPractitionerOpen(true);
     };
@@ -1811,6 +1846,141 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                     placeholder="doctor@hospital.org"
                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" 
                                 />
+                            </div>
+
+                            {/* ── HR & Employment Details Section ── */}
+                            <div className="p-4 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                                <div className="border-b border-slate-200 dark:border-slate-800 pb-2">
+                                    <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                        💼 HR, Payroll & Statutory Details
+                                    </h4>
+                                    <p className="text-[9px] text-slate-500 font-semibold">
+                                        Employment contract terms, national ID, basic salary, KRA PIN, NSSF, SHIF & bank disbursement account
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Employment Date</label>
+                                        <input
+                                            type="date"
+                                            value={practitionerForm.employmentDate}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, employmentDate: e.target.value }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">National ID / Passport No</label>
+                                        <input
+                                            type="text"
+                                            value={practitionerForm.nationalId}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, nationalId: e.target.value }))}
+                                            placeholder="e.g. 34892019"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Employment Terms</label>
+                                        <select
+                                            value={practitionerForm.employmentTerms}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, employmentTerms: e.target.value }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="Permanent & Pensionable">Permanent & Pensionable</option>
+                                            <option value="Fixed-Term Contract">Fixed-Term Contract</option>
+                                            <option value="Casual / Day Worker">Casual / Day Worker</option>
+                                            <option value="Intern / Probationary">Intern / Probationary</option>
+                                            <option value="Visiting Consultant">Visiting Consultant</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Basic Monthly Salary (KES)</label>
+                                        <input
+                                            type="number"
+                                            value={practitionerForm.basicSalary || ''}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, basicSalary: Number(e.target.value) }))}
+                                            placeholder="e.g. 85000"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 text-emerald-600 dark:text-emerald-400"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">KRA PIN Number</label>
+                                        <input
+                                            type="text"
+                                            value={practitionerForm.kraPin}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, kraPin: e.target.value.toUpperCase() }))}
+                                            placeholder="A019482910Z"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">NSSF Number</label>
+                                        <input
+                                            type="text"
+                                            value={practitionerForm.nssfNo}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, nssfNo: e.target.value }))}
+                                            placeholder="10482019"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">SHIF / NHIF No</label>
+                                        <input
+                                            type="text"
+                                            value={practitionerForm.shifNumber}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, shifNumber: e.target.value }))}
+                                            placeholder="SHIF-94820"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Bank Name</label>
+                                        <select
+                                            value={practitionerForm.bankName}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, bankName: e.target.value }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="Equity Bank">Equity Bank</option>
+                                            <option value="KCB Bank">KCB Bank</option>
+                                            <option value="Cooperative Bank">Cooperative Bank</option>
+                                            <option value="NCBA Bank">NCBA Bank</option>
+                                            <option value="Absa Bank">Absa Bank</option>
+                                            <option value="Stanbic Bank">Stanbic Bank</option>
+                                            <option value="Family Bank">Family Bank</option>
+                                            <option value="Standard Chartered">Standard Chartered</option>
+                                            <option value="M-Pesa STK Express">M-Pesa Mobile Money</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Bank Branch</label>
+                                        <input
+                                            type="text"
+                                            value={practitionerForm.bankBranch}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, bankBranch: e.target.value }))}
+                                            placeholder="Nairobi Main"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Account / Phone No</label>
+                                        <input
+                                            type="text"
+                                            value={practitionerForm.bankAccountNumber}
+                                            onChange={e => setPractitionerForm(f => ({ ...f, bankAccountNumber: e.target.value }))}
+                                            placeholder="1294820194"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             {/* ── Biometric Hardware Link ── */}

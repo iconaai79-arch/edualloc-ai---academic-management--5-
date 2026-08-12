@@ -65,87 +65,49 @@ export const HRManager: React.FC<HRManagerProps> = ({
     const setActiveTab = propSetActiveTab || setLocalActiveTab;
 
     
-    // Onboarding Form States
+    // Onboarding & Edit Form States
     const [showOnboardModal, setShowOnboardModal] = useState(false);
+    const [editingStaff, setEditingStaff] = useState<User | null>(null);
     const [onboardForm, setOnboardForm] = useState({
         name: '',
         email: '',
         phoneNumber: '',
         role: 'teacher',
-        password: ''
+        password: '',
+        employmentDate: '',
+        nationalId: '',
+        employmentTerms: 'Permanent & Pensionable',
+        basicSalary: 0,
+        kraPin: '',
+        nssfNo: '',
+        shifNumber: '',
+        bankName: 'Equity Bank',
+        bankBranch: '',
+        bankAccountNumber: ''
     });
 
-    // Reports Form States
-    const [selectedStaffId, setSelectedStaffId] = useState('');
-    const [selectedMonth, setSelectedMonth] = useState('January 2026');
-    const [selectedP9StaffId, setSelectedP9StaffId] = useState('');
-    const [selectedYear, setSelectedYear] = useState('2026');
-    const [selectedStatutoryMonth, setSelectedStatutoryMonth] = useState('January 2026');
-    
-    // Preview State
-    const [selectedReportUrl, setSelectedReportUrl] = useState<string | null>(null);
-    const [previewTitle, setPreviewTitle] = useState('');
-
-    // Salary Bank Disbursement Advice States
-    const [showBankScheduleModal, setShowBankScheduleModal] = useState(false);
-    const [schedulePeriod, setSchedulePeriod] = useState('');
-    const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
-    const [scheduleStaffAccounts, setScheduleStaffAccounts] = useState<any[]>([]);
-    const [scheduleSourceBankId, setScheduleSourceBankId] = useState('');
-    const [scheduleChequeNumber, setScheduleChequeNumber] = useState('');
-    const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-
-    React.useEffect(() => {
-        if (showBankScheduleModal) {
-            apiService.fetchModuleRecords<any>('school_bank_accounts', institution.id)
-                .then(data => setBankAccounts(data || []))
-                .catch(() => {});
-        }
-    }, [showBankScheduleModal, institution.id]);
-
-    React.useEffect(() => {
-        if (showBankScheduleModal) {
-            const currentPeriod = schedulePeriod || selectedStatutoryMonth || '';
-            const currentRecords = (payrollRecords || []).filter(r => (r as any).period === currentPeriod || (r as any).payPeriod === currentPeriod);
-            const mapped = currentRecords.map(r => {
-                const u = (staff || []).find(user => user.id === r.staffId || user.name === r.staffName);
-                return {
-                    payrollId: r.id,
-                    staffId: r.staffId,
-                    staffName: r.staffName || u?.name || 'Unknown Staff',
-                    netPay: r.netPay || r.netSalary || 0,
-                    bankName: u?.metadata?.bankName || 'Equity Bank',
-                    bankBranch: u?.metadata?.bankBranch || 'Main Branch',
-                    accountNumber: u?.metadata?.bankAccountNumber || '1234567890'
-                };
-            });
-            
-            if (mapped.length === 0 && staff) {
-                const staffUsers = staff.filter(u => ['teacher', 'staff', 'admin', 'lecturer'].includes(u.role));
-                const fallbackMapped = staffUsers.map((u, i) => ({
-                    payrollId: `man_${Date.now()}_${i}`,
-                    staffId: u.id,
-                    staffName: u.name,
-                    netPay: 0,
-                    bankName: u.metadata?.bankName || 'Equity Bank',
-                    bankBranch: u.metadata?.bankBranch || 'Main Branch',
-                    accountNumber: u.metadata?.bankAccountNumber || '1234567890'
-                }));
-                setScheduleStaffAccounts(fallbackMapped);
-            } else {
-                setScheduleStaffAccounts(mapped);
-            }
-        }
-    }, [showBankScheduleModal, schedulePeriod, selectedStatutoryMonth, payrollRecords, staff]);
-
-    const tabs = [
-        { id: 'roster', label: 'Staff Roster', icon: UserGroupIcon },
-        { id: 'payroll', label: 'Payroll Hub', icon: BanknotesIcon },
-        { id: 'leave', label: 'Leave Governance', icon: CalendarDaysIcon },
-        { id: 'attendance', label: 'Attendance Tracker', icon: ClockIcon },
-        { id: 'reports', label: 'Compliance Reports', icon: DocumentTextIcon },
-        { id: 'analytics', label: 'Workforce Intel', icon: BarChart3Icon },
-    ] as const;
+    const handleOpenEditStaff = (member: User) => {
+        setEditingStaff(member);
+        const m = member.metadata || {};
+        setOnboardForm({
+            name: member.name || '',
+            email: member.email || '',
+            phoneNumber: member.phoneNumber || '',
+            role: member.role || 'teacher',
+            password: '',
+            employmentDate: m.employmentDate || (member as any).employmentDate || '',
+            nationalId: m.nationalId || (member as any).nationalId || '',
+            employmentTerms: m.employmentTerms || (member as any).employmentTerms || 'Permanent & Pensionable',
+            basicSalary: m.basicSalary || (member as any).basicSalary || 0,
+            kraPin: m.kraPin || (member as any).kraPin || '',
+            nssfNo: m.nssfNo || (member as any).nssfNo || '',
+            shifNumber: m.shifNumber || m.nhifNo || (member as any).shifNumber || '',
+            bankName: m.bankName || (member as any).bankName || 'Equity Bank',
+            bankBranch: m.bankBranch || (member as any).bankBranch || '',
+            bankAccountNumber: m.bankAccountNumber || (member as any).bankAccountNumber || (member as any).accountNumber || ''
+        });
+        setShowOnboardModal(true);
+    };
 
     const handleOnboardSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -154,15 +116,57 @@ export const HRManager: React.FC<HRManagerProps> = ({
             return;
         }
         try {
-            if (onAddUser) {
-                await onAddUser(onboardForm);
-                alert(`Successfully onboarded ${onboardForm.name}!`);
-                setShowOnboardModal(false);
-                setOnboardForm({ name: '', email: '', phoneNumber: '', role: 'teacher', password: '' });
+            const hrMetadata = {
+                employmentDate: onboardForm.employmentDate,
+                nationalId: onboardForm.nationalId,
+                employmentTerms: onboardForm.employmentTerms,
+                basicSalary: Number(onboardForm.basicSalary) || 0,
+                kraPin: onboardForm.kraPin,
+                nssfNo: onboardForm.nssfNo,
+                shifNumber: onboardForm.shifNumber,
+                bankName: onboardForm.bankName,
+                bankBranch: onboardForm.bankBranch,
+                bankAccountNumber: onboardForm.bankAccountNumber
+            };
+
+            if (editingStaff) {
+                if (onEditUser) {
+                    await onEditUser(editingStaff.id, {
+                        ...onboardForm,
+                        metadata: {
+                            ...(editingStaff.metadata || {}),
+                            ...hrMetadata
+                        }
+                    });
+                }
+                await apiService.updateModuleRecord('users', editingStaff.id, {
+                    name: onboardForm.name,
+                    email: onboardForm.email,
+                    phoneNumber: onboardForm.phoneNumber,
+                    role: onboardForm.role,
+                    metadata: {
+                        ...(editingStaff.metadata || {}),
+                        ...hrMetadata
+                    }
+                }).catch(() => null);
+                alert(`✓ Staff record & HR file for ${onboardForm.name} updated successfully!`);
+            } else if (onAddUser) {
+                await onAddUser({
+                    ...onboardForm,
+                    metadata: hrMetadata
+                });
+                alert(`✓ Successfully onboarded ${onboardForm.name}!`);
             }
-        } catch (error) {
+            setShowOnboardModal(false);
+            setEditingStaff(null);
+            setOnboardForm({
+                name: '', email: '', phoneNumber: '', role: 'teacher', password: '',
+                employmentDate: '', nationalId: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0,
+                kraPin: '', nssfNo: '', shifNumber: '', bankName: 'Equity Bank', bankBranch: '', bankAccountNumber: ''
+            });
+        } catch (error: any) {
             console.error(error);
-            alert('Failed to onboard staff.');
+            alert('Failed to save staff record: ' + (error.message || error));
         }
     };
 
@@ -274,7 +278,15 @@ export const HRManager: React.FC<HRManagerProps> = ({
                         <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center">
                             <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase tracking-widest text-sm">Personnel Directory</h3>
                             <button 
-                                onClick={() => setShowOnboardModal(true)}
+                                onClick={() => {
+                                    setEditingStaff(null);
+                                    setOnboardForm({
+                                        name: '', email: '', phoneNumber: '', role: 'teacher', password: '',
+                                        employmentDate: '', nationalId: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0,
+                                        kraPin: '', nssfNo: '', shifNumber: '', bankName: 'Equity Bank', bankBranch: '', bankAccountNumber: ''
+                                    });
+                                    setShowOnboardModal(true);
+                                }}
                                 className="px-6 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
                             >
                                 Onboard Staff
@@ -296,8 +308,21 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{member.role} • {member.email || member.phoneNumber}</p>
                                         </div>
                                         <div className="flex gap-2 pt-2">
-                                            <button className="flex-1 py-3 bg-white dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-605 transition-all">View Files</button>
-                                            <button className="flex-1 py-3 bg-white dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-605 transition-all">Pay History</button>
+                                            <button
+                                                onClick={() => handleOpenEditStaff(member)}
+                                                className="flex-1 py-3 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center justify-center gap-1"
+                                            >
+                                                Edit HR File & Details
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedStaffId(member.id);
+                                                    setActiveTab('payroll');
+                                                }}
+                                                className="flex-1 py-3 bg-white dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-605 transition-all"
+                                            >
+                                                Pay History
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -658,88 +683,223 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 </div>
             )}
 
-            {/* Premium Onboard Staff Glassmorphic Modal */}
+            {/* Premium Onboard & Edit Staff Glassmorphic Modal */}
             {showOnboardModal && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-150 dark:border-slate-800 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-150 dark:border-slate-800 flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
                         {/* Header */}
-                        <div className="px-8 py-5 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <div className="px-8 py-5 bg-indigo-600 text-white flex items-center justify-between">
                             <div>
-                                <h3 className="text-md font-black text-slate-800 dark:text-white uppercase tracking-wider">Onboard New Staff</h3>
-                                <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Register new personnel to the institution directory</p>
+                                <h3 className="text-md font-black uppercase tracking-wider">{editingStaff ? 'Edit Staff HR File & Profile' : 'Onboard New Staff'}</h3>
+                                <p className="text-[10px] font-semibold opacity-80">{editingStaff ? 'Update employee contract terms, national ID, basic salary, KRA PIN & bank details' : 'Register new personnel to the institution directory'}</p>
                             </div>
                             <button 
                                 onClick={() => setShowOnboardModal(false)}
-                                className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-500 rounded-xl transition-all"
+                                className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all"
                             >
                                 <XIcon className="w-5 h-5" />
                             </button>
                         </div>
 
                         {/* Form */}
-                        <form onSubmit={handleOnboardSubmit} className="p-8 space-y-5">
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Full Name</label>
-                                <input 
-                                    type="text" 
-                                    required
-                                    value={onboardForm.name}
-                                    onChange={e => setOnboardForm(prev => ({ ...prev, name: e.target.value }))}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="Jane Doe"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Email Address</label>
-                                <input 
-                                    type="email" 
-                                    required
-                                    value={onboardForm.email}
-                                    onChange={e => setOnboardForm(prev => ({ ...prev, email: e.target.value }))}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="jane.doe@institution.com"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Phone Number</label>
-                                <input 
-                                    type="tel" 
-                                    value={onboardForm.phoneNumber}
-                                    onChange={e => setOnboardForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="+254 712 345678"
-                                />
+                        <form onSubmit={handleOnboardSubmit} className="p-8 space-y-5 overflow-y-auto max-h-[78vh]">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Full Name *</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={onboardForm.name}
+                                        onChange={e => setOnboardForm(prev => ({ ...prev, name: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                                        placeholder="Jane Doe"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Email Address *</label>
+                                    <input 
+                                        type="email" 
+                                        required
+                                        value={onboardForm.email}
+                                        onChange={e => setOnboardForm(prev => ({ ...prev, email: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                                        placeholder="jane.doe@institution.com"
+                                    />
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Phone Number</label>
+                                    <input 
+                                        type="tel" 
+                                        value={onboardForm.phoneNumber}
+                                        onChange={e => setOnboardForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="+254 712 345678"
+                                    />
+                                </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Institutional Role</label>
                                     <select 
                                         value={onboardForm.role}
                                         onChange={e => setOnboardForm(prev => ({ ...prev, role: e.target.value }))}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                                     >
-                                        <option value="teacher">Teacher</option>
+                                        <option value="teacher">Teacher / Academic Instructor</option>
+                                        <option value="doctor">Doctor / Physician</option>
+                                        <option value="nurse">Nurse / Triage Officer</option>
+                                        <option value="receptionist">Receptionist / Front Desk Officer</option>
+                                        <option value="cashier">Finance / Cashier Officer</option>
                                         <option value="hr_officer">HR Officer</option>
-                                        <option value="finance">Finance Officer</option>
+                                        <option value="pharmacist">Pharmacist</option>
+                                        <option value="lab_tech">Lab Technologist</option>
                                         <option value="support_staff">Support Staff</option>
                                         <option value="driver">Driver</option>
                                         <option value="trainer">Trainer</option>
                                         <option value="admin">Administrator</option>
                                     </select>
                                 </div>
+                            </div>
 
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Temporary Password</label>
-                                    <input 
-                                        type="password" 
-                                        value={onboardForm.password}
-                                        onChange={e => setOnboardForm(prev => ({ ...prev, password: e.target.value }))}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="••••••••"
-                                    />
+                            {/* ── Employment & Contract Terms Section ── */}
+                            <div className="p-4 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                                <div className="border-b border-slate-200 dark:border-slate-800 pb-2">
+                                    <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                        💼 Contract & Compensation Terms
+                                    </h4>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Employment Date</label>
+                                        <input
+                                            type="date"
+                                            value={onboardForm.employmentDate}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, employmentDate: e.target.value }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">National ID / Passport No</label>
+                                        <input
+                                            type="text"
+                                            value={onboardForm.nationalId}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, nationalId: e.target.value }))}
+                                            placeholder="e.g. 34892019"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Employment Terms</label>
+                                        <select
+                                            value={onboardForm.employmentTerms}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, employmentTerms: e.target.value }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="Permanent & Pensionable">Permanent & Pensionable</option>
+                                            <option value="Fixed-Term Contract">Fixed-Term Contract</option>
+                                            <option value="Casual / Day Worker">Casual / Day Worker</option>
+                                            <option value="Intern / Probationary">Intern / Probationary</option>
+                                            <option value="Visiting Consultant">Visiting Consultant</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Basic Monthly Salary (KES)</label>
+                                        <input
+                                            type="number"
+                                            value={onboardForm.basicSalary || ''}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, basicSalary: Number(e.target.value) }))}
+                                            placeholder="e.g. 85000"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 text-emerald-600 dark:text-emerald-400"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── Statutory & Banking Section ── */}
+                            <div className="p-4 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                                <div className="border-b border-slate-200 dark:border-slate-800 pb-2">
+                                    <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                        🏛 Statutory Tax & Bank Account Details
+                                    </h4>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">KRA PIN Number</label>
+                                        <input
+                                            type="text"
+                                            value={onboardForm.kraPin}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, kraPin: e.target.value.toUpperCase() }))}
+                                            placeholder="A019482910Z"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">NSSF Number</label>
+                                        <input
+                                            type="text"
+                                            value={onboardForm.nssfNo}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, nssfNo: e.target.value }))}
+                                            placeholder="10482019"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">SHIF / NHIF No</label>
+                                        <input
+                                            type="text"
+                                            value={onboardForm.shifNumber}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, shifNumber: e.target.value }))}
+                                            placeholder="SHIF-94820"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Bank Name</label>
+                                        <select
+                                            value={onboardForm.bankName}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, bankName: e.target.value }))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="Equity Bank">Equity Bank</option>
+                                            <option value="KCB Bank">KCB Bank</option>
+                                            <option value="Cooperative Bank">Cooperative Bank</option>
+                                            <option value="NCBA Bank">NCBA Bank</option>
+                                            <option value="Absa Bank">Absa Bank</option>
+                                            <option value="Stanbic Bank">Stanbic Bank</option>
+                                            <option value="Family Bank">Family Bank</option>
+                                            <option value="Standard Chartered">Standard Chartered</option>
+                                            <option value="M-Pesa STK Express">M-Pesa Mobile Money</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Bank Branch</label>
+                                        <input
+                                            type="text"
+                                            value={onboardForm.bankBranch}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, bankBranch: e.target.value }))}
+                                            placeholder="Nairobi Main"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Account / Phone No</label>
+                                        <input
+                                            type="text"
+                                            value={onboardForm.bankAccountNumber}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, bankAccountNumber: e.target.value }))}
+                                            placeholder="1294820194"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -748,7 +908,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                     type="submit"
                                     className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 text-center"
                                 >
-                                    Confirm Onboarding
+                                    {editingStaff ? '✓ Save Personnel HR File' : 'Confirm Onboarding'}
                                 </button>
                                 <button 
                                     type="button"
