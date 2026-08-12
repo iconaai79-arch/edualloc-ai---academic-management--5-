@@ -96,6 +96,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
 
     // ── Partnered Diagnostic Laboratories State ─────────────────────────────
     const [partnerLabs, setPartnerLabs] = useState<any[]>([]);
+    const [editingPartnerLab, setEditingPartnerLab] = useState<any | null>(null);
     const [isAddPartnerLabOpen, setIsAddPartnerLabOpen] = useState(false);
     const [newPartnerLab, setNewPartnerLab] = useState({
         name: '',
@@ -729,26 +730,60 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         if (!newPartnerLab.name.trim()) return alert('Please enter partner laboratory name.');
         if (!institutionId) return;
         try {
-            const record = {
-                id: `partner_${Date.now()}`,
-                institutionId,
-                name: newPartnerLab.name.trim(),
-                code: newPartnerLab.code.trim() || `PARTNER-${Math.floor(100 + Math.random() * 900)}`,
-                phone: newPartnerLab.phone.trim(),
-                email: newPartnerLab.email.trim(),
-                address: newPartnerLab.address.trim(),
-                discountRate: Number(newPartnerLab.discountRate) || 0,
-                isActive: newPartnerLab.isActive,
-                createdAt: new Date().toISOString(),
-            };
-            await apiService.saveModuleRecord('his_partner_labs', record);
-            setPartnerLabs(prev => [record, ...prev]);
-            setIsAddPartnerLabOpen(false);
-            setNewPartnerLab({ name: '', code: '', phone: '', email: '', address: '', discountRate: 10, isActive: true });
-            alert(`✓ Partner diagnostic lab ${record.name} registered successfully!`);
+            if (editingPartnerLab) {
+                // Update Existing Partner Lab
+                const updatedRecord = {
+                    name: newPartnerLab.name.trim(),
+                    code: newPartnerLab.code.trim() || editingPartnerLab.code,
+                    phone: newPartnerLab.phone.trim(),
+                    email: newPartnerLab.email.trim(),
+                    address: newPartnerLab.address.trim(),
+                    discountRate: Number(newPartnerLab.discountRate) || 0,
+                    isActive: newPartnerLab.isActive,
+                };
+                await apiService.updateModuleRecord('his_partner_labs', editingPartnerLab.id, updatedRecord).catch(() => null);
+                setPartnerLabs(prev => prev.map(p => p.id === editingPartnerLab.id ? { ...p, ...updatedRecord } : p));
+                setIsAddPartnerLabOpen(false);
+                setEditingPartnerLab(null);
+                setNewPartnerLab({ name: '', code: '', phone: '', email: '', address: '', discountRate: 10, isActive: true });
+                alert(`✓ Partner diagnostic lab "${updatedRecord.name}" updated successfully!`);
+            } else {
+                // Create New Partner Lab
+                const record = {
+                    id: `partner_${Date.now()}`,
+                    institutionId,
+                    name: newPartnerLab.name.trim(),
+                    code: newPartnerLab.code.trim() || `PARTNER-${Math.floor(100 + Math.random() * 900)}`,
+                    phone: newPartnerLab.phone.trim(),
+                    email: newPartnerLab.email.trim(),
+                    address: newPartnerLab.address.trim(),
+                    discountRate: Number(newPartnerLab.discountRate) || 0,
+                    isActive: newPartnerLab.isActive,
+                    createdAt: new Date().toISOString(),
+                };
+                await apiService.saveModuleRecord('his_partner_labs', record);
+                setPartnerLabs(prev => [record, ...prev]);
+                setIsAddPartnerLabOpen(false);
+                setNewPartnerLab({ name: '', code: '', phone: '', email: '', address: '', discountRate: 10, isActive: true });
+                alert(`✓ Partner diagnostic lab ${record.name} registered successfully!`);
+            }
         } catch (e) {
-            alert('Failed to register partner lab.');
+            alert('Failed to save partner lab.');
         }
+    };
+
+    const handleOpenEditPartnerLab = (lab: any) => {
+        setEditingPartnerLab(lab);
+        setNewPartnerLab({
+            name: lab.name || '',
+            code: lab.code || '',
+            phone: lab.phone || '',
+            email: lab.email || '',
+            address: lab.address || '',
+            discountRate: lab.discountRate || 10,
+            isActive: lab.isActive !== false
+        });
+        setIsAddPartnerLabOpen(true);
     };
 
     const handleDeletePartnerLab = async (id: string) => {
@@ -1588,7 +1623,11 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                 </p>
                             </div>
                             <button
-                                onClick={() => setIsAddPartnerLabOpen(true)}
+                                onClick={() => {
+                                    setEditingPartnerLab(null);
+                                    setNewPartnerLab({ name: '', code: '', phone: '', email: '', address: '', discountRate: 10, isActive: true });
+                                    setIsAddPartnerLabOpen(true);
+                                }}
                                 className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-600/30 flex items-center gap-2"
                             >
                                 <PlusIcon className="w-4 h-4" /> Register Partnered Lab
@@ -1605,13 +1644,22 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                             </span>
                                             <h4 className="text-base font-black text-white uppercase tracking-tight italic pt-1">{lab.name}</h4>
                                         </div>
-                                        <button
-                                            onClick={() => handleDeletePartnerLab(lab.id)}
-                                            className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
-                                            title="Unregister Partner"
-                                        >
-                                            <XIcon className="w-4 h-4" />
-                                        </button>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => handleOpenEditPartnerLab(lab)}
+                                                className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-xl transition-all"
+                                                title="Edit Partnered Lab"
+                                            >
+                                                <PencilIcon className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeletePartnerLab(lab.id)}
+                                                className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
+                                                title="Unregister Partner"
+                                            >
+                                                <XIcon className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2 text-xs text-slate-300">
@@ -2038,8 +2086,8 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
                         <div className="px-8 py-5 bg-indigo-600 text-white flex items-center justify-between">
                             <div>
-                                <h3 className="text-md font-black uppercase tracking-wider">Register Partnered Diagnostic Facility</h3>
-                                <p className="text-[10px] font-semibold opacity-80">Add reference laboratory or specialized diagnostic partner</p>
+                                <h3 className="text-md font-black uppercase tracking-wider">{editingPartnerLab ? 'Edit Partnered Diagnostic Facility' : 'Register Partnered Diagnostic Facility'}</h3>
+                                <p className="text-[10px] font-semibold opacity-80">{editingPartnerLab ? 'Update reference laboratory or specialized diagnostic facility details' : 'Add reference laboratory or specialized diagnostic partner'}</p>
                             </div>
                             <button onClick={() => setIsAddPartnerLabOpen(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
                                 <XIcon className="w-5 h-5" />
@@ -2120,7 +2168,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                 Cancel
                             </button>
                             <button onClick={handleAddPartnerLab} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
-                                Register Partner Lab
+                                {editingPartnerLab ? '✓ Update Partner Lab' : 'Register Partner Lab'}
                             </button>
                         </div>
                     </div>
