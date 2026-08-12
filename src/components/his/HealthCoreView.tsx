@@ -821,9 +821,9 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
 
             {/* ── Main Content Wrapper ── */}
             <div className="flex-1 min-w-0 flex flex-col overflow-y-auto">
-                {/* 1. TOP HORIZONTAL NAVIGATION SUB-MENU BAR */}
-                <div className="p-8 pb-4">
-                    <div className="flex items-center gap-2 p-2 bg-slate-900/80 backdrop-blur-2xl border border-indigo-500/20 rounded-[2rem] overflow-x-auto no-scrollbar shadow-2xl">
+                {/* 1. TOP HORIZONTAL NAVIGATION SUB-MENU BAR (ALIGNED AT THE TOP) */}
+                <div className="pt-4 px-8 pb-2">
+                    <div className="flex items-center gap-2 p-2 bg-slate-900/90 backdrop-blur-2xl border border-indigo-500/30 rounded-[2rem] overflow-x-auto no-scrollbar shadow-2xl">
                         {[
                             { id: 'overview' as HISModule, label: 'Overview', icon: '📊' },
                             { id: 'receptionist' as HISModule, label: 'Reception', icon: '📋' },

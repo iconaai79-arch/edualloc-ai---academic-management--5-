@@ -6,7 +6,7 @@ import { PencilIcon } from '../icons/PencilIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import { XIcon } from '../icons/XIcon';
 import { HISStaff, User, BiometricDevice } from '../../types';
-import { GlobeAltIcon, PhotoIcon } from './HealthIcons';
+import { GlobeAltIcon, PhotoIcon, BuildingOfficeIcon } from './HealthIcons';
 import { apiService } from '../../services/apiService';
 import { registerWebAuthn } from '../../utils/biometrics';
 
@@ -17,7 +17,7 @@ interface HISConfigProps {
     onStaffUpdated?: () => void;
 }
 
-type ConfigTab = 'branding' | 'staff' | 'clinic' | 'tariffs' | 'insurance' | 'billing' | 'partner_labs';
+type ConfigTab = 'branding' | 'staff' | 'clinic' | 'rooms' | 'tariffs' | 'insurance' | 'billing' | 'partner_labs';
 
 const FINGER_OPTIONS = [
     { index: 0, label: 'Right Thumb' },
@@ -103,6 +103,20 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         address: '',
         discountRate: 10,
         isActive: true,
+    });
+
+    // ── Hospital Rooms & Facilities State ─────────────────────────────────────
+    const [hospitalRooms, setHospitalRooms] = useState<any[]>([]);
+    const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
+    const [roomCategoryFilter, setRoomCategoryFilter] = useState<string>('All');
+    const [newRoom, setNewRoom] = useState({
+        name: '',
+        code: '',
+        roomType: 'Consultation Room',
+        floorLevel: 'Ground Floor - Block A',
+        assignedStaff: '',
+        capacity: 1,
+        status: 'Active Available'
     });
 
     const [isAddPractitionerOpen, setIsAddPractitionerOpen] = useState(false);
@@ -248,12 +262,76 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         }
     }, [institutionId]);
 
+    const loadHospitalRooms = useCallback(async () => {
+        if (!institutionId) return;
+        try {
+            const fetched = await apiService.fetchModuleRecords('his_hospital_rooms', institutionId);
+            if (fetched && fetched.length > 0) {
+                setHospitalRooms(fetched);
+            } else {
+                const sampleRooms = [
+                    { id: 'room_1', name: 'Consultation Room 1', code: 'CONS-01', roomType: 'Consultation Room', floorLevel: 'Ground Floor - Block A', assignedStaff: 'Dr. Sarah Omondi', capacity: 1, status: 'Active Available' },
+                    { id: 'room_2', name: 'Consultation Room 2', code: 'CONS-02', roomType: 'Consultation Room', floorLevel: 'Ground Floor - Block A', assignedStaff: 'Dr. John Smith', capacity: 1, status: 'Active Available' },
+                    { id: 'room_3', name: 'Consultation Room 3', code: 'CONS-03', roomType: 'Consultation Room', floorLevel: 'Ground Floor - Block A', assignedStaff: 'Dr. Peter Kamau', capacity: 1, status: 'Active Available' },
+                    { id: 'room_4', name: 'Main Hematology Lab', code: 'LAB-HEM', roomType: 'Laboratory & Diagnostics', floorLevel: 'First Floor - East Wing', assignedStaff: 'Tech Mark Mwangi', capacity: 4, status: 'Active Available' },
+                    { id: 'room_5', name: 'Phlebotomy / Blood Draw', code: 'LAB-PHLEB', roomType: 'Laboratory & Diagnostics', floorLevel: 'Ground Floor - Block B', assignedStaff: 'Nurse Mercy N.', capacity: 2, status: 'Active Available' },
+                    { id: 'room_6', name: 'X-Ray Suite A', code: 'RAD-XRAY1', roomType: 'Radiology & Imaging', floorLevel: 'Basement Level 1', assignedStaff: 'Radiographer Paul O.', capacity: 1, status: 'Active Available' },
+                    { id: 'room_7', name: 'Ultrasound Scan Room 1', code: 'RAD-USG1', roomType: 'Radiology & Imaging', floorLevel: 'First Floor - East Wing', assignedStaff: 'Dr. Anne Wambui', capacity: 1, status: 'Active Available' },
+                    { id: 'room_8', name: 'Injection & Dressing Room', code: 'TREAT-INJ', roomType: 'Injection & Treatment', floorLevel: 'Ground Floor - Block A', assignedStaff: 'Nurse Clara Wambui', capacity: 3, status: 'Active Available' },
+                    { id: 'room_9', name: 'Dental Suite 1', code: 'DENT-01', roomType: 'Consultation Room', floorLevel: 'Second Floor - North Wing', assignedStaff: 'Dr. Kevin Kiprop', capacity: 1, status: 'Active Available' },
+                    { id: 'room_10', name: 'Female Surgical Ward', code: 'WARD-FSW', roomType: 'Inpatient Ward', floorLevel: 'Third Floor - West Wing', assignedStaff: 'Sister In-Charge', capacity: 12, status: 'Active Available' },
+                    { id: 'room_11', name: 'Male Medical Ward', code: 'WARD-MMW', roomType: 'Inpatient Ward', floorLevel: 'Third Floor - East Wing', assignedStaff: 'Sister In-Charge', capacity: 10, status: 'Active Available' },
+                ];
+                setHospitalRooms(sampleRooms);
+            }
+        } catch (e) {
+            console.error('Failed to load hospital rooms:', e);
+        }
+    }, [institutionId]);
+
+    const handleAddRoom = async () => {
+        if (!newRoom.name.trim()) return alert('Please enter room name.');
+        if (!institutionId) return;
+        try {
+            const record = {
+                id: `room_${Date.now()}`,
+                institutionId,
+                name: newRoom.name.trim(),
+                code: newRoom.code.trim() || `RM-${Math.floor(100 + Math.random() * 900)}`,
+                roomType: newRoom.roomType,
+                floorLevel: newRoom.floorLevel.trim(),
+                assignedStaff: newRoom.assignedStaff.trim(),
+                capacity: Number(newRoom.capacity) || 1,
+                status: newRoom.status,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('his_hospital_rooms', record);
+            setHospitalRooms(prev => [record, ...prev]);
+            setIsAddRoomOpen(false);
+            setNewRoom({ name: '', code: '', roomType: 'Consultation Room', floorLevel: 'Ground Floor - Block A', assignedStaff: '', capacity: 1, status: 'Active Available' });
+            alert(`✓ Hospital room "${record.name}" configured successfully!`);
+        } catch (e) {
+            alert('Failed to add hospital room.');
+        }
+    };
+
+    const handleDeleteRoom = async (id: string) => {
+        if (!confirm('Are you sure you want to remove this hospital room configuration?')) return;
+        try {
+            await apiService.deleteModuleRecord('his_hospital_rooms', id);
+            setHospitalRooms(prev => prev.filter(r => r.id !== id));
+        } catch (e) {
+            alert('Failed to delete hospital room.');
+        }
+    };
+
     useEffect(() => {
         loadPractitioners();
         loadTariffs();
         loadInsuranceProviders();
         loadPartnerLabs();
-    }, [loadPractitioners, loadTariffs, loadInsuranceProviders, loadPartnerLabs]);
+        loadHospitalRooms();
+    }, [loadPractitioners, loadTariffs, loadInsuranceProviders, loadPartnerLabs, loadHospitalRooms]);
 
     const handleScanBiometrics = async () => {
         setIsScanningBiometric(true);
@@ -550,6 +628,81 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
 
     const renderTab = () => {
         switch (activeTab) {
+            case 'rooms': {
+                const filteredRooms = hospitalRooms.filter(r => 
+                    roomCategoryFilter === 'All' || r.roomType === roomCategoryFilter
+                );
+                return (
+                    <div className="space-y-8 animate-fade-in">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 p-8 rounded-[2.5rem] bg-gradient-to-r from-indigo-900/40 via-purple-950/20 to-slate-900 border border-indigo-500/20 shadow-2xl">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white italic">Hospital <span className="text-indigo-400">Rooms &amp; Clinical Facilities</span></h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Configure consultation suites, lab rooms, X-Ray bays &amp; inpatient ward beds</p>
+                            </div>
+                            <button
+                                onClick={() => setIsAddRoomOpen(true)}
+                                className="px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all shadow-xl shadow-indigo-900/50 flex items-center gap-2 italic"
+                            >
+                                <PlusIcon className="w-4 h-4 text-white" />
+                                <span>Add New Room / Suite</span>
+                            </button>
+                        </div>
+
+                        {/* Category Filter Pills */}
+                        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+                            {['All', 'Consultation Room', 'Laboratory & Diagnostics', 'Radiology & Imaging', 'Injection & Treatment', 'Inpatient Ward'].map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setRoomCategoryFilter(cat)}
+                                    className={`px-5 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                                        roomCategoryFilter === cat 
+                                            ? 'bg-indigo-600 text-white shadow-md' 
+                                            : 'bg-slate-900/50 text-slate-400 hover:text-white border border-white/5'
+                                    }`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Rooms Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {filteredRooms.map(r => (
+                                <div key={r.id} className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 space-y-4 shadow-xl relative overflow-hidden group">
+                                    <div className="flex justify-between items-start">
+                                        <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-500/30">
+                                            {r.code || 'RM'}
+                                        </span>
+                                        <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-[8px] font-black uppercase tracking-widest border border-emerald-500/30">
+                                            {r.status || 'Active Available'}
+                                        </span>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="text-lg font-black text-white uppercase tracking-tight italic">{r.name}</h4>
+                                        <p className="text-xs font-bold text-indigo-400 uppercase mt-0.5">{r.roomType}</p>
+                                    </div>
+
+                                    <div className="p-4 bg-black/40 rounded-2xl border border-white/5 space-y-1.5 text-[10px]">
+                                        <p className="text-slate-400">Location: <strong className="text-white">{r.floorLevel}</strong></p>
+                                        <p className="text-slate-400">Assigned Clinician: <strong className="text-indigo-300">{r.assignedStaff || 'Unassigned'}</strong></p>
+                                        <p className="text-slate-400">Capacity: <strong className="text-white">{r.capacity} Bed/Station{r.capacity !== 1 ? 's' : ''}</strong></p>
+                                    </div>
+
+                                    <div className="pt-2 flex justify-end">
+                                        <button
+                                            onClick={() => handleDeleteRoom(r.id)}
+                                            className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-rose-500/20"
+                                        >
+                                            Remove Room
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
             case 'branding':
                 return (
                     <div className="space-y-10 animate-fade-in">
@@ -1324,6 +1477,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     { id: 'branding', label: 'Identity & DNA', icon: SparklesIcon },
                     { id: 'staff', label: 'Staff Registry', icon: UsersIcon },
                     { id: 'clinic', label: 'Clinic Setup', icon: SettingsIcon },
+                    { id: 'rooms', label: 'Rooms & Facilities', icon: BuildingOfficeIcon },
                     { id: 'tariffs', label: 'Tariffs & Fee Schedule', icon: SettingsIcon },
                     { id: 'insurance', label: 'Insurance & Schemes', icon: GlobeAltIcon },
                     { id: 'billing', label: 'Invoice & Receipt Numbering', icon: PencilIcon },
@@ -1792,6 +1946,105 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                             </button>
                             <button onClick={handleAddPartnerLab} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
                                 Register Partner Lab
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════ ADD HOSPITAL ROOM MODAL ═══════════ */}
+            {isAddRoomOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="px-8 py-5 bg-gradient-to-r from-indigo-600 to-violet-600 text-white flex items-center justify-between">
+                            <div>
+                                <h3 className="text-md font-black uppercase tracking-wider">Configure Hospital Room / Facility</h3>
+                                <p className="text-[10px] font-semibold opacity-80">Add consultation room, lab bay, X-Ray suite, or ward bed room</p>
+                            </div>
+                            <button onClick={() => setIsAddRoomOpen(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-8 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Room / Suite Name *</label>
+                                <input
+                                    type="text"
+                                    value={newRoom.name}
+                                    onChange={e => setNewRoom(f => ({ ...f, name: e.target.value }))}
+                                    placeholder="e.g. Consultation Room 4, X-Ray Suite B"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Room Code / ID</label>
+                                    <input
+                                        type="text"
+                                        value={newRoom.code}
+                                        onChange={e => setNewRoom(f => ({ ...f, code: e.target.value }))}
+                                        placeholder="e.g. CONS-04"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Room Type</label>
+                                    <select
+                                        value={newRoom.roomType}
+                                        onChange={e => setNewRoom(f => ({ ...f, roomType: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="Consultation Room">Consultation Room</option>
+                                        <option value="Laboratory & Diagnostics">Laboratory &amp; Diagnostics</option>
+                                        <option value="Radiology & Imaging">Radiology &amp; Imaging</option>
+                                        <option value="Injection & Treatment">Injection &amp; Treatment</option>
+                                        <option value="Inpatient Ward">Inpatient Ward</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Building Wing / Floor</label>
+                                    <input
+                                        type="text"
+                                        value={newRoom.floorLevel}
+                                        onChange={e => setNewRoom(f => ({ ...f, floorLevel: e.target.value }))}
+                                        placeholder="Ground Floor - Block A"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Assigned Clinician</label>
+                                    <input
+                                        type="text"
+                                        value={newRoom.assignedStaff}
+                                        onChange={e => setNewRoom(f => ({ ...f, assignedStaff: e.target.value }))}
+                                        placeholder="e.g. Dr. Sarah Omondi"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Beds / Patient Stations Capacity</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={newRoom.capacity}
+                                    onChange={e => setNewRoom(f => ({ ...f, capacity: Number(e.target.value) }))}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                            <button onClick={() => setIsAddRoomOpen(false)} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">
+                                Cancel
+                            </button>
+                            <button onClick={handleAddRoom} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
+                                Save Room Configuration
                             </button>
                         </div>
                     </div>
