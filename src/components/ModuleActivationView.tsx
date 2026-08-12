@@ -78,9 +78,11 @@ export const ModuleActivationView: React.FC<ModuleActivationViewProps> = ({
                                 Trial Expired
                             </div>
                             <button
-                                className="w-full flex items-center justify-center px-10 py-5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black uppercase tracking-[0.2em] rounded-2xl hover:brightness-110 transition-all shadow-lg"
+                                onClick={onActivateTrial}
+                                disabled={isLoading}
+                                className="w-full flex items-center justify-center px-10 py-5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black uppercase tracking-[0.2em] rounded-2xl hover:brightness-110 transition-all shadow-lg cursor-pointer disabled:opacity-50"
                             >
-                                Upgrade to Premium
+                                {isLoading ? 'Extending Subscription...' : 'Upgrade to Premium'}
                             </button>
                         </div>
                     )}

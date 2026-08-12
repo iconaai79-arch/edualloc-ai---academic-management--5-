@@ -1498,6 +1498,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 status: 'active'
             });
 
+            await apiService.extendModuleSubscription(extendingInstitution.id, 'all', extensionDays, 'active').catch(() => null);
+
             if (props.onLogAction) await props.onLogAction(`Manually extended subscription for ${extendingInstitution.name} by ${extensionDays} days`);
 
             alert(`Subscription for ${extendingInstitution.name} extended until ${newEndDate.toLocaleDateString()}`);

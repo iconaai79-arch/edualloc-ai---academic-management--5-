@@ -29,10 +29,24 @@ export const ModuleAccessGuard: React.FC<ModuleAccessGuardProps> = ({
     // Demo institutions (simulators) are always active for testing
     if (institution.id.startsWith('demo_')) return <>{children}</>;
 
-    const moduleState = institution.moduleStates?.find(m => m.moduleId === moduleId);
+    // If main institution subscription is active & unexpired, grant access
+    const now = new Date();
+    const isInstSubscriptionActive = institution.status === 'active' &&
+        (!institution.subscriptionEndsAt || new Date(institution.subscriptionEndsAt) > now);
+
+    if (isInstSubscriptionActive) {
+        return <>{children}</>;
+    }
+
+    // Match module state with fallback aliases (e.g. 'his' or 'his_core')
+    const moduleState = institution.moduleStates?.find(m => {
+        const id = m.moduleId || (m as any).module_id;
+        if (id === moduleId) return true;
+        if ((moduleId === 'his' || moduleId === 'his_core') && (id === 'his' || id === 'his_core')) return true;
+        return false;
+    });
 
     const isExpired = (state: InstitutionModuleState) => {
-        const now = new Date();
         if (state.status === 'trial' && state.trialEndsAt) {
             return new Date(state.trialEndsAt) < now;
         }
@@ -62,7 +76,8 @@ export const ModuleAccessGuard: React.FC<ModuleAccessGuardProps> = ({
                 moduleId={moduleId}
                 moduleName={moduleName}
                 description={description}
-                onActivateTrial={() => {}} // Upgrade flow would go here
+                onActivateTrial={() => onActivateTrial?.(moduleId)}
+                isLoading={isActivating}
                 status="expired"
             />
         );
