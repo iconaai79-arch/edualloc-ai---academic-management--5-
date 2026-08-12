@@ -3809,6 +3809,11 @@ export interface HISPrescription {
     doctorId?: string;
     doctorName?: string;
     status: 'pending' | 'dispensed' | 'cancelled';
+    paymentStatus?: 'pending_payment' | 'cleared' | 'insurance_covered';
+    financeNotes?: string;
+    clearedByFinanceAt?: string;
+    financeOfficerName?: string;
+    receiptNumber?: string;
     notes?: string;
     createdAt: string;
     // Enhanced fields for UI

@@ -363,6 +363,21 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                         paymentMethod,
                         paidAt: new Date().toISOString()
                     });
+
+                    // Auto-clear pharmacy prescription for this patient in Pharmacy module
+                    const prescs = await apiService.fetchModuleRecords('his_prescriptions', institutionId).catch(() => []);
+                    const patientPrescs = (prescs || []).filter((p: any) => p.patientId === selectedInvoice.patientId && p.status !== 'dispensed');
+                    const recipNo = `REC-${Math.floor(10000 + Math.random() * 90000)}`;
+                    const financeNote = `✓ Cleared for Dispensing at Finance Desk (Receipt #${recipNo} | Method: ${paymentMethod} | Paid KES ${amountToPay.toLocaleString()})`;
+
+                    for (const p of patientPrescs) {
+                        await apiService.updateModuleRecord('his_prescriptions', p.id, {
+                            paymentStatus: 'cleared',
+                            financeNotes: financeNote,
+                            receiptNumber: recipNo,
+                            clearedByFinanceAt: new Date().toISOString()
+                        }).catch(() => null);
+                    }
                 } catch (err) {
                     console.error("Failed to record payment in Supabase:", err);
                 }

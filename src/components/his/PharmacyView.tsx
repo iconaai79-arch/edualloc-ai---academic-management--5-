@@ -114,11 +114,29 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             setInteractions(intercs || []);
             setRequisitions(reqs || []);
             
-            // Link prescription to patient name and items
+            const allBillingItems = await apiService.fetchModuleRecords('his_billing_items', institutionId).catch(() => []);
+            
+            // Link prescription to patient name, items, and finance clearance status
             const enhancedPrescs = await Promise.all((prescs || []).map(async (p: any) => {
                 const patient = (patients || []).find((pat: any) => pat.id === p.patientId);
                 const items = await apiService.fetchModuleRecords('his_prescription_items', undefined, undefined, { filter: { prescription_id: p.id } });
-                return { ...p, patientName: patient?.fullName || 'Unknown Patient', items };
+                
+                // Check if patient has a paid billing item or existing clearance
+                const patientBill = (allBillingItems || []).find((b: any) => b.patientId === p.patientId && (b.status === 'Paid' || b.status === 'paid' || b.status === 'cleared'));
+                
+                const isCleared = p.paymentStatus === 'cleared' || p.paymentStatus === 'insurance_covered' || !!patientBill || p.status === 'dispensed';
+                const paymentStatus = p.paymentStatus || (isCleared ? 'cleared' : 'pending_payment');
+                const financeNotes = p.financeNotes || (isCleared 
+                    ? `✓ Cleared for Dispensing at Finance Cashier Desk (Receipt ${p.receiptNumber || 'REC-CONFIRMED'})` 
+                    : '🔒 Awaiting payment at Cashier / Finance desk before drugs can be disbursed');
+
+                return { 
+                    ...p, 
+                    patientName: patient?.fullName || 'Unknown Patient', 
+                    items,
+                    paymentStatus,
+                    financeNotes
+                };
             }));
 
             setPrescriptions(enhancedPrescs);
@@ -147,6 +165,13 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
 
     const handleDispense = async (presc: HISPrescription) => {
         if (!institutionId || !presc.items) return;
+
+        // 0. Financial Lock Check: Must be paid or cleared by Finance before dispensing
+        const isCleared = presc.paymentStatus === 'cleared' || presc.paymentStatus === 'insurance_covered' || presc.status === 'dispensed';
+        if (!isCleared) {
+            alert(`🔒 DISPENSING BLOCKED!\n\nPrescription for ${presc.patientName || 'patient'} is pending financial clearance.\n\nNote from Finance: ${presc.financeNotes || 'Awaiting payment at Finance/Cashier desk before drugs can be disbursed.'}\n\nPharmacist Policy: Drugs CANNOT be disbursed until cleared by Finance.`);
+            return;
+        }
 
         // 1. Clinical Safety Check: Interactions
         const activeInteractions = checkInteractions(presc.items);
@@ -597,6 +622,33 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                     </div>
                                 )}
 
+                                {/* ── Finance Clearance Status Card ── */}
+                                {(() => {
+                                    const isCleared = selectedPrescription.paymentStatus === 'cleared' || selectedPrescription.paymentStatus === 'insurance_covered' || selectedPrescription.status === 'dispensed';
+                                    return (
+                                        <div className={`p-5 rounded-2xl mb-6 border flex items-start gap-3 transition-all ${
+                                            isCleared 
+                                                ? 'bg-emerald-500/10 border-emerald-500/30' 
+                                                : 'bg-rose-500/10 border-rose-500/30 animate-pulse'
+                                        }`}>
+                                            <span className="text-xl">{isCleared ? '🟢' : '🔒'}</span>
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isCleared ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {isCleared ? '✓ CLEARED FOR DISPENSING BY FINANCE' : '🔒 DISPENSING LOCKED — PENDING PAYMENT'}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${isCleared ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                                                        {isCleared ? 'PAID / COVERED' : 'UNPAID'}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] font-bold text-slate-300 italic">
+                                                    Note from Finance: {selectedPrescription.financeNotes || (isCleared ? 'Payment verified at cashier desk.' : 'Awaiting payment at Cashier / Finance desk before drugs can be disbursed.')}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
                                 <div className="p-6 bg-white/5 rounded-2xl mb-8 flex justify-between items-center border border-white/5">
                                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">In-House Billing Impact</p>
                                     <p className="text-lg font-black text-indigo-400 italic">
@@ -605,12 +657,23 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                 </div>
 
                                 <div className="flex flex-col gap-3">
-                                    <button 
-                                        onClick={() => handleDispense(selectedPrescription)}
-                                        className="w-full bg-emerald-500 text-slate-950 py-4 rounded-2xl flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] hover:scale-105 transition-all shadow-xl shadow-emerald-500/20"
-                                    >
-                                        <CheckCircleIcon className="w-5 h-5" /> Dispense In-House Items
-                                    </button>
+                                    {(() => {
+                                        const isCleared = selectedPrescription.paymentStatus === 'cleared' || selectedPrescription.paymentStatus === 'insurance_covered' || selectedPrescription.status === 'dispensed';
+                                        return (
+                                            <button 
+                                                onClick={() => handleDispense(selectedPrescription)}
+                                                disabled={!isCleared}
+                                                className={`w-full py-4 rounded-2xl flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${
+                                                    isCleared 
+                                                        ? 'bg-emerald-500 text-slate-950 hover:scale-105 shadow-xl shadow-emerald-500/20 cursor-pointer' 
+                                                        : 'bg-slate-800 text-slate-500 border border-white/5 cursor-not-allowed opacity-60'
+                                                }`}
+                                            >
+                                                {isCleared ? <CheckCircleIcon className="w-5 h-5" /> : <span className="text-sm">🔒</span>}
+                                                {isCleared ? 'Dispense In-House Items' : '🔒 Locked — Awaiting Finance Payment'}
+                                            </button>
+                                        );
+                                    })()}
 
                                     <div className="grid grid-cols-2 gap-2">
                                         <button
