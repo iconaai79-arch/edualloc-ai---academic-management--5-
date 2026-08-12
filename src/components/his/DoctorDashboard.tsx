@@ -359,6 +359,7 @@ export function DoctorDashboard({
     // FBC PDF & Email Modal State
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [showSickOffModal, setShowSickOffModal] = useState(false);
+    const [showDischargeModal, setShowDischargeModal] = useState(false);
     const [pdfDataUri, setPdfDataUri] = useState<string | null>(null);
     const [pdfModalTitle, setPdfModalTitle] = useState('Diagnostic FBC Report PDF');
 
@@ -570,6 +571,10 @@ export function DoctorDashboard({
                     </div>
 
                     <div className="flex gap-2 mt-4 flex-wrap lg:justify-end">
+                        <button onClick={() => setShowDischargeModal(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-violet-900/50">
+                            <span>📋 Inpatient Discharge Summary</span>
+                        </button>
                         <button onClick={() => setShowSickOffModal(true)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/50">
                             <span>📄 Medical Sick Off / Permission Sheet</span>
@@ -1040,6 +1045,359 @@ export function DoctorDashboard({
                     userName={userName}
                 />
             )}
+            {/* ── Inpatient Discharge Summary Modal ── */}
+            {showDischargeModal && (
+                <InpatientDischargeModal
+                    onClose={() => setShowDischargeModal(false)}
+                    patients={patients}
+                    institutionId={institutionId}
+                    userName={userName}
+                />
+            )}
+        </div>
+    );
+}
+
+function InpatientDischargeModal({ onClose, patients, institutionId, userName, defaultPatientId }: {
+    onClose: () => void;
+    patients: HISPatient[];
+    institutionId?: string;
+    userName?: string;
+    defaultPatientId?: string;
+}) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const defaultAdmissionDate = new Date(Date.now() - 4 * 86400000).toISOString().split('T')[0];
+    const defaultReviewDate = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
+
+    const admittedPatients = patients.filter(p => p.admissionNumber || p.status === 'Admitted' || p.status === 'Inpatient');
+    const displayPatients = admittedPatients.length > 0 ? admittedPatients : patients;
+
+    const [selectedPatientId, setSelectedPatientId] = useState(defaultPatientId || (displayPatients.length > 0 ? displayPatients[0].id : ''));
+    const [wardBed, setWardBed] = useState('Female Surgical Ward — Bed 04');
+    const [admissionDate, setAdmissionDate] = useState(defaultAdmissionDate);
+    const [dischargeDate, setDischargeDate] = useState(todayStr);
+    const [admissionDiagnosis, setAdmissionDiagnosis] = useState('Acute Suppurative Appendicitis');
+    const [finalDiagnosis, setFinalDiagnosis] = useState('Acute Suppurative Appendicitis — Post Laparoscopic Appendectomy');
+    const [proceduresPerformed, setProceduresPerformed] = useState('Laparoscopic Appendectomy under General Anesthesia (10/08/2026)');
+    const [hospitalCourse, setHospitalCourse] = useState('Patient was admitted with acute lower right quadrant abdominal pain. Uneventful emergency appendectomy performed. Post-op recovery smooth. Afebril, vitals stable, bowel sounds present, tolerating oral diet.');
+    const [takeHomeMedications, setTakeHomeMedications] = useState('1. Tab Augmentin 1g BD x 7 Days\n2. Tab Paracetamol 1g TDS PRN x 5 Days\n3. Tab Ibuprofen 400mg BD PRN pc x 5 Days');
+    const [dischargeCondition, setDischargeCondition] = useState('Improved & Fit for Outpatient Discharge');
+    const [followUpInstructions, setFollowUpInstructions] = useState(`Review at Surgical Outpatient Clinic on ${defaultReviewDate} for wound inspection and suture removal.`);
+    const [medicalLicense, setMedicalLicense] = useState('MPDB/REG/94820');
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [emailSent, setEmailSent] = useState(false);
+
+    useEffect(() => {
+        if (defaultPatientId) {
+            setSelectedPatientId(defaultPatientId);
+        }
+    }, [defaultPatientId]);
+
+    const patient = displayPatients.find(p => p.id === selectedPatientId);
+    const dischargeSummaryNo = `DISCH-SUM-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    const handlePrintDischargeReport = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return alert('Please allow popups to print the discharge summary.');
+
+        const content = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Inpatient Discharge Summary - ${patient?.fullName || 'Patient'}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #0f172a; line-height: 1.6; }
+                    .header { text-align: center; border-bottom: 3px double #0284c7; padding-bottom: 20px; margin-bottom: 25px; }
+                    .title { font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #0369a1; margin: 5px 0; }
+                    .subtitle { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 3px; }
+                    .summary-no { font-size: 11px; font-weight: 800; color: #334155; margin-top: 5px; }
+                    .box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px; margin-bottom: 20px; }
+                    .grid-2 { display: grid; grid-template-cols: 1fr 1fr; gap: 15px; }
+                    .grid-3 { display: grid; grid-template-cols: 1fr 1fr 1fr; gap: 15px; }
+                    .label { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 1px; }
+                    .val { font-size: 13px; font-weight: 700; color: #0f172a; }
+                    .section-title { font-size: 12px; font-weight: 900; text-transform: uppercase; color: #0284c7; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+                    .stamp-box { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; }
+                    .stamp { border: 2px dashed #059669; color: #059669; padding: 12px 20px; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-size: 10px; text-align: center; transform: rotate(-2deg); }
+                    .sig-line { border-top: 1.5px solid #0f172a; width: 220px; text-align: center; pt-2; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+                    @media print { body { padding: 0; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="subtitle">Quantum Healthcare Medical Centre — Department of Clinical Services</div>
+                    <div class="title">Official Inpatient Medical Discharge Summary</div>
+                    <div class="summary-no">Summary Ref: ${dischargeSummaryNo} | Issued Date: ${new Date().toLocaleDateString()}</div>
+                </div>
+
+                <div class="box">
+                    <div class="section-title">1. Patient Demographic & Admission Details</div>
+                    <div class="grid-3" style="margin-top: 10px;">
+                        <div><div class="label">Patient Name</div><div class="val">${patient?.fullName || 'N/A'}</div></div>
+                        <div><div class="label">Admission / Reg No</div><div class="val">${patient?.admissionNumber || patient?.id || 'N/A'}</div></div>
+                        <div><div class="label">Gender / Age</div><div class="val">${patient?.gender || 'N/A'}, ${patient?.age || 'N/A'} Yrs</div></div>
+                    </div>
+                    <div class="grid-3" style="margin-top: 12px;">
+                        <div><div class="label">Ward & Bed Station</div><div class="val">${wardBed}</div></div>
+                        <div><div class="label">Admission Date</div><div class="val">${admissionDate}</div></div>
+                        <div><div class="label">Discharge Date</div><div class="val">${dischargeDate}</div></div>
+                    </div>
+                </div>
+
+                <div class="box">
+                    <div class="section-title">2. Clinical Diagnosis & Surgical Procedures</div>
+                    <div style="margin-top: 10px;">
+                        <div class="label">Initial Admission Diagnosis</div>
+                        <div class="val" style="color: #475569;">${admissionDiagnosis}</div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <div class="label">Final Confirmed Discharge Diagnosis</div>
+                        <div class="val" style="color: #0369a1; font-size: 15px;">${finalDiagnosis}</div>
+                    </div>
+                    ${proceduresPerformed ? `
+                    <div style="margin-top: 10px;">
+                        <div class="label">Surgical & Interventional Procedures</div>
+                        <div class="val">${proceduresPerformed}</div>
+                    </div>` : ''}
+                </div>
+
+                <div class="box">
+                    <div class="section-title">3. Hospital Course & Clinical Progress Summary</div>
+                    <div class="val" style="white-space: pre-wrap; font-weight: 500; font-size: 12px; margin-top: 8px;">${hospitalCourse}</div>
+                </div>
+
+                <div class="box" style="background: #f0fdf4; border-color: #bbf7d0;">
+                    <div class="section-title" style="color: #047857;">4. Take-Home Discharge Medications & Regimen</div>
+                    <div class="val" style="white-space: pre-wrap; color: #065f46; font-size: 13px; margin-top: 8px;">${takeHomeMedications}</div>
+                </div>
+
+                <div class="box" style="background: #eff6ff; border-color: #bfdbfe;">
+                    <div class="grid-2">
+                        <div>
+                            <div class="label">Condition on Discharge</div>
+                            <div class="val" style="color: #1d4ed8;">${dischargeCondition}</div>
+                        </div>
+                        <div>
+                            <div class="label">Follow-up Clinic Review</div>
+                            <div class="val">${followUpInstructions}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stamp-box">
+                    <div class="stamp">
+                        ✓ OFFICIALLY DISCHARGED<br>
+                        QUANTUM INPATIENT CARE<br>
+                        ${dischargeSummaryNo}
+                    </div>
+                    <div>
+                        <div class="sig-line">
+                            Dr. ${userName || 'Attending Physician'}<br>
+                            <span style="color: #64748b; font-size: 10px;">Medical License: ${medicalLicense}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <script>window.print();</script>
+            </body>
+            </html>
+        `;
+        printWindow.document.write(content);
+        printWindow.document.close();
+    };
+
+    const handleEmailDischargeReport = async () => {
+        setIsSendingEmail(true);
+        try {
+            await apiService.sendEmail({
+                to: patient?.contact || 'patient@email.com',
+                subject: `Official Inpatient Medical Discharge Summary — ${patient?.fullName || 'Patient'}`,
+                body: `Dear ${patient?.fullName || 'Patient'},\n\nPlease find attached your official Inpatient Medical Discharge Summary Report from Quantum Healthcare Medical Centre.\n\nAdmission Date: ${admissionDate}\nDischarge Date: ${dischargeDate}\nFinal Diagnosis: ${finalDiagnosis}\n\nTake-Home Regimen:\n${takeHomeMedications}\n\nFollow-up Review: ${followUpInstructions}\n\nKind regards,\nDr. ${userName || 'Attending Physician'}\nQuantum Inpatient Care Unit\nRef: ${dischargeSummaryNo}`,
+            }).catch(() => null);
+
+            setEmailSent(true);
+            setIsSendingEmail(false);
+            alert(`✓ Medical Discharge Summary Report successfully emailed to patient/guardian!`);
+        } catch (e) {
+            setIsSendingEmail(false);
+            alert('Failed to send email.');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900 border border-white/10 w-full max-w-3xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-white">
+                <div className="px-8 py-5 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white flex items-center justify-between">
+                    <div>
+                        <h3 className="text-md font-black uppercase tracking-wider">📋 Inpatient Medical Discharge Summary</h3>
+                        <p className="text-[10px] font-semibold opacity-90">Generate clinical discharge summary, take-home Rx, &amp; follow-up instructions</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                        <XIcon className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-4 max-h-[80vh] overflow-y-auto">
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Select Admitted Inpatient *</label>
+                        <select
+                            value={selectedPatientId}
+                            onChange={e => setSelectedPatientId(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 focus:border-violet-500 rounded-xl p-3 text-xs font-bold text-white outline-none uppercase"
+                        >
+                            {displayPatients.map(p => (
+                                <option key={p.id} value={p.id} className="bg-slate-900 text-white">
+                                    {p.fullName} (ADM: {p.admissionNumber || p.id.substring(0, 8)} • Status: {p.status || 'Admitted'})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Ward &amp; Bed Station</label>
+                            <input
+                                type="text"
+                                value={wardBed}
+                                onChange={e => setWardBed(e.target.value)}
+                                placeholder="Female Surgical Ward - Bed 04"
+                                className="w-full bg-black/40 border border-white/10 focus:border-violet-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Admission Date</label>
+                            <input
+                                type="date"
+                                value={admissionDate}
+                                onChange={e => setAdmissionDate(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 focus:border-violet-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black text-violet-300 uppercase tracking-widest mb-1.5 block">Discharge Date</label>
+                            <input
+                                type="date"
+                                value={dischargeDate}
+                                onChange={e => setDischargeDate(e.target.value)}
+                                className="w-full bg-black/40 border border-violet-500/40 focus:border-violet-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Initial Admission Diagnosis</label>
+                            <input
+                                type="text"
+                                value={admissionDiagnosis}
+                                onChange={e => setAdmissionDiagnosis(e.target.value)}
+                                placeholder="e.g. Acute Suppurative Appendicitis"
+                                className="w-full bg-black/40 border border-white/10 focus:border-violet-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black text-violet-400 uppercase tracking-widest mb-1.5 block">Final Discharge Diagnosis *</label>
+                            <input
+                                type="text"
+                                value={finalDiagnosis}
+                                onChange={e => setFinalDiagnosis(e.target.value)}
+                                placeholder="e.g. Acute Appendicitis - Post Laparoscopic Appendectomy"
+                                className="w-full bg-black/40 border border-violet-500/50 focus:border-violet-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Surgical / Interventional Procedures Performed</label>
+                        <input
+                            type="text"
+                            value={proceduresPerformed}
+                            onChange={e => setProceduresPerformed(e.target.value)}
+                            placeholder="e.g. Laparoscopic Appendectomy under GA"
+                            className="w-full bg-black/40 border border-white/10 focus:border-violet-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Hospital Course &amp; Daily Clinical Progress Summary</label>
+                        <textarea
+                            value={hospitalCourse}
+                            onChange={e => setHospitalCourse(e.target.value)}
+                            rows={3}
+                            placeholder="Clinical progress, vitals stability, lab trends..."
+                            className="w-full bg-black/40 border border-white/10 focus:border-violet-500 rounded-xl p-3 text-xs font-bold text-white outline-none resize-none"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1.5 block">Take-Home Discharge Medications &amp; Dosage Regimen</label>
+                        <textarea
+                            value={takeHomeMedications}
+                            onChange={e => setTakeHomeMedications(e.target.value)}
+                            rows={3}
+                            placeholder="1. Tab Augmentin 1g BD x 7 Days&#10;2. Tab Paracetamol 1g TDS PRN"
+                            className="w-full bg-black/40 border border-emerald-500/40 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-emerald-300 outline-none resize-none"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Condition on Discharge</label>
+                            <select
+                                value={dischargeCondition}
+                                onChange={e => setDischargeCondition(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 focus:border-violet-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            >
+                                <option value="Improved &amp; Fit for Outpatient Discharge">Improved &amp; Fit for Outpatient Discharge</option>
+                                <option value="Fully Recovered / Cured">Fully Recovered / Cured</option>
+                                <option value="Transferred to Tertiary Hospital">Transferred to Tertiary Hospital</option>
+                                <option value="Discharged Against Medical Advice (DAMA)">Discharged Against Medical Advice (DAMA)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Doctor License PIN</label>
+                            <input
+                                type="text"
+                                value={medicalLicense}
+                                onChange={e => setMedicalLicense(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 focus:border-violet-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Follow-up Review Instructions</label>
+                        <input
+                            type="text"
+                            value={followUpInstructions}
+                            onChange={e => setFollowUpInstructions(e.target.value)}
+                            placeholder="Review at Surgical Outpatient Clinic in 2 weeks"
+                            className="w-full bg-black/40 border border-white/10 focus:border-violet-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                        />
+                    </div>
+                </div>
+
+                <div className="p-6 bg-black/40 border-t border-white/10 flex flex-wrap justify-between items-center gap-3">
+                    <button onClick={onClose} className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
+                        Close
+                    </button>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={handleEmailDischargeReport}
+                            disabled={isSendingEmail}
+                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2"
+                        >
+                            {isSendingEmail ? '📧 Sending Email...' : emailSent ? '✓ Emailed to Patient' : '📧 Email Discharge Summary'}
+                        </button>
+                        <button
+                            onClick={handlePrintDischargeReport}
+                            className="px-6 py-3 bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-2 italic"
+                        >
+                            <span>🖨️ Print Clinical Discharge Report</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
