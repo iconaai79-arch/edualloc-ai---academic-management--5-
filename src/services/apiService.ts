@@ -74,6 +74,7 @@ export const setSessionUser = (user: { institutionId?: string; branchId?: string
 
 const _unsupportedServerModules = new Set<string>([
     'retail_stores',
+    'his_branding',
     'his_consultation_rates',
     'his_hospital_rooms',
     'his_nurse_tasks',
