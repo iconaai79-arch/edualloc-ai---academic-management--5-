@@ -120,6 +120,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
     });
 
     const [isAddPractitionerOpen, setIsAddPractitionerOpen] = useState(false);
+    const [editingPractitioner, setEditingPractitioner] = useState<any | null>(null);
     const [practitionerList, setPractitionerList] = useState<any[]>([]);
     const [availableDevices, setAvailableDevices] = useState<BiometricDevice[]>([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState<string>('local');
@@ -428,58 +429,116 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
             return;
         }
         try {
-            const newId = `user_prac_${Date.now()}`;
             const sysRole = (practitionerForm.role === 'doctor' || practitionerForm.role === 'his_admin') ? 'his_admin' : 'nurse';
             const assignedPin = practitionerForm.devicePin || String(Math.floor(1000 + Math.random() * 9000));
 
-            const newRecord: any = {
-                id: newId,
-                institution_id: institutionId || 'his_inst_1',
-                institutionId: institutionId || 'his_inst_1',
-                name: practitionerForm.name.trim(),
-                email: practitionerForm.email.trim() || `${practitionerForm.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@hospital.org`,
-                phoneNumber: practitionerForm.phoneNumber || '',
-                role: sysRole,
-                metadata: {
-                    titleRole: practitionerForm.role,
-                    specialty: practitionerForm.specialty || 'General Practitioner',
-                    medicalLicense: practitionerForm.medicalLicense || `MPDB-${Math.floor(10000 + Math.random() * 90000)}`,
-                    isPractitioner: true,
-                    webauthnCredentials: scannedBiometricData?.credentials || null,
-                    fingerprintTemplate: scannedBiometricData?.templateHash || null,
+            if (editingPractitioner) {
+                // Update Existing Practitioner
+                const updatedRecord: any = {
+                    name: practitionerForm.name.trim(),
+                    email: practitionerForm.email.trim() || editingPractitioner.email,
+                    phoneNumber: practitionerForm.phoneNumber || editingPractitioner.phoneNumber || '',
+                    role: sysRole,
+                    metadata: {
+                        ...(editingPractitioner.metadata || {}),
+                        titleRole: practitionerForm.role,
+                        specialty: practitionerForm.specialty || 'General Practitioner',
+                        medicalLicense: practitionerForm.medicalLicense || `MPDB-${Math.floor(10000 + Math.random() * 90000)}`,
+                        devicePin: assignedPin,
+                    }
+                };
+
+                await apiService.updateModuleRecord('users', editingPractitioner.id, updatedRecord).catch(() => null);
+                setPractitionerList(prev => prev.map(s => s.id === editingPractitioner.id ? { 
+                    ...s, 
+                    name: updatedRecord.name, 
+                    role: practitionerForm.role, 
+                    specialty: practitionerForm.specialty,
+                    metadata: updatedRecord.metadata 
+                } : s));
+
+                alert(`✓ Practitioner profile for ${practitionerForm.name} updated successfully!`);
+            } else {
+                // Create New Practitioner
+                const newId = `user_prac_${Date.now()}`;
+                const newRecord: any = {
+                    id: newId,
+                    institution_id: institutionId || 'his_inst_1',
+                    institutionId: institutionId || 'his_inst_1',
+                    name: practitionerForm.name.trim(),
+                    email: practitionerForm.email.trim() || `${practitionerForm.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@hospital.org`,
+                    phoneNumber: practitionerForm.phoneNumber || '',
+                    role: sysRole,
+                    metadata: {
+                        titleRole: practitionerForm.role,
+                        specialty: practitionerForm.specialty || 'General Practitioner',
+                        medicalLicense: practitionerForm.medicalLicense || `MPDB-${Math.floor(10000 + Math.random() * 90000)}`,
+                        isPractitioner: true,
+                        webauthnCredentials: scannedBiometricData?.credentials || null,
+                        fingerprintTemplate: scannedBiometricData?.templateHash || null,
+                        devicePin: assignedPin,
+                        hasBiometrics: !!scannedBiometricData
+                    },
+                    status: 'active',
+                    created_at: new Date().toISOString(),
+                    createdAt: new Date().toISOString()
+                };
+
+                await apiService.saveModuleRecord('users', newRecord);
+
+                // Auto-create biometric enrollment record for ZKTeco & Dahua terminals
+                await apiService.saveModuleRecord('biometric_enrollments', {
+                    id: `bio_enr_${newId}`,
+                    institution_id: institutionId || 'his_inst_1',
+                    institutionId: institutionId || 'his_inst_1',
+                    staff_id: newId,
+                    staffId: newId,
+                    device_pin: assignedPin,
                     devicePin: assignedPin,
-                    hasBiometrics: !!scannedBiometricData
-                },
-                status: 'active',
-                created_at: new Date().toISOString(),
-                createdAt: new Date().toISOString()
-            };
+                    fingerprint_index: 0,
+                    is_active: true,
+                    created_at: new Date().toISOString()
+                }).catch(() => {});
 
-            await apiService.saveModuleRecord('users', newRecord);
+                alert(`Practitioner ${practitionerForm.name} registered successfully!\n\nLinked Terminal Device PIN: ${assignedPin}`);
+            }
 
-            // Auto-create biometric enrollment record for ZKTeco & Dahua terminals
-            await apiService.saveModuleRecord('biometric_enrollments', {
-                id: `bio_enr_${newId}`,
-                institution_id: institutionId || 'his_inst_1',
-                institutionId: institutionId || 'his_inst_1',
-                staff_id: newId,
-                staffId: newId,
-                device_pin: assignedPin,
-                devicePin: assignedPin,
-                fingerprint_index: 0,
-                is_active: true,
-                created_at: new Date().toISOString()
-            }).catch(() => {});
-
-            alert(`Practitioner ${practitionerForm.name} registered successfully!\n\nLinked Terminal Device PIN: ${assignedPin}`);
             setIsAddPractitionerOpen(false);
+            setEditingPractitioner(null);
             setScannedBiometricData(null);
             setPractitionerForm({ name: '', role: 'doctor', specialty: '', medicalLicense: '', phoneNumber: '', email: '', devicePin: '', fingerIndex: 0 });
             await loadPractitioners();
             if (onStaffUpdated) onStaffUpdated();
         } catch (err: any) {
-            alert('Failed to register practitioner: ' + (err.message || err));
+            alert('Failed to save practitioner: ' + (err.message || err));
         }
+    };
+
+    const handleDeletePractitioner = async (id: string, name: string) => {
+        if (!confirm(`Are you sure you want to remove practitioner "${name}" from the Staff Registry?`)) return;
+        try {
+            await apiService.deleteModuleRecord('users', id).catch(() => null);
+            setPractitionerList(prev => prev.filter(s => s.id !== id));
+            alert(`✓ Practitioner ${name} removed from Staff Registry.`);
+            if (onStaffUpdated) onStaffUpdated();
+        } catch (e) {
+            alert('Failed to remove practitioner.');
+        }
+    };
+
+    const handleOpenEditPractitioner = (staff: any) => {
+        setEditingPractitioner(staff);
+        setPractitionerForm({
+            name: staff.name || '',
+            role: staff.metadata?.titleRole || staff.role || 'doctor',
+            specialty: staff.specialty || staff.metadata?.specialty || '',
+            medicalLicense: staff.medicalLicense || staff.metadata?.medicalLicense || '',
+            phoneNumber: staff.phoneNumber || '',
+            email: staff.email || '',
+            devicePin: staff.metadata?.devicePin || '',
+            fingerIndex: 0
+        });
+        setIsAddPractitionerOpen(true);
     };
 
     const handleSaveBillingSettings = async () => {
@@ -785,16 +844,20 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 italic">Managing {practitionerList.length} certified healthcare providers</p>
                             </div>
                             <button 
-                                onClick={() => setIsAddPractitionerOpen(true)}
-                                className="bg-slate-900 dark:bg-white text-white dark:text-slate-950 px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] italic hover:scale-105 transition-all shadow-xl active:scale-95"
+                                onClick={() => {
+                                    setEditingPractitioner(null);
+                                    setPractitionerForm({ name: '', role: 'doctor', specialty: '', medicalLicense: '', phoneNumber: '', email: '', devicePin: '', fingerIndex: 0 });
+                                    setIsAddPractitionerOpen(true);
+                                }}
+                                className="bg-slate-900 dark:bg-white text-white dark:text-slate-950 px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] italic hover:scale-105 transition-all shadow-xl active:scale-95 flex items-center gap-2"
                             >
-                                <PlusIcon className="w-4 h-4 inline mr-2" /> Add Practitioner
+                                <PlusIcon className="w-4 h-4" /> Add Practitioner
                             </button>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {practitionerList.map((staff: any, i) => (
-                                <div key={i} className="bg-white dark:bg-slate-900/50 p-8 rounded-[3rem] border border-slate-200 dark:border-white/5 flex flex-col space-y-6 group hover:shadow-2xl transition-all relative overflow-hidden cursor-pointer">
+                                <div key={i} className="bg-white dark:bg-slate-900/50 p-8 rounded-[3rem] border border-slate-200 dark:border-white/5 flex flex-col space-y-6 group hover:shadow-2xl transition-all relative overflow-hidden">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/[0.03] blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-indigo-500/[0.06]"></div>
                                     <div className="flex items-center gap-5 relative z-10">
                                         <div className={`w-16 h-16 ${staff.color || 'bg-indigo-500'} bg-opacity-10 dark:bg-opacity-20 rounded-[1.5rem] flex items-center justify-center text-current font-black text-lg tracking-tighter group-hover:rotate-6 transition-transform shadow-inner border border-white/10`}>
@@ -811,11 +874,19 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                             ID: <span className="text-slate-600 dark:text-slate-200">{staff.id}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button className="p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 text-slate-400 hover:text-indigo-500 hover:scale-110 transition-all">
-                                                <PencilIcon className="w-4 h-4" />
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleOpenEditPractitioner(staff); }}
+                                                className="px-3 py-2 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 text-slate-400 hover:text-indigo-500 hover:scale-105 transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider"
+                                                title="Edit Practitioner Profile"
+                                            >
+                                                <PencilIcon className="w-3.5 h-3.5" /> Edit
                                             </button>
-                                             <button className="p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 text-slate-400 hover:text-rose-500 hover:scale-110 transition-all">
-                                                <SettingsIcon className="w-4 h-4" />
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleDeletePractitioner(staff.id, staff.name); }}
+                                                className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl border border-rose-500/20 text-rose-400 hover:scale-105 transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider"
+                                                title="Delete Practitioner from Staff Registry"
+                                            >
+                                                <XIcon className="w-3.5 h-3.5" /> Delete
                                             </button>
                                         </div>
                                     </div>
@@ -1508,8 +1579,8 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
                         <div className="px-8 py-5 bg-indigo-600 text-white flex items-center justify-between">
                             <div>
-                                <h3 className="text-md font-black uppercase tracking-wider">Register Healthcare Practitioner</h3>
-                                <p className="text-[10px] font-semibold opacity-80">Add certified doctor, nurse, or clinical specialist to HIS</p>
+                                <h3 className="text-md font-black uppercase tracking-wider">{editingPractitioner ? 'Edit Healthcare Practitioner Profile' : 'Register Healthcare Practitioner'}</h3>
+                                <p className="text-[10px] font-semibold opacity-80">{editingPractitioner ? 'Update certified doctor, nurse, or specialist details' : 'Add certified doctor, nurse, or clinical specialist to HIS'}</p>
                             </div>
                             <button onClick={() => setIsAddPractitionerOpen(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
                                 <XIcon className="w-5 h-5" />
@@ -1666,7 +1737,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                 Cancel
                             </button>
                             <button onClick={handleAddPractitioner} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
-                                Save Practitioner
+                                {editingPractitioner ? '✓ Update Practitioner Profile' : 'Save Practitioner'}
                             </button>
                         </div>
                     </div>
