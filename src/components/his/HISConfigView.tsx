@@ -49,6 +49,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         revisitFee: 500,
     });
     const [customTariffs, setCustomTariffs] = useState<any[]>([]);
+    const [editingTariff, setEditingTariff] = useState<any | null>(null);
     const [tariffCategory, setTariffCategory] = useState<string>('All');
     const [isAddTariffOpen, setIsAddTariffOpen] = useState(false);
     const [isSavingTariffs, setIsSavingTariffs] = useState(false);
@@ -80,6 +81,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
 
     // ── Insurance Partners & Schemes State ─────────────────────────────────────
     const [insuranceProviders, setInsuranceProviders] = useState<any[]>([]);
+    const [editingInsurance, setEditingInsurance] = useState<any | null>(null);
     const [isAddInsuranceOpen, setIsAddInsuranceOpen] = useState(false);
     const [newInsurance, setNewInsurance] = useState({
         name: '',
@@ -587,25 +589,57 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         if (!newTariff.name.trim()) return alert('Please enter service name.');
         if (!institutionId) return;
         try {
-            const tariffRecord = {
-                id: `tar_${Date.now()}`,
-                institutionId,
-                name: newTariff.name.trim(),
-                category: newTariff.category,
-                code: newTariff.code || `SRV-${Math.floor(100 + Math.random() * 900)}`,
-                cashRate: Number(newTariff.cashRate) || 0,
-                coverRate: Number(newTariff.coverRate) || 0,
-                isActive: newTariff.isActive,
-                createdAt: new Date().toISOString(),
-            };
-            await apiService.saveModuleRecord('his_tariffs', tariffRecord);
-            setCustomTariffs(prev => [tariffRecord, ...prev]);
-            setIsAddTariffOpen(false);
-            setNewTariff({ name: '', category: 'Laboratory', code: '', cashRate: 0, coverRate: 0, isActive: true });
-            alert(`✓ ${tariffRecord.name} added to tariff schedule!`);
+            if (editingTariff) {
+                // Update Existing Tariff Item
+                const updatedRecord = {
+                    name: newTariff.name.trim(),
+                    category: newTariff.category,
+                    code: newTariff.code || editingTariff.code,
+                    cashRate: Number(newTariff.cashRate) || 0,
+                    coverRate: Number(newTariff.coverRate) || 0,
+                    isActive: newTariff.isActive,
+                };
+                await apiService.updateModuleRecord('his_tariffs', editingTariff.id, updatedRecord).catch(() => null);
+                setCustomTariffs(prev => prev.map(t => t.id === editingTariff.id ? { ...t, ...updatedRecord } : t));
+                setIsAddTariffOpen(false);
+                setEditingTariff(null);
+                setNewTariff({ name: '', category: 'Laboratory', code: '', cashRate: 0, coverRate: 0, isActive: true });
+                alert(`✓ Tariff item "${updatedRecord.name}" updated successfully!`);
+            } else {
+                // Create New Tariff Item
+                const tariffRecord = {
+                    id: `tar_${Date.now()}`,
+                    institutionId,
+                    name: newTariff.name.trim(),
+                    category: newTariff.category,
+                    code: newTariff.code || `SRV-${Math.floor(100 + Math.random() * 900)}`,
+                    cashRate: Number(newTariff.cashRate) || 0,
+                    coverRate: Number(newTariff.coverRate) || 0,
+                    isActive: newTariff.isActive,
+                    createdAt: new Date().toISOString(),
+                };
+                await apiService.saveModuleRecord('his_tariffs', tariffRecord);
+                setCustomTariffs(prev => [tariffRecord, ...prev]);
+                setIsAddTariffOpen(false);
+                setNewTariff({ name: '', category: 'Laboratory', code: '', cashRate: 0, coverRate: 0, isActive: true });
+                alert(`✓ ${tariffRecord.name} added to tariff schedule!`);
+            }
         } catch (e) {
-            alert('Failed to add tariff item.');
+            alert('Failed to save tariff item.');
         }
+    };
+
+    const handleOpenEditTariff = (tariff: any) => {
+        setEditingTariff(tariff);
+        setNewTariff({
+            name: tariff.name || '',
+            category: tariff.category || 'Laboratory',
+            code: tariff.code || '',
+            cashRate: tariff.cashRate || 0,
+            coverRate: tariff.coverRate || 0,
+            isActive: tariff.isActive !== false
+        });
+        setIsAddTariffOpen(true);
     };
 
     const handleDeleteTariffItem = async (id: string) => {
@@ -622,27 +656,63 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         if (!newInsurance.name.trim()) return alert('Please enter insurance provider name.');
         if (!institutionId) return;
         try {
-            const record = {
-                id: `ins_${Date.now()}`,
-                institutionId,
-                name: newInsurance.name.trim(),
-                code: newInsurance.code.trim() || `INS-${Math.floor(100 + Math.random() * 900)}`,
-                category: newInsurance.category,
-                copayAmount: Number(newInsurance.copayAmount) || 0,
-                contactEmail: newInsurance.contactEmail.trim(),
-                contactPhone: newInsurance.contactPhone.trim(),
-                portalUrl: newInsurance.portalUrl.trim(),
-                isActive: newInsurance.isActive,
-                createdAt: new Date().toISOString(),
-            };
-            await apiService.saveModuleRecord('his_insurance_providers', record);
-            setInsuranceProviders(prev => [record, ...prev]);
-            setIsAddInsuranceOpen(false);
-            setNewInsurance({ name: '', code: '', category: 'SHA / National Scheme', copayAmount: 0, contactEmail: '', contactPhone: '', portalUrl: '', isActive: true });
-            alert(`✓ Insurance partner ${record.name} registered successfully!`);
+            if (editingInsurance) {
+                // Update Existing Insurance Partner
+                const updatedRecord = {
+                    name: newInsurance.name.trim(),
+                    code: newInsurance.code.trim() || editingInsurance.code,
+                    category: newInsurance.category,
+                    copayAmount: Number(newInsurance.copayAmount) || 0,
+                    contactEmail: newInsurance.contactEmail.trim(),
+                    contactPhone: newInsurance.contactPhone.trim(),
+                    portalUrl: newInsurance.portalUrl.trim(),
+                    isActive: newInsurance.isActive,
+                };
+                await apiService.updateModuleRecord('his_insurance_providers', editingInsurance.id, updatedRecord).catch(() => null);
+                setInsuranceProviders(prev => prev.map(i => i.id === editingInsurance.id ? { ...i, ...updatedRecord } : i));
+                setIsAddInsuranceOpen(false);
+                setEditingInsurance(null);
+                setNewInsurance({ name: '', code: '', category: 'SHA / National Scheme', copayAmount: 0, contactEmail: '', contactPhone: '', portalUrl: '', isActive: true });
+                alert(`✓ Insurance partner "${updatedRecord.name}" updated successfully!`);
+            } else {
+                // Create New Insurance Partner
+                const record = {
+                    id: `ins_${Date.now()}`,
+                    institutionId,
+                    name: newInsurance.name.trim(),
+                    code: newInsurance.code.trim() || `INS-${Math.floor(100 + Math.random() * 900)}`,
+                    category: newInsurance.category,
+                    copayAmount: Number(newInsurance.copayAmount) || 0,
+                    contactEmail: newInsurance.contactEmail.trim(),
+                    contactPhone: newInsurance.contactPhone.trim(),
+                    portalUrl: newInsurance.portalUrl.trim(),
+                    isActive: newInsurance.isActive,
+                    createdAt: new Date().toISOString(),
+                };
+                await apiService.saveModuleRecord('his_insurance_providers', record);
+                setInsuranceProviders(prev => [record, ...prev]);
+                setIsAddInsuranceOpen(false);
+                setNewInsurance({ name: '', code: '', category: 'SHA / National Scheme', copayAmount: 0, contactEmail: '', contactPhone: '', portalUrl: '', isActive: true });
+                alert(`✓ Insurance partner ${record.name} registered successfully!`);
+            }
         } catch (e) {
-            alert('Failed to register insurance provider.');
+            alert('Failed to save insurance provider.');
         }
+    };
+
+    const handleOpenEditInsurance = (ins: any) => {
+        setEditingInsurance(ins);
+        setNewInsurance({
+            name: ins.name || '',
+            code: ins.code || '',
+            category: ins.category || 'SHA / National Scheme',
+            copayAmount: ins.copayAmount || 0,
+            contactEmail: ins.contactEmail || '',
+            contactPhone: ins.contactPhone || '',
+            portalUrl: ins.portalUrl || '',
+            isActive: ins.isActive !== false
+        });
+        setIsAddInsuranceOpen(true);
     };
 
     const handleDeleteInsurance = async (id: string) => {
@@ -1056,7 +1126,11 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                     </p>
                                 </div>
                                 <button
-                                    onClick={() => setIsAddTariffOpen(true)}
+                                    onClick={() => {
+                                        setEditingTariff(null);
+                                        setNewTariff({ name: '', category: 'Laboratory', code: '', cashRate: 0, coverRate: 0, isActive: true });
+                                        setIsAddTariffOpen(true);
+                                    }}
                                     className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-indigo-600/20"
                                 >
                                     <PlusIcon className="w-4 h-4 inline mr-2" /> Add Custom Service Tariff
@@ -1096,13 +1170,22 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                                     </p>
                                                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Code: {item.code}</p>
                                                 </div>
-                                                <button
-                                                    onClick={() => handleDeleteTariffItem(item.id)}
-                                                    className="text-slate-300 hover:text-rose-500 p-2 rounded-xl transition-colors"
-                                                    title="Delete tariff"
-                                                >
-                                                    <XIcon className="w-4 h-4" />
-                                                </button>
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => handleOpenEditTariff(item)}
+                                                        className="text-slate-400 hover:text-indigo-600 p-2 rounded-xl transition-colors hover:bg-slate-200/60 dark:hover:bg-white/10"
+                                                        title="Edit tariff"
+                                                    >
+                                                        <PencilIcon className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteTariffItem(item.id)}
+                                                        className="text-slate-300 hover:text-rose-500 p-2 rounded-xl transition-colors hover:bg-slate-200/60 dark:hover:bg-white/10"
+                                                        title="Delete tariff"
+                                                    >
+                                                        <XIcon className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200/60 dark:border-white/5">
@@ -1163,7 +1246,11 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                 </p>
                             </div>
                             <button
-                                onClick={() => setIsAddInsuranceOpen(true)}
+                                onClick={() => {
+                                    setEditingInsurance(null);
+                                    setNewInsurance({ name: '', code: '', category: 'SHA / National Scheme', copayAmount: 0, contactEmail: '', contactPhone: '', portalUrl: '', isActive: true });
+                                    setIsAddInsuranceOpen(true);
+                                }}
                                 className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-indigo-600/20"
                             >
                                 <PlusIcon className="w-4 h-4 inline mr-2" /> Register Insurance Partner
@@ -1211,13 +1298,22 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                             </p>
                                             <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Scheme Code: {item.code}</p>
                                         </div>
-                                        <button
-                                            onClick={() => handleDeleteInsurance(item.id)}
-                                            className="text-slate-300 hover:text-rose-500 p-2 rounded-xl transition-colors"
-                                            title="Unregister Partner"
-                                        >
-                                            <XIcon className="w-4 h-4" />
-                                        </button>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => handleOpenEditInsurance(item)}
+                                                className="text-slate-400 hover:text-indigo-600 p-2 rounded-xl transition-colors hover:bg-slate-100 dark:hover:bg-white/10"
+                                                title="Edit Insurance Partner / Scheme"
+                                            >
+                                                <PencilIcon className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteInsurance(item.id)}
+                                                className="text-slate-300 hover:text-rose-500 p-2 rounded-xl transition-colors hover:bg-slate-100 dark:hover:bg-white/10"
+                                                title="Unregister Partner"
+                                            >
+                                                <XIcon className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5 text-[9px] font-bold text-slate-500">
@@ -1758,8 +1854,8 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
                         <div className="px-8 py-5 bg-indigo-600 text-white flex items-center justify-between">
                             <div>
-                                <h3 className="text-md font-black uppercase tracking-wider">Add Custom Service Tariff</h3>
-                                <p className="text-[10px] font-semibold opacity-80">Define cash &amp; cover rates for X-Ray, Lab, Procedure, Beds &amp; Services</p>
+                                <h3 className="text-md font-black uppercase tracking-wider">{editingTariff ? 'Edit Custom Service Tariff' : 'Add Custom Service Tariff'}</h3>
+                                <p className="text-[10px] font-semibold opacity-80">{editingTariff ? 'Update cash & cover rates for X-Ray, Lab, Procedure, Beds & Services' : 'Define cash & cover rates for X-Ray, Lab, Procedure, Beds & Services'}</p>
                             </div>
                             <button onClick={() => setIsAddTariffOpen(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
                                 <XIcon className="w-5 h-5" />
@@ -1835,7 +1931,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                 Cancel
                             </button>
                             <button onClick={handleAddTariffItem} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
-                                Add to Tariff Schedule
+                                {editingTariff ? '✓ Update Tariff Item' : 'Add to Tariff Schedule'}
                             </button>
                         </div>
                     </div>
@@ -1846,8 +1942,8 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
                         <div className="px-8 py-5 bg-indigo-600 text-white flex items-center justify-between">
                             <div>
-                                <h3 className="text-md font-black uppercase tracking-wider">Register Insurance Partner</h3>
-                                <p className="text-[10px] font-semibold opacity-80">Add SHA scheme, private medical cover, or corporate health insurance partner</p>
+                                <h3 className="text-md font-black uppercase tracking-wider">{editingInsurance ? 'Edit Insurance Partner / Scheme' : 'Register Insurance Partner'}</h3>
+                                <p className="text-[10px] font-semibold opacity-80">{editingInsurance ? 'Update SHA scheme, private cover, or corporate insurance parameters' : 'Add SHA scheme, private medical cover, or corporate health insurance partner'}</p>
                             </div>
                             <button onClick={() => setIsAddInsuranceOpen(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
                                 <XIcon className="w-5 h-5" />
@@ -1931,7 +2027,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                 Cancel
                             </button>
                             <button onClick={handleAddInsurance} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
-                                Register Insurance Partner
+                                {editingInsurance ? '✓ Update Insurance Partner' : 'Register Insurance Partner'}
                             </button>
                         </div>
                     </div>
