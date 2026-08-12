@@ -218,6 +218,48 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState<PatientInvoice | null>(null);
+    const [editingInvoice, setEditingInvoice] = useState<PatientInvoice | null>(null);
+
+    const handleDeleteInvoice = async (inv: PatientInvoice) => {
+        if (!confirm(`Are you sure you want to delete invoice ${inv.invoiceNumber} for ${inv.patientName}?`)) return;
+        try {
+            await apiService.deleteModuleRecord('his_invoices', inv.id).catch(() => null);
+            setInvoices(prev => prev.filter(i => i.id !== inv.id));
+            alert(`✓ Invoice ${inv.invoiceNumber} deleted successfully.`);
+        } catch (e) {
+            console.error('Failed to delete invoice:', e);
+            alert('Failed to delete invoice.');
+        }
+    };
+
+    const handleSaveEditInvoice = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!editingInvoice) return;
+        const formData = new FormData(e.currentTarget);
+        const patientName = (formData.get('patientName') as string || '').trim();
+        const totalAmount = parseFloat(formData.get('totalAmount') as string) || 0;
+        const amountPaid = parseFloat(formData.get('amountPaid') as string) || 0;
+        const status = formData.get('status') as 'Pending' | 'Paid' | 'Partial' | 'Overdue';
+
+        const updated: PatientInvoice = {
+            ...editingInvoice,
+            patientName,
+            totalAmount,
+            amountPaid,
+            balance: Math.max(0, totalAmount - amountPaid),
+            status,
+        };
+
+        try {
+            await apiService.saveModuleRecord('his_invoices', updated).catch(() => null);
+            setInvoices(prev => prev.map(i => i.id === editingInvoice.id ? updated : i));
+            alert(`✓ Invoice ${updated.invoiceNumber} updated successfully!`);
+            setEditingInvoice(null);
+        } catch (err) {
+            console.error('Failed to update invoice:', err);
+            alert('Failed to update invoice.');
+        }
+    };
 
     // On-Screen PDF Preview Modal State
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
@@ -1032,18 +1074,36 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                                     {inv.status !== 'Paid' && (
                                                         <button 
                                                             onClick={() => { setSelectedInvoice(inv); setIsPaymentModalOpen(true); }}
-                                                            className="px-4 py-2 bg-emerald-500 text-slate-950 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all flex items-center gap-1 shadow-md shadow-emerald-500/10"
+                                                            className="px-4 py-2 bg-emerald-500 text-slate-950 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all flex items-center gap-1 shadow-md shadow-emerald-500/10 cursor-pointer"
                                                         >
                                                             <MpesaIcon className="w-3.5 h-3.5" /> Pay Now
                                                         </button>
                                                     )}
                                                     <button 
                                                         onClick={() => handlePreviewPdf(inv)}
-                                                        className="p-2 glass-morphism rounded-xl text-indigo-400 hover:text-white hover:bg-indigo-600 transition-all flex items-center gap-1 text-[10px] font-black uppercase px-3"
+                                                        className="p-2 glass-morphism rounded-xl text-indigo-400 hover:text-white hover:bg-indigo-600 transition-all flex items-center gap-1 text-[10px] font-black uppercase px-3 cursor-pointer"
                                                         title="On-Screen PDF Invoice Preview"
                                                     >
                                                         <FileTextIcon className="w-4 h-4" />
                                                         <span>Preview PDF</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setEditingInvoice(inv)}
+                                                        title="Edit Invoice"
+                                                        className="p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/20 transition-all hover:scale-105 cursor-pointer"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteInvoice(inv)}
+                                                        title="Delete Invoice"
+                                                        className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/20 transition-all hover:scale-105 cursor-pointer"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
                                                     </button>
                                                 </div>
                                             </td>
@@ -2216,6 +2276,96 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                         <div className="flex-1 mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
                             <PdfViewer src={pdfPreviewUri} pdfDataUri={pdfPreviewUri} className="w-full h-full border-none" title={pdfPreviewTitle} />
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: EDIT PATIENT INVOICE */}
+            {editingInvoice && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 max-w-lg w-full shadow-2xl space-y-6">
+                        <div className="flex justify-between items-center pb-4 border-b border-white/10">
+                            <div>
+                                <h3 className="text-lg font-black text-amber-400 uppercase tracking-tight italic">
+                                    Edit Invoice ({editingInvoice.invoiceNumber})
+                                </h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{editingInvoice.patientName}</p>
+                            </div>
+                            <button
+                                onClick={() => setEditingInvoice(null)}
+                                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all cursor-pointer"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveEditInvoice} className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Patient Name</label>
+                                <input
+                                    type="text"
+                                    name="patientName"
+                                    defaultValue={editingInvoice.patientName}
+                                    required
+                                    className="w-full p-3.5 bg-black/40 border border-white/10 rounded-2xl text-xs text-white outline-none focus:border-amber-500"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Total Billed (KES)</label>
+                                    <input
+                                        type="number"
+                                        name="totalAmount"
+                                        step="0.01"
+                                        defaultValue={editingInvoice.totalAmount}
+                                        required
+                                        className="w-full p-3.5 bg-black/40 border border-white/10 rounded-2xl text-xs text-white outline-none focus:border-amber-500 font-mono"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Amount Paid (KES)</label>
+                                    <input
+                                        type="number"
+                                        name="amountPaid"
+                                        step="0.01"
+                                        defaultValue={editingInvoice.amountPaid}
+                                        required
+                                        className="w-full p-3.5 bg-black/40 border border-white/10 rounded-2xl text-xs text-white outline-none focus:border-amber-500 font-mono"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Payment Status</label>
+                                <select
+                                    name="status"
+                                    defaultValue={editingInvoice.status}
+                                    className="w-full p-3.5 bg-black/40 border border-white/10 rounded-2xl text-xs text-white outline-none focus:border-amber-500"
+                                >
+                                    <option value="Pending" className="bg-slate-900">Pending</option>
+                                    <option value="Partial" className="bg-slate-900">Partial</option>
+                                    <option value="Paid" className="bg-slate-900">Paid</option>
+                                    <option value="Overdue" className="bg-slate-900">Overdue</option>
+                                </select>
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    type="submit"
+                                    className="flex-1 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg cursor-pointer"
+                                >
+                                    Save Changes
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingInvoice(null)}
+                                    className="px-6 py-4 bg-white/10 hover:bg-white/20 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
