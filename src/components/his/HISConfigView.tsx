@@ -429,7 +429,13 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
             return;
         }
         try {
-            const sysRole = (practitionerForm.role === 'doctor' || practitionerForm.role === 'his_admin') ? 'his_admin' : 'nurse';
+            const sysRole = (practitionerForm.role === 'doctor' || practitionerForm.role === 'his_admin') 
+                ? 'his_admin' 
+                : practitionerForm.role === 'receptionist' 
+                ? 'reception' 
+                : practitionerForm.role === 'cashier' 
+                ? 'cashier' 
+                : 'nurse';
             const assignedPin = practitionerForm.devicePin || String(Math.floor(1000 + Math.random() * 9000));
 
             if (editingPractitioner) {
@@ -1608,6 +1614,8 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                     >
                                         <option value="doctor">Doctor / Physician</option>
                                         <option value="nurse">Nurse / Triage Officer</option>
+                                        <option value="receptionist">Receptionist / Front Desk Officer</option>
+                                        <option value="cashier">Finance / Cashier Officer</option>
                                         <option value="his_admin">Clinical Admin / Director</option>
                                         <option value="pharmacist">Pharmacist</option>
                                         <option value="lab_tech">Lab Technologist</option>
