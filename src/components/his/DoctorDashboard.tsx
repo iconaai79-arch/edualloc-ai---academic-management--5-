@@ -358,6 +358,7 @@ export function DoctorDashboard({
 
     // FBC PDF & Email Modal State
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+    const [showSickOffModal, setShowSickOffModal] = useState(false);
     const [pdfDataUri, setPdfDataUri] = useState<string | null>(null);
     const [pdfModalTitle, setPdfModalTitle] = useState('Diagnostic FBC Report PDF');
 
@@ -569,6 +570,10 @@ export function DoctorDashboard({
                     </div>
 
                     <div className="flex gap-2 mt-4 flex-wrap lg:justify-end">
+                        <button onClick={() => setShowSickOffModal(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/50">
+                            <span>📄 Medical Sick Off / Permission Sheet</span>
+                        </button>
                         <button onClick={() => setShowLabOrderModal(true)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/50">
                             <BeakerIcon className="w-3.5 h-3.5" /> Order Lab Test
@@ -1026,6 +1031,305 @@ export function DoctorDashboard({
                     </div>
                 </div>
             )}
+            {/* ── Sick Off / Permission Sheet Modal ── */}
+            {showSickOffModal && (
+                <SickOffPermissionModal
+                    onClose={() => setShowSickOffModal(false)}
+                    patients={patients}
+                    institutionId={institutionId}
+                    userName={userName}
+                />
+            )}
+        </div>
+    );
+}
+
+function SickOffPermissionModal({ onClose, patients, institutionId, userName, defaultPatientId }: {
+    onClose: () => void;
+    patients: HISPatient[];
+    institutionId?: string;
+    userName?: string;
+    defaultPatientId?: string;
+}) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const defaultEnd = new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0];
+    const defaultResume = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0];
+
+    const [selectedPatientId, setSelectedPatientId] = useState(defaultPatientId || (patients.length > 0 ? patients[0].id : ''));
+    const [employerName, setEmployerName] = useState('');
+    const [employerEmail, setEmployerEmail] = useState('');
+    const [diagnosis, setDiagnosis] = useState('Acute Upper Respiratory Tract Infection');
+    const [recommendation, setRecommendation] = useState('Complete medical bed rest and physical activity restriction');
+    const [startDate, setStartDate] = useState(todayStr);
+    const [endDate, setEndDate] = useState(defaultEnd);
+    const [resumeDate, setResumeDate] = useState(defaultResume);
+    const [sickOffDays, setSickOffDays] = useState(3);
+    const [medicalLicense, setMedicalLicense] = useState('MPDB/REG/94820');
+    const [additionalNotes, setAdditionalNotes] = useState('Patient to report back for review if symptoms persist.');
+    const [isEmailing, setIsEmailing] = useState(false);
+    const [emailSent, setEmailSent] = useState(false);
+
+    useEffect(() => {
+        if (defaultPatientId) {
+            setSelectedPatientId(defaultPatientId);
+        }
+    }, [defaultPatientId]);
+
+    const patient = patients.find(p => p.id === selectedPatientId);
+    const certNumber = `MED-OFF-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    const handlePrint = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return alert('Please allow popups to print the certificate.');
+
+        const content = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Medical Off-Duty Certificate - ${patient?.fullName || 'Patient'}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #1e293b; line-height: 1.6; }
+                    .header { text-align: center; border-bottom: 3px double #334155; padding-bottom: 20px; margin-bottom: 30px; }
+                    .title { font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #0f172a; margin: 10px 0; }
+                    .subtitle { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 3px; }
+                    .cert-no { font-size: 11px; font-weight: 800; color: #475569; margin-top: 5px; }
+                    .section { margin-bottom: 25px; }
+                    .field-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; }
+                    .field-value { font-size: 14px; font-weight: 700; color: #0f172a; }
+                    .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; }
+                    .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 20px 0; }
+                    .stamp-box { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; }
+                    .stamp { border: 2px dashed #0284c7; color: #0284c7; padding: 15px 25px; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-size: 11px; text-align: center; transform: rotate(-3deg); }
+                    .signature-line { border-top: 1.5px solid #0f172a; width: 220px; text-align: center; pt-2; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+                    @media print { body { padding: 0; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="subtitle">Quantum Medical Health System</div>
+                    <div class="title">Official Medical Off-Duty Certificate</div>
+                    <div class="cert-no">Ref No: ${certNumber} | Date: ${new Date().toLocaleDateString()}</div>
+                </div>
+
+                <div class="section">
+                    <p><strong>TO EMPLOYER / INSTITUTION:</strong> ${employerName || 'To Whom It May Concern'}</p>
+                    ${employerEmail ? `<p><strong>HR EMAIL:</strong> ${employerEmail}</p>` : ''}
+                </div>
+
+                <div class="box">
+                    <p>This is to certify that I have examined <strong>${patient?.fullName || 'the patient'}</strong> (Admission/ID No: <strong>${patient?.admissionNumber || patient?.id || 'N/A'}</strong>, Gender: <strong>${patient?.gender || 'N/A'}</strong>) on <strong>${new Date().toLocaleDateString()}</strong>.</p>
+                    
+                    <p style="margin-top: 15px;"><strong>Clinical Diagnosis / Condition:</strong> ${diagnosis}</p>
+                    <p><strong>Clinical Recommendation:</strong> ${recommendation}</p>
+                </div>
+
+                <div class="box" style="background: #eff6ff; border-color: #bfdbfe;">
+                    <div class="grid">
+                        <div>
+                            <div class="field-label">Off-Duty Period Recommended</div>
+                            <div class="field-value" style="font-size: 18px; color: #1d4ed8;">${sickOffDays} Days</div>
+                        </div>
+                        <div>
+                            <div class="field-label">Duration</div>
+                            <div class="field-value">${startDate} to ${endDate}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <div class="field-label">Expected Work Resume Date</div>
+                        <div class="field-value" style="color: #059669;">${resumeDate}</div>
+                    </div>
+                </div>
+
+                ${additionalNotes ? `<div class="section"><div class="field-label">Additional Instructions</div><div class="field-value">${additionalNotes}</div></div>` : ''}
+
+                <div class="stamp-box">
+                    <div class="stamp">
+                        ✓ CERTIFIED FIT FOR SICK-OFF<br>
+                        QUANTUM MEDICAL HEALTH CORE<br>
+                        ${certNumber}
+                    </div>
+                    <div>
+                        <div class="signature-line">
+                            Dr. ${userName || 'Attending Physician'}<br>
+                            <span style="color: #64748b; font-size: 10px;">Medical License: ${medicalLicense}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <script>window.print();</script>
+            </body>
+            </html>
+        `;
+        printWindow.document.write(content);
+        printWindow.document.close();
+    };
+
+    const handleEmailEmployer = async () => {
+        if (!employerEmail) return alert('Please enter employer HR email address.');
+        setIsEmailing(true);
+        try {
+            await apiService.sendEmail({
+                to: employerEmail,
+                subject: `Official Medical Off-Duty Permission Certificate — ${patient?.fullName || 'Patient'}`,
+                body: `Dear HR Manager / Supervisor (${employerName || 'Employer'}),\n\nPlease find attached the official Medical Off-Duty Permission Certificate for ${patient?.fullName}.\n\nOff-Duty Duration: ${sickOffDays} Days (${startDate} to ${endDate})\nExpected Resume Date: ${resumeDate}\nClinical Justification: ${diagnosis}\n\nIssued by: Dr. ${userName || 'Attending Physician'} (${medicalLicense})\nQuantum Medical Health Core\nRef: ${certNumber}`,
+            }).catch(() => null);
+
+            setEmailSent(true);
+            setIsEmailing(false);
+            alert(`✓ Sick Off Certificate successfully emailed to HR at ${employerEmail}!`);
+        } catch (e) {
+            setIsEmailing(false);
+            alert('Failed to send email.');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900 border border-white/10 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-white">
+                <div className="px-8 py-5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-between">
+                    <div>
+                        <h3 className="text-md font-black uppercase tracking-wider">📄 Medical Sick Off / Permission Sheet</h3>
+                        <p className="text-[10px] font-semibold opacity-90">Generate off-duty permission certificate with employer email &amp; print sign-off</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                        <XIcon className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-4 max-h-[80vh] overflow-y-auto">
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Select Patient *</label>
+                        <select
+                            value={selectedPatientId}
+                            onChange={e => setSelectedPatientId(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-white outline-none uppercase"
+                        >
+                            {patients.map(p => (
+                                <option key={p.id} value={p.id} className="bg-slate-900 text-white">
+                                    {p.fullName} (ID/ADM: {p.admissionNumber || p.id.substring(0, 8)})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Employer / Institution Name</label>
+                            <input
+                                type="text"
+                                value={employerName}
+                                onChange={e => setEmployerName(e.target.value)}
+                                placeholder="e.g. Safaricom PLC, Ministry of Education"
+                                className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1.5 block">Employer HR Email Address</label>
+                            <input
+                                type="email"
+                                value={employerEmail}
+                                onChange={e => setEmployerEmail(e.target.value)}
+                                placeholder="hr@employer.com"
+                                className="w-full bg-black/40 border border-emerald-500/40 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Medical Diagnosis / Condition</label>
+                        <input
+                            type="text"
+                            value={diagnosis}
+                            onChange={e => setDiagnosis(e.target.value)}
+                            placeholder="e.g. Acute Gastroenteritis, Post-Operative Recovery"
+                            className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Start Date</label>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={e => setStartDate(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">End Date</label>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={e => setEndDate(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black text-emerald-300 uppercase tracking-widest mb-1.5 block">Sick Off Days</label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={sickOffDays}
+                                onChange={e => setSickOffDays(Number(e.target.value))}
+                                className="w-full bg-black/40 border border-emerald-500/50 focus:border-emerald-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Expected Resume Date</label>
+                            <input
+                                type="date"
+                                value={resumeDate}
+                                onChange={e => setResumeDate(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Doctor Medical License / PIN</label>
+                            <input
+                                type="text"
+                                value={medicalLicense}
+                                onChange={e => setMedicalLicense(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Clinical Recommendation &amp; Notes</label>
+                        <textarea
+                            value={recommendation}
+                            onChange={e => setRecommendation(e.target.value)}
+                            rows={2}
+                            className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-white outline-none resize-none"
+                        />
+                    </div>
+                </div>
+
+                <div className="p-6 bg-black/40 border-t border-white/10 flex flex-wrap justify-between items-center gap-3">
+                    <button onClick={onClose} className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
+                        Close
+                    </button>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={handleEmailEmployer}
+                            disabled={isEmailing}
+                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2"
+                        >
+                            {isEmailing ? '📧 Emailing HR...' : emailSent ? '✓ Emailed to HR' : '📧 Email Directly to Employer'}
+                        </button>
+                        <button
+                            onClick={handlePrint}
+                            className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-2 italic"
+                        >
+                            <span>🖨️ Print Off-Duty Certificate</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

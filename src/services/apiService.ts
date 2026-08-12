@@ -72,6 +72,20 @@ export const setSessionUser = (user: { institutionId?: string; branchId?: string
     _sessionUser = user;
 };
 
+const _unsupportedServerModules = new Set<string>([
+    'retail_stores',
+    'his_consultation_rates',
+    'his_hospital_rooms',
+    'his_nurse_tasks',
+    'his_partner_labs',
+    'his_insurance_providers',
+    'his_clinical_events',
+    'his_lab_orders',
+    'his_lab_results',
+    'his_vitals',
+    'his_prescriptions'
+]);
+
 const PROTECTED_KEYS = new Set([
     'coopConfig', 'coopSettings', 'coop_settings',
     'mpesaConfig', 'mpesa_config',
@@ -955,7 +969,7 @@ export const apiService = {
             return finalResult;
         };
 
-        if (module === 'exam_units' || module === 'exam_broadsheets' || !_supabase) {
+        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module) || !_supabase) {
             return queryLocal();
         }
 
@@ -1671,7 +1685,7 @@ export const apiService = {
             return toCamelCase(payload);
         }
 
-        if (!_supabase) {
+        if (!_supabase || _unsupportedServerModules.has(module)) {
             ls.upsert(module, payload);
             return toCamelCase(payload);
         }
