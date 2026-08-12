@@ -469,16 +469,25 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                 bankAccountNumber: practitionerForm.bankAccountNumber
             };
 
+            const salaryVal = Number(practitionerForm.basicSalary) || 0;
             if (editingPractitioner) {
                 // Update Existing Practitioner
+                let existingMeta = editingPractitioner.metadata || {};
+                if (typeof existingMeta === 'string') {
+                    try { existingMeta = JSON.parse(existingMeta); } catch (e) { existingMeta = {}; }
+                }
                 const updatedRecord: any = {
                     name: practitionerForm.name.trim(),
                     email: practitionerForm.email.trim() || editingPractitioner.email,
                     phoneNumber: practitionerForm.phoneNumber || editingPractitioner.phoneNumber || '',
                     role: sysRole,
+                    basicSalary: salaryVal,
+                    basic_salary: salaryVal,
                     metadata: {
-                        ...(editingPractitioner.metadata || {}),
-                        ...hrMetadata
+                        ...existingMeta,
+                        ...hrMetadata,
+                        basicSalary: salaryVal,
+                        basic_salary: salaryVal
                     }
                 };
 
@@ -488,6 +497,8 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     name: updatedRecord.name, 
                     role: practitionerForm.role, 
                     specialty: practitionerForm.specialty,
+                    basicSalary: salaryVal,
+                    basic_salary: salaryVal,
                     metadata: updatedRecord.metadata 
                 } : s));
 
@@ -503,8 +514,15 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     email: practitionerForm.email.trim() || `${practitionerForm.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@hospital.org`,
                     phoneNumber: practitionerForm.phoneNumber || '',
                     role: sysRole,
+                    basicSalary: salaryVal,
+                    basic_salary: salaryVal,
                     metadata: {
+                        specialty: practitionerForm.specialty,
+                        medicalLicense: practitionerForm.medicalLicense,
+                        hisRole: practitionerForm.role,
                         ...hrMetadata,
+                        basicSalary: salaryVal,
+                        basic_salary: salaryVal,
                         webauthnCredentials: scannedBiometricData?.credentials || null,
                         fingerprintTemplate: scannedBiometricData?.templateHash || null,
                         hasBiometrics: !!scannedBiometricData

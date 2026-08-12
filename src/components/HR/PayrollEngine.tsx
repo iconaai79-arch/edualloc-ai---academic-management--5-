@@ -134,6 +134,24 @@ export const calculateKenyanPayroll = (
     };
 };
 
+// Robust helper to extract configured basic salary per staff member, supporting stringified metadata
+export const getStaffBasicSalary = (s: any): number => {
+    if (!s) return 60000;
+    let m = s.metadata || {};
+    if (typeof m === 'string') {
+        try { m = JSON.parse(m); } catch (e) { m = {}; }
+    }
+    const val = Number(
+        m.basicSalary ??
+        m.basic_salary ??
+        m.basic ??
+        s.basicSalary ??
+        s.basic_salary ??
+        s.basic
+    );
+    return (!isNaN(val) && val > 0) ? val : 60000;
+};
+
 export const PayrollEngine: React.FC<PayrollEngineProps> = ({
     staff,
     payrollRecords,
@@ -175,16 +193,11 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         }
     };
 
-
-    // Default fallback parameters for simulation if staff has no salary configured
-    const defaultBasicSalarySim = 60000;
-
-    // Memoize the calculated breakdown for the current workforce using set basic salary
+    // Memoize the calculated breakdown for the current workforce using exact configured basic salary
     const activeStaffCalculations = useMemo(() => {
         return staff.map(s => {
             const attendance = getStaffAttendance(s.id);
-            const m = s.metadata || {};
-            const staffBasicSalary = Number(m.basicSalary || (s as any).basicSalary || (s as any).basic_salary) || defaultBasicSalarySim;
+            const staffBasicSalary = getStaffBasicSalary(s);
             const staffHouseAllowance = Math.round(staffBasicSalary * 0.15); // 15% House Allowance
 
             const payroll = calculateKenyanPayroll(

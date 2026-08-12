@@ -88,7 +88,11 @@ export const HRManager: React.FC<HRManagerProps> = ({
 
     const handleOpenEditStaff = (member: User) => {
         setEditingStaff(member);
-        const m = member.metadata || {};
+        let m = member.metadata || {};
+        if (typeof m === 'string') {
+            try { m = JSON.parse(m); } catch (e) { m = {}; }
+        }
+        const salaryVal = Number(m.basicSalary || m.basic_salary || (member as any).basicSalary || (member as any).basic_salary || (member as any).basic) || 0;
         setOnboardForm({
             name: member.name || '',
             email: member.email || '',
@@ -98,7 +102,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
             employmentDate: m.employmentDate || (member as any).employmentDate || '',
             nationalId: m.nationalId || (member as any).nationalId || '',
             employmentTerms: m.employmentTerms || (member as any).employmentTerms || 'Permanent & Pensionable',
-            basicSalary: m.basicSalary || (member as any).basicSalary || 0,
+            basicSalary: salaryVal,
             kraPin: m.kraPin || (member as any).kraPin || '',
             nssfNo: m.nssfNo || (member as any).nssfNo || '',
             shifNumber: m.shifNumber || m.nhifNo || (member as any).shifNumber || '',
@@ -116,11 +120,13 @@ export const HRManager: React.FC<HRManagerProps> = ({
             return;
         }
         try {
+            const salary = Number(onboardForm.basicSalary) || 0;
             const hrMetadata = {
                 employmentDate: onboardForm.employmentDate,
                 nationalId: onboardForm.nationalId,
                 employmentTerms: onboardForm.employmentTerms,
-                basicSalary: Number(onboardForm.basicSalary) || 0,
+                basicSalary: salary,
+                basic_salary: salary,
                 kraPin: onboardForm.kraPin,
                 nssfNo: onboardForm.nssfNo,
                 shifNumber: onboardForm.shifNumber,
@@ -130,22 +136,32 @@ export const HRManager: React.FC<HRManagerProps> = ({
             };
 
             if (editingStaff) {
+                let existingMeta = editingStaff.metadata || {};
+                if (typeof existingMeta === 'string') {
+                    try { existingMeta = JSON.parse(existingMeta); } catch (e) { existingMeta = {}; }
+                }
+                const updatedPayload = {
+                    ...onboardForm,
+                    basicSalary: salary,
+                    basic_salary: salary,
+                    metadata: {
+                        ...existingMeta,
+                        ...hrMetadata
+                    }
+                };
+
                 if (onEditUser) {
-                    await onEditUser(editingStaff.id, {
-                        ...onboardForm,
-                        metadata: {
-                            ...(editingStaff.metadata || {}),
-                            ...hrMetadata
-                        }
-                    });
+                    await onEditUser(editingStaff.id, updatedPayload);
                 }
                 await apiService.updateModuleRecord('users', editingStaff.id, {
                     name: onboardForm.name,
                     email: onboardForm.email,
                     phoneNumber: onboardForm.phoneNumber,
                     role: onboardForm.role,
+                    basicSalary: salary,
+                    basic_salary: salary,
                     metadata: {
-                        ...(editingStaff.metadata || {}),
+                        ...existingMeta,
                         ...hrMetadata
                     }
                 }).catch(() => null);
@@ -153,6 +169,8 @@ export const HRManager: React.FC<HRManagerProps> = ({
             } else if (onAddUser) {
                 await onAddUser({
                     ...onboardForm,
+                    basicSalary: salary,
+                    basic_salary: salary,
                     metadata: hrMetadata
                 });
                 alert(`✓ Successfully onboarded ${onboardForm.name}!`);
