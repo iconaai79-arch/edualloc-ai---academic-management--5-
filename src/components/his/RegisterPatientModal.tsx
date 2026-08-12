@@ -45,8 +45,11 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
         shaNumber: '',
         emergencyContactName: '',
         emergencyContactPhone: '',
+        guardianName: '',
+        guardianPhone: '',
+        guardianNationalId: '',
         admissionNumber: '',
-        allergies: '', // Newly suggested medical field
+        allergies: '',
         gradeLevel: '',
         stream: '',
     });
@@ -54,6 +57,22 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
     const [directorySearch, setDirectorySearch] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isAutoFilled, setIsAutoFilled] = useState(false);
+
+    // Calculate Age Automatically based on DOB
+    const calculatedAge = useMemo(() => {
+        if (!formData.dob) return null;
+        const birthDate = new Date(formData.dob);
+        if (isNaN(birthDate.getTime())) return null;
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age >= 0 ? age : null;
+    }, [formData.dob]);
+
+    const isMinor = calculatedAge !== null && calculatedAge < 18;
 
     const filteredUsers = useMemo(() => {
         if (!isEdu || !directorySearch.trim()) return [];
@@ -81,6 +100,9 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
             shaNumber: user.metadata?.shaNumber || '',
             emergencyContactName: user.metadata?.emergencyContactName || '',
             emergencyContactPhone: user.metadata?.emergencyContactPhone || '',
+            guardianName: user.metadata?.guardianName || user.metadata?.parentName || '',
+            guardianPhone: user.metadata?.guardianPhone || user.metadata?.parentPhone || '',
+            guardianNationalId: user.metadata?.guardianNationalId || user.metadata?.parentId || '',
             admissionNumber: user.admissionNumber || user.admission_number || user.metadata?.admissionNumber || user.metadata?.admission_number || '',
             allergies: Array.isArray(user.metadata?.allergies) 
                 ? user.metadata.allergies.join(', ') 
@@ -103,6 +125,9 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
             shaNumber: '',
             emergencyContactName: '',
             emergencyContactPhone: '',
+            guardianName: '',
+            guardianPhone: '',
+            guardianNationalId: '',
             admissionNumber: '',
             allergies: '',
             gradeLevel: '',
@@ -123,7 +148,16 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
             case 3:
                 return formData.contact.trim().length > 0;
             case 4:
-                return formData.emergencyContactName.trim().length > 0 && formData.emergencyContactPhone.trim().length > 0;
+                // If patient is a minor (<18), parent/guardian details are MANDATORY!
+                if (isMinor) {
+                    return (
+                        formData.guardianName.trim().length > 0 &&
+                        formData.guardianPhone.trim().length > 0 &&
+                        formData.guardianNationalId.trim().length > 0
+                    );
+                }
+                // If patient is over 18, emergency contact is OPTIONAL!
+                return true;
             default:
                 return false;
         }
@@ -294,6 +328,16 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                             onChange={e => setFormData({ ...formData, dob: e.target.value })}
                                         />
                                     </div>
+                                    {calculatedAge !== null && (
+                                        <div className={`p-3 rounded-2xl border text-[9px] font-black uppercase tracking-wider flex items-center justify-between mt-2 ${
+                                            isMinor 
+                                                ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 dark:text-amber-400' 
+                                                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                                        }`}>
+                                            <span>🎂 Calculated Age: {calculatedAge} Yrs Old</span>
+                                            <span>{isMinor ? '⚠️ MINOR (<18) — Parent Details Mandatory' : '✓ ADULT (18+) — Emergency Contact Optional'}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="space-y-2">
@@ -492,34 +536,82 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
 
                     {currentStep === 4 && (
                         <div className="space-y-6 animate-fade-in">
-                            <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-[10px] font-black text-rose-500 uppercase tracking-widest">
-                                ⚠️ Emergency contacts are utilized for automated alerts and notifications.
-                            </div>
+                            {isMinor ? (
+                                <>
+                                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center justify-between">
+                                        <span>👨‍👩‍👧 MINOR PATIENT (&lt;18 YRS) — PARENT / GUARDIAN DETAILS MANDATORY</span>
+                                        <span className="px-2 py-0.5 bg-amber-500/20 rounded">REQUIRED</span>
+                                    </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Kin Full Identity</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="NEXT OF KIN NAME"
-                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
-                                        value={formData.emergencyContactName}
-                                        onChange={e => setFormData({ ...formData, emergencyContactName: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Kin Emergency Line</label>
-                                    <input
-                                        type="tel"
-                                        required
-                                        placeholder="KIN PHONE NUMBER"
-                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
-                                        value={formData.emergencyContactPhone}
-                                        onChange={e => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
-                                    />
-                                </div>
-                            </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2 md:col-span-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Parent / Legal Guardian Full Name *</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="E.G. MARY WANJIKU (MOTHER / FATHER)"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.guardianName}
+                                                onChange={e => setFormData({ ...formData, guardianName: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Parent / Guardian Phone Line *</label>
+                                            <input
+                                                type="tel"
+                                                required
+                                                placeholder="+254 7XX XXX XXX"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.guardianPhone}
+                                                onChange={e => setFormData({ ...formData, guardianPhone: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Parent National ID / Passport No. *</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="E.G. ID-28491029"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.guardianNationalId}
+                                                onChange={e => setFormData({ ...formData, guardianNationalId: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center justify-between">
+                                        <span>🆘 ADULT PATIENT (18+ YRS) — EMERGENCY CONTACT (OPTIONAL)</span>
+                                        <span className="px-2 py-0.5 bg-emerald-500/20 rounded">OPTIONAL</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Emergency Contact / Next of Kin Name (Optional)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="NEXT OF KIN NAME (OPTIONAL)"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.emergencyContactName}
+                                                onChange={e => setFormData({ ...formData, emergencyContactName: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Emergency Phone Line (Optional)</label>
+                                            <input
+                                                type="tel"
+                                                placeholder="KIN PHONE NUMBER (OPTIONAL)"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.emergencyContactPhone}
+                                                onChange={e => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>

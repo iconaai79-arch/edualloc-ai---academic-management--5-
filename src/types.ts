@@ -3553,6 +3553,10 @@ export interface HISPatient {
     admission_number?: string;
     gradeLevel?: string;
     stream?: string;
+    guardianName?: string;
+    guardianPhone?: string;
+    guardianNationalId?: string;
+    isMinor?: boolean;
     createdAt?: string;
     updatedAt?: string;
 }

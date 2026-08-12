@@ -910,6 +910,46 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
 
                 </div>
 
+            {/* Sticky Top Horizontal Navigation Sub-Menu Bar */}
+            <div className="px-8 pb-4">
+                <div className="flex items-center gap-2 p-2 bg-slate-900/80 backdrop-blur-2xl border border-indigo-500/20 rounded-[2rem] overflow-x-auto no-scrollbar shadow-2xl">
+                    {[
+                        { id: 'overview' as HISModule, label: 'Overview', icon: '📊' },
+                        { id: 'receptionist' as HISModule, label: 'Reception', icon: '📋' },
+                        { id: 'doctor' as HISModule, label: 'Doctor Consult', icon: '🩺' },
+                        { id: 'nurse' as HISModule, label: 'Nurse Care & MAR', icon: '👩‍⚕️' },
+                        { id: 'queuing' as HISModule, label: 'Queue & TV', icon: '📺' },
+                        { id: 'patients' as HISModule, label: 'Patients', icon: '👥' },
+                        { id: 'general' as HISModule, label: 'Patient 360', icon: '📁' },
+                        { id: 'inpatient' as HISModule, label: 'Admissions', icon: '🛌' },
+                        { id: 'appointments' as HISModule, label: 'Scheduling', icon: '📅' },
+                        { id: 'diagnostics' as HISModule, label: 'Lab & Radiology', icon: '🧪' },
+                        { id: 'pharmacy' as HISModule, label: 'Pharmacy', icon: '💊' },
+                        { id: 'billing' as HISModule, label: 'Finance', icon: '💳' },
+                        { id: 'reflab' as HISModule, label: 'Reference Lab Hub', icon: '🌐' },
+                        { id: 'dental' as HISModule, label: 'Dental', icon: '🦷' },
+                        { id: 'eye' as HISModule, label: 'Ocular Clinic', icon: '👁️' },
+                        { id: 'config' as HISModule, label: 'Settings', icon: '⚙️' },
+                    ].map(item => {
+                        const isActive = activeModule === item.id;
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => setActiveModule(item.id)}
+                                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                                    isActive
+                                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/50 scale-[1.02]'
+                                        : 'text-slate-400 hover:text-white hover:bg-white/10'
+                                }`}
+                            >
+                                <span className="text-sm">{item.icon}</span>
+                                <span>{item.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
             <main className="p-8 pt-0">
                 <div className="glass-morphism dark:bg-white/5 rounded-[3rem] border border-slate-200 dark:border-white/5 p-10 min-h-[70vh] shadow-2xl relative overflow-hidden backdrop-blur-3xl">
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 blur-[120px] rounded-full -mr-64 -mt-64"></div>
@@ -996,7 +1036,21 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                             );
                             case 'receptionist': return <ReceptionistView institutionId={institutionId} userName={userName} users={users} />;
                             case 'queuing': return <HISQueueManagerView institutionId={institutionId} userName={userName} activeRole={activeRole} />;
-                            case 'patients': return <EduPulsePatientsList patients={patients} searchTerm={searchTerm} setSearchTerm={setSearchTerm} onSelectPatient={(p) => { setActivePatientId(p.id); setActiveModule('general'); }} onOpenRegister={() => setIsRegisterModalOpen(false)} isEdu={isEdu} />;
+                            case 'patients': return (
+                                <EduPulsePatientsList
+                                    patients={patients as any}
+                                    onRegisterPatient={() => setIsRegisterModalOpen(true)}
+                                    onSelectPatient={(p) => {
+                                        const pId = typeof p === 'string' ? p : p?.id;
+                                        setActivePatientId(pId);
+                                        setActiveModule('general');
+                                    }}
+                                    onPatientUpdated={fetchPatients}
+                                    institutionId={institutionId}
+                                    institutionData={institutionData}
+                                    onPreviewPdf={(url) => setPdfPreviewUrl(url)}
+                                />
+                            );
                             case 'broadcaster': return <HISBroadcasterView />;
                             case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} isEdu={isEdu} users={users} />;
                             case 'config': return <HISConfigView institutionId={institutionId} users={users} demoStaff={demoData?.hisStaff} onStaffUpdated={fetchPatients} />;
