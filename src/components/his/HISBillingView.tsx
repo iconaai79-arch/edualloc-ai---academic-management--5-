@@ -98,7 +98,7 @@ const MOCK_PATIENT_INVOICES: PatientInvoice[] = [
 ];
 
 export function HISBillingView({ institutionId }: { institutionId?: string }) {
-    const [activeTab, setActiveTab] = useState<'invoices' | 'revenue' | 'statements' | 'claims'>('invoices');
+    const [activeTab, setActiveTab] = useState<'invoices' | 'revenue' | 'statements' | 'claims' | 'accumulated_b2b' | 'insurance_remittance'>('invoices');
     const [billingItems, setBillingItems] = useState<any[]>([]);
     const [invoices, setInvoices] = useState<PatientInvoice[]>(MOCK_PATIENT_INVOICES);
     const [patients, setPatients] = useState<any[]>([]);
@@ -111,6 +111,24 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     const [revenuePeriod, setRevenuePeriod] = useState<'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'>('month');
     const [customStartDate, setCustomStartDate] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
     const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().slice(0, 10));
+
+    // Accumulated B2B Insurance Invoicing State
+    const [b2bInsuranceCompany, setB2bInsuranceCompany] = useState('SHA (Social Health Authority)');
+    const [b2bStartDate, setB2bStartDate] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
+    const [b2bEndDate, setB2bEndDate] = useState(new Date().toISOString().slice(0, 10));
+
+    // Remittance Posting State
+    const [remittanceProvider, setRemittanceProvider] = useState('Jubilee Insurance');
+    const [remittanceRefNo, setRemittanceRefNo] = useState('EFT-JUB-948102');
+    const [remittanceBilledAmount, setRemittanceBilledAmount] = useState(650000);
+    const [remittancePaidAmount, setRemittancePaidAmount] = useState(480000);
+    const [remittanceDisallowedAmount, setRemittanceDisallowedAmount] = useState(20000);
+    const [remittanceNotes, setRemittanceNotes] = useState('Partial EFT payment received per Remittance Advice #JUB-2026-08. Disallowed claims submitted for appeal.');
+    const [isPostingRemittance, setIsPostingRemittance] = useState(false);
+    const [remittanceLogs, setRemittanceLogs] = useState<any[]>([
+        { id: 'rem_1', provider: 'Jubilee Insurance', refNo: 'EFT-JUB-948102', billed: 650000, paid: 480000, disallowed: 20000, balance: 150000, status: 'Partial Payment', date: '2026-08-10', officer: 'Mary K. (Finance)' },
+        { id: 'rem_2', provider: 'SHA (Social Health Authority)', refNo: 'SHA-REM-0091', billed: 1200000, paid: 1200000, disallowed: 0, balance: 0, status: 'Fully Settled', date: '2026-08-05', officer: 'John M. (Finance)' },
+    ]);
 
     // Insurance Statement Filter state
     const [selectedProviderFilter, setSelectedProviderFilter] = useState('all');
@@ -385,8 +403,160 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
 
             setIsProcessingPayment(false);
             setIsPaymentModalOpen(false);
+            setIsProcessingPayment(false);
+            setIsPaymentModalOpen(false);
             alert(`✓ Payment of KES ${amountToPay.toLocaleString()} recorded via ${paymentMethod}!\nRemaining Outstanding Balance: KES ${newBalance.toLocaleString()}`);
         }, 1200);
+    };
+
+    const handlePrintB2bMasterInvoice = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return alert('Please allow popups to print B2B master invoice.');
+
+        const masterNo = `INS-INV-${new Date().getFullYear()}-${b2bInsuranceCompany.substring(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        const sampleClaims = [
+            { patientName: 'Grace Wanjiru', memberNo: 'SHA-948201', date: '2026-08-02', desc: 'Outpatient Consult + Lab Panel', total: 4500, copay: 500, netClaim: 4000 },
+            { patientName: 'Kevin Otieno', memberNo: 'SHA-948202', date: '2026-08-05', desc: 'X-Ray Chest + Prescriptions', total: 6800, copay: 500, netClaim: 6300 },
+            { patientName: 'Sarah Omondi', memberNo: 'SHA-948203', date: '2026-08-08', desc: 'Female Ward Admission (3 Days)', total: 42000, copay: 0, netClaim: 42000 },
+            { patientName: 'Daniel Kiprop', memberNo: 'SHA-948204', date: '2026-08-10', desc: 'Emergency Triage & Medication', total: 8500, copay: 500, netClaim: 8000 },
+        ];
+
+        const totalNetClaim = sampleClaims.reduce((s, c) => s + c.netClaim, 0);
+
+        const content = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>B2B Accumulated Master Invoice - ${b2bInsuranceCompany}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #0f172a; line-height: 1.6; }
+                    .header { text-align: center; border-bottom: 3px double #1e1b4b; padding-bottom: 20px; margin-bottom: 25px; }
+                    .title { font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #312e81; margin: 5px 0; }
+                    .subtitle { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 3px; }
+                    .inv-no { font-size: 11px; font-weight: 800; color: #4338ca; margin-top: 5px; }
+                    .box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px; margin-bottom: 20px; }
+                    .grid-2 { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; }
+                    .table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+                    .table th { background: #312e81; color: white; text-align: left; padding: 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+                    .table td { border-bottom: 1px solid #e2e8f0; padding: 10px; font-weight: 600; }
+                    .total-box { margin-top: 25px; text-align: right; background: #e0e7ff; padding: 15px 25px; border-radius: 12px; border: 1px solid #c7d2fe; }
+                    .stamp-box { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; }
+                    .stamp { border: 2px dashed #4338ca; color: #4338ca; padding: 12px 20px; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-size: 10px; text-align: center; transform: rotate(-2deg); }
+                    .sig-line { border-top: 1.5px solid #0f172a; width: 220px; text-align: center; pt-2; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+                    @media print { body { padding: 0; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="subtitle">Quantum Healthcare Medical Centre — Accounts Receivable</div>
+                    <div class="title">B2B Accumulated Period Master Invoice</div>
+                    <div class="inv-no">Master Invoice Ref: ${masterNo} | Date: ${new Date().toLocaleDateString()}</div>
+                </div>
+
+                <div class="box">
+                    <div class="grid-2">
+                        <div>
+                            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">Billed Insurance Provider</div>
+                            <div style="font-size: 16px; font-weight: 900; color: #312e81;">${b2bInsuranceCompany}</div>
+                            <div style="font-size: 11px; font-weight: 700; color: #475569;">B2B Medical Claims Department</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">Billing Period</div>
+                            <div style="font-size: 14px; font-weight: 800; color: #0f172a;">${b2bStartDate} to ${b2bEndDate}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Patient Name</th>
+                            <th>Member / Policy No</th>
+                            <th>Visit Date</th>
+                            <th>Services Rendered</th>
+                            <th>Gross Charge</th>
+                            <th>Co-Pay Paid</th>
+                            <th>Net B2B Claim (KES)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sampleClaims.map((c, i) => `
+                            <tr>
+                                <td>${i + 1}</td>
+                                <td>${c.patientName}</td>
+                                <td>${c.memberNo}</td>
+                                <td>${c.date}</td>
+                                <td>${c.desc}</td>
+                                <td>${c.total.toLocaleString()}</td>
+                                <td>${c.copay.toLocaleString()}</td>
+                                <td style="color: #312e81; font-weight: 800;">${c.netClaim.toLocaleString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+
+                <div class="total-box">
+                    <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #4338ca;">Total Accumulated Net Amount Due</div>
+                    <div style="font-size: 26px; font-weight: 900; color: #1e1b4b;">KES ${totalNetClaim.toLocaleString()}</div>
+                    <div style="font-size: 10px; font-weight: 700; color: #64748b;">Payable within 30 Days to Quantum Medical Account</div>
+                </div>
+
+                <div class="stamp-box">
+                    <div class="stamp">
+                        ✓ CERTIFIED B2B MASTER INVOICE<br>
+                        QUANTUM FINANCE HUB<br>
+                        ${masterNo}
+                    </div>
+                    <div>
+                        <div class="sig-line">
+                            Finance Manager Sign-Off<br>
+                            <span style="color: #64748b; font-size: 10px;">Quantum Accounts Receivable</span>
+                        </div>
+                    </div>
+                </div>
+
+                <script>window.print();</script>
+            </body>
+            </html>
+        `;
+        printWindow.document.write(content);
+        printWindow.document.close();
+    };
+
+    const handlePostRemittance = async () => {
+        setIsPostingRemittance(true);
+        const remBalance = Math.max(0, remittanceBilledAmount - remittancePaidAmount - remittanceDisallowedAmount);
+        const remStatus = remBalance === 0 ? 'Fully Settled' : 'Partial Payment';
+
+        setTimeout(async () => {
+            const newLog = {
+                id: `rem_${Date.now()}`,
+                provider: remittanceProvider,
+                refNo: remittanceRefNo,
+                billed: remittanceBilledAmount,
+                paid: remittancePaidAmount,
+                disallowed: remittanceDisallowedAmount,
+                balance: remBalance,
+                status: remStatus,
+                date: new Date().toISOString().split('T')[0],
+                officer: 'Finance Officer'
+            };
+
+            setRemittanceLogs(prev => [newLog, ...prev]);
+
+            if (institutionId) {
+                await apiService.saveModuleRecord('his_insurance_remittances', {
+                    institution_id: institutionId,
+                    ...newLog,
+                    created_at: new Date().toISOString()
+                }).catch(() => null);
+            }
+
+            setIsPostingRemittance(false);
+            alert(`✓ Insurance Remittance Advice #${remittanceRefNo} Posted Successfully!\n\nReceived Amount: KES ${remittancePaidAmount.toLocaleString()}\nDisallowed Claims: KES ${remittanceDisallowedAmount.toLocaleString()}\nOutstanding Claim Balance: KES ${remBalance.toLocaleString()}`);
+        }, 800);
     };
 
     return (
@@ -459,6 +629,28 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                 >
                     <ShieldIcon className="w-4 h-4" />
                     <span>Insurance Claims Management</span>
+                </button>
+
+                <button 
+                    onClick={() => setActiveTab('accumulated_b2b')}
+                    className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                        activeTab === 'accumulated_b2b' 
+                            ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-900/50' 
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <span>🏢 B2B Accumulated Period Invoice</span>
+                </button>
+
+                <button 
+                    onClick={() => setActiveTab('insurance_remittance')}
+                    className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                        activeTab === 'insurance_remittance' 
+                            ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-900/50' 
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <span>💵 Insurance Remittance &amp; Partial Payment</span>
                 </button>
             </div>
 
@@ -925,6 +1117,270 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
             {activeTab === 'claims' && (
                 <div className="space-y-6 animate-fade-in">
                     <ClaimsManager institutionId={institutionId} />
+                </div>
+            )}
+
+            {/* TAB CONTENT 5: B2B ACCUMULATED PERIOD INVOICING */}
+            {activeTab === 'accumulated_b2b' && (
+                <div className="space-y-8 animate-fade-in">
+                    <div className="bg-gradient-to-r from-cyan-950/60 via-slate-900 to-indigo-950/60 border border-cyan-500/20 p-8 rounded-[2.5rem] space-y-6">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-wider text-cyan-300">🏢 B2B Accumulated Period Master Invoice Generator</h3>
+                                <p className="text-xs text-slate-400 font-semibold mt-1">Consolidate all patient claims for an insurance provider into a single Period Master Invoice</p>
+                            </div>
+                            <button
+                                onClick={handlePrintB2bMasterInvoice}
+                                className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-cyan-900/50 flex items-center gap-2"
+                            >
+                                <span>🖨️ Print Accumulated Master Invoice</span>
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Insurance Company *</label>
+                                <select
+                                    value={b2bInsuranceCompany}
+                                    onChange={e => setB2bInsuranceCompany(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 focus:border-cyan-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                                >
+                                    {insuranceProviders.map((prov, i) => (
+                                        <option key={i} value={prov.name} className="bg-slate-900 text-white">{prov.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Period Start Date *</label>
+                                <input
+                                    type="date"
+                                    value={b2bStartDate}
+                                    onChange={e => setB2bStartDate(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 focus:border-cyan-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Period End Date *</label>
+                                <input
+                                    type="date"
+                                    value={b2bEndDate}
+                                    onChange={e => setB2bEndDate(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 focus:border-cyan-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Consolidated Period Breakdown Table */}
+                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] overflow-hidden">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-black/20">
+                            <div>
+                                <h4 className="text-sm font-black text-white uppercase tracking-widest">Itemized Patient Claims ({b2bInsuranceCompany})</h4>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Period: {b2bStartDate} to {b2bEndDate}</p>
+                            </div>
+                            <span className="px-4 py-1.5 bg-cyan-500/20 text-cyan-300 rounded-full text-xs font-black uppercase tracking-widest border border-cyan-500/30">
+                                Total Net Due: KES 60,300
+                            </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs text-white">
+                                <thead className="bg-black/40 text-[9px] uppercase tracking-widest text-slate-400 font-black">
+                                    <tr>
+                                        <th className="p-4">#</th>
+                                        <th className="p-4">Patient Name</th>
+                                        <th className="p-4">Member / Policy No</th>
+                                        <th className="p-4">Visit Date</th>
+                                        <th className="p-4">Services Rendered</th>
+                                        <th className="p-4">Gross Amount</th>
+                                        <th className="p-4">Co-Pay Paid</th>
+                                        <th className="p-4">Net Claim Billed</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5 font-semibold text-slate-300">
+                                    <tr className="hover:bg-white/[0.02]">
+                                        <td className="p-4 font-black">1</td>
+                                        <td className="p-4 text-white font-bold">Grace Wanjiru</td>
+                                        <td className="p-4 text-cyan-400">SHA-948201</td>
+                                        <td className="p-4">2026-08-02</td>
+                                        <td className="p-4">Outpatient Consult + Lab Panel</td>
+                                        <td className="p-4">KES 4,500</td>
+                                        <td className="p-4 text-emerald-400">KES 500</td>
+                                        <td className="p-4 text-cyan-300 font-black">KES 4,000</td>
+                                    </tr>
+                                    <tr className="hover:bg-white/[0.02]">
+                                        <td className="p-4 font-black">2</td>
+                                        <td className="p-4 text-white font-bold">Kevin Otieno</td>
+                                        <td className="p-4 text-cyan-400">SHA-948202</td>
+                                        <td className="p-4">2026-08-05</td>
+                                        <td className="p-4">X-Ray Chest + Prescriptions</td>
+                                        <td className="p-4">KES 6,800</td>
+                                        <td className="p-4 text-emerald-400">KES 500</td>
+                                        <td className="p-4 text-cyan-300 font-black">KES 6,300</td>
+                                    </tr>
+                                    <tr className="hover:bg-white/[0.02]">
+                                        <td className="p-4 font-black">3</td>
+                                        <td className="p-4 text-white font-bold">Sarah Omondi</td>
+                                        <td className="p-4 text-cyan-400">SHA-948203</td>
+                                        <td className="p-4">2026-08-08</td>
+                                        <td className="p-4">Female Ward Admission (3 Days)</td>
+                                        <td className="p-4">KES 42,000</td>
+                                        <td className="p-4 text-emerald-400">KES 0</td>
+                                        <td className="p-4 text-cyan-300 font-black">KES 42,000</td>
+                                    </tr>
+                                    <tr className="hover:bg-white/[0.02]">
+                                        <td className="p-4 font-black">4</td>
+                                        <td className="p-4 text-white font-bold">Daniel Kiprop</td>
+                                        <td className="p-4 text-cyan-400">SHA-948204</td>
+                                        <td className="p-4">2026-08-10</td>
+                                        <td className="p-4">Emergency Triage &amp; Medication</td>
+                                        <td className="p-4">KES 8,500</td>
+                                        <td className="p-4 text-emerald-400">KES 500</td>
+                                        <td className="p-4 text-cyan-300 font-black">KES 8,000</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB CONTENT 6: INSURANCE REMITTANCE & PARTIAL PAYMENTS */}
+            {activeTab === 'insurance_remittance' && (
+                <div className="space-y-8 animate-fade-in">
+                    <div className="bg-gradient-to-r from-amber-950/60 via-slate-900 to-orange-950/60 border border-amber-500/20 p-8 rounded-[2.5rem] space-y-6">
+                        <div>
+                            <h3 className="text-xl font-black uppercase tracking-wider text-amber-300">💵 Post Insurance Remittance &amp; Partial Payment</h3>
+                            <p className="text-xs text-slate-400 font-semibold mt-1">Record EFT, cheque, or bank transfer payments received from insurance companies against billed claims</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Insurance Company *</label>
+                                <select
+                                    value={remittanceProvider}
+                                    onChange={e => setRemittanceProvider(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 focus:border-amber-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                                >
+                                    {insuranceProviders.map((prov, i) => (
+                                        <option key={i} value={prov.name} className="bg-slate-900 text-white">{prov.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Remittance / EFT / Cheque Ref No *</label>
+                                <input
+                                    type="text"
+                                    value={remittanceRefNo}
+                                    onChange={e => setRemittanceRefNo(e.target.value)}
+                                    placeholder="e.g. EFT-JUB-948102"
+                                    className="w-full bg-black/40 border border-white/10 focus:border-amber-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Total Billed Master Claim (KES)</label>
+                                <input
+                                    type="number"
+                                    value={remittanceBilledAmount}
+                                    onChange={e => setRemittanceBilledAmount(Number(e.target.value))}
+                                    className="w-full bg-black/40 border border-white/10 focus:border-amber-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1.5 block">Partial / Full Payment Received (KES) *</label>
+                                <input
+                                    type="number"
+                                    value={remittancePaidAmount}
+                                    onChange={e => setRemittancePaidAmount(Number(e.target.value))}
+                                    className="w-full bg-black/40 border border-emerald-500/40 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-emerald-300 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1.5 block">Disallowed / Disputed Claims (KES)</label>
+                                <input
+                                    type="number"
+                                    value={remittanceDisallowedAmount}
+                                    onChange={e => setRemittanceDisallowedAmount(Number(e.target.value))}
+                                    className="w-full bg-black/40 border border-rose-500/40 focus:border-rose-500 rounded-xl p-3 text-xs font-bold text-rose-300 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black text-amber-300 uppercase tracking-widest mb-1.5 block">Calculated Outstanding Balance</label>
+                                <div className="w-full bg-black/60 border border-amber-500/30 rounded-xl p-3 text-sm font-black text-amber-300 font-mono">
+                                    KES {Math.max(0, remittanceBilledAmount - remittancePaidAmount - remittanceDisallowedAmount).toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Remittance Advice Notes / Remarks</label>
+                            <input
+                                type="text"
+                                value={remittanceNotes}
+                                onChange={e => setRemittanceNotes(e.target.value)}
+                                placeholder="Details of partial payment and disallowed claims..."
+                                className="w-full bg-black/40 border border-white/10 focus:border-amber-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+
+                        <button
+                            onClick={handlePostRemittance}
+                            disabled={isPostingRemittance}
+                            className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all shadow-xl shadow-amber-900/50"
+                        >
+                            {isPostingRemittance ? 'Processing Remittance Entry...' : '✓ Post Insurance Remittance & Update Claims'}
+                        </button>
+                    </div>
+
+                    {/* Remittance History Table */}
+                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] overflow-hidden">
+                        <div className="p-6 border-b border-white/10 bg-black/20">
+                            <h4 className="text-sm font-black text-white uppercase tracking-widest">Posted Insurance Remittance Audit Log</h4>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Historical record of EFT payments &amp; claim reconciliations</p>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs text-white">
+                                <thead className="bg-black/40 text-[9px] uppercase tracking-widest text-slate-400 font-black">
+                                    <tr>
+                                        <th className="p-4">Date</th>
+                                        <th className="p-4">Insurance Company</th>
+                                        <th className="p-4">EFT / Cheque Ref</th>
+                                        <th className="p-4">Total Billed</th>
+                                        <th className="p-4">Amount Paid</th>
+                                        <th className="p-4">Disallowed</th>
+                                        <th className="p-4">Balance</th>
+                                        <th className="p-4">Remittance Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5 font-semibold text-slate-300">
+                                    {remittanceLogs.map(log => (
+                                        <tr key={log.id} className="hover:bg-white/[0.02]">
+                                            <td className="p-4 text-slate-400">{log.date}</td>
+                                            <td className="p-4 text-white font-bold">{log.provider}</td>
+                                            <td className="p-4 text-amber-400 font-mono">{log.refNo}</td>
+                                            <td className="p-4">KES {log.billed.toLocaleString()}</td>
+                                            <td className="p-4 text-emerald-400 font-black">KES {log.paid.toLocaleString()}</td>
+                                            <td className="p-4 text-rose-400 font-black">KES {log.disallowed.toLocaleString()}</td>
+                                            <td className="p-4 text-amber-300 font-black">KES {log.balance.toLocaleString()}</td>
+                                            <td className="p-4">
+                                                <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${
+                                                    log.status === 'Fully Settled'
+                                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                                        : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                                }`}>
+                                                    {log.status}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             )}
 
