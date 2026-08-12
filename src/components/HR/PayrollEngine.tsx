@@ -176,17 +176,20 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
     };
 
 
-    // Default payroll parameters for simulation
-    const basicSalarySim = 60000;
-    const houseAllowanceSim = basicSalarySim * 0.15; // 9000 KES
+    // Default fallback parameters for simulation if staff has no salary configured
+    const defaultBasicSalarySim = 60000;
 
-    // Memoize the calculated breakdown for the current workforce
+    // Memoize the calculated breakdown for the current workforce using set basic salary
     const activeStaffCalculations = useMemo(() => {
         return staff.map(s => {
             const attendance = getStaffAttendance(s.id);
+            const m = s.metadata || {};
+            const staffBasicSalary = Number(m.basicSalary || (s as any).basicSalary || (s as any).basic_salary) || defaultBasicSalarySim;
+            const staffHouseAllowance = Math.round(staffBasicSalary * 0.15); // 15% House Allowance
+
             const payroll = calculateKenyanPayroll(
-                basicSalarySim,
-                houseAllowanceSim,
+                staffBasicSalary,
+                staffHouseAllowance,
                 attendance.attendanceRate,
                 useBiometric
             );
@@ -194,6 +197,8 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                 staffId: s.id,
                 name: s.name,
                 role: s.role,
+                basicSalary: staffBasicSalary,
+                houseAllowance: staffHouseAllowance,
                 attendance,
                 payroll
             };
@@ -227,7 +232,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         setIsProcessing(true);
         try {
             const newRecords: PayrollRecord[] = activeStaffCalculations.map(c => {
-                const allowances = [{ name: 'House Allowance', amount: houseAllowanceSim }];
+                const allowances = [{ name: 'House Allowance', amount: c.houseAllowance }];
                 const deductions = [
                     { name: 'NSSF', amount: c.payroll.nssf },
                     { name: 'SHIF', amount: c.payroll.shif },
@@ -244,7 +249,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                     staffId: c.staffId,
                     staffName: c.name,
                     month: selectedMonth,
-                    basicSalary: basicSalarySim,
+                    basicSalary: c.basicSalary,
                     allowances,
                     deductions,
                     netSalary: Math.round(c.payroll.netSalary * 100) / 100,
@@ -433,11 +438,11 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                                                 <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-50 pb-2">Salary & Allowances</h4>
                                                                 <div className="flex justify-between text-xs font-semibold text-slate-600">
                                                                     <span>Basic Salary</span>
-                                                                    <span>KES {basicSalarySim.toLocaleString()}</span>
+                                                                    <span>KES {calc.basicSalary.toLocaleString()}</span>
                                                                 </div>
                                                                 <div className="flex justify-between text-xs font-semibold text-slate-600">
                                                                     <span>House Allowance (15%)</span>
-                                                                    <span>KES {houseAllowanceSim.toLocaleString()}</span>
+                                                                    <span>KES {calc.houseAllowance.toLocaleString()}</span>
                                                                 </div>
                                                                 {useBiometric && calc.payroll.biometricDeduction > 0 && (
                                                                     <div className="flex justify-between text-xs font-black text-rose-500">
