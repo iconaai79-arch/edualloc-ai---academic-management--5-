@@ -821,10 +821,51 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
 
             {/* ── Main Content Wrapper ── */}
             <div className="flex-1 min-w-0 flex flex-col overflow-y-auto">
-                <div className="p-8 pb-4 space-y-8">
-                    <div className="flex flex-col md:flex-row justify-between md:items-end gap-6">
+                {/* 1. TOP HORIZONTAL NAVIGATION SUB-MENU BAR */}
+                <div className="p-8 pb-4">
+                    <div className="flex items-center gap-2 p-2 bg-slate-900/80 backdrop-blur-2xl border border-indigo-500/20 rounded-[2rem] overflow-x-auto no-scrollbar shadow-2xl">
+                        {[
+                            { id: 'overview' as HISModule, label: 'Overview', icon: '📊' },
+                            { id: 'receptionist' as HISModule, label: 'Reception', icon: '📋' },
+                            { id: 'doctor' as HISModule, label: 'Doctor Consult', icon: '🩺' },
+                            { id: 'nurse' as HISModule, label: 'Nurse Care & MAR', icon: '👩‍⚕️' },
+                            { id: 'queuing' as HISModule, label: 'Queue & TV', icon: '📺' },
+                            { id: 'patients' as HISModule, label: 'Patients', icon: '👥' },
+                            { id: 'general' as HISModule, label: 'Patient 360', icon: '📁' },
+                            { id: 'inpatient' as HISModule, label: 'Admissions', icon: '🛌' },
+                            { id: 'appointments' as HISModule, label: 'Scheduling', icon: '📅' },
+                            { id: 'diagnostics' as HISModule, label: 'Lab & Radiology', icon: '🧪' },
+                            { id: 'pharmacy' as HISModule, label: 'Pharmacy', icon: '💊' },
+                            { id: 'billing' as HISModule, label: 'Finance', icon: '💳' },
+                            { id: 'reflab' as HISModule, label: 'Reference Lab Hub', icon: '🌐' },
+                            { id: 'dental' as HISModule, label: 'Dental', icon: '🦷' },
+                            { id: 'eye' as HISModule, label: 'Ocular Clinic', icon: '👁️' },
+                            { id: 'config' as HISModule, label: 'Settings', icon: '⚙️' },
+                        ].map(item => {
+                            const isActive = activeModule === item.id;
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setActiveModule(item.id)}
+                                    className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                                        isActive
+                                            ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/50 scale-[1.02]'
+                                            : 'text-slate-400 hover:text-white hover:bg-white/10'
+                                    }`}
+                                >
+                                    <span className="text-sm">{item.icon}</span>
+                                    <span>{item.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* 2. QUANTUM HEADER & GLOBAL SEARCH BAR (BELOW HORIZONTAL MENU) */}
+                <div className="px-8 pb-4">
+                    <div className="flex flex-col md:flex-row justify-between md:items-center gap-6 p-6 rounded-[2rem] bg-slate-900/40 border border-white/5 backdrop-blur-xl">
                         {!isEdu && (
-                            <div className="flex items-center gap-4 mb-3">
+                            <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-indigo-600 rounded-[1.25rem] flex items-center justify-center text-white shadow-xl shadow-indigo-500/20">
                                     <SparklesIcon className="w-7 h-7" />
                                 </div>
@@ -839,15 +880,15 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                             </div>
                         )}
 
-                        <div className="flex flex-wrap gap-3 relative">
-                            <div className="relative group">
+                        <div className="flex flex-wrap gap-3 relative flex-1 max-w-xl md:justify-end">
+                            <div className="relative group w-full md:w-80">
                                 <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                 <input 
                                     type="text"
                                     placeholder="GLOBAL SEARCH (PATIENTS, RECORDS, STAFF)..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="bg-slate-100 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all w-full md:w-80 shadow-inner"
+                                    className="bg-slate-100 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all w-full shadow-inner"
                                 />
                                 {searchTerm && (
                                     <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 rounded-3xl shadow-2xl z-[100] overflow-hidden max-h-[400px] overflow-y-auto no-scrollbar animate-fade-in-down">
@@ -906,49 +947,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                             </div>
                         </div>
                     </div>
-
-
                 </div>
-
-            {/* Sticky Top Horizontal Navigation Sub-Menu Bar */}
-            <div className="px-8 pb-4">
-                <div className="flex items-center gap-2 p-2 bg-slate-900/80 backdrop-blur-2xl border border-indigo-500/20 rounded-[2rem] overflow-x-auto no-scrollbar shadow-2xl">
-                    {[
-                        { id: 'overview' as HISModule, label: 'Overview', icon: '📊' },
-                        { id: 'receptionist' as HISModule, label: 'Reception', icon: '📋' },
-                        { id: 'doctor' as HISModule, label: 'Doctor Consult', icon: '🩺' },
-                        { id: 'nurse' as HISModule, label: 'Nurse Care & MAR', icon: '👩‍⚕️' },
-                        { id: 'queuing' as HISModule, label: 'Queue & TV', icon: '📺' },
-                        { id: 'patients' as HISModule, label: 'Patients', icon: '👥' },
-                        { id: 'general' as HISModule, label: 'Patient 360', icon: '📁' },
-                        { id: 'inpatient' as HISModule, label: 'Admissions', icon: '🛌' },
-                        { id: 'appointments' as HISModule, label: 'Scheduling', icon: '📅' },
-                        { id: 'diagnostics' as HISModule, label: 'Lab & Radiology', icon: '🧪' },
-                        { id: 'pharmacy' as HISModule, label: 'Pharmacy', icon: '💊' },
-                        { id: 'billing' as HISModule, label: 'Finance', icon: '💳' },
-                        { id: 'reflab' as HISModule, label: 'Reference Lab Hub', icon: '🌐' },
-                        { id: 'dental' as HISModule, label: 'Dental', icon: '🦷' },
-                        { id: 'eye' as HISModule, label: 'Ocular Clinic', icon: '👁️' },
-                        { id: 'config' as HISModule, label: 'Settings', icon: '⚙️' },
-                    ].map(item => {
-                        const isActive = activeModule === item.id;
-                        return (
-                            <button
-                                key={item.id}
-                                onClick={() => setActiveModule(item.id)}
-                                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                                    isActive
-                                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/50 scale-[1.02]'
-                                        : 'text-slate-400 hover:text-white hover:bg-white/10'
-                                }`}
-                            >
-                                <span className="text-sm">{item.icon}</span>
-                                <span>{item.label}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
 
             <main className="p-8 pt-0">
                 <div className="glass-morphism dark:bg-white/5 rounded-[3rem] border border-slate-200 dark:border-white/5 p-10 min-h-[70vh] shadow-2xl relative overflow-hidden backdrop-blur-3xl">
