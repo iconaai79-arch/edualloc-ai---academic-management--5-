@@ -40,6 +40,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [isAddDrugOpen, setIsAddDrugOpen] = useState(false);
     const [isImportDrugOpen, setIsImportDrugOpen] = useState(false);
+    const [editingDrug, setEditingDrug] = useState<HISPharmacyInventory | null>(null);
+    const [isDeletingDrugId, setIsDeletingDrugId] = useState<string | null>(null);
     const [showBatchRegistry, setShowBatchRegistry] = useState(false);
     const [selectedPrescription, setSelectedPrescription] = useState<HISPrescription | null>(null);
     const [linkingDrug, setLinkingDrug] = useState<HISPharmacyInventory | null>(null);
@@ -47,6 +49,60 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [reqItems, setReqItems] = useState<{ name: string; quantity: number; unitCost: number; unit: string }[]>([{ name: '', quantity: 1, unitCost: 0, unit: 'Tablet' }]);
     const [reqNotes, setReqNotes] = useState('');
     const [isSubmittingReq, setIsSubmittingReq] = useState(false);
+
+    const handleDeleteDrug = async (drug: HISPharmacyInventory) => {
+        if (!confirm(`Are you sure you want to delete "${drug.name}" from the pharmacy inventory?`)) return;
+        try {
+            setIsDeletingDrugId(drug.id);
+            await apiService.deleteModuleRecord('his_pharmacy_inventory', drug.id);
+            setInventory(prev => prev.filter(d => d.id !== drug.id));
+            alert(`✓ "${drug.name}" deleted successfully.`);
+        } catch (e) {
+            console.error('Failed to delete drug:', e);
+            alert('Failed to delete drug from inventory.');
+        } finally {
+            setIsDeletingDrugId(null);
+        }
+    };
+
+    const handleSaveEditDrug = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!editingDrug) return;
+        const formData = new FormData(e.currentTarget);
+        const name = (formData.get('name') as string || '').trim();
+        const category = (formData.get('category') as string || '').trim();
+        const unit = (formData.get('unit') as string || '').trim();
+        const unitPrice = parseFloat(formData.get('unitPrice') as string) || 0;
+        const stockQuantity = parseInt(formData.get('stockQuantity') as string) || 0;
+        const reorderLevel = parseInt(formData.get('reorderLevel') as string) || 10;
+        const isNarcotic = formData.get('isNarcotic') === 'on';
+
+        if (!name) {
+            alert('Drug name is required.');
+            return;
+        }
+
+        try {
+            const updated = {
+                ...editingDrug,
+                name,
+                category,
+                unit,
+                unitPrice,
+                stockQuantity,
+                reorderLevel,
+                isNarcotic,
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('his_pharmacy_inventory', updated);
+            setInventory(prev => prev.map(d => d.id === editingDrug.id ? updated : d));
+            alert(`✓ "${name}" updated successfully!`);
+            setEditingDrug(null);
+        } catch (err) {
+            console.error('Failed to update drug:', err);
+            alert('Failed to update drug.');
+        }
+    };
 
     // External Prescription PDF Preview modal state
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
@@ -412,7 +468,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                             <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Unit Price</th>
                                             <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Quantum</th>
                                             <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Store Link</th>
-                                            <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-right">Health Signal</th>
+                                            <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-center">Health Signal</th>
+                                            <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-center">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
@@ -442,25 +499,48 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                                     {item.linkedInventoryItemId ? (
                                                         <button
                                                             onClick={() => setLinkingDrug(item)}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all"
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all cursor-pointer"
                                                         >
                                                             <CheckCircleIcon className="w-3 h-3" /> Linked
                                                         </button>
                                                     ) : (
                                                         <button
                                                             onClick={() => setLinkingDrug(item)}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-slate-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all"
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-slate-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all cursor-pointer"
                                                         >
                                                             🔗 Link Store
                                                         </button>
                                                     )}
                                                 </td>
-                                                <td className="px-10 py-8 text-right">
+                                                <td className="px-6 py-8 text-center">
                                                     <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
                                                         item.stockQuantity <= item.reorderLevel ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
                                                     }`}>
                                                         {item.stockQuantity <= item.reorderLevel ? 'CRITICAL LOW' : 'OPTIMAL'}
                                                     </span>
+                                                </td>
+                                                <td className="px-8 py-8 text-center">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <button
+                                                            onClick={() => setEditingDrug(item)}
+                                                            title="Edit Medication"
+                                                            className="p-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/20 transition-all hover:scale-105 cursor-pointer"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteDrug(item)}
+                                                            disabled={isDeletingDrugId === item.id}
+                                                            title="Delete Medication"
+                                                            className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/20 transition-all hover:scale-105 cursor-pointer disabled:opacity-50"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -1386,6 +1466,113 @@ function PharmacistPaymentPromptModal({
                     )}
                 </div>
             </div>
+            {/* Edit Medication Modal Overlay */}
+            {editingDrug && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="glass-morphism p-10 rounded-[3rem] border border-white/10 w-full max-w-xl shadow-2xl relative">
+                        <div className="flex justify-between items-center mb-8">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter italic text-amber-400">
+                                Edit Medication
+                            </h3>
+                            <button 
+                                onClick={() => setEditingDrug(null)}
+                                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleSaveEditDrug} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Drug Name</label>
+                                <input 
+                                    name="name" 
+                                    required 
+                                    defaultValue={editingDrug.name}
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Category</label>
+                                    <input 
+                                        name="category" 
+                                        defaultValue={editingDrug.category}
+                                        placeholder="Antibiotic, Analgesic, etc" 
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Base Unit</label>
+                                    <input 
+                                        name="unit" 
+                                        defaultValue={editingDrug.unit}
+                                        placeholder="Tablet, Vial, Bottle" 
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Unit Price (KES)</label>
+                                    <input 
+                                        name="unitPrice" 
+                                        type="number" 
+                                        step="0.01" 
+                                        required 
+                                        defaultValue={editingDrug.unitPrice}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Stock Quantity</label>
+                                    <input 
+                                        name="stockQuantity" 
+                                        type="number" 
+                                        required 
+                                        defaultValue={editingDrug.stockQuantity}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Reorder Level</label>
+                                    <input 
+                                        name="reorderLevel" 
+                                        type="number" 
+                                        defaultValue={editingDrug.reorderLevel || 10}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl">
+                                <input 
+                                    type="checkbox" 
+                                    name="isNarcotic" 
+                                    defaultChecked={editingDrug.isNarcotic}
+                                    className="w-4 h-4 rounded border-white/10 bg-white/5" 
+                                />
+                                <label className="text-[10px] font-black uppercase text-rose-400">Classified Narcotic / Controlled Substance</label>
+                            </div>
+
+                            <div className="flex gap-4 pt-4">
+                                <button 
+                                    type="submit"
+                                    className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 cursor-pointer"
+                                >
+                                    Save Changes
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setEditingDrug(null)}
+                                    className="px-8 bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
