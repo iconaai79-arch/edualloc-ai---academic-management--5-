@@ -257,6 +257,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option value="Logistics">Transport & Logistics</option>
                       <option value="Driving School">Driving School</option>
                       <option value="Beauty College">Beauty College</option>
+                      <option value="IELTS Academy">IELTS & Language Training Academy</option>
                       <option value="Restaurant">Restaurant & Cafe POS</option>
                       <option value="Constituency">Constituency (NG-CDF)</option>
                     </select>

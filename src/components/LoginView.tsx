@@ -805,10 +805,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     if (type === 'Constituency') cat = 'Constituency';
                                                     if (type === 'Driving School') cat = 'Driving School';
                                                     if (type === 'Restaurant') cat = 'Restaurant & Cafe POS';
+                                                    if (type === 'IELTS Academy') cat = 'IELTS & Language Academy';
                                                     setRegData({ ...regData, institutionType: type as any, category: cat, businessSubType: cat });
                                                 }}
                                             >
                                                 <option value="Education">Education Sector</option>
+                                                <option value="IELTS Academy">IELTS & Language Training Academy</option>
                                                 <option value="Beauty College">Beauty & Cosmetology College</option>
                                                 <option value="HIS">Health Sector (HIS)</option>
                                                 <option value="Pharmacy">Pharmacy / Chemist</option>

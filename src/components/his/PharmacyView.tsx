@@ -15,6 +15,7 @@ import { UserIcon } from '../icons/UserIcon';
 import { apiService } from '../../services/apiService';
 import { LinkDrugToInventoryModal } from './LinkDrugToInventoryModal';
 import { SmartPharmacyInventoryImporterModal } from './SmartPharmacyInventoryImporterModal';
+import { AddPharmacyBatchModal } from './AddPharmacyBatchModal';
 
 import { 
     HISPharmacyInventory, 
@@ -36,9 +37,14 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [interactions, setInteractions] = useState<HISPharmacyInteraction[]>([]);
     const [prescriptions, setPrescriptions] = useState<HISPrescription[]>([]);
     const [requisitions, setRequisitions] = useState<any[]>([]);
+    const [suppliers, setSuppliers] = useState<{ id?: string; name: string }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [stockFilter, setStockFilter] = useState<'all' | 'low_stock' | 'expiring_soon' | 'expired' | 'narcotics'>('all');
     const [isAddDrugOpen, setIsAddDrugOpen] = useState(false);
+    const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
+    const [selectedDrugForBatchModal, setSelectedDrugForBatchModal] = useState<string | undefined>(undefined);
+    const [fefoModalDrug, setFefoModalDrug] = useState<HISPharmacyInventory | null>(null);
     const [isImportDrugOpen, setIsImportDrugOpen] = useState(false);
     const [editingDrug, setEditingDrug] = useState<HISPharmacyInventory | null>(null);
     const [isDeletingDrugId, setIsDeletingDrugId] = useState<string | null>(null);
@@ -158,18 +164,26 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                 inv = await ensureHisPharmacyPreloaded(institutionId);
             }
 
-            const [batchRecords, intercs, prescs, patients, reqs] = await Promise.all([
+            const [batchRecords, intercs, prescs, patients, reqs, procSuppliers, legSuppliers] = await Promise.all([
                 apiService.fetchModuleRecords('his_pharmacy_batches', institutionId),
                 apiService.fetchModuleRecords('his_pharmacy_interactions', institutionId),
                 apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { order: 'created_at.desc' }),
                 apiService.fetchModuleRecords('his_patients', institutionId),
-                apiService.fetchModuleRecords('requisitions', institutionId)
+                apiService.fetchModuleRecords('requisitions', institutionId),
+                apiService.fetchModuleRecords('procurement_suppliers', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('suppliers', institutionId).catch(() => [])
             ]);
 
             setInventory(inv || []);
             setBatches(batchRecords || []);
             setInteractions(intercs || []);
             setRequisitions(reqs || []);
+
+            const combinedSuppliers = [
+                ...(procSuppliers || []).map((s: any) => ({ id: s.id, name: s.supplierName || s.name })),
+                ...(legSuppliers || []).map((s: any) => ({ id: s.id, name: s.name }))
+            ].filter((s, idx, self) => s.name && self.findIndex(t => t.name.toLowerCase() === s.name.toLowerCase()) === idx);
+            setSuppliers(combinedSuppliers);
             
             const allBillingItems = await apiService.fetchModuleRecords('his_billing_items', institutionId).catch(() => []);
             
@@ -202,6 +216,70 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleAddBatchRecord = async (batchData: {
+        medicationId: string;
+        batchNumber: string;
+        expiryDate: string;
+        quantity: number;
+        unitCost: number;
+        supplierInfo: string;
+    }) => {
+        if (!institutionId) return;
+
+        const newBatchId = `batch_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        const batchRecord: HISPharmacyBatch = {
+            id: newBatchId,
+            institutionId,
+            medicationId: batchData.medicationId,
+            batchNumber: batchData.batchNumber,
+            expiryDate: batchData.expiryDate,
+            currentQuantity: batchData.quantity,
+            initialQuantity: batchData.quantity,
+            unitCost: batchData.unitCost,
+            supplierInfo: batchData.supplierInfo,
+            createdAt: new Date().toISOString()
+        };
+
+        await apiService.saveModuleRecord('his_pharmacy_batches', batchRecord);
+
+        // Update global inventory quantity
+        const drug = inventory.find(i => i.id === batchData.medicationId);
+        if (drug) {
+            const newQty = (drug.stockQuantity || 0) + batchData.quantity;
+            await apiService.updateModuleRecord('his_pharmacy_inventory', drug.id, {
+                stockQuantity: newQty,
+                updatedAt: new Date().toISOString()
+            });
+            setInventory(prev => prev.map(d => d.id === drug.id ? { ...d, stockQuantity: newQty } : d));
+        }
+
+        setBatches(prev => [batchRecord, ...prev]);
+        alert(`✓ Batch "${batchData.batchNumber}" registered successfully! Stock updated.`);
+    };
+
+    const handleAutoGenerateLowStockRequisition = () => {
+        const lowStock = inventory.filter(i => i.stockQuantity <= i.reorderLevel);
+        if (lowStock.length === 0) {
+            alert('✓ All pharmacy inventory items are currently at optimal stock levels! No items below reorder level.');
+            return;
+        }
+
+        const items = lowStock.map(drug => {
+            const needed = Math.max(10, (drug.reorderLevel * 3) - drug.stockQuantity);
+            return {
+                name: drug.name,
+                quantity: needed,
+                unitCost: drug.unitPrice ? Math.round(drug.unitPrice * 0.7 * 100) / 100 : 10,
+                unit: drug.unit || 'Tablet'
+            };
+        });
+
+        setReqItems(items);
+        setReqNotes(`Automated low-stock replenish requisition generated for ${lowStock.length} items.`);
+        setIsNewRequisitionOpen(true);
+        setActiveTab('requisitions');
     };
 
     useEffect(() => { loadData(); }, [institutionId]);
@@ -379,7 +457,48 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
         }
     };
 
-    const filteredInventory = inventory.filter(d => d.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const now = useMemo(() => new Date(), []);
+    const in60Days = useMemo(() => new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), []);
+
+    const lowStockCount = useMemo(() => inventory.filter(i => i.stockQuantity <= i.reorderLevel).length, [inventory]);
+    const expiringSoonCount = useMemo(() => {
+        return batches.filter(b => b.currentQuantity > 0 && new Date(b.expiryDate) >= now && new Date(b.expiryDate) <= in60Days).length;
+    }, [batches, now, in60Days]);
+    const expiredCount = useMemo(() => {
+        return batches.filter(b => b.currentQuantity > 0 && new Date(b.expiryDate) < now).length;
+    }, [batches, now]);
+    const totalInventoryValue = useMemo(() => {
+        return inventory.reduce((s, i) => s + ((i.unitPrice || 0) * (i.stockQuantity || 0)), 0);
+    }, [inventory]);
+
+    const filteredInventory = useMemo(() => {
+        return inventory.filter(d => {
+            const matchesSearch = d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                  (d.category || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                  (d.sku || '').toLowerCase().includes(searchTerm.toLowerCase());
+            if (!matchesSearch) return false;
+
+            if (stockFilter === 'low_stock') {
+                return d.stockQuantity <= d.reorderLevel;
+            }
+            if (stockFilter === 'expiring_soon') {
+                const medBatches = batches.filter(b => b.medicationId === d.id && b.currentQuantity > 0);
+                return medBatches.some(b => {
+                    const exp = new Date(b.expiryDate);
+                    return exp >= now && exp <= in60Days;
+                });
+            }
+            if (stockFilter === 'expired') {
+                const medBatches = batches.filter(b => b.medicationId === d.id && b.currentQuantity > 0);
+                return medBatches.some(b => new Date(b.expiryDate) < now);
+            }
+            if (stockFilter === 'narcotics') {
+                return d.isNarcotic === true;
+            }
+            return true;
+        });
+    }, [inventory, batches, searchTerm, stockFilter, now, in60Days]);
+
     const pendingPrescs = prescriptions.filter(p => p.status === 'pending');
     const historyPrescs = prescriptions.filter(p => p.status === 'dispensed');
     const lowStockDrugs = inventory.filter(i => i.stockQuantity <= i.reorderLevel);
@@ -407,209 +526,328 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             </div>
 
             {activeTab === 'inventory' && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                    <div className="md:col-span-3 glass-morphism rounded-[3.5rem] border border-white/5 overflow-hidden">
-                        <div className="p-8 flex justify-between items-center border-b border-white/5 bg-white/[0.02]">
-                            <div className="flex gap-4">
-                                <button 
-                                    onClick={() => setShowBatchRegistry(false)}
-                                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${!showBatchRegistry ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}
-                                >
-                                    Fomulary
-                                </button>
-                                <button 
-                                    onClick={() => setShowBatchRegistry(true)}
-                                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${showBatchRegistry ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}
-                                >
-                                    Batch Registry
-                                </button>
+                <div className="space-y-6">
+                    {/* Top KPI Cards for Pharmacy Inventory */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="p-6 bg-slate-900/60 border border-white/10 rounded-3xl flex items-center justify-between">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Inventory Value</p>
+                                <p className="text-2xl font-black text-white mt-1">KES {totalInventoryValue.toLocaleString()}</p>
+                                <p className="text-[9px] font-bold text-emerald-400 mt-1">{inventory.length} Medication Items</p>
                             </div>
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-4 bg-black/20 px-6 py-3 rounded-2xl border border-white/5 w-full max-w-xs focus-within:border-emerald-500/50 transition-all">
-                                    <SearchIcon className="w-4 h-4 text-slate-500" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="FILTER..." 
-                                        className="bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest w-full text-white placeholder:text-slate-600"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
-                                </div>
-                                <button 
-                                    onClick={() => setIsImportDrugOpen(true)}
-                                    className="bg-emerald-500 text-slate-950 px-6 py-3 rounded-2xl flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-emerald-500/20"
-                                >
-                                    <SparklesIcon className="w-4 h-4" /> Import Excel
-                                </button>
-                                {showBatchRegistry ? (
-                                    <button 
-                                        onClick={() => { setShowBatchRegistry(true); setIsAddDrugOpen(true); }}
-                                        className="bg-indigo-500 text-white px-6 py-3 rounded-2xl flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20"
-                                    >
-                                        <PlusIcon className="w-4 h-4" /> Add Batch
-                                    </button>
-                                ) : (
-                                    <button 
-                                        onClick={() => { setShowBatchRegistry(false); setIsAddDrugOpen(true); }}
-                                        className="bg-indigo-500 text-white px-6 py-3 rounded-2xl flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20"
-                                    >
-                                        <PlusIcon className="w-4 h-4" /> Add Medication
-                                    </button>
-                                )}
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                <CurrencyIcon className="w-6 h-6" />
                             </div>
                         </div>
 
-                        {!showBatchRegistry ? (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-white/5">
-                                        <tr>
-                                            <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Drug Formula</th>
-                                            <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Unit Price</th>
-                                            <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Quantum</th>
-                                            <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Store Link</th>
-                                            <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-center">Health Signal</th>
-                                            <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-center">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/5">
-                                        {filteredInventory.map((item) => (
-                                            <tr key={item.id} className="hover:bg-white/[0.02] transition-colors group">
-                                                <td className="px-10 py-8">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                                                            <BeakerIcon className="w-6 h-6" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-black uppercase tracking-tighter text-white">
-                                                                {item.name}
-                                                                {item.isNarcotic && <span className="ml-2 px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[8px] rounded border border-rose-500/30">CONTROLLED</span>}
-                                                            </p>
-                                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">{item.category} • {item.unit}</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-8">
-                                                    <p className="text-sm font-black text-white">KES {item.unitPrice?.toLocaleString()}</p>
-                                                </td>
-                                                <td className="px-10 py-8">
-                                                    <p className="text-sm font-black text-white">{item.stockQuantity} <span className="text-[10px] text-slate-500 uppercase">{item.unit}s</span></p>
-                                                </td>
-                                                <td className="px-6 py-8">
-                                                    {item.linkedInventoryItemId ? (
-                                                        <button
-                                                            onClick={() => setLinkingDrug(item)}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all cursor-pointer"
-                                                        >
-                                                            <CheckCircleIcon className="w-3 h-3" /> Linked
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => setLinkingDrug(item)}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-slate-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all cursor-pointer"
-                                                        >
-                                                            🔗 Link Store
-                                                        </button>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-8 text-center">
-                                                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                                        item.stockQuantity <= item.reorderLevel ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
-                                                    }`}>
-                                                        {item.stockQuantity <= item.reorderLevel ? 'CRITICAL LOW' : 'OPTIMAL'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-8 py-8 text-center">
-                                                    <div className="flex items-center justify-center gap-2">
-                                                        <button
-                                                            onClick={() => setEditingDrug(item)}
-                                                            title="Edit Medication"
-                                                            className="p-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/20 transition-all hover:scale-105 cursor-pointer"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteDrug(item)}
-                                                            disabled={isDeletingDrugId === item.id}
-                                                            title="Delete Medication"
-                                                            className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/20 transition-all hover:scale-105 cursor-pointer disabled:opacity-50"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                        <div 
+                            onClick={() => setStockFilter(stockFilter === 'low_stock' ? 'all' : 'low_stock')}
+                            className={`p-6 border rounded-3xl flex items-center justify-between cursor-pointer transition-all ${
+                                stockFilter === 'low_stock' ? 'bg-rose-500/20 border-rose-500' : 'bg-slate-900/60 border-white/10 hover:border-rose-500/40'
+                            }`}
+                        >
+                            <div>
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Critical Low Stock</p>
+                                <p className="text-2xl font-black text-rose-300 mt-1">{lowStockCount} Items</p>
+                                <p className="text-[9px] font-bold text-rose-400/80 mt-1">Below reorder limit</p>
                             </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-white/5">
-                                        <tr>
-                                            <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Batch ID</th>
-                                            <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Medication</th>
-                                            <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Expiry</th>
-                                            <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Quantity</th>
-                                            <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-right">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/5">
-                                        {batches.filter(batch => batch.batchNumber.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                           inventory.find(i => i.id === batch.medicationId)?.name.toLowerCase().includes(searchTerm.toLowerCase())).map((batch) => {
-                                            const drug = inventory.find(i => i.id === batch.medicationId);
-                                            const isExpired = new Date(batch.expiryDate) < new Date();
-                                            const isNearExpiry = new Date(batch.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-                                            
-                                            return (
-                                                <tr key={batch.id} className="hover:bg-white/[0.02] transition-colors">
-                                                    <td className="px-10 py-6">
-                                                        <p className="text-xs font-black text-white">{batch.batchNumber}</p>
-                                                    </td>
-                                                    <td className="px-6 py-6">
-                                                        <p className="text-xs font-bold text-slate-300">{drug?.name || 'Unknown'}</p>
-                                                    </td>
-                                                    <td className="px-6 py-6">
-                                                        <p className={`text-xs font-black ${isExpired ? 'text-rose-400' : isNearExpiry ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                                            {new Date(batch.expiryDate).toLocaleDateString()}
-                                                        </p>
-                                                    </td>
-                                                    <td className="px-6 py-6">
-                                                        <p className="text-xs font-black text-white">{batch.currentQuantity} / {batch.initialQuantity}</p>
-                                                    </td>
-                                                    <td className="px-10 py-6 text-right">
-                                                        <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                                                            isExpired ? 'bg-rose-500/20 text-rose-400' : isNearExpiry ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
-                                                        }`}>
-                                                            {isExpired ? 'EXPIRED' : isNearExpiry ? 'NEAR EXPIRY' : 'GOOD'}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                                <ExclamationTriangleIcon className="w-6 h-6" />
                             </div>
-                        )}
+                        </div>
+
+                        <div 
+                            onClick={() => setStockFilter(stockFilter === 'expiring_soon' ? 'all' : 'expiring_soon')}
+                            className={`p-6 border rounded-3xl flex items-center justify-between cursor-pointer transition-all ${
+                                stockFilter === 'expiring_soon' ? 'bg-amber-500/20 border-amber-500' : 'bg-slate-900/60 border-white/10 hover:border-amber-500/40'
+                            }`}
+                        >
+                            <div>
+                                <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Expiring Soon (&lt;60d)</p>
+                                <p className="text-2xl font-black text-amber-300 mt-1">{expiringSoonCount} Batches</p>
+                                <p className="text-[9px] font-bold text-amber-400/80 mt-1">Requires fast FEFO turn</p>
+                            </div>
+                            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                                <ClockIcon className="w-6 h-6" />
+                            </div>
+                        </div>
+
+                        <div 
+                            onClick={() => setStockFilter(stockFilter === 'expired' ? 'all' : 'expired')}
+                            className={`p-6 border rounded-3xl flex items-center justify-between cursor-pointer transition-all ${
+                                stockFilter === 'expired' ? 'bg-rose-600/30 border-rose-600' : 'bg-slate-900/60 border-white/10 hover:border-rose-600/40'
+                            }`}
+                        >
+                            <div>
+                                <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Expired Batches</p>
+                                <p className="text-2xl font-black text-rose-400 mt-1">{expiredCount} Batches</p>
+                                <p className="text-[9px] font-bold text-rose-500/80 mt-1">Disposal flag active</p>
+                            </div>
+                            <div className="w-12 h-12 rounded-2xl bg-rose-600/10 border border-rose-600/20 flex items-center justify-center text-rose-500">
+                                <ArchiveBoxIcon className="w-6 h-6" />
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="space-y-8">
-                        <div className="glass-morphism p-10 rounded-[3rem] border border-white/5 bg-gradient-to-br from-emerald-500/5 to-transparent">
-                            <h3 className="text-xl font-black uppercase tracking-tighter mb-8 italic">Pharmacy <span className="text-indigo-400">Metrics</span></h3>
-                            <div className="space-y-6">
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Inventory Value</p>
-                                    <p className="text-3xl font-black italic">KES {inventory.reduce((s, i) => s + (i.unitPrice * i.stockQuantity), 0)?.toLocaleString()}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                        <div className="md:col-span-3 glass-morphism rounded-[3.5rem] border border-white/5 overflow-hidden">
+                            <div className="p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/5 bg-white/[0.02]">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <button 
+                                        onClick={() => setShowBatchRegistry(false)}
+                                        className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${!showBatchRegistry ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}
+                                    >
+                                        Formulary ({inventory.length})
+                                    </button>
+                                    <button 
+                                        onClick={() => setShowBatchRegistry(true)}
+                                        className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${showBatchRegistry ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}
+                                    >
+                                        Batch Registry ({batches.length})
+                                    </button>
                                 </div>
-                                <div className="h-px w-full bg-white/5"></div>
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Critical Restock</p>
-                                    <p className="text-3xl font-black text-rose-400 italic underline decoration-rose-400/30">{inventory.filter(i => i.stockQuantity <= i.reorderLevel).length} DRUGS</p>
+                                <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
+                                    <div className="flex items-center gap-3 bg-black/20 px-4 py-2.5 rounded-2xl border border-white/5 w-full max-w-xs focus-within:border-emerald-500/50 transition-all">
+                                        <SearchIcon className="w-4 h-4 text-slate-500" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="SEARCH DRUG / SKU..." 
+                                            className="bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest w-full text-white placeholder:text-slate-600"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    <button 
+                                        onClick={() => setIsImportDrugOpen(true)}
+                                        className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-4 py-2.5 rounded-2xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all"
+                                    >
+                                        <SparklesIcon className="w-3.5 h-3.5" /> Import
+                                    </button>
+                                    <button 
+                                        onClick={() => { setSelectedDrugForBatchModal(undefined); setIsAddBatchModalOpen(true); }}
+                                        className="bg-emerald-600 text-white px-4 py-2.5 rounded-2xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/20"
+                                    >
+                                        <PlusIcon className="w-3.5 h-3.5" /> Receive Batch
+                                    </button>
+                                    <button 
+                                        onClick={() => setIsAddDrugOpen(true)}
+                                        className="bg-indigo-500 text-white px-4 py-2.5 rounded-2xl flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-500/20"
+                                    >
+                                        <PlusIcon className="w-3.5 h-3.5" /> Add Drug
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Quick Filter Chips */}
+                            <div className="px-8 py-3 bg-white/[0.01] border-b border-white/5 flex items-center gap-2 flex-wrap">
+                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-2">Filter Stock:</span>
+                                {[
+                                    { id: 'all', label: 'All Stock', count: inventory.length },
+                                    { id: 'low_stock', label: '⚠️ Low Stock', count: lowStockCount },
+                                    { id: 'expiring_soon', label: '⏳ Expiring Soon', count: expiringSoonCount },
+                                    { id: 'expired', label: '🔴 Expired', count: expiredCount },
+                                    { id: 'narcotics', label: '🛡️ Narcotics', count: inventory.filter(i => i.isNarcotic).length },
+                                ].map(chip => (
+                                    <button
+                                        key={chip.id}
+                                        onClick={() => setStockFilter(chip.id as any)}
+                                        className={`px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                            stockFilter === chip.id 
+                                                ? 'bg-emerald-500 text-slate-950 font-black' 
+                                                : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+                                        }`}
+                                    >
+                                        {chip.label} ({chip.count})
+                                    </button>
+                                ))}
+                            </div>
+
+                            {!showBatchRegistry ? (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-white/5">
+                                            <tr>
+                                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Drug Formula</th>
+                                                <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Unit Price</th>
+                                                <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Stock Qty</th>
+                                                <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Batches (FEFO)</th>
+                                                <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-center">Health Signal</th>
+                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-center">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {filteredInventory.map((item) => {
+                                                const itemBatches = batches.filter(b => b.medicationId === item.id && b.currentQuantity > 0);
+                                                const hasExpiredBatch = itemBatches.some(b => new Date(b.expiryDate) < now);
+                                                const hasNearExpiryBatch = itemBatches.some(b => new Date(b.expiryDate) >= now && new Date(b.expiryDate) <= in60Days);
+
+                                                return (
+                                                    <tr key={item.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                        <td className="px-10 py-6">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                                                    <BeakerIcon className="w-5 h-5" />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-sm font-black uppercase tracking-tighter text-white">
+                                                                        {item.name}
+                                                                        {item.isNarcotic && <span className="ml-2 px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[8px] rounded border border-rose-500/30">CONTROLLED</span>}
+                                                                    </p>
+                                                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{item.category} • {item.unit} {item.sku ? `• SKU: ${item.sku}` : ''}</p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-6">
+                                                            <p className="text-sm font-black text-white">KES {item.unitPrice?.toLocaleString()}</p>
+                                                        </td>
+                                                        <td className="px-6 py-6">
+                                                            <p className="text-sm font-black text-white">{item.stockQuantity} <span className="text-[10px] text-slate-500 uppercase">{item.unit}s</span></p>
+                                                            <p className="text-[9px] font-bold text-slate-500">Reorder Level: {item.reorderLevel}</p>
+                                                        </td>
+                                                        <td className="px-6 py-6">
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => setFefoModalDrug(item)}
+                                                                    className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-1 transition-all"
+                                                                >
+                                                                    <span>📦 {itemBatches.length} Active Batches</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => { setSelectedDrugForBatchModal(item.id); setIsAddBatchModalOpen(true); }}
+                                                                    title="Add Batch for this Medication"
+                                                                    className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-lg text-xs font-black transition-all"
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-6 text-center">
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                                                                    item.stockQuantity <= item.reorderLevel ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                                }`}>
+                                                                    {item.stockQuantity <= item.reorderLevel ? 'CRITICAL LOW' : 'OPTIMAL'}
+                                                                </span>
+                                                                {hasExpiredBatch && (
+                                                                    <span className="text-[8px] font-black text-rose-400 bg-rose-950 px-2 py-0.5 rounded border border-rose-600/40">
+                                                                        🔴 Expired Batch Present
+                                                                    </span>
+                                                                )}
+                                                                {!hasExpiredBatch && hasNearExpiryBatch && (
+                                                                    <span className="text-[8px] font-black text-amber-400 bg-amber-950 px-2 py-0.5 rounded border border-amber-600/40">
+                                                                        ⏳ Expiring Soon
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-6 text-center">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button
+                                                                    onClick={() => setEditingDrug(item)}
+                                                                    title="Edit Medication"
+                                                                    className="p-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/20 transition-all hover:scale-105 cursor-pointer"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                    </svg>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteDrug(item)}
+                                                                    disabled={isDeletingDrugId === item.id}
+                                                                    title="Delete Medication"
+                                                                    className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/20 transition-all hover:scale-105 cursor-pointer disabled:opacity-50"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-white/5">
+                                            <tr>
+                                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Batch ID</th>
+                                                <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Medication</th>
+                                                <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Expiry</th>
+                                                <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Quantity</th>
+                                                <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Supplier</th>
+                                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-right">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {batches.filter(batch => batch.batchNumber.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                               inventory.find(i => i.id === batch.medicationId)?.name.toLowerCase().includes(searchTerm.toLowerCase())).map((batch) => {
+                                                const drug = inventory.find(i => i.id === batch.medicationId);
+                                                const isExpired = new Date(batch.expiryDate) < new Date();
+                                                const isNearExpiry = new Date(batch.expiryDate) < new Date(Date.now() + 60 * 24 * 60 * 60 * 1000); // 60 days
+                                                
+                                                return (
+                                                    <tr key={batch.id} className="hover:bg-white/[0.02] transition-colors">
+                                                        <td className="px-10 py-6">
+                                                            <p className="text-xs font-black text-white">{batch.batchNumber}</p>
+                                                        </td>
+                                                        <td className="px-6 py-6">
+                                                            <p className="text-xs font-bold text-slate-300">{drug?.name || 'Unknown'}</p>
+                                                        </td>
+                                                        <td className="px-6 py-6">
+                                                            <p className={`text-xs font-black ${isExpired ? 'text-rose-400' : isNearExpiry ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                                                {new Date(batch.expiryDate).toLocaleDateString()}
+                                                            </p>
+                                                        </td>
+                                                        <td className="px-6 py-6">
+                                                            <p className="text-xs font-black text-white">{batch.currentQuantity} / {batch.initialQuantity}</p>
+                                                        </td>
+                                                        <td className="px-6 py-6">
+                                                            <p className="text-xs text-slate-400 font-bold">{batch.supplierInfo || 'Direct Intake'}</p>
+                                                        </td>
+                                                        <td className="px-10 py-6 text-right">
+                                                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                                                                isExpired ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : isNearExpiry ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                            }`}>
+                                                                {isExpired ? 'EXPIRED' : isNearExpiry ? 'NEAR EXPIRY' : 'GOOD'}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="glass-morphism p-8 rounded-[3rem] border border-white/5 bg-gradient-to-br from-emerald-500/5 to-transparent space-y-6">
+                                <h3 className="text-xl font-black uppercase tracking-tighter italic">Pharmacy <span className="text-indigo-400">Actions</span></h3>
+                                
+                                <button
+                                    onClick={handleAutoGenerateLowStockRequisition}
+                                    className="w-full py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-amber-950/40 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <span>⚡ Auto-Fill Low Stock Requisition ({lowStockCount})</span>
+                                </button>
+
+                                <button
+                                    onClick={() => { setSelectedDrugForBatchModal(undefined); setIsAddBatchModalOpen(true); }}
+                                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-950/40 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <ArchiveBoxIcon className="w-4 h-4" />
+                                    <span>📦 Receive New Batch</span>
+                                </button>
+
+                                <div className="p-5 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">FEFO Policy Active</p>
+                                    <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                                        Dispensing algorithm automatically selects the earliest expiring batch first to minimize drug waste and ensure safety.
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -1191,6 +1429,148 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                 className="flex-1 py-3 rounded-xl bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-widest hover:bg-amber-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isSubmittingReq ? 'Submitting...' : 'Submit Requisition'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── BATCH INTAKE MODAL ──────────────────────────────── */}
+            {isAddBatchModalOpen && (
+                <AddPharmacyBatchModal
+                    inventory={inventory}
+                    selectedMedicationId={selectedDrugForBatchModal}
+                    suppliers={suppliers}
+                    onClose={() => {
+                        setIsAddBatchModalOpen(false);
+                        setSelectedDrugForBatchModal(undefined);
+                    }}
+                    onAddBatch={handleAddBatchRecord}
+                />
+            )}
+
+            {/* ── FEFO BATCH DETAIL DRAWER MODAL ───────────────────── */}
+            {fefoModalDrug && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-white animate-fade-in-up">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-indigo-950/80">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+                                    <span>📦 Active FEFO Batches</span>
+                                    <span className="text-indigo-400 font-bold text-base">— {fefoModalDrug.name}</span>
+                                </h3>
+                                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                    First-Expired, First-Out queue for safety & waste minimization (Stock: {fefoModalDrug.stockQuantity} {fefoModalDrug.unit || 'units'})
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setFefoModalDrug(null)}
+                                className="p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto space-y-4">
+                            {(() => {
+                                const drugBatches = batches
+                                    .filter(b => b.medicationId === fefoModalDrug.id)
+                                    .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+
+                                if (drugBatches.length === 0) {
+                                    return (
+                                        <div className="p-12 text-center border border-dashed border-white/10 rounded-2xl">
+                                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">No active batches logged for this medication yet.</p>
+                                            <button
+                                                onClick={() => {
+                                                    const medId = fefoModalDrug.id;
+                                                    setFefoModalDrug(null);
+                                                    setSelectedDrugForBatchModal(medId);
+                                                    setIsAddBatchModalOpen(true);
+                                                }}
+                                                className="mt-4 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                            >
+                                                + Log First Batch
+                                            </button>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div className="space-y-3">
+                                        {drugBatches.map((b, idx) => {
+                                            const isExpired = new Date(b.expiryDate) < new Date();
+                                            const isNearExpiry = new Date(b.expiryDate) < new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
+
+                                            return (
+                                                <div
+                                                    key={b.id}
+                                                    className={`p-5 rounded-2xl border flex items-center justify-between transition-all ${
+                                                        isExpired
+                                                            ? 'bg-rose-500/10 border-rose-500/30'
+                                                            : isNearExpiry
+                                                            ? 'bg-amber-500/10 border-amber-500/30'
+                                                            : 'bg-white/5 border-white/10'
+                                                    }`}
+                                                >
+                                                    <div>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 uppercase">
+                                                                FEFO Queue #{idx + 1}
+                                                            </span>
+                                                            <p className="text-sm font-black text-white uppercase">{b.batchNumber}</p>
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                                            Supplier: {b.supplierInfo || 'Direct Receiving'} • Wholesale Cost: KES {b.unitCost || 0}/unit
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="text-right space-y-1">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <p className={`text-xs font-black ${
+                                                                isExpired ? 'text-rose-400' : isNearExpiry ? 'text-amber-400' : 'text-emerald-400'
+                                                            }`}>
+                                                                Expires: {new Date(b.expiryDate).toLocaleDateString()}
+                                                            </p>
+                                                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                                                                isExpired
+                                                                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                                                    : isNearExpiry
+                                                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                                            }`}>
+                                                                {isExpired ? 'EXPIRED' : isNearExpiry ? 'NEAR EXPIRY' : 'GOOD'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-sm font-black text-white">
+                                                            {b.currentQuantity} / {b.initialQuantity} <span className="text-[10px] text-slate-400">units remaining</span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        <div className="p-6 border-t border-white/10 bg-slate-950 flex justify-between items-center">
+                            <button
+                                onClick={() => {
+                                    const medId = fefoModalDrug.id;
+                                    setFefoModalDrug(null);
+                                    setSelectedDrugForBatchModal(medId);
+                                    setIsAddBatchModalOpen(true);
+                                }}
+                                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                                + Add New Batch to {fefoModalDrug.name}
+                            </button>
+                            <button
+                                onClick={() => setFefoModalDrug(null)}
+                                className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                                Close
                             </button>
                         </div>
                     </div>

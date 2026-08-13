@@ -223,8 +223,9 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
 
     const handleSaveEditRecord = () => {
         if (!editingRecord) return;
-        setLocalRecords(prev => prev.map(r => r.id === editingRecord.id
-            ? { ...r, basicSalary: editBasicSalary, netSalary: editNetSalary, status: editStatus }
+        const targetId = editingRecord.id;
+        setLocalRecords(prev => prev.map(r => r.id === targetId
+            ? ({ ...r, basicSalary: editBasicSalary, netSalary: editNetSalary, status: editStatus as 'pending' | 'paid' | 'approved' | 'draft' | 'processed' } as PayrollRecord)
             : r
         ));
         setEditingRecord(null);
@@ -356,7 +357,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                                     {calc.basicSalary > 0 ? Math.round(calc.payroll.grossSalary).toLocaleString() : '—'}
                                                 </td>
                                                 <td className="px-4 py-4 text-right font-black text-slate-900 text-sm">
-                                                    {record ? Math.round(record.netSalary).toLocaleString() : calc.basicSalary > 0 ? Math.round(calc.payroll.netSalary).toLocaleString() : '—'}
+                                                    {record ? Math.round(record.netSalary || 0).toLocaleString() : calc.basicSalary > 0 ? Math.round(calc.payroll?.netSalary || 0).toLocaleString() : '—'}
                                                 </td>
                                                 <td className="px-3 py-4 text-center">
                                                     <div className="flex items-center justify-center gap-1">

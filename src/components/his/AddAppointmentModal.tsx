@@ -100,6 +100,9 @@ export function AddAppointmentModal({
                 type: isEdu ? 'Health Check' : 'Initial Consultation',
                 reason: '',
                 status: 'Scheduled',
+                paymentMethod: 'Cash',
+                insuranceProvider: '',
+                insurancePolicyNumber: '',
             });
         } catch (error) {
             console.error(error);

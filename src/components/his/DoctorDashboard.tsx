@@ -9,6 +9,8 @@ import { BeakerIcon } from '../icons/BeakerIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { BellIcon } from '../icons/BellIcon';
 import { XIcon } from '../icons/XIcon';
+import { StethoscopeIcon } from '../icons/StethoscopeIcon';
+import { SOAPEncounterModal } from './SOAPEncounterModal';
 import { apiService } from '../../services/apiService';
 import { generateFbcLabReportPdf } from '../../services/pdfService';
 import { PdfViewer } from '../PdfViewer';
@@ -356,7 +358,8 @@ export function DoctorDashboard({
     const [labFeed, setLabFeed] = useState<any[]>([]);
     const [selectedLabReport, setSelectedLabReport] = useState<any | null>(null);
 
-    // FBC PDF & Email Modal State
+    const [soapPatient, setSoapPatient] = useState<HISPatient | null>(null);
+    const [isSoapModalOpen, setIsSoapModalOpen] = useState(false);
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [showSickOffModal, setShowSickOffModal] = useState(false);
     const [showDischargeModal, setShowDischargeModal] = useState(false);
@@ -571,6 +574,21 @@ export function DoctorDashboard({
                     </div>
 
                     <div className="flex gap-2 mt-4 flex-wrap lg:justify-end">
+                        <button 
+                            onClick={() => {
+                                const activePat = queueItems.find(q => q.status === 'in-consultation')?.patient || patients[0];
+                                if (activePat) {
+                                    setSoapPatient(activePat);
+                                    setIsSoapModalOpen(true);
+                                } else {
+                                    alert('Please select a patient to start consultation encounter.');
+                                }
+                            }} 
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/30 italic"
+                        >
+                            <StethoscopeIcon className="w-3.5 h-3.5 text-slate-950" />
+                            <span>🩺 EMR Consultation (SOAP)</span>
+                        </button>
                         <button onClick={() => setShowDischargeModal(true)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-violet-900/50">
                             <span>📋 Inpatient Discharge Summary</span>
@@ -845,6 +863,24 @@ export function DoctorDashboard({
                 </div>
             </div>
 
+            {isSoapModalOpen && soapPatient && (
+                <SOAPEncounterModal
+                    isOpen={isSoapModalOpen}
+                    onClose={() => { setIsSoapModalOpen(false); setSoapPatient(null); }}
+                    patient={soapPatient}
+                    institutionId={institutionId}
+                    doctorName={userName}
+                    onAddPrescription={(pId) => {
+                        setIsSoapModalOpen(false);
+                        onAddPrescription();
+                    }}
+                    onAddLabOrder={(pId) => {
+                        setIsSoapModalOpen(false);
+                        setShowLabOrderModal(true);
+                    }}
+                />
+            )}
+
             {showNoteModal && <QuickNoteModal onClose={() => setShowNoteModal(false)} patients={patients} />}
             {showLabOrderModal && (
                 <QuickLabOrderModal 
@@ -1012,12 +1048,14 @@ export function DoctorDashboard({
                                             });
 
                                             // Attempt API dispatch
-                                            await apiService.sendEmail({
-                                                to: emailRecipient,
-                                                subject: `Official Diagnostic FBC Laboratory Report — ${selectedLabReport.patientName}`,
-                                                body: `Dear ${selectedLabReport.patientName},\n\nPlease find attached your Full Blood Count (FBC) Laboratory Diagnostic Report from Quantum Healthcare Medical Centre.\n\nLab Barcode: ${selectedLabReport.barcodeNumber}\nDate: ${new Date().toLocaleDateString()}\n\nKind regards,\nDepartment of Haematology`,
-                                                attachments: [{ filename: `FBC_Report_${selectedLabReport.barcodeNumber}.pdf`, path: pdfUri }]
-                                            }).catch(() => null);
+                                            await apiService.sendEmail(
+                                                emailRecipient,
+                                                `Official Diagnostic FBC Laboratory Report — ${selectedLabReport.patientName}`,
+                                                `Dear ${selectedLabReport.patientName},\n\nPlease find attached your Full Blood Count (FBC) Laboratory Diagnostic Report from Quantum Healthcare Medical Centre.\n\nLab Barcode: ${selectedLabReport.barcodeNumber}\nDate: ${new Date().toLocaleDateString()}\n\nKind regards,\nDepartment of Haematology`,
+                                                undefined,
+                                                undefined,
+                                                [{ filename: `FBC_Report_${selectedLabReport.barcodeNumber}.pdf`, path: pdfUri }]
+                                            ).catch(() => null);
 
                                             setEmailSuccess(true);
                                         } catch (err: any) {
@@ -1209,11 +1247,11 @@ function InpatientDischargeModal({ onClose, patients, institutionId, userName, d
     const handleEmailDischargeReport = async () => {
         setIsSendingEmail(true);
         try {
-            await apiService.sendEmail({
-                to: patient?.contact || 'patient@email.com',
-                subject: `Official Inpatient Medical Discharge Summary — ${patient?.fullName || 'Patient'}`,
-                body: `Dear ${patient?.fullName || 'Patient'},\n\nPlease find attached your official Inpatient Medical Discharge Summary Report from Quantum Healthcare Medical Centre.\n\nAdmission Date: ${admissionDate}\nDischarge Date: ${dischargeDate}\nFinal Diagnosis: ${finalDiagnosis}\n\nTake-Home Regimen:\n${takeHomeMedications}\n\nFollow-up Review: ${followUpInstructions}\n\nKind regards,\nDr. ${userName || 'Attending Physician'}\nQuantum Inpatient Care Unit\nRef: ${dischargeSummaryNo}`,
-            }).catch(() => null);
+            await apiService.sendEmail(
+                patient?.contact || 'patient@email.com',
+                `Official Inpatient Medical Discharge Summary — ${patient?.fullName || 'Patient'}`,
+                `Dear ${patient?.fullName || 'Patient'},\n\nPlease find attached your official Inpatient Medical Discharge Summary Report from Quantum Healthcare Medical Centre.\n\nAdmission Date: ${admissionDate}\nDischarge Date: ${dischargeDate}\nFinal Diagnosis: ${finalDiagnosis}\n\nTake-Home Regimen:\n${takeHomeMedications}\n\nFollow-up Review: ${followUpInstructions}\n\nKind regards,\nDr. ${userName || 'Attending Physician'}\nQuantum Inpatient Care Unit\nRef: ${dischargeSummaryNo}`
+            ).catch(() => null);
 
             setEmailSent(true);
             setIsSendingEmail(false);
@@ -1526,11 +1564,11 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
         if (!employerEmail) return alert('Please enter employer HR email address.');
         setIsEmailing(true);
         try {
-            await apiService.sendEmail({
-                to: employerEmail,
-                subject: `Official Medical Off-Duty Permission Certificate — ${patient?.fullName || 'Patient'}`,
-                body: `Dear HR Manager / Supervisor (${employerName || 'Employer'}),\n\nPlease find attached the official Medical Off-Duty Permission Certificate for ${patient?.fullName}.\n\nOff-Duty Duration: ${sickOffDays} Days (${startDate} to ${endDate})\nExpected Resume Date: ${resumeDate}\nClinical Justification: ${diagnosis}\n\nIssued by: Dr. ${userName || 'Attending Physician'} (${medicalLicense})\nQuantum Medical Health Core\nRef: ${certNumber}`,
-            }).catch(() => null);
+            await apiService.sendEmail(
+                employerEmail,
+                `Official Medical Off-Duty Permission Certificate — ${patient?.fullName || 'Patient'}`,
+                `Dear HR Manager / Supervisor (${employerName || 'Employer'}),\n\nPlease find attached the official Medical Off-Duty Permission Certificate for ${patient?.fullName}.\n\nOff-Duty Duration: ${sickOffDays} Days (${startDate} to ${endDate})\nExpected Resume Date: ${resumeDate}\nClinical Justification: ${diagnosis}\n\nIssued by: Dr. ${userName || 'Attending Physician'} (${medicalLicense})\nQuantum Medical Health Core\nRef: ${certNumber}`
+            ).catch(() => null);
 
             setEmailSent(true);
             setIsEmailing(false);

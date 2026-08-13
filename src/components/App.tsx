@@ -104,6 +104,8 @@ function safeLazy<T extends React.ComponentType<any>>(
 const PrivacyPolicy = safeLazy(() => import('../pages/PrivacyPolicy'));
 const TermsOfService = safeLazy(() => import('../pages/TermsOfService'));
 const SpeechBuddyPortal = safeLazy(() => import('./SpeechBuddyPortal').then(m => ({ default: m.SpeechBuddyPortal })));
+const KidsCodingRoboticsStudio = safeLazy(() => import('./STEM/KidsCodingRoboticsStudio').then(m => ({ default: m.KidsCodingRoboticsStudio })));
+const IELTSPrepSuite = safeLazy(() => import('./IELTS/IELTSPrepSuite').then(m => ({ default: m.IELTSPrepSuite })));
 
 // Lazy-loaded major portals
 const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -671,7 +673,7 @@ export const App: React.FC = () => {
         const roleToUse = selectedRole || currentUser.role;
 
         // Force HIS Admin role for HIS/Hospital/Clinic institutions (independent from EduPulse, do not login as principal/head_teacher)
-        if (isHISInstitution(activeInstitution) && (roleToUse === 'admin' || roleToUse === 'head_teacher' || roleToUse === 'principal' || roleToUse === 'teacher' || roleToUse === 'headmaster')) {
+        if (isHISInstitution(activeInstitution) && (['admin', 'head_teacher', 'principal', 'teacher', 'headmaster'] as string[]).includes(roleToUse as string)) {
             return 'his_admin';
         }
 
@@ -5623,6 +5625,24 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <SpeechBuddyPortal />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Kids Coding & Robotics Learning Hub ──
+    if (window.location.search.includes('view=robotics') || window.location.search.includes('view=kids-coding') || window.location.search.includes('view=stem-robotics') || window.location.pathname.startsWith('/robotics')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <KidsCodingRoboticsStudio currentUser={currentUser} institution={activeInstitution} />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: IELTS Exam Preparation & Institutional Suite ──
+    if (window.location.search.includes('view=ielts') || window.location.search.includes('view=ielts-prep') || window.location.pathname.startsWith('/ielts')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <IELTSPrepSuite />
             </Suspense>
         );
     }

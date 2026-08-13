@@ -169,7 +169,7 @@ function AddLabRequestModal({ isOpen, onClose, onAdd, activePatientId, partnerLa
                             <select
                                 value={formData.partnerLabId}
                                 onChange={(e) => {
-                                    const selected = availablePartners.find(p => p.id === e.target.value);
+                                    const selected = availablePartners.find((p: any) => p.id === e.target.value);
                                     setFormData({
                                         ...formData,
                                         partnerLabId: e.target.value,

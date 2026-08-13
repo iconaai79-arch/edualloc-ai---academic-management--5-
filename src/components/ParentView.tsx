@@ -76,6 +76,35 @@ const ChildCard: React.FC<{ child: User, course?: Course, attendances: StudentAt
                     </div>
                 </div>
             </div>
+
+            {/* Kids Coding & Robotics Account Activation */}
+            <div className="mt-6 border-t border-slate-100 dark:border-slate-700 pt-5">
+                <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-purple-900 p-5 rounded-2xl text-white space-y-3 shadow-md">
+                    <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xl">🚀</span>
+                            <div>
+                                <h5 className="font-black text-sm uppercase italic tracking-tight">Kids Coding & Robotics Studio</h5>
+                                <p className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">Syllabus-Aligned Block Coding & Audio</p>
+                            </div>
+                        </div>
+                        <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30 text-[9px] font-black uppercase">
+                            ACTIVE
+                        </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        <button
+                            onClick={() => {
+                                window.open(`/?view=robotics&student=${encodeURIComponent(child.name)}`, '_blank');
+                            }}
+                            className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md flex items-center justify-center gap-2 active:scale-95"
+                        >
+                            <span>▶ Launch Robotics Studio for {child.name.split(' ')[0]}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

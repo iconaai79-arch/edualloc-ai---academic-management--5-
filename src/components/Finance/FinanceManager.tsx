@@ -39,6 +39,10 @@ import { SparklesIcon } from '../icons/SparklesIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import * as pdfService from '../../services/pdfService';
 import { StudentSubscriptionPlanManager } from '../common/StudentSubscriptionPlanManager';
+import { SuspenseAccountResolverModal, UnmatchedTransaction } from './SuspenseAccountResolverModal';
+import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
+import { DigitalExamPermitManager } from './DigitalExamPermitManager';
+import { QrCodeIcon } from '../icons/QrCodeIcon';
 import { BriefcaseIcon } from '../icons/BriefcaseIcon';
 import { HomeIcon } from '../icons/HomeIcon';
 import { TrendingUpIcon } from '../icons/TrendingUpIcon';
@@ -117,6 +121,7 @@ interface FinanceManagerProps {
     onEditUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
     activityLog?: any[];
+    userName?: string;
 }
 
 export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
@@ -2480,7 +2485,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const [goodsProposals, setGoodsProposals] = useState<any[]>([]);
     const [isLoadingGoodsProposals, setIsLoadingGoodsProposals] = useState(false);
-    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bank_feed' | 'bursaries' | 'payment_in_kind'>('student_fees');
+    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bank_feed' | 'bursaries' | 'payment_in_kind' | 'suspense_account' | 'exam_permits'>('student_fees');
+    const [suspenseTransactions, setSuspenseTransactions] = useState<UnmatchedTransaction[]>([]);
+    const [selectedSuspenseTx, setSelectedSuspenseTx] = useState<UnmatchedTransaction | null>(null);
+    const [isSuspenseModalOpen, setIsSuspenseModalOpen] = useState(false);
+    const [suspenseFilter, setSuspenseFilter] = useState<'All' | 'Unmatched' | 'Resolved' | 'M-Pesa' | 'Bank'>('Unmatched');
 
     // Class Receipts Reprint State & Handler
     const [isClassReceiptReprintModalOpen, setIsClassReceiptReprintModalOpen] = useState(false);
@@ -2541,9 +2550,81 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
+    const fetchSuspenseTransactions = async () => {
+        try {
+            const records = await apiService.fetchModuleRecords<UnmatchedTransaction>('suspense_transactions', props.institution.id);
+            if (records && records.length > 0) {
+                setSuspenseTransactions(records);
+            } else {
+                const sampleTx: UnmatchedTransaction[] = [
+                    {
+                        id: 'susp_101',
+                        institutionId: props.institution.id,
+                        transactionCode: 'RKJ902184X',
+                        channel: 'M-Pesa C2B',
+                        amount: 35000,
+                        accountReferenceEntered: '0012',
+                        payerName: 'Josephine Mutua',
+                        payerPhone: '254722001122',
+                        paymentDate: new Date(Date.now() - 2 * 3600000).toISOString().split('T')[0],
+                        status: 'Unmatched',
+                        notes: 'Invalid account reference. High confidence match available.'
+                    },
+                    {
+                        id: 'susp_102',
+                        institutionId: props.institution.id,
+                        transactionCode: 'KCB-DEP-8849',
+                        channel: 'Bank Deposit',
+                        bankName: 'KCB Bank Kenya',
+                        amount: 68500,
+                        accountReferenceEntered: 'WANJIKU J',
+                        payerName: 'Jane Wanjiku Kamau',
+                        payerPhone: '254711334455',
+                        paymentDate: new Date(Date.now() - 24 * 3600000).toISOString().split('T')[0],
+                        status: 'Unmatched',
+                        notes: 'Teller entered parent name instead of student admission number.'
+                    },
+                    {
+                        id: 'susp_103',
+                        institutionId: props.institution.id,
+                        transactionCode: 'RKM773910Z',
+                        channel: 'M-Pesa C2B',
+                        amount: 18000,
+                        accountReferenceEntered: 'CLASS 8 EAST',
+                        payerName: 'Daniel Omondi',
+                        payerPhone: '254799887766',
+                        paymentDate: new Date(Date.now() - 48 * 3600000).toISOString().split('T')[0],
+                        status: 'Unmatched',
+                        notes: 'Payer entered class name instead of student admission number.'
+                    },
+                    {
+                        id: 'susp_104',
+                        institutionId: props.institution.id,
+                        transactionCode: 'EQT-FT-49102',
+                        channel: 'Direct Transfer',
+                        bankName: 'Equity Bank',
+                        amount: 45000,
+                        accountReferenceEntered: 'FEE PAYMENT',
+                        payerName: 'Grace Cherono',
+                        payerPhone: '254700112233',
+                        paymentDate: new Date(Date.now() - 72 * 3600000).toISOString().split('T')[0],
+                        status: 'Unmatched',
+                        notes: 'Generic transfer reference entered.'
+                    }
+                ];
+                setSuspenseTransactions(sampleTx);
+            }
+        } catch (e) {
+            console.error('Error loading suspense transactions:', e);
+        }
+    };
+
     useEffect(() => {
         if (activeTab === 'goods_in_lieu' || (activeTab === 'receipts' && receiptsMainTab === 'payment_in_kind')) {
             fetchGoodsProposals();
+        }
+        if (activeTab === 'receipts' && receiptsMainTab === 'suspense_account') {
+            fetchSuspenseTransactions();
         }
         if (activeTab === 'gok_capitation') {
             fetchGokCapLogs();
@@ -5787,6 +5868,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     { id: 'student_fees', label: 'Student Fees', icon: CreditCardIcon, count: mappedReceipts.filter((r: any) => r.studentId).length },
                                     { id: 'other_income', label: 'Other Income', icon: BanknotesIcon, count: mappedReceipts.filter((r: any) => !r.studentId).length },
                                     { id: 'bank_feed', label: 'Bank & M-Pesa', icon: BuildingLibraryIcon, count: unreconciledFeeds.length },
+                                    { id: 'suspense_account', label: 'Unmatched / Suspense', icon: ExclamationTriangleIcon, count: suspenseTransactions.filter((s: any) => s.status === 'Unmatched').length },
+                                    { id: 'exam_permits', label: '🎓 Digital Exam Permits', icon: QrCodeIcon },
                                     { id: 'bursaries', label: 'Bursaries', icon: ScaleIcon, count: bulkBursaryDisbursements.length },
                                     { id: 'payment_in_kind', label: 'Payment in Kind', icon: DocumentTextIcon, count: goodsProposals.length },
                                 ].map(sub => (
@@ -7101,6 +7184,152 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </div>
                         )}
                     </div>
+                )}
+
+                {activeTab === 'receipts' && receiptsMainTab === 'suspense_account' && (
+                    <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6 text-left animate-in fade-in duration-300">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
+                            <div>
+                                <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+                                        <ExclamationTriangleIcon className="w-5 h-5" />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Unmatched Payments / Suspense Account Resolver</h3>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">Review M-Pesa C2B deposits and bank transfers with invalid student admission numbers. Match &amp; reallocate to student fee ledgers.</p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                {['All', 'Unmatched', 'Resolved', 'M-Pesa', 'Bank'].map(f => (
+                                    <button
+                                        key={f}
+                                        onClick={() => setSuspenseFilter(f as any)}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all ${
+                                            suspenseFilter === f
+                                                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-200'
+                                        }`}
+                                    >
+                                        {f}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Summary Bar */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="p-5 bg-amber-50 dark:bg-amber-950/30 border border-amber-500/20 rounded-2xl">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Total Unallocated Suspense</p>
+                                <p className="text-2xl font-black text-amber-700 dark:text-amber-300">
+                                    KES {suspenseTransactions.filter(s => s.status === 'Unmatched').reduce((sum, s) => sum + s.amount, 0).toLocaleString()}
+                                </p>
+                                <p className="text-[10px] text-amber-600/70 font-bold mt-0.5">{suspenseTransactions.filter(s => s.status === 'Unmatched').length} Unmatched Payments</p>
+                            </div>
+
+                            <div className="p-5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/20 rounded-2xl">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Resolved &amp; Re-allocated</p>
+                                <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">
+                                    KES {suspenseTransactions.filter(s => s.status === 'Resolved').reduce((sum, s) => sum + s.amount, 0).toLocaleString()}
+                                </p>
+                                <p className="text-[10px] text-emerald-600/70 font-bold mt-0.5">{suspenseTransactions.filter(s => s.status === 'Resolved').length} Payments Credited</p>
+                            </div>
+
+                            <div className="p-5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-500/20 rounded-2xl">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Payer Channel Ratio</p>
+                                <p className="text-2xl font-black text-indigo-700 dark:text-indigo-300">
+                                    {suspenseTransactions.filter(s => s.channel.includes('M-Pesa')).length} M-Pesa / {suspenseTransactions.filter(s => s.channel.includes('Bank')).length} Bank
+                                </p>
+                                <p className="text-[10px] text-indigo-600/70 font-bold mt-0.5">Automated Matcher Active</p>
+                            </div>
+                        </div>
+
+                        {/* Suspense Table */}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-100 dark:border-slate-800">
+                                        <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date &amp; Channel</th>
+                                        <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ref Code</th>
+                                        <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Payer Name</th>
+                                        <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ref Entered</th>
+                                        <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                        <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                        <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {suspenseTransactions
+                                        .filter(s => {
+                                            if (suspenseFilter === 'Unmatched') return s.status === 'Unmatched';
+                                            if (suspenseFilter === 'Resolved') return s.status === 'Resolved';
+                                            if (suspenseFilter === 'M-Pesa') return s.channel.includes('M-Pesa');
+                                            if (suspenseFilter === 'Bank') return s.channel.includes('Bank') || s.channel.includes('Transfer');
+                                            return true;
+                                        })
+                                        .map(tx => (
+                                            <tr key={tx.id} className="border-b border-slate-50 dark:border-slate-800/40 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                                <td className="py-4 px-4">
+                                                    <p className="text-xs font-black text-slate-800 dark:text-white">{tx.paymentDate}</p>
+                                                    <span className="text-[9px] font-black uppercase text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                                        {tx.channel}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-4 font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400">
+                                                    {tx.transactionCode}
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    <p className="text-xs font-black text-slate-800 dark:text-white">{tx.payerName}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">{tx.payerPhone || 'No Phone'}</p>
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-300 font-mono text-xs font-black">
+                                                        "{tx.accountReferenceEntered}"
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-4 font-black text-slate-900 dark:text-white text-sm">
+                                                    KES {tx.amount.toLocaleString()}
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                        tx.status === 'Unmatched' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                                                    }`}>
+                                                        {tx.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-4 text-right">
+                                                    {tx.status === 'Unmatched' ? (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedSuspenseTx(tx);
+                                                                setIsSuspenseModalOpen(true);
+                                                            }}
+                                                            className="px-4 py-2 bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-slate-950 font-black rounded-xl text-[10px] uppercase tracking-widest shadow-md transition-all active:scale-95 italic"
+                                                        >
+                                                            🎯 Match &amp; Re-allocate
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[10px] text-emerald-500 font-bold">
+                                                            Assigned: {tx.resolvedStudentName}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'receipts' && receiptsMainTab === 'exam_permits' && (
+                    <DigitalExamPermitManager
+                        institution={props.institution}
+                        students={mergedStudents}
+                        invoices={mappedInvoices}
+                        receipts={mappedReceipts}
+                        courses={props.courses}
+                        userName={props.userName || props.currentUser?.name || 'Finance Officer'}
+                    />
                 )}
 
                 {activeTab === 'student_invoices' && (
@@ -15806,6 +16035,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </div>
                     </div>
                 </div>
+            )}
+            {isSuspenseModalOpen && selectedSuspenseTx && (
+                <SuspenseAccountResolverModal
+                    isOpen={isSuspenseModalOpen}
+                    onClose={() => { setIsSuspenseModalOpen(false); setSelectedSuspenseTx(null); }}
+                    transaction={selectedSuspenseTx}
+                    students={mergedStudents}
+                    institutionId={props.institution.id}
+                    userName={props.userName || props.currentUser?.name || 'Finance Officer'}
+                    onResolved={fetchSuspenseTransactions}
+                />
             )}
             </div>
         </div>

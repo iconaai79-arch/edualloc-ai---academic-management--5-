@@ -525,7 +525,7 @@ export interface Institution {
     email: string;
     phoneNumber: string;
     address?: string;
-    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Beauty College' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency' | 'Restaurant';
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Beauty College' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency' | 'Restaurant' | 'IELTS Academy';
     category?: string;
     parentInstitutionId?: string;
     createdAt?: string;
@@ -3531,6 +3531,7 @@ export interface HISPatient {
     institutionId: string;
     userId?: string;
     fullName: string;
+    patientNumber?: string;
     dob?: string;
     gender: 'Male' | 'Female' | 'Other';
     bloodGroup?: string;
@@ -3837,6 +3838,9 @@ export interface HISPrescriptionItem {
     unitPrice: number;
     totalPrice: number;
     instructions?: string;
+    isExternalPurchase?: boolean;
+    formulation?: string;
+    notes?: string;
 }
 
 export interface PharmacySale {

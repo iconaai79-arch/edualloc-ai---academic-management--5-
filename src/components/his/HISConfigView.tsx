@@ -544,10 +544,10 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     basicSalary: salaryVal,
                     basic_salary: salaryVal,
                     metadata: {
+                        ...hrMetadata,
                         specialty: practitionerForm.specialty,
                         medicalLicense: practitionerForm.medicalLicense,
                         hisRole: practitionerForm.role,
-                        ...hrMetadata,
                         basicSalary: salaryVal,
                         basic_salary: salaryVal,
                         webauthnCredentials: scannedBiometricData?.credentials || null,
@@ -1027,7 +1027,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         if (file) {
                                             const reader = new FileReader();
                                             reader.onloadend = () => {
-                                                setBranding(b => ({ ...b, logoUrl: reader.result as string }));
+                                                setBranding((b: any) => ({ ...b, logoUrl: reader.result as string }));
                                             };
                                             reader.readAsDataURL(file);
                                         }
@@ -1065,7 +1065,10 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                             <button 
                                 onClick={() => {
                                     setEditingPractitioner(null);
-                                    setPractitionerForm({ name: '', role: 'doctor', specialty: '', medicalLicense: '', phoneNumber: '', email: '', devicePin: '', fingerIndex: 0 });
+                                    setPractitionerForm({
+                                        name: '', role: 'doctor', specialty: '', medicalLicense: '', phoneNumber: '', email: '', devicePin: '', fingerIndex: 0,
+                                        employmentDate: '', nationalId: '', employmentTerms: 'Full Time', basicSalary: 0, shifNumber: '', nssfNo: '', kraPin: '', bankName: '', bankBranch: '', bankAccountNumber: ''
+                                    });
                                     setIsAddPractitionerOpen(true);
                                 }}
                                 className="bg-slate-900 dark:bg-white text-white dark:text-slate-950 px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] italic hover:scale-105 transition-all shadow-xl active:scale-95 flex items-center gap-2"

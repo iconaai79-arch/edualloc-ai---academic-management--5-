@@ -368,7 +368,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
 
     // Auto-navigate receptionist to their dedicated desk
     React.useEffect(() => {
-        if (activeRole === 'receptionist' && !isEdu) {
+        if (((activeRole as any) === 'receptionist' || activeRole === 'reception') && !isEdu) {
             setActiveModule('receptionist');
         }
     }, [activeRole, isEdu]);
@@ -948,7 +948,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 blur-[120px] rounded-full -mr-64 -mt-64"></div>
                     {(() => {
                         switch (activeModule) {
-                            case 'overview': return <HISOverviewView institutionId={institutionId} userName={userName} activeRole={activeRole?.name} patients={patients} />;
+                            case 'overview': return <HISOverviewView institutionId={institutionId} userName={userName} activeRole={typeof activeRole === 'object' ? (activeRole as any)?.name : String(activeRole || '')} patients={patients} />;
                             case 'general': 
                                 if (isEdu && eduSidebarItem === 'home' && !activePatient) {
                                     return (
@@ -1033,7 +1033,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <EduPulsePatientsList
                                     patients={patients as any}
                                     onRegisterPatient={() => setIsRegisterModalOpen(true)}
-                                    onSelectPatient={(p) => {
+                                    onSelectPatient={(p: any) => {
                                         const pId = typeof p === 'string' ? p : p?.id;
                                         setActivePatientId(pId);
                                         setActiveModule('general');

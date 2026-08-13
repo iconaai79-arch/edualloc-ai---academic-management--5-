@@ -1478,15 +1478,15 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                         <label className="block text-sm font-medium mb-2">{activeTab === 'staff' ? 'Assigned Roles' : 'Category'}</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                             {activeTab === 'staff' && selectableRoles.map(r => (
-                                                <label key={r} className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${roles.includes(r) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
+                                                <label key={r} className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${roles.includes(r as any) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
                                                     <input
                                                         type="checkbox"
-                                                        checked={roles.includes(r)}
-                                                        onChange={() => toggleRole(r)}
+                                                        checked={roles.includes(r as any)}
+                                                        onChange={() => toggleRole(r as any)}
                                                         className="w-4 h-4 rounded border-slate-300 text-indigo-600"
                                                     />
-                                                    <span className={`text-[10px] font-bold uppercase ${roles.includes(r) ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500'}`}>
-                                                        {formatRoleDisplayName(r, currentInstitution)}
+                                                    <span className={`text-[10px] font-bold uppercase ${roles.includes(r as any) ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500'}`}>
+                                                        {formatRoleDisplayName(r as any, currentInstitution)}
                                                     </span>
                                                 </label>
                                             ))}

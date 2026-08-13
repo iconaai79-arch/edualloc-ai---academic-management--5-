@@ -61,7 +61,7 @@ export function isHISInstitution(institution: Partial<Institution> | null | unde
 /**
  * Returns the set of valid staff/personnel roles for a given institution.
  */
-export function getRolesForInstitution(institution: Institution | null | undefined): Role[] {
+export function getRolesForInstitution(institution: Institution | null | undefined): (Role | string)[] {
     if (!institution) return ['admin'];
 
     const type = institution.institutionType;
@@ -105,7 +105,7 @@ export function getRolesForInstitution(institution: Institution | null | undefin
 
     // HIS / Health Information System
     if (type === 'HIS' || isHISInstitution(institution)) {
-        return ['his_admin', 'nurse', 'doctor', 'his_doctor', 'receptionist', 'pharmacist', 'lab_tech', 'security', 'info_desk', 'store', 'procurement_officer'];
+        return ['his_admin', 'nurse', 'doctor', 'his_doctor', 'receptionist', 'pharmacist', 'lab_tech', 'security', 'info_desk', 'store', 'procurement_officer'] as any[];
     }
 
     // Church System

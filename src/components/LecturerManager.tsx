@@ -599,7 +599,7 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
                                 <label className="block text-sm font-medium mb-1">Role</label>
                                 <select value={role} onChange={e => setRole(e.target.value as any)} className="form-select w-full">
                                     {getRolesForInstitution(currentInstitution).map(r => (
-                                        <option key={r} value={r}>{formatRoleDisplayName(r, currentInstitution).toUpperCase()}</option>
+                                         <option key={r} value={r}>{formatRoleDisplayName(r as any, currentInstitution).toUpperCase()}</option>
                                     ))}
                                 </select>
                             </div>

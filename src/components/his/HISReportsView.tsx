@@ -10,7 +10,7 @@ import { ArrowPathIcon } from '../icons/ArrowPathIcon';
 import { Role, HISPatient, User } from '../../types';
 import { apiService } from '../../services/apiService';
 
-type IntelligenceSubTab = 'visits' | 'student_history' | 'pharmacy_inventory';
+type IntelligenceSubTab = 'visits' | 'student_history' | 'pharmacy_inventory' | 'activity_log';
 
 interface HISReportsProps {
     activeRole?: Role;
@@ -25,7 +25,13 @@ export function HISReportsView({ activeRole, institutionId, patients = [], users
     const [clinicalEvents, setClinicalEvents] = useState<any[]>([]);
     const [pharmacyInventory, setPharmacyInventory] = useState<any[]>([]);
     const [linkedSchoolItems, setLinkedSchoolItems] = useState<any[]>([]);
+    const [auditLogs, setAuditLogs] = useState<any[]>([]);
+    const [billingTransactions, setBillingTransactions] = useState<any[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(false);
+
+    // Audit log search & filter state
+    const [auditSearch, setAuditSearch] = useState('');
+    const [auditCategoryFilter, setAuditCategoryFilter] = useState<string>('all');
 
     // Dynamic search / filter state for visits
     const [visitSearch, setVisitSearch] = useState('');
@@ -48,16 +54,20 @@ export function HISReportsView({ activeRole, institutionId, patients = [], users
         const loadReportData = async () => {
             setIsLoadingData(true);
             try {
-                const [evtData, pharmData, patData, stores, retailItems] = await Promise.all([
+                const [evtData, pharmData, patData, stores, retailItems, auditData, billingData] = await Promise.all([
                     apiService.fetchModuleRecords('his_clinical_events', institutionId),
                     apiService.fetchModuleRecords('his_pharmacy_inventory', institutionId),
                     patients.length ? Promise.resolve(patients) : apiService.fetchModuleRecords('his_patients', institutionId),
                     apiService.fetchModuleRecords('retail_stores', institutionId),
-                    apiService.fetchModuleRecords('retail_inventory_items', institutionId)
+                    apiService.fetchModuleRecords('retail_inventory_items', institutionId),
+                    apiService.fetchModuleRecords('his_audit_logs', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('his_billing_transactions', institutionId).catch(() => [])
                 ]);
                 setClinicalEvents(evtData || []);
                 setPharmacyInventory(pharmData || []);
                 setPatientsList(patData || []);
+                setAuditLogs(auditData || []);
+                setBillingTransactions(billingData || []);
 
                 const pharmStore = (stores || []).find((s: any) => s.storeType === 'pharmacy_store' || s.name.toLowerCase().includes('pharmacy'));
                 if (pharmStore) {
@@ -735,6 +745,226 @@ export function HISReportsView({ activeRole, institutionId, patients = [], users
         </div>
     );
 
+    // 4. Activity Log & Audit Trail Calculations
+    const unifiedActivityLogs = useMemo(() => {
+        const list: any[] = [];
+
+        // Clinical events
+        (clinicalEvents || []).forEach((evt, idx) => {
+            const pat = patientsList.find(p => p.id === (evt.patientId || evt.patient_id));
+            list.push({
+                id: evt.id || `evt-${idx}`,
+                category: 'Clinical OPD',
+                action: evt.eventType || evt.dept || 'Consultation Encounter',
+                description: evt.event || evt.notes || 'Clinical consultation note recorded',
+                performerName: evt.provider || evt.doctorName || 'Attending Clinician',
+                performerRole: 'Doctor / Clinician',
+                targetName: pat ? pat.fullName : 'Walk-in Patient',
+                timestamp: evt.date ? `${evt.date} ${evt.time || '09:00'}` : (evt.createdAt || evt.created_at || new Date().toISOString()),
+                status: 'SUCCESS'
+            });
+        });
+
+        // Billing transactions
+        (billingTransactions || []).forEach((tx, idx) => {
+            list.push({
+                id: tx.id || `tx-${idx}`,
+                category: 'Billing & Cashier',
+                action: 'Payment Receipt Posted',
+                description: `Settled KES ${Number(tx.amount || tx.totalAmount || 0).toLocaleString()} via ${tx.paymentMode || tx.channel || 'Cash'} (Receipt #${tx.receiptNumber || tx.receiptNo || (tx.id ? tx.id.slice(0, 8) : 'TX')})`,
+                performerName: tx.cashierName || tx.userName || 'Finance Cashier',
+                performerRole: 'Cashier / Accountant',
+                targetName: tx.patientName || 'Patient',
+                timestamp: tx.createdAt || tx.created_at || tx.date || new Date().toISOString(),
+                status: 'SUCCESS'
+            });
+        });
+
+        // Direct audit logs
+        (auditLogs || []).forEach((log, idx) => {
+            list.push({
+                id: log.id || `audit-${idx}`,
+                category: log.category || 'Security & Audit',
+                action: log.action || 'System Action',
+                description: log.description || log.message || 'HIS System Action Logged',
+                performerName: log.performerName || log.userName || log.user_name || 'System Operator',
+                performerRole: log.performerRole || log.userRole || log.role || 'Staff',
+                targetName: log.targetName || log.patientName || 'N/A',
+                timestamp: log.timestamp || log.createdAt || log.created_at || new Date().toISOString(),
+                status: log.status || 'INFO'
+            });
+        });
+
+        // Sort descending
+        return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [clinicalEvents, billingTransactions, auditLogs, patientsList]);
+
+    const activityLogStats = useMemo(() => {
+        const total = unifiedActivityLogs.length;
+        const clinicalCount = unifiedActivityLogs.filter(l => l.category === 'Clinical OPD').length;
+        const billingCount = unifiedActivityLogs.filter(l => l.category === 'Billing & Cashier').length;
+        const auditCount = unifiedActivityLogs.filter(l => l.category === 'Security & Audit').length;
+        return { total, clinicalCount, billingCount, auditCount };
+    }, [unifiedActivityLogs]);
+
+    const filteredActivityLogs = useMemo(() => {
+        return unifiedActivityLogs.filter(log => {
+            const matchesCategory = auditCategoryFilter === 'all' || log.category.toLowerCase().includes(auditCategoryFilter.toLowerCase());
+            const term = auditSearch.toLowerCase().trim();
+            const matchesSearch = !term ||
+                log.action.toLowerCase().includes(term) ||
+                log.description.toLowerCase().includes(term) ||
+                log.performerName.toLowerCase().includes(term) ||
+                log.targetName.toLowerCase().includes(term) ||
+                log.category.toLowerCase().includes(term);
+            return matchesCategory && matchesSearch;
+        });
+    }, [unifiedActivityLogs, auditCategoryFilter, auditSearch]);
+
+    const renderActivityLogReport = () => (
+        <div className="space-y-10 animate-fade-in">
+            {/* Stats Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-white dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-4 hover:scale-[1.02] transition-all">
+                    <div className="p-3 bg-indigo-50 dark:bg-white/5 rounded-2xl w-fit">
+                        <DocumentTextIcon className="w-5 h-5 text-indigo-500" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Total Activity Logs</p>
+                        <p className="text-3xl font-black mt-1 italic tracking-tight">{activityLogStats.total}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Recorded audit events</p>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-4 hover:scale-[1.02] transition-all">
+                    <div className="p-3 bg-emerald-50 dark:bg-white/5 rounded-2xl w-fit">
+                        <HeartIcon className="w-5 h-5 text-emerald-500" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Clinical Encounters</p>
+                        <p className="text-3xl font-black mt-1 italic text-emerald-500 tracking-tight">{activityLogStats.clinicalCount}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Consultations & Prescriptions</p>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-4 hover:scale-[1.02] transition-all">
+                    <div className="p-3 bg-amber-50 dark:bg-white/5 rounded-2xl w-fit">
+                        <CurrencyIcon className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Cashier & Billing Logs</p>
+                        <p className="text-3xl font-black mt-1 italic text-amber-500 tracking-tight">{activityLogStats.billingCount}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Financial settlement logs</p>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-4 hover:scale-[1.02] transition-all">
+                    <div className="p-3 bg-rose-50 dark:bg-white/5 rounded-2xl w-fit">
+                        <ClockIcon className="w-5 h-5 text-rose-500" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Security & System Audit</p>
+                        <p className="text-3xl font-black mt-1 italic tracking-tight">{activityLogStats.auditCount}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">System & Biometric audits</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Audit Log Table & Filters */}
+            <div className="bg-white dark:bg-slate-900/50 p-10 rounded-[3.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-8">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+                    <div>
+                        <h3 className="text-sm font-black uppercase tracking-[0.2em] italic">HIS Master Activity Audit Trail</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Chronological record of clinical, billing, and system operations</p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                        <select
+                            value={auditCategoryFilter}
+                            onChange={e => setAuditCategoryFilter(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[9px] font-black uppercase tracking-widest px-4 py-2 text-slate-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-inner"
+                        >
+                            <option value="all">ALL CATEGORIES</option>
+                            <option value="clinical">CLINICAL OPD</option>
+                            <option value="billing">BILLING & CASHIER</option>
+                            <option value="security">SECURITY & AUDIT</option>
+                        </select>
+
+                        <div className="relative w-full sm:w-64">
+                            <span className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-white/40"><SearchIcon className="w-3.5 h-3.5" /></span>
+                            <input 
+                                type="text"
+                                placeholder="SEARCH AUDIT LOGS..."
+                                value={auditSearch}
+                                onChange={e => setAuditSearch(e.target.value)}
+                                className="w-full pl-10 pr-6 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[9px] font-black uppercase tracking-widest focus:ring-1 focus:ring-indigo-500 transition-all dark:text-white shadow-inner"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-slate-100 dark:border-white/5 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 italic">
+                                <th className="py-4">Timestamp</th>
+                                <th className="py-4">Module / Category</th>
+                                <th className="py-4">Action & Details</th>
+                                <th className="py-4">Practitioner / Performer</th>
+                                <th className="py-4">Patient / Target</th>
+                                <th className="py-4 text-right">Audit Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredActivityLogs.length > 0 ? (
+                                filteredActivityLogs.map((log, idx) => {
+                                    let catBadge = 'bg-indigo-50 text-indigo-600 border-indigo-100/50';
+                                    if (log.category.includes('Billing')) catBadge = 'bg-amber-50 text-amber-600 border-amber-100/50';
+                                    if (log.category.includes('Security')) catBadge = 'bg-rose-50 text-rose-600 border-rose-100/50';
+
+                                    return (
+                                        <tr key={log.id || idx} className="border-b border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+                                            <td className="py-5 text-[10px] font-bold text-slate-400">
+                                                {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Recent'}
+                                            </td>
+                                            <td className="py-5">
+                                                <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full border italic ${catBadge}`}>
+                                                    {log.category}
+                                                </span>
+                                            </td>
+                                            <td className="py-5 pr-4">
+                                                <p className="text-[11px] font-black italic">{log.action}</p>
+                                                <p className="text-[9px] font-bold text-slate-500 dark:text-slate-300 mt-0.5 line-clamp-2 max-w-sm">{log.description}</p>
+                                            </td>
+                                            <td className="py-5">
+                                                <p className="text-[11px] font-black italic">{log.performerName}</p>
+                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{log.performerRole}</p>
+                                            </td>
+                                            <td className="py-5 text-[10px] font-bold italic text-slate-600 dark:text-slate-300">
+                                                {log.targetName}
+                                            </td>
+                                            <td className="py-5 text-right">
+                                                <span className="text-[8px] font-black uppercase tracking-widest px-2.5 py-1 bg-emerald-500/10 text-emerald-500 rounded-full border border-emerald-500/20 italic">
+                                                    {log.status || 'VERIFIED'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            ) : (
+                                <tr>
+                                    <td colSpan={6} className="py-10 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        No activity audit logs matching criteria
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="space-y-12 pb-20">
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-10">
@@ -755,6 +985,7 @@ export function HISReportsView({ activeRole, institutionId, patients = [], users
                     { id: 'visits', label: 'Visit Report', icon: ChartBarIcon },
                     { id: 'student_history', label: 'Student Health Record History', icon: HeartIcon },
                     { id: 'pharmacy_inventory', label: 'Pharmacy Inventory Report', icon: ActivityIcon },
+                    { id: 'activity_log', label: 'Activity Log & Audit Trail', icon: DocumentTextIcon },
                 ].map((tab) => (
                     <button
                         key={tab.id}
@@ -783,6 +1014,7 @@ export function HISReportsView({ activeRole, institutionId, patients = [], users
                         {activeSubTab === 'visits' && renderVisitsReport()}
                         {activeSubTab === 'student_history' && renderStudentHistoryReport()}
                         {activeSubTab === 'pharmacy_inventory' && renderPharmacyInventoryReport()}
+                        {activeSubTab === 'activity_log' && renderActivityLogReport()}
                     </>
                 )}
             </main>

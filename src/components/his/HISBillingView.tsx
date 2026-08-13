@@ -14,7 +14,7 @@ import { XCircleIcon } from '../icons/XCircleIcon';
 import { ClockIcon } from '../icons/ClockIcon';
 import { ClaimsManager } from './ClaimsManager';
 import { PdfViewer } from '../PdfViewer';
-import { generatePatientInvoicePdf } from '../../services/pdfService';
+import { generatePatientInvoicePdf, generateHisPeriodRevenuePdf, generateHisInsuranceStatementPdf } from '../../services/pdfService';
 
 interface PatientInvoice {
     id: string;
