@@ -114,7 +114,7 @@ const SchoolBusTracker = safeLazy(() => import('./SchoolBusTracker').then(m => (
 const FeePromissoryTracker = safeLazy(() => import('./Finance/FeePromissoryTracker').then(m => ({ default: m.FeePromissoryTracker })));
 const CampaignPromiseTracker = safeLazy(() => import('./Political/CampaignPromiseTracker').then(m => ({ default: m.CampaignPromiseTracker })));
 const CommunicationsManager = safeLazy(() => import('./CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
-const DoctorAttendanceManager = safeLazy(() => import('./HIS/DoctorAttendanceManager').then(m => ({ default: m.DoctorAttendanceManager })));
+const DoctorAttendanceManager = safeLazy(() => import('./his/DoctorAttendanceManager').then(m => ({ default: m.DoctorAttendanceManager })));
 
 // Lazy-loaded major portals
 const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
