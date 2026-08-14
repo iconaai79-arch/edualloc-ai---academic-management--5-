@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { escapeHtml } from '../../utils/securityUtils';
 
 export interface DoctorAttendanceRecord {
     id: string;
@@ -96,12 +97,12 @@ export const DoctorAttendanceManager: React.FC<DoctorAttendanceManagerProps> = (
                         <tbody>
                             ${records.map(r => `
                                 <tr>
-                                    <td><strong>${r.doctorName}</strong><br><small style="color:#64748b">${r.doctorCode}</small></td>
-                                    <td>${r.specialty}</td>
-                                    <td>${r.department}</td>
-                                    <td><strong>${r.clockInTime}</strong></td>
-                                    <td><span class="badge ${r.clockInMethod === 'BIOMETRIC_SCAN' ? 'bio' : 'auto'}">${r.clockInMethod.replace('_', ' ')}</span></td>
-                                    <td><strong>${r.status}</strong></td>
+                                    <td><strong>${escapeHtml(r.doctorName)}</strong><br><small style="color:#64748b">${escapeHtml(r.doctorCode)}</small></td>
+                                    <td>${escapeHtml(r.specialty)}</td>
+                                    <td>${escapeHtml(r.department)}</td>
+                                    <td><strong>${escapeHtml(r.clockInTime)}</strong></td>
+                                    <td><span class="badge ${r.clockInMethod === 'BIOMETRIC_SCAN' ? 'bio' : 'auto'}">${escapeHtml(r.clockInMethod.replace('_', ' '))}</span></td>
+                                    <td><strong>${escapeHtml(r.status)}</strong></td>
                                 </tr>
                             `).join('')}
                         </tbody>
