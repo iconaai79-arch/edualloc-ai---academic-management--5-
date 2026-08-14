@@ -751,6 +751,28 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
 
     return (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
+            {/* Perpetual Lifetime Free Status Banner */}
+            <div className="mb-5 p-4 bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 rounded-2xl border border-emerald-500/30 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-md">
+                <div className="flex items-center gap-3">
+                    <span className="text-xl">🟢</span>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h4 className="font-black text-sm uppercase italic tracking-tight">Perpetual Lifetime Free SMS Broadcaster</h4>
+                            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30 text-[8px] font-black uppercase">Unblocked for Life</span>
+                        </div>
+                        <p className="text-[10px] text-slate-300 font-bold uppercase tracking-wider mt-0.5">
+                            Software access is 100% free forever — top up SMS units anytime via M-Pesa based on usage!
+                        </p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => setIsBuySMSModalOpen(true)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0"
+                >
+                    <span>💳 Buy SMS Units (Pay-As-You-Go)</span>
+                </button>
+            </div>
+
             <div className="flex items-center justify-between mb-6">
                 <div className="flex flex-col gap-1">
                     <h3 className="text-xl font-semibold">{isRetailAgency ? 'Communications Hub' : 'Broadcaster'}</h3>

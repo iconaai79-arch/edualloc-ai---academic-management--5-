@@ -113,6 +113,7 @@ const BeautyCollegeLogbook = safeLazy(() => import('./BeautyCollegeLogbook').the
 const SchoolBusTracker = safeLazy(() => import('./SchoolBusTracker').then(m => ({ default: m.SchoolBusTracker })));
 const FeePromissoryTracker = safeLazy(() => import('./Finance/FeePromissoryTracker').then(m => ({ default: m.FeePromissoryTracker })));
 const CampaignPromiseTracker = safeLazy(() => import('./Political/CampaignPromiseTracker').then(m => ({ default: m.CampaignPromiseTracker })));
+const CommunicationsManager = safeLazy(() => import('./CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
 
 // Lazy-loaded major portals
 const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -5713,6 +5714,26 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <CampaignPromiseTracker />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Perpetual Free SMS Broadcaster Portal (Unblocked for Expired Tenants) ──
+    if (window.location.search.includes('view=sms-broadcaster') || window.location.search.includes('view=sms') || window.location.pathname.startsWith('/sms')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <div className="min-h-screen bg-slate-900 p-6">
+                    <CommunicationsManager
+                        users={users}
+                        departments={departments}
+                        courses={courses}
+                        currentUser={currentUser}
+                        smsBalance={smsBalance}
+                        currentInstitution={activeInstitution}
+                        smsConfig={smsConfig}
+                        onSendSms={async (r: any, m: any, c?: any, u?: number, i?: string) => apiService.sendSms(r, m, c, u, i)}
+                    />
+                </div>
             </Suspense>
         );
     }
