@@ -106,6 +106,11 @@ const TermsOfService = safeLazy(() => import('../pages/TermsOfService'));
 const SpeechBuddyPortal = safeLazy(() => import('./SpeechBuddyPortal').then(m => ({ default: m.SpeechBuddyPortal })));
 const KidsCodingRoboticsStudio = safeLazy(() => import('./STEM/KidsCodingRoboticsStudio').then(m => ({ default: m.KidsCodingRoboticsStudio })));
 const IELTSPrepSuite = safeLazy(() => import('./IELTS/IELTSPrepSuite').then(m => ({ default: m.IELTSPrepSuite })));
+const SpeechTherapyReportGenerator = safeLazy(() => import('./SpeechTherapyReportGenerator').then(m => ({ default: m.SpeechTherapyReportGenerator })));
+const AIExamGenerator = safeLazy(() => import('./AIExamGenerator').then(m => ({ default: m.AIExamGenerator })));
+const NTSADrivingSimulator = safeLazy(() => import('./NTSADrivingSimulator').then(m => ({ default: m.NTSADrivingSimulator })));
+const BeautyCollegeLogbook = safeLazy(() => import('./BeautyCollegeLogbook').then(m => ({ default: m.BeautyCollegeLogbook })));
+const SchoolBusTracker = safeLazy(() => import('./SchoolBusTracker').then(m => ({ default: m.SchoolBusTracker })));
 
 // Lazy-loaded major portals
 const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -5643,6 +5648,51 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <IELTSPrepSuite />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Speech & Art Therapy Clinical Report ──
+    if (window.location.search.includes('view=speech-report') || window.location.pathname.startsWith('/speech-report')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <SpeechTherapyReportGenerator />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: AI Exam & Worksheet Generator ──
+    if (window.location.search.includes('view=exam-generator') || window.location.pathname.startsWith('/exam-generator')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <AIExamGenerator />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: NTSA Driving Simulator ──
+    if (window.location.search.includes('view=ntsa-driving') || window.location.pathname.startsWith('/ntsa-driving')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <NTSADrivingSimulator />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Beauty College Logbook ──
+    if (window.location.search.includes('view=beauty-logbook') || window.location.pathname.startsWith('/beauty-logbook')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-pink-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <BeautyCollegeLogbook />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: School Bus GPS Tracker ──
+    if (window.location.search.includes('view=bus-tracker') || window.location.pathname.startsWith('/bus-tracker')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <SchoolBusTracker />
             </Suspense>
         );
     }
