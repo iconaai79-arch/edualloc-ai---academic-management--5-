@@ -114,6 +114,7 @@ const SchoolBusTracker = safeLazy(() => import('./SchoolBusTracker').then(m => (
 const FeePromissoryTracker = safeLazy(() => import('./Finance/FeePromissoryTracker').then(m => ({ default: m.FeePromissoryTracker })));
 const CampaignPromiseTracker = safeLazy(() => import('./Political/CampaignPromiseTracker').then(m => ({ default: m.CampaignPromiseTracker })));
 const CommunicationsManager = safeLazy(() => import('./CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
+const DoctorAttendanceManager = safeLazy(() => import('./HIS/DoctorAttendanceManager').then(m => ({ default: m.DoctorAttendanceManager })));
 
 // Lazy-loaded major portals
 const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -5734,6 +5735,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                         onSendSms={async (r: any, m: any, c?: any, u?: number, i?: string) => apiService.sendSms(r, m, c, u, i)}
                     />
                 </div>
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: HIS Doctor & Medical Staff First-Login Attendance System ──
+    if (window.location.search.includes('view=doctor-attendance') || window.location.search.includes('view=his-attendance') || window.location.pathname.startsWith('/doctor-attendance')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <DoctorAttendanceManager currentUser={currentUser} />
             </Suspense>
         );
     }

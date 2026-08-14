@@ -70,6 +70,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
     const [smsOutbox, setSmsOutbox] = useState<SmsOutbox[]>([]);
     const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+    const [isLoadingOutbox, setIsLoadingOutbox] = useState(false);
     const [importedPhoneContacts, setImportedPhoneContacts] = useState<any[]>([]);
 
     const handleImportFromDeviceContacts = async () => {
