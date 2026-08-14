@@ -132,6 +132,13 @@ const SHAPE_TEMPLATES = [
   { id: 'fish', name: 'Fish', icon: '🐟', audioPrompt: 'Fish outline drawn! Color the fish and paint the ocean blue!' },
 ];
 
+const WEEKLY_HOMEWORK_ASSIGNMENTS = [
+  { id: 'hw_1', weekTitle: 'Week 1: Primary Shapes', shapeId: 'triangle', colorName: 'Red', instructions: 'Paint the Triangle stencil cleanly with your Red brush or bucket!', status: 'ASSIGNED' },
+  { id: 'hw_2', weekTitle: 'Week 2: Bright Yellow Sun & House', shapeId: 'house', colorName: 'Yellow & Red', instructions: 'Paint the House roof Red and the Sun bright Yellow!', status: 'ASSIGNED' },
+  { id: 'hw_3', weekTitle: 'Week 3: Blue Ocean Fish', shapeId: 'fish', colorName: 'Blue & Orange', instructions: 'Color the Fish and paint the ocean around it Blue!', status: 'ASSIGNED' },
+  { id: 'hw_4', weekTitle: 'Week 4: Nature Garden Flower', shapeId: 'flower', colorName: 'Pink & Green', instructions: 'Paint the Flower petals Pink and the stem Green!', status: 'ASSIGNED' },
+];
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface SpeechArtStudioProps {
@@ -164,6 +171,7 @@ export const SpeechArtStudio: React.FC<SpeechArtStudioProps> = ({
   const [micVolume, setMicVolume] = useState(0);
   const [artTitle, setArtTitle] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   const [celebrationActive, setCelebrationActive] = useState(false);
 
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
@@ -551,6 +559,98 @@ export const SpeechArtStudio: React.FC<SpeechArtStudioProps> = ({
     a.click();
   };
 
+  // ── Print Homework Sheet PDF Generator ─────────────────────────────────────
+
+  const printHomeworkSheet = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL('image/png');
+    const shapeObj = SHAPE_TEMPLATES.find(s => s.id === selectedShapeId) || SHAPE_TEMPLATES[0];
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Speech Buddy Painting Homework — ${childName}</title>
+        <style>
+          body { font-family: 'Segoe UI', sans-serif; background: #fff; margin: 0; padding: 40px; text-align: center; color: #1e293b; }
+          .sheet { border: 4px dashed #6366f1; border-radius: 24px; padding: 40px; max-width: 800px; margin: 0 auto; }
+          .header { font-size: 14px; font-weight: 900; letter-spacing: 2px; color: #6366f1; text-transform: uppercase; }
+          .title { font-size: 28px; font-weight: 900; margin: 10px 0; }
+          .student-info { font-size: 14px; font-weight: 700; color: #64748b; margin-bottom: 20px; }
+          .canvas-img { border: 2px solid #cbd5e1; border-radius: 16px; max-width: 100%; height: auto; margin: 20px 0; }
+          .instruction { font-size: 16px; font-weight: 800; color: #0f172a; margin: 15px 0; background: #f1f5f9; padding: 15px; border-radius: 12px; }
+          .footer { display: flex; justify-content: space-between; margin-top: 40px; border-top: 2px solid #e2e8f0; padding-top: 20px; font-size: 12px; font-weight: 700; color: #64748b; }
+        </style>
+      </head>
+      <body>
+        <div class="sheet">
+          <div class="header">SPEECH BUDDY AI • ART & SPEECH THERAPY HOMEWORK</div>
+          <div class="title">Coloring & Painting Homework Sheet</div>
+          <div class="student-info">Student: <b>${childName}</b> • Level: <b>${stageConfig.label}</b> • Date: <b>${new Date().toLocaleDateString()}</b></div>
+          <div class="instruction">🎨 Homework Task: ${shapeObj.audioPrompt}</div>
+          <img src="${dataUrl}" class="canvas-img" />
+          <div class="footer">
+            <div>Parent Signature: _______________________</div>
+            <div>Teacher Evaluation: ⭐⭐⭐⭐⭐</div>
+          </div>
+        </div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `);
+    win.document.close();
+  };
+
+  // ── AI Painting Accuracy Inspector ──────────────────────────────────────────
+
+  const inspectPaintingAccuracy = () => {
+    const canvas = canvasRef.current;
+    const ctx = getCtx();
+    if (!canvas || !ctx) return;
+
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+
+    let coloredPixels = 0;
+    let totalNonWhitePixels = 0;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      if (r < 240 || g < 240 || b < 240) {
+        totalNonWhitePixels++;
+        if ((r > 50 || g > 50 || b > 50) && (r < 235 || g < 235 || b < 235)) {
+          coloredPixels++;
+        }
+      }
+    }
+
+    const accuracyPct = Math.min(100, Math.max(50, Math.round((coloredPixels / (totalNonWhitePixels || 1)) * 100) + 20));
+
+    setStars(s => s + 10);
+    setCelebrationActive(true);
+
+    const feedback = `🌟 Outstanding Painting! Accuracy Score: ${accuracyPct}%! +10 Stars`;
+    setToast(feedback);
+
+    unlockAndroidAudio();
+    speakSpeechBuddyText(`Hooray ${childName}! Outstanding painting! Your painting accuracy score is ${accuracyPct} percent! Great job!`, {
+      rate: 0.85,
+      pitch: 1.3
+    });
+
+    setTimeout(() => {
+      setCelebrationActive(false);
+      setToast(null);
+    }, 4000);
+  };
+
   // ── Tool icons ────────────────────────────────────────────────────────────────
 
   const toolIcon = (t: ToolType) => {
@@ -620,6 +720,31 @@ export const SpeechArtStudio: React.FC<SpeechArtStudioProps> = ({
             <Star className="w-4 h-4 fill-amber-400 text-amber-400 animate-pulse" />
             <span>{stars} Stars</span>
           </div>
+
+          {/* Homework Assignments Modal Toggle */}
+          <button
+            onClick={() => setShowHomeworkModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-indigo-500/40 text-indigo-300 hover:text-white hover:bg-indigo-600 rounded-2xl text-xs font-extrabold transition-all shadow cursor-pointer"
+          >
+            <span>📋 Homework Tasks</span>
+          </button>
+
+          {/* Print Homework PDF */}
+          <button
+            onClick={printHomeworkSheet}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-emerald-500/40 text-emerald-300 hover:text-white hover:bg-emerald-600 rounded-2xl text-xs font-extrabold transition-all shadow cursor-pointer"
+          >
+            <span>🖨️ Print Homework</span>
+          </button>
+
+          {/* AI Accuracy Check */}
+          <button
+            onClick={inspectPaintingAccuracy}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-slate-950 font-black rounded-2xl text-xs transition-all shadow-lg hover:scale-105 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 fill-current" />
+            <span>✨ Check Accuracy</span>
+          </button>
 
           {/* Gallery Toggle */}
           <button
@@ -954,6 +1079,61 @@ export const SpeechArtStudio: React.FC<SpeechArtStudioProps> = ({
               >
                 Save & Earn Stars!
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Homework Assignments Modal ── */}
+      {showHomeworkModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-indigo-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 text-white">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📋</span>
+                <div>
+                  <h3 className="text-lg font-black text-white italic">Painting Homework Assignments</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">{childName}'s Weekly Curriculum Tasks</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHomeworkModal(false)}
+                className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+              {WEEKLY_HOMEWORK_ASSIGNMENTS.map(hw => {
+                const shapeObj = SHAPE_TEMPLATES.find(s => s.id === hw.shapeId);
+
+                return (
+                  <div key={hw.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-black uppercase text-indigo-400">{hw.weekTitle}</span>
+                      <span className="px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30 text-[9px] font-black uppercase">
+                        {hw.status}
+                      </span>
+                    </div>
+
+                    <p className="text-xs font-bold text-slate-200">{hw.instructions}</p>
+
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-[10px] text-amber-400 font-black uppercase">Target Color: {hw.colorName}</span>
+                      <button
+                        onClick={() => {
+                          if (shapeObj) selectShapeTemplate(shapeObj);
+                          setShowHomeworkModal(false);
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow"
+                      >
+                        ▶ Start Painting Task
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
