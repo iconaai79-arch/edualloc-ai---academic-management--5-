@@ -2036,7 +2036,7 @@ export const apiService = {
         targetStatus: 'active' | 'trial' | 'expired' | 'suspended' = 'active'
     ): Promise<void> {
         const now = new Date();
-        const allModuleIds = ['academics', 'finance', 'hr_payroll', 'library', 'school_store', 'timetable', 'his', 'transport', 'boarding', 'enrollment_manager', 'events', 'ng_cdf', 'fiscal_guard', 'driving_school', 'beauty_college', 'law_firm', 'cooperative', 'property', 'restaurant_pos', 'church', 'car_showroom', 'fuel_station'];
+        const allModuleIds = ['academics', 'finance', 'hr_payroll', 'library', 'school_store', 'timetable', 'his', 'transport', 'boarding', 'enrollment_manager', 'events', 'ng_cdf', 'fiscal_guard', 'driving_school', 'beauty_college', 'law_firm', 'cooperative', 'property', 'restaurant_pos', 'church', 'car_showroom', 'fuel_station', 'private_security'];
         const moduleIdsToUpdate = moduleId === 'all' ? allModuleIds : [moduleId];
 
         if (moduleId === 'all' || moduleId === 'finance' || moduleId === 'academics') {
