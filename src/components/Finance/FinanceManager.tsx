@@ -63,6 +63,7 @@ const StudentEnrollmentManager = React.lazy(() => import('../common/StudentEnrol
 const CommunicationsManager = React.lazy(() => import('../CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
 const UserManager = React.lazy(() => import('../UserManager').then(m => ({ default: m.UserManager })));
 const LogisticsManager = React.lazy(() => import('../LogisticsManager').then(m => ({ default: m.LogisticsManager })));
+import { SiblingPaymentSplitterModal } from './SiblingPaymentSplitterModal';
 
 const parseMoneyAmount = (amt: any): number => {
     if (amt === null || amt === undefined) return 0;
@@ -1569,6 +1570,46 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [consolidateSiblingsSms, setConsolidateSiblingsSms] = useState(true);
     const [isSendingReminders, setIsSendingReminders] = useState(false);
     const [reminderSendSuccess, setReminderSendSuccess] = useState<string | null>(null);
+
+    // Sibling Payment Splitter State
+    const [isSiblingSplitModalOpen, setIsSiblingSplitModalOpen] = useState(false);
+
+    const handleConfirmSplitPayment = async (splitData: {
+        masterTxnRef: string;
+        paymentMethod: 'M-PESA' | 'BANK_DEPOSIT' | 'CHEQUE' | 'CASH';
+        totalMasterAmount: number;
+        allocations: Array<{
+            studentId: string;
+            studentName: string;
+            admNo: string;
+            grade: string;
+            allocatedAmount: number;
+            voteHead: string;
+            receiptNumber: string;
+        }>;
+    }) => {
+        for (const alloc of splitData.allocations) {
+            const receiptRecord: Partial<Receipt> = {
+                id: `rec_split_${Date.now()}_${alloc.studentId}`,
+                receiptNumber: alloc.receiptNumber,
+                studentId: alloc.studentId,
+                studentName: alloc.studentName,
+                amount: alloc.allocatedAmount,
+                paymentMethod: splitData.paymentMethod,
+                paymentReference: splitData.masterTxnRef,
+                date: new Date().toISOString().split('T')[0],
+                institutionId: props.institution.id,
+                notes: `Sibling payment split from Master Txn ${splitData.masterTxnRef}`
+            };
+            await apiService.saveModuleRecord('receipts', receiptRecord);
+
+            // Log action if handler available
+            if (props.onLogAction) {
+                await props.onLogAction(`Issued receipt ${alloc.receiptNumber} for ${alloc.studentName} (KES ${alloc.allocatedAmount})`);
+            }
+        }
+        if (props.onRefreshData) await props.onRefreshData();
+    };
 
     // Promise to Pay (PTP) Tracker State
     const [feePromises, setFeePromises] = useState<FeePromise[]>([]);
@@ -4476,6 +4517,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         >
                             <PaperAirplaneIcon className="w-4 h-4" />
                             <span>Send Fee Reminders</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setIsSiblingSplitModalOpen(true)}
+                            className="py-3 px-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-500/25 active:scale-95 cursor-pointer shrink-0"
+                            title="Split a single bulk M-Pesa / Bank payment across siblings into distinct receipts"
+                        >
+                            <span>👨‍👩‍👧‍👦 Split Sibling Payment</span>
                         </button>
                         <button
                             type="button"
@@ -16047,6 +16096,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     onResolved={fetchSuspenseTransactions}
                 />
             )}
+
+            <SiblingPaymentSplitterModal
+                isOpen={isSiblingSplitModalOpen}
+                onClose={() => setIsSiblingSplitModalOpen(false)}
+                students={mergedStudents || students}
+                onConfirmSplitPayment={handleConfirmSplitPayment}
+            />
             </div>
         </div>
     );
