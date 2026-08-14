@@ -115,6 +115,11 @@ const FeePromissoryTracker = safeLazy(() => import('./Finance/FeePromissoryTrack
 const CampaignPromiseTracker = safeLazy(() => import('./Political/CampaignPromiseTracker').then(m => ({ default: m.CampaignPromiseTracker })));
 const CommunicationsManager = safeLazy(() => import('./CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
 const DoctorAttendanceManager = safeLazy(() => import('./his/DoctorAttendanceManager').then(m => ({ default: m.DoctorAttendanceManager })));
+const OpdTriagePrescriptionManager = safeLazy(() => import('./his/OpdTriagePrescriptionManager').then(m => ({ default: m.OpdTriagePrescriptionManager })));
+const StudentSmartGatePassManager = safeLazy(() => import('./Academics/StudentSmartGatePassManager').then(m => ({ default: m.StudentSmartGatePassManager })));
+const FarmerMilkQualityCreditEngine = safeLazy(() => import('./coop/FarmerMilkQualityCreditEngine').then(m => ({ default: m.FarmerMilkQualityCreditEngine })));
+const FleetMaintenanceTracker = safeLazy(() => import('./Transport/FleetMaintenanceTracker').then(m => ({ default: m.FleetMaintenanceTracker })));
+const CitizenGrievancePetitionDesk = safeLazy(() => import('./Political/CitizenGrievancePetitionDesk').then(m => ({ default: m.CitizenGrievancePetitionDesk })));
 
 // Lazy-loaded major portals
 const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -5744,6 +5749,51 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <DoctorAttendanceManager currentUser={currentUser} />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: HIS AI Clinical Triage & OPD Queue Master ──
+    if (window.location.search.includes('view=his-triage') || window.location.search.includes('view=opd-queue') || window.location.pathname.startsWith('/his-triage')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-rose-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <OpdTriagePrescriptionManager />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Student QR / NFC Smart Gate Pass & Parent SMS Alert ──
+    if (window.location.search.includes('view=gate-pass') || window.location.search.includes('view=smart-gate') || window.location.pathname.startsWith('/gate-pass')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <StudentSmartGatePassManager />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Farmer Milk Quality & Agrovet Credit Engine ──
+    if (window.location.search.includes('view=milk-credit') || window.location.search.includes('view=farmer-credit') || window.location.pathname.startsWith('/milk-credit')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <FarmerMilkQualityCreditEngine />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Fleet Maintenance & Vehicle Mileage Service Tracker ──
+    if (window.location.search.includes('view=fleet-tracker') || window.location.pathname.startsWith('/fleet-tracker')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <FleetMaintenanceTracker />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Citizen Grievance & Ward Petition Ticketing Desk ──
+    if (window.location.search.includes('view=citizen-grievance') || window.location.search.includes('view=petitions') || window.location.pathname.startsWith('/citizen-grievance')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <CitizenGrievancePetitionDesk />
             </Suspense>
         );
     }
