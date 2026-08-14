@@ -2,15 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { User, Institution, BoardingHouse, Receipt } from '../../types';
 import { HomeIcon } from '../icons/HomeIcon';
 import { UsersIcon } from '../icons/UsersIcon';
-import { CurrencyDollarIcon } from '../icons/CurrencyDollarIcon';
-import { ArrowDownTrayIcon } from '../icons/ArrowDownTrayIcon';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
-import { FunnelIcon } from '../icons/FunnelIcon';
+import { FilterIcon as FunnelIcon } from '../icons/FilterIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
-import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
+import { AlertTriangleIcon as ExclamationTriangleIcon } from '../icons/AlertTriangleIcon';
 import { XIcon } from '../icons/XIcon';
+import { DownloadIcon as ArrowDownTrayIcon } from '../icons/DownloadIcon';
 import { apiService } from '../../services/apiService';
 import { escapeHtml } from '../../utils/securityUtils';
 

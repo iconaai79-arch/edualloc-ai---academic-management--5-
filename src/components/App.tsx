@@ -121,6 +121,7 @@ const FarmerMilkQualityCreditEngine = safeLazy(() => import('./coop/FarmerMilkQu
 const FleetMaintenanceTracker = safeLazy(() => import('./Transport/FleetMaintenanceTracker').then(m => ({ default: m.FleetMaintenanceTracker })));
 const CitizenGrievancePetitionDesk = safeLazy(() => import('./Political/CitizenGrievancePetitionDesk').then(m => ({ default: m.CitizenGrievancePetitionDesk })));
 const BoardingHouseholdBalanceManager = safeLazy(() => import('./Finance/BoardingHouseholdBalanceManager').then(m => ({ default: m.BoardingHouseholdBalanceManager })));
+const PrivateSecurityCompanyView = safeLazy(() => import('./security/PrivateSecurityCompanyView').then(m => ({ default: m.PrivateSecurityCompanyView })));
 
 // Lazy-loaded major portals
 const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -5731,8 +5732,21 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <BoardingHouseholdBalanceManager
                     currentUser={currentUser}
-                    currentInstitution={activeInstitution || currentInstitution}
-                    onLogAction={async (action: string) => logActivity(action)}
+                    currentInstitution={activeInstitution || ({ id: 'inst-1', name: 'EDUAI Institution' } as any)}
+                    onLogAction={async (action: string) => { console.log('[LOG]:', action); }}
+                />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Private Security & Guarding Operations Suite ──
+    if (window.location.search.includes('view=private-security') || window.location.search.includes('view=security-company') || window.location.pathname.startsWith('/private-security')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-rose-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <PrivateSecurityCompanyView
+                    currentUser={currentUser}
+                    currentInstitution={activeInstitution || ({ id: 'inst-1', name: 'Private Security Services' } as any)}
+                    onLogAction={async (action: string) => { console.log('[LOG]:', action); }}
                 />
             </Suspense>
         );
