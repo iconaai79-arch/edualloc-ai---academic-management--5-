@@ -122,6 +122,16 @@ const PHONEME_PROMPTS: Record<AgeStage, PhonemePrompt[]> = {
   ],
 };
 
+const SHAPE_TEMPLATES = [
+  { id: 'triangle', name: 'Triangle', icon: '🔺', audioPrompt: 'Let\'s paint the Triangle! Pick your favourite paint color to fill inside!' },
+  { id: 'circle', name: 'Circle', icon: '⚪', audioPrompt: 'Let\'s paint the Circle! Pick bright yellow or blue to paint your circle!' },
+  { id: 'square', name: 'Square', icon: '🟦', audioPrompt: 'Square stencil drawn! Color inside the lines for your painting homework!' },
+  { id: 'star', name: 'Star', icon: '⭐️', audioPrompt: 'A shiny Star is drawn! Color it with glowing yellow or gold!' },
+  { id: 'house', name: 'House & Sun', icon: '🏠', audioPrompt: 'House and Sun drawn! Paint the roof red and the sun yellow!' },
+  { id: 'flower', name: 'Flower', icon: '🌸', audioPrompt: 'Beautiful Flower stencil drawn! Paint the petals with your favorite colors!' },
+  { id: 'fish', name: 'Fish', icon: '🐟', audioPrompt: 'Fish outline drawn! Color the fish and paint the ocean blue!' },
+];
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface SpeechArtStudioProps {
@@ -156,6 +166,8 @@ export const SpeechArtStudio: React.FC<SpeechArtStudioProps> = ({
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [celebrationActive, setCelebrationActive] = useState(false);
 
+  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -163,6 +175,125 @@ export const SpeechArtStudio: React.FC<SpeechArtStudioProps> = ({
   const recognitionRef = useRef<any>(null);
 
   const stageConfig = STAGE_CONFIG[stage];
+
+  // ── Auto-Draw Shape Stencil Helper ─────────────────────────────────────────
+
+  const drawAutoShapeTemplate = (shapeId: string) => {
+    const canvas = canvasRef.current;
+    const ctx = getCtx();
+    if (!canvas || !ctx) return;
+
+    // Save current canvas state to history
+    saveHistory();
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    if (shapeId === 'triangle') {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 120);
+      ctx.lineTo(cx + 140, cy + 100);
+      ctx.lineTo(cx - 140, cy + 100);
+      ctx.closePath();
+      ctx.stroke();
+    } else if (shapeId === 'circle') {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 130, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (shapeId === 'square') {
+      ctx.beginPath();
+      ctx.rect(cx - 120, cy - 120, 240, 240);
+      ctx.stroke();
+    } else if (shapeId === 'star') {
+      ctx.beginPath();
+      const rOuter = 130;
+      const rInner = 55;
+      for (let i = 0; i < 10; i++) {
+        const angle = (i * Math.PI) / 5 - Math.PI / 2;
+        const r = i % 2 === 0 ? rOuter : rInner;
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    } else if (shapeId === 'house') {
+      // Roof
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 140);
+      ctx.lineTo(cx + 150, cy - 20);
+      ctx.lineTo(cx - 150, cy - 20);
+      ctx.closePath();
+      ctx.stroke();
+      // Body
+      ctx.beginPath();
+      ctx.rect(cx - 130, cy - 20, 260, 150);
+      ctx.stroke();
+      // Door
+      ctx.beginPath();
+      ctx.rect(cx - 30, cy + 50, 60, 80);
+      ctx.stroke();
+      // Sun
+      ctx.beginPath();
+      ctx.arc(cx + 170, cy - 130, 30, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (shapeId === 'flower') {
+      // Center
+      ctx.beginPath();
+      ctx.arc(cx, cy - 20, 40, 0, Math.PI * 2);
+      ctx.stroke();
+      // Petals
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3;
+        const px = cx + 75 * Math.cos(angle);
+        const py = (cy - 20) + 75 * Math.sin(angle);
+        ctx.beginPath();
+        ctx.arc(px, py, 35, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // Stem
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + 20);
+      ctx.lineTo(cx, cy + 150);
+      ctx.stroke();
+    } else if (shapeId === 'fish') {
+      // Body
+      ctx.beginPath();
+      ctx.ellipse(cx - 20, cy, 120, 75, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // Tail
+      ctx.beginPath();
+      ctx.moveTo(cx + 90, cy);
+      ctx.lineTo(cx + 160, cy - 60);
+      ctx.lineTo(cx + 160, cy + 60);
+      ctx.closePath();
+      ctx.stroke();
+      // Eye
+      ctx.beginPath();
+      ctx.arc(cx - 85, cy - 20, 10, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  };
+
+  const selectShapeTemplate = (shape: { id: string; name: string; audioPrompt: string }) => {
+    setSelectedShapeId(shape.id);
+    drawAutoShapeTemplate(shape.id);
+    setToast(`✨ Auto-drew ${shape.name}! Grab your paint colors!`);
+    unlockAndroidAudio();
+    speakSpeechBuddyText(shape.audioPrompt, { rate: 0.85, pitch: 1.3 });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   // ── Canvas helpers ──────────────────────────────────────────────────────────
 
@@ -642,6 +773,34 @@ export const SpeechArtStudio: React.FC<SpeechArtStudioProps> = ({
 
         {/* Center: Canvas */}
         <div className="lg:col-span-6 flex flex-col gap-3">
+
+          {/* 🎨 Auto-Draw Homework Shape Templates Bar */}
+          <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-indigo-500/30 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Auto-Draw Shape Stencils & Painting Homework</span>
+              </span>
+              <span className="text-[9px] text-slate-400 font-bold uppercase">Tap to draw & paint</span>
+            </div>
+
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {SHAPE_TEMPLATES.map(shape => (
+                <button
+                  key={shape.id}
+                  onClick={() => selectShapeTemplate(shape)}
+                  className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all border shadow cursor-pointer ${
+                    selectedShapeId === shape.id
+                      ? 'bg-indigo-600 border-indigo-400 text-white scale-105 shadow-indigo-500/30'
+                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="text-base">{shape.icon}</span>
+                  <span>{shape.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Tool Palette */}
           <div className="flex items-center justify-between gap-2 p-2 bg-slate-800/60 rounded-2xl border border-slate-800 flex-wrap">
