@@ -5728,9 +5728,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                         departments={departments}
                         courses={courses}
                         currentUser={currentUser}
-                        smsBalance={smsBalance}
+                        smsBalance={activeInstitution?.smsBalance || companyDetails?.smsBalance || 0}
                         currentInstitution={activeInstitution}
-                        smsConfig={smsConfig}
+                        smsConfig={activeInstitution?.smsConfig || companyDetails?.smsConfig}
                         onSendSms={async (r: any, m: any, c?: any, u?: number, i?: string) => apiService.sendSms(r, m, c, u, i)}
                     />
                 </div>
