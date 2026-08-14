@@ -111,6 +111,8 @@ const AIExamGenerator = safeLazy(() => import('./AIExamGenerator').then(m => ({ 
 const NTSADrivingSimulator = safeLazy(() => import('./NTSADrivingSimulator').then(m => ({ default: m.NTSADrivingSimulator })));
 const BeautyCollegeLogbook = safeLazy(() => import('./BeautyCollegeLogbook').then(m => ({ default: m.BeautyCollegeLogbook })));
 const SchoolBusTracker = safeLazy(() => import('./SchoolBusTracker').then(m => ({ default: m.SchoolBusTracker })));
+const FeePromissoryTracker = safeLazy(() => import('./Finance/FeePromissoryTracker').then(m => ({ default: m.FeePromissoryTracker })));
+const CampaignPromiseTracker = safeLazy(() => import('./Political/CampaignPromiseTracker').then(m => ({ default: m.CampaignPromiseTracker })));
 
 // Lazy-loaded major portals
 const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -5693,6 +5695,24 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <SchoolBusTracker />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Fee Promissory Note Tracker ──
+    if (window.location.search.includes('view=fee-promissory') || window.location.pathname.startsWith('/fee-promissory')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <FeePromissoryTracker />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Campaign Manifesto Promise Tracker & Public Citizen Portal ──
+    if (window.location.search.includes('view=campaign-promises') || window.location.search.includes('view=public-promise-tracker') || window.location.pathname.startsWith('/campaign-promises')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <CampaignPromiseTracker />
             </Suspense>
         );
     }
