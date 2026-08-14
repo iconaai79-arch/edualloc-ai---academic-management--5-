@@ -1589,16 +1589,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }>;
     }) => {
         for (const alloc of splitData.allocations) {
-            const receiptRecord: Partial<Receipt> = {
+            const receiptRecord: Partial<Receipt> & Record<string, any> = {
                 id: `rec_split_${Date.now()}_${alloc.studentId}`,
                 receiptNumber: alloc.receiptNumber,
                 studentId: alloc.studentId,
                 studentName: alloc.studentName,
-                amount: alloc.allocatedAmount,
+                amountPaid: alloc.allocatedAmount,
                 paymentMethod: splitData.paymentMethod,
-                paymentReference: splitData.masterTxnRef,
-                date: new Date().toISOString().split('T')[0],
+                relatedTransactionId: splitData.masterTxnRef,
+                paymentDate: new Date().toISOString().split('T')[0],
                 institutionId: props.institution.id,
+                paidFor: alloc.voteHead,
                 notes: `Sibling payment split from Master Txn ${splitData.masterTxnRef}`
             };
             await apiService.saveModuleRecord('receipts', receiptRecord);
@@ -4525,6 +4526,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             title="Split a single bulk M-Pesa / Bank payment across siblings into distinct receipts"
                         >
                             <span>👨‍👩‍👧‍👦 Split Sibling Payment</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => window.open('?view=boarding-balances', '_blank')}
+                            className="py-3 px-4 bg-indigo-900 hover:bg-indigo-800 text-indigo-200 border border-indigo-700/50 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-900/25 active:scale-95 cursor-pointer shrink-0"
+                            title="Generate and analyze fee balances grouped by Boarding House / Household"
+                        >
+                            <span>🏡 Boarding Household Balances</span>
                         </button>
                         <button
                             type="button"
@@ -16100,7 +16109,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             <SiblingPaymentSplitterModal
                 isOpen={isSiblingSplitModalOpen}
                 onClose={() => setIsSiblingSplitModalOpen(false)}
-                students={mergedStudents || students}
+                students={mergedStudents || (props.students || [])}
                 onConfirmSplitPayment={handleConfirmSplitPayment}
             />
             </div>

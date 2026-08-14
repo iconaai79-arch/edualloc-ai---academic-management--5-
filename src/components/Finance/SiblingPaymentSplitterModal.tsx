@@ -38,11 +38,13 @@ export const SiblingPaymentSplitterModal: React.FC<SiblingPaymentSplitterModalPr
     const siblingCandidates = useMemo(() => {
         if (!parentPhoneSearch.trim()) return [];
         const clean = parentPhoneSearch.trim().toLowerCase();
-        return students.filter(s =>
-            (s.phoneNumber && s.phoneNumber.includes(clean)) ||
-            (s.parentPhone && s.parentPhone.includes(clean)) ||
-            (s.name && s.name.toLowerCase().includes(clean))
-        );
+        return students.filter(st => {
+            const s = st as any;
+            return (s.phoneNumber && String(s.phoneNumber).includes(clean)) ||
+                (s.parentPhone && String(s.parentPhone).includes(clean)) ||
+                (s.parentPhone2 && String(s.parentPhone2).includes(clean)) ||
+                (s.name && String(s.name).toLowerCase().includes(clean));
+        });
     }, [students, parentPhoneSearch]);
 
     const [selectedSiblings, setSelectedSiblings] = useState<SiblingAllocation[]>([]);
@@ -50,12 +52,13 @@ export const SiblingPaymentSplitterModal: React.FC<SiblingPaymentSplitterModalPr
 
     const addSiblingToAllocation = (student: User) => {
         if (selectedSiblings.some(s => s.studentId === student.id)) return;
+        const st = student as any;
         const count = selectedSiblings.length + 1;
         const newAllocation: SiblingAllocation = {
             studentId: student.id,
             studentName: student.name,
-            admNo: student.staffId || student.admNo || `ADM-${Math.floor(1000 + Math.random() * 9000)}`,
-            grade: student.departmentName || student.courseName || 'Class',
+            admNo: st.admissionNumber || st.admNo || st.staffId || `ADM-${Math.floor(1000 + Math.random() * 9000)}`,
+            grade: st.className || st.grade || st.departmentName || st.courseName || 'Class',
             allocatedAmount: 0,
             voteHead: 'Tuition & Academic Fees',
             receiptNumber: `REC-2026-${Math.floor(1000 + Math.random() * 9000)}-${String.fromCharCode(64 + count)}`
@@ -176,7 +179,7 @@ export const SiblingPaymentSplitterModal: React.FC<SiblingPaymentSplitterModalPr
                                 >
                                     <div>
                                         <span className="font-black italic text-xs text-white">{st.name}</span>
-                                        <span className="text-[10px] text-slate-400 ml-2 font-mono">{st.staffId || st.admNo}</span>
+                                        <span className="text-[10px] text-slate-400 ml-2 font-mono">{(st as any).admissionNumber || (st as any).admNo || st.staffId}</span>
                                     </div>
                                     <span className="text-xs font-bold text-purple-400">+ Add to Split</span>
                                 </div>

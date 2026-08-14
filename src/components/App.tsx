@@ -120,6 +120,7 @@ const StudentSmartGatePassManager = safeLazy(() => import('./Academics/StudentSm
 const FarmerMilkQualityCreditEngine = safeLazy(() => import('./coop/FarmerMilkQualityCreditEngine').then(m => ({ default: m.FarmerMilkQualityCreditEngine })));
 const FleetMaintenanceTracker = safeLazy(() => import('./Transport/FleetMaintenanceTracker').then(m => ({ default: m.FleetMaintenanceTracker })));
 const CitizenGrievancePetitionDesk = safeLazy(() => import('./Political/CitizenGrievancePetitionDesk').then(m => ({ default: m.CitizenGrievancePetitionDesk })));
+const BoardingHouseholdBalanceManager = safeLazy(() => import('./Finance/BoardingHouseholdBalanceManager').then(m => ({ default: m.BoardingHouseholdBalanceManager })));
 
 // Lazy-loaded major portals
 const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -5720,6 +5721,19 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <CampaignPromiseTracker />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Boarding School Household Fee Balances Analytics ──
+    if (window.location.search.includes('view=boarding-balances') || window.location.search.includes('view=boarding-household-balances') || window.location.pathname.startsWith('/boarding-balances')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <BoardingHouseholdBalanceManager
+                    currentUser={currentUser}
+                    currentInstitution={activeInstitution || currentInstitution}
+                    onLogAction={async (action: string) => logActivity(action)}
+                />
             </Suspense>
         );
     }
