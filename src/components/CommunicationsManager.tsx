@@ -70,7 +70,78 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
     const [smsOutbox, setSmsOutbox] = useState<SmsOutbox[]>([]);
     const [isLoadingLogs, setIsLoadingLogs] = useState(false);
-    const [isLoadingOutbox, setIsLoadingOutbox] = useState(false);
+    const [importedPhoneContacts, setImportedPhoneContacts] = useState<any[]>([]);
+
+    const handleImportFromDeviceContacts = async () => {
+        if ('contacts' in navigator && 'select' in (navigator as any).contacts) {
+            try {
+                const props = ['name', 'tel'];
+                const opts = { multiple: true };
+                const selected = await (navigator as any).contacts.select(props, opts);
+                if (selected && selected.length > 0) {
+                    const parsed = selected.map((c: any, i: number) => ({
+                        id: `phone_contact_${Date.now()}_${i}`,
+                        name: c.name?.[0] || `Phone Contact ${i + 1}`,
+                        phoneNumber: c.tel?.[0]?.replace(/\s+/g, '') || '',
+                        role: 'imported_contact'
+                    })).filter((c: any) => c.phoneNumber.length >= 7);
+
+                    setImportedPhoneContacts(parsed);
+                    setStatus({ type: 'success', message: `Imported ${parsed.length} contacts directly from phone address book!` });
+                }
+            } catch (err: any) {
+                console.warn('Contact picker cancelled or unhandled:', err);
+            }
+        } else {
+            const raw = prompt('Enter or paste phone numbers separated by commas or new lines (e.g. 0712345678, 0722987654):');
+            if (raw) {
+                const numbers = raw.split(/[\n,;]+/).map(n => n.trim()).filter(n => n.length >= 7);
+                const parsed = numbers.map((n, i) => ({
+                    id: `p_contact_${Date.now()}_${i}`,
+                    name: `Contact (${n})`,
+                    phoneNumber: n,
+                    role: 'imported_contact'
+                }));
+                setImportedPhoneContacts(parsed);
+                setStatus({ type: 'success', message: `Loaded ${parsed.length} phone numbers!` });
+            }
+        }
+    };
+
+    const handleImportFromCsvFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const content = event.target?.result as string;
+            if (!content) return;
+
+            const lines = content.split(/\r?\n/);
+            const contacts: any[] = [];
+
+            lines.forEach((line, idx) => {
+                const parts = line.split(/[,;\t]+/);
+                if (parts.length > 0) {
+                    const phone = parts.find(p => p.replace(/\D/g, '').length >= 7)?.trim() || parts[0]?.trim();
+                    const name = parts.find(p => p !== phone && p.length > 1)?.trim() || `File Contact ${idx + 1}`;
+
+                    if (phone && phone.replace(/\D/g, '').length >= 7) {
+                        contacts.push({
+                            id: `csv_contact_${Date.now()}_${idx}`,
+                            name,
+                            phoneNumber: phone.replace(/\s+/g, ''),
+                            role: 'imported_contact'
+                        });
+                    }
+                }
+            });
+
+            setImportedPhoneContacts(contacts);
+            setStatus({ type: 'success', message: `Loaded ${contacts.length} contacts from file ${file.name}!` });
+        };
+        reader.readAsText(file);
+    };
 
     const [smsInfo, setSmsInfo] = useState({ count: 0, characters: 0, limit: 160, isUnicode: false });
 
@@ -269,6 +340,9 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 return baseUsers.filter(u => ['coop_admin', 'coop_chairman', 'cooperative_manager', 'sacco_officer'].includes(u.role));
             case 'all_coop_members':
                 return baseUsers;
+            case 'phone_contacts':
+            case 'csv_contacts':
+                return importedPhoneContacts;
             default:
                 return [];
         }
@@ -491,6 +565,41 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         </select>
                     </div>
                 ) : null;
+            case 'phone_contacts':
+                return (
+                    <div className="mt-2 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Phone Address Book Import</span>
+                            <span className="text-[10px] font-black uppercase text-emerald-500">
+                                {importedPhoneContacts.length} Contacts Selected
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleImportFromDeviceContacts}
+                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                        >
+                            <span>📱 Open Phone Address Book Picker</span>
+                        </button>
+                    </div>
+                );
+            case 'csv_contacts':
+                return (
+                    <div className="mt-2 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Upload Contact File (CSV / TXT / Excel)</span>
+                            <span className="text-[10px] font-black uppercase text-emerald-500">
+                                {importedPhoneContacts.length} Contacts Loaded
+                            </span>
+                        </div>
+                        <input
+                            type="file"
+                            accept=".csv,.txt,.vcf,.xlsx"
+                            onChange={handleImportFromCsvFile}
+                            className="w-full text-xs font-bold text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:uppercase file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
+                        />
+                    </div>
+                );
             default:
                 return null;
         }
@@ -877,6 +986,8 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                                 {isChurch && <option value="all_customers">All Visitors & Guests</option>}
                                             </>
                                         )}
+                                        <option value="phone_contacts">📱 Import from Phone Address Book</option>
+                                        <option value="csv_contacts">📁 Upload CSV / File Contacts</option>
                                     </>
                                 )}
                             </select>
