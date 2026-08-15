@@ -119,7 +119,7 @@ const PUBLIC_MODULES = [
   'his_pharmacy_batches', 'his_pharmacy_sales', 'his_pharmacy_sale_items', 'his_pharmacy_ledger', 'his_pharmacy_staff',
   'his_pharmacy_settings', 'his_pharmacy_adherence_alerts', 'his_lab_orders', 'his_billing_settings', 'his_invoices',
   'his_payments', 'his_billing_items', 'his_insurance_remittances', 'his_insurance_providers', 'his_tariffs',
-  'his_hospital_rooms', 'his_partner_labs', 'his_branding', 'his_patient_id_config',
+  'his_hospital_rooms', 'his_partner_labs', 'his_branding', 'his_patient_id_config', 'his_medical_notes', 'his_clinical_events',
   'bulletin_items', 'document_collections', 'watchlist', 'watchlist_records', 'maintenance_requests',
   'student_absence_requests', 'time_off_requests', 'teacher_check_ins', 'leave_requests', 'financial_goals',
   'payroll_records', 'building_floors', 'building_offices', 'building_visitor_logs', 'building_visitor_assets',
@@ -176,7 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'his_billing_settings', 'his_invoices', 'his_payments', 'his_billing_items', 'his_insurance_remittances',
           'his_insurance_providers', 'his_tariffs', 'his_hospital_rooms', 'his_partner_labs', 'his_branding',
           'his_prescriptions', 'his_pharmacy_inventory', 'his_pharmacy_batches', 'his_pharmacy_sales', 'his_pharmacy_ledger',
-          'his_patient_id_config', 'document_collections', 'watchlist_records', 'leave_requests', 'financial_goals'
+          'his_patient_id_config', 'his_medical_notes', 'his_clinical_events', 'document_collections', 'watchlist_records', 'leave_requests', 'financial_goals'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
