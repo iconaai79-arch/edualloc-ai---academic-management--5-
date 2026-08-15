@@ -69,8 +69,40 @@ const StatCard = ({ label, value, sub, color = 'slate' }: { label: string; value
 
 // ─── Past report row ─────────────────────────────────────────────────────────
 const PastReportRow = ({ r, onSelect }: { r: any; onSelect: (r: any) => void }) => {
-    const risk = r.overall_risk as AuditSeverity;
+    const risk = (r.overall_risk || r.overallRisk || r.summary?.overallRisk || r.summary_json?.overallRisk || 'INFO') as AuditSeverity;
     const s = SEV[risk] ?? SEV.INFO;
+    const totalIssues = r.total_issues ?? r.totalIssues ?? r.summary?.totalIssues ?? r.summary_json?.totalIssues ?? 0;
+    const criticalCount = r.critical_count ?? r.criticalCount ?? r.summary?.critical ?? r.summary_json?.critical ?? 0;
+    const highCount = r.high_count ?? r.highCount ?? r.summary?.high ?? r.summary_json?.high ?? 0;
+    const collectionRate = r.collection_rate ?? r.collectionRate ?? r.summary?.collectionRate ?? r.summary_json?.collectionRate ?? 0;
+
+    const rawDate = r.run_at || r.runAt || r.created_at || r.createdAt || r.updated_at || r.updatedAt || r.timestamp;
+    let formattedDate = 'Recent';
+    if (rawDate) {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) {
+            formattedDate = d.toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    } else if (r.period) {
+        const parts = String(r.period).split('-');
+        if (parts.length >= 2) {
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1;
+            const d = new Date(year, month, 1);
+            if (!isNaN(d.getTime())) {
+                formattedDate = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+            }
+        }
+    }
+
+    const triggeredBy = r.triggered_by || r.triggeredBy || 'manual';
+
     return (
         <button
             onClick={() => onSelect(r)}
@@ -78,15 +110,17 @@ const PastReportRow = ({ r, onSelect }: { r: any; onSelect: (r: any) => void }) 
         >
             <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${s.dot}`} />
             <div className="flex-1 min-w-0">
-                <p className={`text-xs font-black uppercase tracking-widest ${s.text}`}>{r.period} — {risk}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                    {r.total_issues} issues · {r.critical_count} critical · {r.high_count} high
-                    · Collection {r.collection_rate}%
+                <p className={`text-xs font-black uppercase tracking-widest ${s.text}`}>
+                    {r.period || 'Period'} — {risk}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                    {totalIssues} issue{totalIssues !== 1 ? 's' : ''} · {criticalCount} critical · {highCount} high
+                    · Collection {collectionRate}%
                 </p>
             </div>
             <div className="text-right flex-shrink-0">
-                <p className="text-[10px] text-slate-400">{new Date(r.run_at).toLocaleDateString()}</p>
-                <p className="text-[9px] text-slate-300">{r.triggered_by}</p>
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{formattedDate}</p>
+                <p className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">{triggeredBy}</p>
             </div>
         </button>
     );
@@ -384,7 +418,11 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
                             {report.summary.totalIssues} issue{report.summary.totalIssues !== 1 ? 's' : ''} found
                             · {report.summary.critical} critical · {report.summary.high} high
                             · Collection rate {report.summary.collectionRate}%
-                            · Run at {new Date(report.runAt).toLocaleTimeString()}
+                            · Run at {(() => {
+                                const raw = report.runAt || (report as any).createdAt || (report as any).run_at;
+                                const d = raw ? new Date(raw) : new Date();
+                                return !isNaN(d.getTime()) ? d.toLocaleTimeString() : 'Just now';
+                            })()}
                         </p>
                     </div>
                     {report.summary.totalIssues === 0 && (
@@ -716,23 +754,25 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
                                     key={r.id}
                                     r={r}
                                     onSelect={(selectedReport) => {
+                                        const rawDate = selectedReport.run_at || selectedReport.runAt || selectedReport.created_at || selectedReport.createdAt || new Date().toISOString();
+                                        const sum = selectedReport.summary_json || selectedReport.summary || {};
                                         setReport({
-                                            period: selectedReport.period,
-                                            runAt: selectedReport.run_at,
-                                            institutionId: selectedReport.institution_id,
-                                            issues: selectedReport.issues_json || [],
-                                            summary: selectedReport.summary_json || {
-                                                totalIssues: selectedReport.total_issues,
-                                                critical: selectedReport.critical_count,
-                                                high: selectedReport.high_count,
-                                                medium: selectedReport.medium_count,
-                                                low: selectedReport.low_count,
-                                                info: selectedReport.info_count,
-                                                overallRisk: selectedReport.overall_risk,
-                                                totalBilled: selectedReport.total_billed,
-                                                totalCollected: selectedReport.total_collected,
-                                                collectionRate: selectedReport.collection_rate,
-                                                outstandingDebt: selectedReport.outstanding,
+                                            period: selectedReport.period || 'Period',
+                                            runAt: rawDate,
+                                            institutionId: selectedReport.institution_id || selectedReport.institutionId || institutionId,
+                                            issues: selectedReport.issues_json || selectedReport.issues || [],
+                                            summary: {
+                                                totalIssues: selectedReport.total_issues ?? selectedReport.totalIssues ?? sum.totalIssues ?? 0,
+                                                critical: selectedReport.critical_count ?? selectedReport.criticalCount ?? sum.critical ?? 0,
+                                                high: selectedReport.high_count ?? selectedReport.highCount ?? sum.high ?? 0,
+                                                medium: selectedReport.medium_count ?? selectedReport.mediumCount ?? sum.medium ?? 0,
+                                                low: selectedReport.low_count ?? selectedReport.lowCount ?? sum.low ?? 0,
+                                                info: selectedReport.info_count ?? selectedReport.infoCount ?? sum.info ?? 0,
+                                                overallRisk: selectedReport.overall_risk || selectedReport.overallRisk || sum.overallRisk || 'INFO',
+                                                totalBilled: selectedReport.total_billed ?? selectedReport.totalBilled ?? sum.totalBilled ?? 0,
+                                                totalCollected: selectedReport.total_collected ?? selectedReport.totalCollected ?? sum.totalCollected ?? 0,
+                                                collectionRate: selectedReport.collection_rate ?? selectedReport.collectionRate ?? sum.collectionRate ?? 0,
+                                                outstandingDebt: selectedReport.outstanding ?? selectedReport.outstandingDebt ?? sum.outstandingDebt ?? 0,
                                             }
                                         });
                                         setHasRun(true);
