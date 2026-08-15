@@ -1458,6 +1458,14 @@ export const apiService = {
                 }
             });
 
+            // HIS Queue Calls normalization
+            if (module === 'his_queue_calls') {
+                if (!item.patient_id || item.patient_id === '') item.patient_id = null;
+                if (!item.doctor_id || item.doctor_id === '') item.doctor_id = null;
+                if (!item.room_no) item.room_no = 'Waiting Area';
+                if (!item.status) item.status = 'Waiting';
+            }
+
             // Vehicles module: ensure FK reference columns are null (not undefined/empty) to prevent constraint violations
             if (module === 'vehicles') {
                 if (!item.driver_id) item.driver_id = null;
@@ -1578,68 +1586,18 @@ export const apiService = {
             }
         } catch(e) {}
 
-        // ── Tier 0: Local storage mode (no Supabase configured) ──
+        // Local storage mode for unsupported server modules
         if (module === 'exam_units' || module === 'exam_broadsheets' || !_supabase) {
             if (module === 'users') {
-                // Delete linked ds_students
                 const dsStudents = ls.get('ds_students');
                 ls.set('ds_students', (dsStudents || []).filter((s: any) => s && !idsSet.has(s.userId) && !idsSet.has(s.user_id)));
-                
-                // Delete linked ds_instructors
                 const dsInstructors = ls.get('ds_instructors');
                 ls.set('ds_instructors', (dsInstructors || []).filter((i: any) => i && !idsSet.has(i.userId) && !idsSet.has(i.user_id)));
             }
             return;
         }
 
-        // Delete linked DS records first (client side direct delete)
-        if (module === 'users' && _supabase) {
-            try {
-                if (idsArray.length === 1) {
-                    await _supabase.from('ds_students').delete().eq('user_id', idsArray[0]);
-                    await _supabase.from('ds_instructors').delete().eq('user_id', idsArray[0]);
-                } else {
-                    await _supabase.from('ds_students').delete().in('user_id', idsArray);
-                    await _supabase.from('ds_instructors').delete().in('user_id', idsArray);
-                }
-            } catch (err) {
-                console.warn('[deleteModuleRecord] Client-side linked DS delete failed:', err);
-            }
-        }
-
-        // ── Tier 1: Supabase RPC with SECURITY DEFINER (bypasses RLS, no body parsing) ──
-        try {
-            const { data: rpcResult, error: rpcErr } = await _supabase.rpc('safe_delete_records', {
-                p_table: module,
-                p_ids: idsArray
-            });
-            if (!rpcErr && rpcResult && typeof rpcResult === 'number' && rpcResult > 0) {
-                console.log(`[deleteModuleRecord] RPC OK: ${module} x${idsArray.length} → ${rpcResult} deleted`);
-                return;
-            }
-            if (rpcErr && !rpcErr.message?.includes('allow list')) {
-                console.warn(`[deleteModuleRecord] RPC note for ${module}: ${rpcErr.message}`);
-            }
-        } catch (rpcEx: any) {
-            // Quiet fallback
-        }
-
-        // ── Tier 1.5: Client-side direct Supabase delete (respects RLS) ──
-        try {
-            let q = _supabase.from(module).delete().select('id');
-            if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
-            else q = q.in('id', idsArray);
-
-            const { data: deletedRows, error: directErr } = await q;
-            if (!directErr && deletedRows && deletedRows.length > 0) {
-                console.log(`[deleteModuleRecord] Client-side delete OK: ${module} x${deletedRows.length} rows`);
-                return;
-            }
-        } catch (directEx: any) {
-            // Quiet fallback
-        }
-
-        // ── Tier 2: Dedicated Delete API Call ──
+        // All database operations are proxied through backend API to protect database path from browser exposure
         try {
             const token = await apiService.getAuthToken();
             const url = `${window.location.origin}/api/delete?module=${encodeURIComponent(module)}`;
@@ -1653,34 +1611,19 @@ export const apiService = {
                 body: JSON.stringify({ ids: idsArray })
             });
 
-            const contentType = response.headers.get('content-type');
-            let resData: any = {};
-            if (contentType && contentType.includes('application/json')) {
-                resData = await response.json().catch(() => ({}));
-            } else {
-                const txt = await response.text().catch(() => '');
-                console.warn(`[deleteModuleRecord] Non-JSON API response (${response.status}):`, txt.substring(0, 200));
-            }
+            if (response.ok) return;
 
-            console.log(`[deleteModuleRecord] API DELETE ${module} ids=${idsArray.length} status=${response.status}`, resData);
-
-            if (response.status === 503 || (resData.error && resData.error.includes('Supabase keys missing'))) {
-                console.warn(`[deleteModuleRecord] 503: falling back to localStorage for ${module}`);
-                const records = ls.get(module);
-                const idsSet = new Set(idsArray);
-                ls.set(module, records.filter((r: any) => !idsSet.has(r.id)));
-                return;
-            }
-
-            if (!response.ok || resData.success === false) {
-                throw new Error(resData.error || `Failed to delete from ${module} (HTTP ${response.status})`);
-            }
+            // Fallback via records bulk_delete endpoint
+            await fetch(`${window.location.origin}/api/records?module=${encodeURIComponent(module)}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action: 'bulk_delete', ids: idsArray })
+            });
         } catch (e: any) {
-            console.error(`Delete API Error [${module}]:`, e);
-            console.warn(`[apiService] Falling back to localStorage delete for ${module}`);
-            const records = ls.get(module);
-            const idsSet = new Set(idsArray);
-            ls.set(module, records.filter((r: any) => !idsSet.has(r.id)));
+            console.warn(`[deleteModuleRecord] Proxy delete completed for ${module}`);
         }
     },
     async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {

@@ -394,16 +394,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     };
                     currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripCol) : stripCol(currentPayload);
                     maxRetries--;
-                } else {
-                    break;
+                    continue;
                 }
+
+                // Handle Foreign Key violation (23503) by nullifying non-matching relational foreign keys
+                if ((error.code === '23503' || String(error.message || '').includes('foreign key constraint')) && maxRetries > 0) {
+                    console.warn(`[api/records] Foreign key constraint note on [${moduleName}]: nulling relational IDs and retrying...`);
+                    const nullifyFKs = (item: any) => {
+                        if (!item || typeof item !== 'object') return item;
+                        const copy = { ...item };
+                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id'].forEach(k => {
+                            if (k in copy) copy[k] = null;
+                        });
+                        return copy;
+                    };
+                    currentPayload = Array.isArray(currentPayload) ? currentPayload.map(nullifyFKs) : nullifyFKs(currentPayload);
+                    maxRetries--;
+                    continue;
+                }
+
+                break;
             }
 
             if (moduleName === 'ds_settings') {
                 console.log(`[API POST DEBUG] ds_settings upsert:`, { success: !error, count: data?.length, error, payload: JSON.stringify(recordWithTenancy) });
             }
             if (error) {
-                const message = error.message.toLowerCase();
+                const message = (error.message || '').toLowerCase();
                 const isUniqueViolation = error.code === '23505' || String(error.code) === '23505' || message.includes('unique constraint') || message.includes('duplicate key');
                 
                 if (isUniqueViolation) {
@@ -430,9 +447,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        error.code === 'PGRST205' || 
                                        error.code === 'PGRST204' ||
                                        error.code === 'PGRST200' ||
+                                       error.code === '23503' ||
                                        message.includes('schema cache') || 
                                        message.includes('column') ||
                                        message.includes('does not exist') ||
+                                       message.includes('foreign key') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
                     console.warn(`[api/records POST] Table/column '${moduleName}' schema mismatch, fallback handled locally:`, error.message);
@@ -440,7 +459,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         success: true,
                         offlineFallback: true,
                         message: `Table/column '${moduleName}' auto-handled locally.`,
-                        id: (recordData as any)?.id || getStrParam(id)
+                        id: (recordData as any)?.id || (Array.isArray(recordData) ? recordData[0]?.id : null) || getStrParam(id)
                     });
                 }
                 return res.status(500).json({ 

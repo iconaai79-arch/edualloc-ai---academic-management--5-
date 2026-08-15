@@ -1692,14 +1692,16 @@ CREATE TABLE IF NOT EXISTS his_appointments (
 CREATE TABLE IF NOT EXISTS his_queue_calls (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
+    patient_id TEXT,
     patient_name TEXT,
     doctor_id TEXT,
     doctor_name TEXT,
     room_no TEXT DEFAULT 'Waiting Area',
     token_no TEXT,
+    ticket_no TEXT,
     priority TEXT DEFAULT 'Routine',
     wait_mins INTEGER DEFAULT 0,
+    complaint TEXT,
     status TEXT DEFAULT 'Waiting',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -2190,19 +2192,6 @@ CREATE TABLE IF NOT EXISTS his_broadcasts (
     is_active BOOLEAN DEFAULT TRUE,
     scheduled_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     expires_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS his_queue_calls (
-    id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    patient_id TEXT REFERENCES his_patients(id) ON DELETE SET NULL,
-    patient_name TEXT,
-    status VARCHAR(50) DEFAULT 'Waiting',
-    room_no VARCHAR(50),
-    doctor_name TEXT,
-    ticket_no TEXT,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
