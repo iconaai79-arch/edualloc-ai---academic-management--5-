@@ -1584,6 +1584,19 @@ CREATE TABLE IF NOT EXISTS his_appointments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS his_queue_calls (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
+    patient_name TEXT,
+    doctor_id TEXT,
+    doctor_name TEXT,
+    room_no TEXT DEFAULT 'Waiting Area',
+    status TEXT DEFAULT 'Waiting',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS his_staff_attendance (
     id TEXT PRIMARY KEY,
     staff_id TEXT REFERENCES his_staff(id) ON DELETE CASCADE,
