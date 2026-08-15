@@ -108,7 +108,8 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
     }, [directorySearch, users, isEdu]);
 
     const handleSelectUser = (user: User) => {
-        setFormData({
+        setFormData(prev => ({
+            ...prev,
             fullName: user.name,
             dob: user.metadata?.dob || '',
             gender: (user.metadata?.gender === 'Female' ? 'Female' : 'Male'),
@@ -127,13 +128,14 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                 : (user.metadata?.allergies || ''),
             gradeLevel: user.metadata?.gradeLevel || user.metadata?.class_level || '',
             stream: user.metadata?.stream || '',
-        });
+        }));
         setIsAutoFilled(true);
         setDirectorySearch('');
     };
 
     const handleResetForm = () => {
-        setFormData({
+        setFormData(prev => ({
+            ...prev,
             fullName: '',
             dob: '',
             gender: 'Male',
@@ -150,7 +152,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
             allergies: '',
             gradeLevel: '',
             stream: '',
-        });
+        }));
         setIsAutoFilled(false);
         setCurrentStep(1);
     };

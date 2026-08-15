@@ -136,7 +136,13 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
     });
 
     // ── Custom Patient ID & Prefix Settings State ──────────────────────────────
-    const [patientIdSettings, setPatientIdSettings] = useState(() => {
+    const [patientIdSettings, setPatientIdSettings] = useState<{
+        customPrefix: string;
+        startNumber: number;
+        zeroPadLength: number;
+        includeYear: boolean;
+        autoAssign: boolean;
+    }>(() => {
         try {
             const saved = localStorage.getItem(`his_patient_id_config_${institutionId}`);
             if (saved) return JSON.parse(saved);
