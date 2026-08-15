@@ -155,8 +155,8 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
             // Also add patient to HIS queue calls so doctor can see them in consultation queue!
             await apiService.saveModuleRecord('his_queue_calls', {
                 id: `his_q_${record.id}`,
-                institutionId,
-                institution_id: institutionId,
+                institutionId: instId,
+                institution_id: instId,
                 patientId: record.id,
                 patient_id: record.id,
                 patientName: patName,
@@ -167,11 +167,12 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
                 updatedAt: new Date().toISOString()
             }).catch(() => null);
 
-            setPatients(prev => [record, ...prev]);
+            setPatients(prev => [record, ...prev.filter(p => p.id !== record.id)]);
             setIsRegisterOpen(false);
             setSelectedPatient(record);
             showNotif(`${patName} registered successfully`);
             setTimeout(() => setIsBookingOpen(true), 300);
+            loadData();
         } catch (e) {
             console.error('Registration failed:', e);
             showNotif('Registration failed', 'error');

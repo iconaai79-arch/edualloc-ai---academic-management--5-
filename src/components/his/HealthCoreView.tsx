@@ -516,8 +516,8 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
             // Save queue call record so patient appears in doctor consultation queue
             await apiService.saveModuleRecord('his_queue_calls', {
                 id: `his_q_${record.id}`,
-                institutionId,
-                institution_id: institutionId,
+                institutionId: instId,
+                institution_id: instId,
                 patientId: record.id,
                 patient_id: record.id,
                 patientName: patName,
@@ -528,6 +528,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                 updatedAt: new Date().toISOString()
             }).catch(() => null);
 
+            setPatients(prev => [record, ...prev.filter(p => p.id !== record.id)]);
             alert(`✓ Patient ${patName} registered successfully!`);
             setIsRegisterModalOpen(false);
             fetchPatients();

@@ -1130,7 +1130,21 @@ export const apiService = {
                     }
                 });
             }
-            return Array.isArray(result) ? result : [];
+
+            if (Array.isArray(result)) {
+                const localData = queryLocal();
+                if (result.length === 0 && localData.length > 0) {
+                    return localData;
+                }
+                if (result.length > 0 && localData.length > 0) {
+                    const combined = new Map<string, any>();
+                    localData.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
+                    result.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
+                    return Array.from(combined.values());
+                }
+                return result;
+            }
+            return queryLocal();
         } catch (e) {
             console.error(`Fetch Exception [${module}]:`, e);
             console.warn(`[apiService] Falling back to local storage for module [${module}]`);
@@ -1665,8 +1679,11 @@ export const apiService = {
             payload.branch_id = null;
         }
 
+        // Immediate write-through cache
+        ls.upsert(module, payload);
+        try { localDb.upsert(module, payload).catch(() => {}); } catch (_) {}
+
         if (module === 'exam_units' || module === 'exam_broadsheets') {
-            ls.upsert(module, payload);
             const instId = payload?.institution_id || payload?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || 'default';
             if (_supabase && instId) {
                 const stateData = { id: `${instId}_${module}_${payload.id || 'state'}`, institutionId: instId, moduleId: module, data: payload, updatedAt: new Date().toISOString() };
@@ -1676,7 +1693,6 @@ export const apiService = {
         }
 
         if (module === 'institution_module_states') {
-            ls.upsert(module, payload);
             if (_supabase) {
                 try {
                     const { data: imsData, error: imsErr } = await _supabase.from('institution_module_states').upsert(payload).select();
@@ -1691,7 +1707,6 @@ export const apiService = {
         }
 
         if (!_supabase || _unsupportedServerModules.has(module)) {
-            ls.upsert(module, payload);
             return toCamelCase(payload);
         }
 
@@ -1712,7 +1727,6 @@ export const apiService = {
 
                 if (response.status === 500) {
                     console.log(`[apiService] Module '${module}' fallback saved locally.`);
-                    ls.upsert(module, currentPayload);
                     return toCamelCase(currentPayload);
                 }
 
@@ -1768,13 +1782,17 @@ export const apiService = {
                     }
                     
                     console.warn(`[apiService] Save API returned status ${response.status} for [${module}] — falling back to local storage:`, errData);
-                    ls.upsert(module, currentPayload);
                     return toCamelCase(currentPayload);
                 }
 
                 const contentTypePost = response.headers.get('content-type');
                 if (contentTypePost && contentTypePost.includes('application/json')) {
-                    return await response.json().catch(() => null);
+                    const savedRes = await response.json().catch(() => null);
+                    if (savedRes) {
+                        ls.upsert(module, savedRes);
+                        try { localDb.upsert(module, savedRes).catch(() => {}); } catch (_) {}
+                    }
+                    return savedRes;
                 } else {
                     const text = await response.text();
                     console.warn(`[apiService] Save [${module}] returned non-JSON:`, text.substring(0, 200));
@@ -1783,7 +1801,7 @@ export const apiService = {
             };
 
             const savedData = await attemptSave(payload);
-            return savedData ? toCamelCase(savedData) : null;
+            return savedData ? toCamelCase(savedData) : toCamelCase(payload);
         } catch (e: any) {
             const errStr = String(e?.message || e || '');
             if (errStr.includes('PGRST205') || errStr.includes('schema cache') || errStr.includes('500') || errStr.includes('Internal Server Error') || errStr.includes('Failed to save')) {
@@ -1797,7 +1815,6 @@ export const apiService = {
             if (errStr.includes('Registry Conflict') || errStr.includes('23505') || errStr.toLowerCase().includes('unique constraint') || errStr.toLowerCase().includes('already registered')) {
                 throw e;
             }
-            ls.upsert(module, payload);
             return toCamelCase(payload);
         }
     },
