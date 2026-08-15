@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { HISPatient } from '../../types';
 import { XIcon } from '../icons/XIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -111,68 +112,79 @@ export function SOAPEncounterModal({
     };
 
     const handleSaveEncounter = async () => {
-        if (!subjective.trim() && !assessment.trim()) {
-            alert('Please fill in clinical findings or assessment before saving.');
+        if (!assessment.trim()) {
+            alert('Please specify a clinical assessment / diagnosis before saving the encounter.');
             return;
         }
 
         setIsSaving(true);
         try {
-            const encId = `enc_${Date.now()}`;
-            const fullNotes = `[SUBJECTIVE]\n${subjective}\n\n[OBJECTIVE]\n${objective}\nVitals: BP ${vitals.bp} | Pulse ${vitals.pulse} bpm | Temp ${vitals.temp}°C | SpO2 ${vitals.spo2}% | Wt ${vitals.weight || 'N/A'}kg\n\n[ASSESSMENT / DIAGNOSIS]\n${assessment}\n\n[PLAN / MANAGEMENT]\n${plan}`;
-
-            // Save clinical event timeline
-            await apiService.saveModuleRecord('his_clinical_events', {
-                id: `evt_${encId}`,
+            const encounterId = `enc_${Date.now()}`;
+            const encounterRecord = {
+                id: encounterId,
                 institutionId,
                 patientId: patient.id,
-                date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-                time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-                event: `Clinical Encounter: ${assessment.substring(0, 45)}...`,
-                dept: 'Outpatient Clinic',
-                provider: doctorName || 'Dr. Attending Physician',
-                notes: fullNotes,
-                createdAt: new Date().toISOString()
-            });
-
-            // Save consolidated master invoice with Consultation Fee included
-            const isInsured = !!(patient.insuranceProvider || (patient as any).shaNumber || (patient as any).insurance_provider);
-            const insProvider = patient.insuranceProvider || (patient as any).insurance_provider || (isInsured ? 'SHA (Social Health Authority)' : undefined);
-            const policyNo = (patient as any).shaNumber || (patient as any).policyNumber || (isInsured ? 'SHA-8849-K' : undefined);
-
-            const consolidatedItems = [
-                { itemName: 'General Practitioner Consultation Fee', category: 'Consultation', quantity: 1, unitPrice: 2000, total: 2000 },
-                { itemName: 'Diagnostic Lab Screening', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 },
-                { itemName: 'Prescription Medications & Dispensing', category: 'Pharmacy', quantity: 1, unitPrice: 1500, total: 1500 }
-            ];
-
-            const totalInvoiceAmount = consolidatedItems.reduce((s, it) => s + it.total, 0); // Total KES 6,000
-            const copay = isInsured ? 500 : totalInvoiceAmount;
-            const insCover = isInsured ? Math.max(0, totalInvoiceAmount - copay) : 0;
-            const payerTypeVal = isInsured ? 'Split (Co-Pay + Insurance)' : 'Self-Pay';
-            const invNo = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-            await apiService.saveModuleRecord('his_invoices', {
-                id: `inv_soap_${patient.id}`,
-                institutionId,
-                institution_id: institutionId,
-                invoiceNumber: invNo,
-                invoice_number: invNo,
-                patientId: patient.id,
-                patient_id: patient.id,
                 patientName: patient.fullName,
                 patient_name: patient.fullName,
-                payerType: payerTypeVal,
-                payer_type: payerTypeVal,
-                insuranceProvider: insProvider,
-                insurance_provider: insProvider,
-                policyNumber: policyNo,
-                policy_number: policyNo,
-                copayAmount: copay,
-                copay_amount: copay,
-                insuranceCoverAmount: insCover,
-                insurance_cover_amount: insCover,
-                items: consolidatedItems,
+                patientNumber: patient.admissionNumber || patient.patientNumber || patient.id,
+                doctorName: doctorName || 'Dr. Attending Physician',
+                doctor_name: doctorName || 'Dr. Attending Physician',
+                encounterDate: new Date().toISOString(),
+                subjective,
+                objective,
+                assessment,
+                plan,
+                vitals,
+                templateUsed: selectedTemplate,
+                createdAt: new Date().toISOString(),
+                created_at: new Date().toISOString()
+            };
+
+            // Save clinical notes record to Database
+            await apiService.saveModuleRecord('his_medical_notes', encounterRecord);
+
+            // Also record vitals if provided
+            if (vitals.bp || vitals.temp || vitals.pulse) {
+                await apiService.saveModuleRecord('his_vital_statistics', {
+                    id: `vit_${Date.now()}`,
+                    institutionId,
+                    patientId: patient.id,
+                    bloodPressure: vitals.bp,
+                    heartRate: vitals.pulse ? parseInt(vitals.pulse, 10) : undefined,
+                    temperature: vitals.temp ? parseFloat(vitals.temp) : undefined,
+                    oxygenSaturation: vitals.spo2 ? parseFloat(vitals.spo2) : undefined,
+                    weight: vitals.weight ? parseFloat(vitals.weight) : undefined,
+                    recordedBy: doctorName || 'Doctor',
+                    dateRecorded: new Date().toISOString().slice(0, 10),
+                    createdAt: new Date().toISOString()
+                }).catch(() => null);
+            }
+
+            // Generate consultation billing invoice
+            const isInsurance = Boolean(patient.insuranceProvider && patient.insuranceProvider !== 'Cash' && patient.insuranceProvider.trim() !== '');
+            const consultationFee = getConsultationFeeFromSettings('general_opd', isInsurance);
+            const totalInvoiceAmount = consultationFee;
+
+            const invoiceId = `inv_doc_${Date.now()}`;
+            const invoiceItems = [
+                {
+                    id: `item_cons_${Date.now()}`,
+                    description: `Doctor Clinical Consultation (${isInsurance ? `${patient.insuranceProvider} Scheme` : 'Private Cash'})`,
+                    category: 'Consultation',
+                    quantity: 1,
+                    unitPrice: consultationFee,
+                    totalPrice: consultationFee
+                }
+            ];
+
+            await apiService.saveModuleRecord('his_financial_records', {
+                id: invoiceId,
+                institutionId,
+                patientId: patient.id,
+                patientName: patient.fullName,
+                patient_name: patient.fullName,
+                invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+                items: invoiceItems,
                 totalAmount: totalInvoiceAmount,
                 total_amount: totalInvoiceAmount,
                 amountPaid: 0,
@@ -195,9 +207,16 @@ export function SOAPEncounterModal({
         }
     };
 
-    return (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[200] flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-white/10 w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden text-white flex flex-col max-h-[90vh] animate-zoom-in">
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            {/* Backdrop */}
+            <div 
+                className="fixed inset-0 bg-slate-950/80 backdrop-blur-md animate-fade-in" 
+                onClick={onClose}
+            />
+
+            {/* Modal Card */}
+            <div className="relative bg-slate-900 border border-white/10 w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden text-white flex flex-col max-h-[90vh] my-auto animate-zoom-in z-10">
                 {/* Top Banner */}
                 <div className="p-6 bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 border-b border-white/10 flex justify-between items-center shrink-0">
                     <div className="flex items-center space-x-4">
@@ -357,13 +376,13 @@ export function SOAPEncounterModal({
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black uppercase tracking-widest text-blue-400 flex items-center space-x-1">
                                 <StethoscopeIcon className="w-3.5 h-3.5" />
-                                <span>Objective (Physical Exam &amp; Systemic Findings)</span>
+                                <span>Objective (Examination &amp; Findings)</span>
                             </label>
                             <textarea
                                 rows={4}
                                 value={objective}
                                 onChange={e => setObjective(e.target.value)}
-                                placeholder="Physical findings..."
+                                placeholder="General condition, systemic examination..."
                                 className="w-full bg-black/40 border border-white/10 focus:border-blue-500 rounded-2xl p-4 text-xs font-medium text-slate-200 outline-none resize-none leading-relaxed"
                             />
                         </div>
@@ -371,30 +390,30 @@ export function SOAPEncounterModal({
                         {/* Assessment */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center space-x-1">
-                                <SparklesIcon className="w-3.5 h-3.5" />
-                                <span>Assessment &amp; Diagnosis (ICD-10)</span>
+                                <HeartIcon className="w-3.5 h-3.5" />
+                                <span>Assessment (Diagnosis / Clinical Impression)</span>
                             </label>
                             <textarea
                                 rows={4}
                                 value={assessment}
                                 onChange={e => setAssessment(e.target.value)}
-                                placeholder="Clinical diagnosis..."
-                                className="w-full bg-black/40 border border-white/10 focus:border-amber-500 rounded-2xl p-4 text-xs font-bold text-amber-200 outline-none resize-none leading-relaxed"
+                                placeholder="Confirmed diagnosis, differential diagnosis..."
+                                className="w-full bg-black/40 border border-white/10 focus:border-amber-500 rounded-2xl p-4 text-xs font-medium text-slate-200 outline-none resize-none leading-relaxed"
                             />
                         </div>
 
                         {/* Plan */}
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-purple-400 flex items-center space-x-1">
-                                <BeakerIcon className="w-3.5 h-3.5" />
-                                <span>Plan &amp; Treatment Management</span>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400 flex items-center space-x-1">
+                                <ClockIcon className="w-3.5 h-3.5" />
+                                <span>Plan (Management, Care &amp; Review)</span>
                             </label>
                             <textarea
                                 rows={4}
                                 value={plan}
                                 onChange={e => setPlan(e.target.value)}
-                                placeholder="Treatment plan, advice..."
-                                className="w-full bg-black/40 border border-white/10 focus:border-purple-500 rounded-2xl p-4 text-xs font-medium text-slate-200 outline-none resize-none leading-relaxed"
+                                placeholder="Treatment plan, advice, diet, follow-up..."
+                                className="w-full bg-black/40 border border-white/10 focus:border-indigo-500 rounded-2xl p-4 text-xs font-medium text-slate-200 outline-none resize-none leading-relaxed"
                             />
                         </div>
                     </div>
@@ -432,6 +451,9 @@ export function SOAPEncounterModal({
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
+
+export default SOAPEncounterModal;
