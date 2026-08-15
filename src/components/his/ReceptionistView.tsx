@@ -24,6 +24,7 @@ interface ReceptionistViewProps {
     institutionId?: string;
     userName?: string;
     users?: any[];
+    onPatientsUpdated?: () => void;
 }
 
 const TODAY = new Date().toISOString().split('T')[0];
@@ -37,7 +38,7 @@ const statusStyles: Record<string, string> = {
     Rescheduled:'bg-orange-500/10 text-orange-500 border-orange-500/20',
 };
 
-export function ReceptionistView({ institutionId, userName, users = [] }: ReceptionistViewProps) {
+export function ReceptionistView({ institutionId, userName, users = [], onPatientsUpdated }: ReceptionistViewProps) {
     const [patients, setPatients] = useState<HISPatient[]>([]);
     const [appointments, setAppointments] = useState<HISAppointment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -185,6 +186,10 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
 
             // Automatically advance sequence counter
             await advancePatientIdSequence(patNo, instId);
+
+            // Broadcast to all components and invoke callback
+            window.dispatchEvent(new Event('his_patients_updated'));
+            if (onPatientsUpdated) onPatientsUpdated();
 
             setPatients(prev => [record, ...prev.filter(p => p.id !== record.id)]);
             setIsRegisterOpen(false);

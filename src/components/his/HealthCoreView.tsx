@@ -386,21 +386,36 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
     }, [institutionId]);
 
     const fetchPatients = React.useCallback(async () => {
-        if (!institutionId) return;
         setIsLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords('his_patients', institutionId);
-            setPatients(data || []);
+            const data = await apiService.fetchModuleRecords('his_patients', institutionId || undefined);
+            if (data && data.length > 0) {
+                setPatients(data);
+            } else if (!institutionId && demoData?.hisPatients) {
+                setPatients(demoData.hisPatients);
+            } else {
+                setPatients(data || []);
+            }
         } catch (error) {
             console.error("Failed to fetch patients:", error);
         } finally {
             setIsLoading(false);
         }
-    }, [institutionId]);
+    }, [institutionId, demoData]);
 
     React.useEffect(() => {
         fetchPatients();
+        const handleUpdate = () => fetchPatients();
+        window.addEventListener('his_patients_updated', handleUpdate);
+        return () => window.removeEventListener('his_patients_updated', handleUpdate);
     }, [fetchPatients]);
+
+    // Refetch when switching to patient-related tabs
+    React.useEffect(() => {
+        if (['patients', 'doctor', 'general', 'receptionist'].includes(activeModule)) {
+            fetchPatients();
+        }
+    }, [activeModule, fetchPatients]);
 
     // Auto-navigate receptionist to their dedicated desk
     React.useEffect(() => {
@@ -1101,7 +1116,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                     institution={currentInst}
                                 />
                             );
-                            case 'receptionist': return <ReceptionistView institutionId={institutionId} userName={userName} users={users} />;
+                            case 'receptionist': return <ReceptionistView institutionId={institutionId} userName={userName} users={users} onPatientsUpdated={fetchPatients} />;
                             case 'queuing': return <HISQueueManagerView institutionId={institutionId} userName={userName} activeRole={activeRole} />;
                             case 'patients': return (
                                 <EduPulsePatientsList

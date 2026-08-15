@@ -592,6 +592,26 @@ export function EduPulsePatientsList({
     const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
     const [notification, setNotification] = useState('');
 
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    // Auto-sync whenever a patient is registered anywhere in HIS
+    useEffect(() => {
+        const handleSync = () => {
+            if (onPatientUpdated) onPatientUpdated();
+        };
+        window.addEventListener('his_patients_updated', handleSync);
+        return () => window.removeEventListener('his_patients_updated', handleSync);
+    }, [onPatientUpdated]);
+
+    const handleManualSync = async () => {
+        setIsSyncing(true);
+        try {
+            if (onPatientUpdated) await onPatientUpdated();
+        } finally {
+            setTimeout(() => setIsSyncing(false), 600);
+        }
+    };
+
     // Pagination states
     const itemsPerPage = 8;
     const [currentPage, setCurrentPage] = useState(1);
@@ -691,11 +711,23 @@ export function EduPulsePatientsList({
                         {patients.length} patient{patients.length !== 1 ? 's' : ''} registered
                     </p>
                 </div>
-                <button
-                    onClick={onRegisterPatient}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-7 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20 flex-shrink-0">
-                    <PlusIcon className="w-4 h-4" /> Register New Patient
-                </button>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                        type="button"
+                        onClick={handleManualSync}
+                        disabled={isSyncing}
+                        className="bg-white/5 hover:bg-white/10 border border-white/10 text-indigo-300 px-5 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all"
+                        title="Reload latest patients from database"
+                    >
+                        <span className={`inline-block ${isSyncing ? 'animate-spin' : ''}`}>🔄</span>
+                        <span>{isSyncing ? 'Syncing...' : 'Sync Registry'}</span>
+                    </button>
+                    <button
+                        onClick={onRegisterPatient}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-7 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20 flex-shrink-0">
+                        <PlusIcon className="w-4 h-4" /> Register New Patient
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
