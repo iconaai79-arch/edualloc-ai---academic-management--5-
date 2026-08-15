@@ -1429,12 +1429,29 @@ export const apiService = {
                 const pName = item.full_name || item.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Registered Patient';
                 item.full_name = pName;
                 item.name = pName;
-                const opNo = item.admission_number || item.admissionNumber || item.custom_patient_id || item.customPatientId || item.patient_number || item.patientNumber || item.op_number || item.opNumber || item.id;
-                if (opNo) {
-                    item.admission_number = opNo;
-                    item.custom_patient_id = opNo;
-                    item.patient_number = opNo;
-                    item.op_number = opNo;
+                
+                // Prioritize explicit newly edited file number / OP number
+                let opNo: any = null;
+                if (item.admission_number !== undefined && item.admission_number !== null) opNo = item.admission_number;
+                else if (item.admissionNumber !== undefined && item.admissionNumber !== null) opNo = item.admissionNumber;
+                else if (item.custom_patient_id !== undefined && item.custom_patient_id !== null) opNo = item.custom_patient_id;
+                else if (item.customPatientId !== undefined && item.customPatientId !== null) opNo = item.customPatientId;
+                else if (item.patient_number !== undefined && item.patient_number !== null) opNo = item.patient_number;
+                else if (item.patientNumber !== undefined && item.patientNumber !== null) opNo = item.patientNumber;
+                else if (item.op_number !== undefined && item.op_number !== null) opNo = item.op_number;
+                else if (item.opNumber !== undefined && item.opNumber !== null) opNo = item.opNumber;
+                else opNo = item.id;
+
+                if (opNo !== null && opNo !== undefined) {
+                    const trimmed = String(opNo).trim();
+                    item.admission_number = trimmed;
+                    item.admissionNumber = trimmed;
+                    item.custom_patient_id = trimmed;
+                    item.customPatientId = trimmed;
+                    item.patient_number = trimmed;
+                    item.patientNumber = trimmed;
+                    item.op_number = trimmed;
+                    item.opNumber = trimmed;
                 }
             }
             

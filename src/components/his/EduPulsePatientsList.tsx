@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { UsersIcon } from '../icons/UsersIcon';
 import { SearchIcon } from '../icons/SearchIcon';
 import { PlusIcon } from '../icons/PlusIcon';
@@ -52,8 +53,13 @@ function EditPatientModal({
     const [formData, setFormData] = useState({
         ...patient,
         admissionNumber: existingOp,
+        admission_number: existingOp,
         customPatientId: existingOp,
+        custom_patient_id: existingOp,
         patientNumber: existingOp,
+        patient_number: existingOp,
+        opNumber: existingOp,
+        op_number: existingOp,
         gradeLevel: patient.gradeLevel || (patient as any).grade_level || '',
         stream: patient.stream || ''
     });
@@ -63,7 +69,7 @@ function EditPatientModal({
         e.preventDefault();
         setIsSaving(true);
         try {
-            const opVal = (formData.admissionNumber || '').trim();
+            const opVal = (formData.admissionNumber || formData.admission_number || formData.customPatientId || formData.custom_patient_id || formData.patientNumber || formData.patient_number || formData.opNumber || formData.op_number || '').trim();
             const updatedRecord: Patient = {
                 ...formData,
                 admissionNumber: opVal,
@@ -87,8 +93,8 @@ function EditPatientModal({
     const inputCls = "w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none transition-all dark:text-white placeholder-slate-400";
     const labelCls = "text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 block mb-2";
 
-    return (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+    const modalContent = (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
             <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden max-h-[90vh] overflow-y-auto">
                 
                 {/* Header */}
@@ -98,7 +104,7 @@ function EditPatientModal({
                             Edit <span className="text-indigo-200">Patient Record</span>
                         </h2>
                         <p className="text-[9px] font-black text-indigo-100 uppercase tracking-widest mt-1 opacity-80">
-                            Adm No: {patient.admissionNumber || (patient as any).admission_number || 'N/A'}
+                            Current File No: {formData.admissionNumber || formData.admission_number || 'N/A'}
                         </p>
                     </div>
                     <button onClick={onClose} className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all">
@@ -119,7 +125,20 @@ function EditPatientModal({
                         <div>
                             <label className={labelCls}>Patient File / OP Number</label>
                             <input type="text" placeholder="PAT-0001" value={formData.admissionNumber || ''}
-                                onChange={e => setFormData(p => ({ ...p, admissionNumber: e.target.value }))}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setFormData(p => ({
+                                        ...p,
+                                        admissionNumber: val,
+                                        admission_number: val,
+                                        customPatientId: val,
+                                        custom_patient_id: val,
+                                        patientNumber: val,
+                                        patient_number: val,
+                                        opNumber: val,
+                                        op_number: val
+                                    }));
+                                }}
                                 className={inputCls} />
                         </div>
                     </div>
@@ -163,7 +182,7 @@ function EditPatientModal({
                     {/* Row 3: Contact & Blood Group */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className={labelCls}>Contact / Parent Phone</label>
+                            <label className={labelCls}>Contact / Phone Number</label>
                             <input type="text" placeholder="+254 700 000 000" value={formData.contact || ''}
                                 onChange={e => setFormData(p => ({ ...p, contact: e.target.value }))}
                                 className={inputCls} />
@@ -214,6 +233,8 @@ function EditPatientModal({
             </div>
         </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 
 /* ─── Age Calculator ─── */
@@ -377,8 +398,8 @@ function PatientHistoryModal({
 
     const age = calcAge(patient.dob);
 
-    return (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+    const modalContent = (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 w-full max-w-3xl rounded-[2.5rem] p-8 max-h-[85vh] flex flex-col relative shadow-2xl animate-zoom-in">
                 <div className="flex items-start justify-between pb-6 border-b border-slate-100 dark:border-white/5">
                     <div className="flex items-center gap-4">
@@ -395,7 +416,7 @@ function PatientHistoryModal({
                                 </span>
                             </div>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                                Reg: {patient.admissionNumber || 'N/A'} · Age: {age !== null ? `${age} yrs` : 'N/A'} · Blood: {patient.bloodGroup || 'UNK'}
+                                Reg: {patient.admissionNumber || (patient as any).admission_number || (patient as any).customPatientId || (patient as any).patientNumber || 'N/A'} · Age: {age !== null ? `${age} yrs` : 'N/A'} · Blood: {patient.bloodGroup || 'UNK'}
                             </p>
                         </div>
                     </div>
@@ -432,9 +453,9 @@ function PatientHistoryModal({
 
                 <div className="flex-1 overflow-y-auto pr-2 space-y-4 my-2">
                     {loading ? (
-                        <div className="py-20 text-center">
-                            <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading history dossier...</p>
+                        <div className="py-20 flex flex-col items-center justify-center gap-3">
+                            <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Loading full patient profile...</p>
                         </div>
                     ) : activeTab === 'timeline' ? (
                         timelineItems.length === 0 ? (
