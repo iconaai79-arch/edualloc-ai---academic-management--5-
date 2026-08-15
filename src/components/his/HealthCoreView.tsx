@@ -30,6 +30,7 @@ import { HISConfigView } from './HISConfigView';
 import { HISReportsView } from './HISReportsView';
 import { StaffAttendanceView } from './StaffAttendanceView';
 import { RegisterPatientModal } from './RegisterPatientModal';
+import { generateNextPatientId, advancePatientIdSequence } from '../../utils/hisPatientIdGenerator';
 import { UpdateVitalsModal } from './UpdateVitalsModal';
 import { AddWardModal } from './AddWardModal';
 import { AddVisitModal } from './AddVisitModal';
@@ -514,7 +515,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
         const instId = institutionId || 'his_inst_1';
         try {
             const patName = patientData.fullName || `${patientData.firstName || ''} ${patientData.lastName || ''}`.trim() || 'Registered Patient';
-            const patNo = patientData.admissionNumber || patientData.admission_number || patientData.customPatientId || patientData.custom_patient_id || patientData.patientNumber || patientData.patient_number || patientData.opNumber || patientData.op_number || `PID-${Math.floor(100 + Math.random() * 900)}`;
+            const patNo = patientData.admissionNumber || patientData.admission_number || patientData.customPatientId || patientData.custom_patient_id || patientData.patientNumber || patientData.patient_number || patientData.opNumber || patientData.op_number || generateNextPatientId(patients, instId);
 
             const record = {
                 ...patientData,
@@ -540,6 +541,9 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
 
             await apiService.saveModuleRecord('his_patients', record);
 
+            // Automatically increment and store the next unique patient ID sequence
+            await advancePatientIdSequence(patNo, instId);
+
             // Save queue call record so patient appears in doctor consultation queue
             await apiService.saveModuleRecord('his_queue_calls', {
                 id: `his_q_${record.id}`,
@@ -556,7 +560,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
             }).catch(() => null);
 
             setPatients(prev => [record, ...prev.filter(p => p.id !== record.id)]);
-            alert(`✓ Patient ${patName} registered successfully!`);
+            alert(`✓ Patient ${patName} (ID: ${patNo}) registered successfully!`);
             setIsRegisterModalOpen(false);
             fetchPatients();
             if (activeModule === 'general') setActivePatientId(record.id);
@@ -1125,7 +1129,15 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                 </div>
             </main>
 
-            <RegisterPatientModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={handleRegisterPatient} users={users} isEdu={isEdu} />
+            <RegisterPatientModal 
+                isOpen={isRegisterModalOpen} 
+                onClose={() => setIsRegisterModalOpen(false)} 
+                onRegister={handleRegisterPatient} 
+                users={users} 
+                isEdu={isEdu} 
+                institutionId={institutionId}
+                existingPatients={patients}
+            />
             <UpdateVitalsModal isOpen={isUpdateVitalsOpen} onClose={() => setIsUpdateVitalsOpen(false)} patientId={activePatientId || ''} patientName={activePatient?.fullName} onUpdate={handleUpdateVitals} />
             <AddWardModal isOpen={isAddWardOpen} onClose={() => setIsAddWardOpen(false)} onAdd={handleAddWard} />
             <AddVisitModal 

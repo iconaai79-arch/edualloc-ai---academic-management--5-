@@ -8,6 +8,7 @@ import { ArrowPathIcon } from '../icons/ArrowPathIcon';
 import { SearchIcon } from '../icons/SearchIcon';
 import { HeartIcon, IdentificationIcon, ShieldCheckIcon, CalendarIcon } from './HealthIcons';
 import { HISPatient, User } from '../../types';
+import { generateNextPatientId, advancePatientIdSequence } from '../../utils/hisPatientIdGenerator';
 
 interface RegisterPatientModalProps {
     isOpen: boolean;
@@ -15,6 +16,8 @@ interface RegisterPatientModalProps {
     onRegister: (patient: Omit<HISPatient, 'id' | 'institutionId' | 'createdAt' | 'updatedAt'>) => Promise<void>;
     users?: User[];
     isEdu?: boolean;
+    institutionId?: string;
+    existingPatients?: any[];
 }
 
 function ChevronRightIcon(props: any) {
@@ -33,7 +36,7 @@ function ChevronLeftIcon(props: any) {
     );
 }
 
-export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], isEdu = false }: RegisterPatientModalProps) {
+export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], isEdu = false, institutionId, existingPatients = [] }: RegisterPatientModalProps) {
     const [currentStep, setCurrentStep] = useState(1);
     const [formData, setFormData] = useState({
         customPatientId: '',
@@ -61,20 +64,9 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
 
     React.useEffect(() => {
         if (!isOpen) return;
-        try {
-            const keys = Object.keys(localStorage).filter(k => k.startsWith('his_patient_id_config_'));
-            let config = { customPrefix: 'PID-', startNumber: 1, zeroPadLength: 3, includeYear: false };
-            if (keys.length > 0) {
-                const saved = localStorage.getItem(keys[0]);
-                if (saved) config = { ...config, ...JSON.parse(saved) };
-            }
-            if (!formData.customPatientId) {
-                const yearPart = config.includeYear ? `${new Date().getFullYear()}-` : '';
-                const sampleNum = String(config.startNumber).padStart(config.zeroPadLength, '0');
-                setFormData(f => ({ ...f, customPatientId: `${config.customPrefix}${yearPart}${sampleNum}` }));
-            }
-        } catch (e) {}
-    }, [isOpen]);
+        const nextId = generateNextPatientId(existingPatients, institutionId);
+        setFormData(f => ({ ...f, customPatientId: nextId }));
+    }, [isOpen, existingPatients, institutionId]);
 
     // Calculate Age Automatically based on DOB
     const calculatedAge = useMemo(() => {
@@ -134,8 +126,9 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
     };
 
     const handleResetForm = () => {
-        setFormData(prev => ({
-            ...prev,
+        const nextId = generateNextPatientId(existingPatients, institutionId);
+        setFormData({
+            customPatientId: nextId,
             fullName: '',
             dob: '',
             gender: 'Male',
@@ -152,7 +145,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
             allergies: '',
             gradeLevel: '',
             stream: '',
-        }));
+        });
         setIsAutoFilled(false);
         setCurrentStep(1);
     };
@@ -219,7 +212,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
         if (!validateForm()) return;
         setIsSubmitting(true);
         try {
-            const generatedId = formData.customPatientId || `PID-${Math.floor(100 + Math.random() * 900)}`;
+            const generatedId = formData.customPatientId || generateNextPatientId(existingPatients, institutionId);
             const finalContact = formData.contact.trim() || formData.guardianPhone || formData.emergencyContactPhone || 'N/A';
 
             await onRegister({
@@ -227,11 +220,17 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                 contact: finalContact,
                 patientNumber: generatedId,
                 customPatientId: generatedId,
+                admissionNumber: formData.admissionNumber || generatedId,
+                opNumber: generatedId,
                 gender: formData.gender as 'Male' | 'Female' | 'Other',
                 allergies: formData.allergies
                     ? formData.allergies.split(',').map(s => s.trim()).filter(Boolean)
                     : []
             });
+
+            // Automatically advance sequence counter for next patient
+            await advancePatientIdSequence(generatedId, institutionId);
+
             handleResetForm();
             onClose();
         } catch (error: any) {
@@ -351,7 +350,17 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 ml-1 flex items-center justify-between">
                                         <span>Custom Patient ID / MRN *</span>
-                                        <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Set in HIS Config</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const nextId = generateNextPatientId(existingPatients, institutionId);
+                                                setFormData(f => ({ ...f, customPatientId: nextId }));
+                                            }}
+                                            className="text-[8px] text-indigo-500 hover:text-indigo-400 font-black uppercase tracking-widest flex items-center gap-1 hover:underline"
+                                            title="Re-calculate next unique sequential ID"
+                                        >
+                                            <span>🔄 Re-Sequence</span>
+                                        </button>
                                     </label>
                                     <div className="relative group">
                                         <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500 group-focus-within:text-indigo-400 transition-colors" />
@@ -359,10 +368,13 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                             required
                                             type="text"
                                             placeholder="E.G. PID-001"
-                                            className="w-full bg-indigo-50/50 dark:bg-white/5 border-2 border-indigo-500/30 focus:border-indigo-500 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-indigo-600 dark:text-indigo-300 font-mono"
+                                            className="w-full bg-indigo-50/50 dark:bg-white/5 border-2 border-indigo-500/30 focus:border-indigo-500 rounded-2xl pl-12 pr-12 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-indigo-600 dark:text-indigo-300 font-mono"
                                             value={formData.customPatientId}
                                             onChange={e => setFormData({ ...formData, customPatientId: e.target.value })}
                                         />
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-300/30">
+                                            Auto
+                                        </span>
                                     </div>
                                 </div>
 

@@ -16,6 +16,7 @@ import { SparklesIcon } from '../icons/SparklesIcon';
 
 import { AddAppointmentModal } from './AddAppointmentModal';
 import { RegisterPatientModal } from './RegisterPatientModal';
+import { generateNextPatientId, advancePatientIdSequence } from '../../utils/hisPatientIdGenerator';
 import { apiService } from '../../services/apiService';
 import type { HISAppointment, HISPatient } from '../../types';
 
@@ -156,7 +157,7 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
         const instId = institutionId || 'his_inst_1';
         try {
             const patName = patientData.fullName || `${patientData.firstName || ''} ${patientData.lastName || ''}`.trim() || 'Registered Patient';
-            const patNo = patientData.admissionNumber || patientData.admission_number || patientData.customPatientId || patientData.custom_patient_id || patientData.patientNumber || patientData.patient_number || patientData.opNumber || patientData.op_number || `PID-${Math.floor(100 + Math.random() * 900)}`;
+            const patNo = patientData.admissionNumber || patientData.admission_number || patientData.customPatientId || patientData.custom_patient_id || patientData.patientNumber || patientData.patient_number || patientData.opNumber || patientData.op_number || generateNextPatientId(patients, instId);
 
             const record: HISPatient = {
                 ...patientData,
@@ -182,10 +183,13 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
 
             await apiService.saveModuleRecord('his_patients', record);
 
+            // Automatically advance sequence counter
+            await advancePatientIdSequence(patNo, instId);
+
             setPatients(prev => [record, ...prev.filter(p => p.id !== record.id)]);
             setIsRegisterOpen(false);
             setSelectedPatient(record);
-            showNotif(`${patName} registered successfully`);
+            showNotif(`${patName} (ID: ${patNo}) registered successfully`);
             setTimeout(() => setIsBookingOpen(true), 300);
             loadData();
         } catch (e) {
@@ -630,6 +634,8 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
                 onRegister={handleRegisterPatient}
                 users={users}
                 isEdu={false}
+                institutionId={institutionId}
+                existingPatients={patients}
             />
         </div>
     );

@@ -191,6 +191,8 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         setIsSavingPatientIdConfig(true);
         try {
             localStorage.setItem(`his_patient_id_config_${institutionId}`, JSON.stringify(patientIdSettings));
+            localStorage.setItem('his_patient_id_config_latest', JSON.stringify(patientIdSettings));
+            window.dispatchEvent(new CustomEvent('his_patient_id_advanced', { detail: { updatedConfig: patientIdSettings } }));
             await apiService.saveModuleRecord('his_patient_id_config', {
                 id: `his_pid_${institutionId}`,
                 institutionId,
