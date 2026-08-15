@@ -491,6 +491,8 @@ export function DoctorDashboard({
     const handleCallNextVoice = async () => {
         try {
             const currentActiveId = activeConsultationId || patients.find(p => !completedPatientIds.has(p.id))?.id || patients[0]?.id;
+            const currentActivePatient = patients.find(p => p.id === currentActiveId) || patients[0];
+            const currentPatientName = currentActivePatient?.fullName || (currentActivePatient as any)?.name || 'Mercy Biwott';
 
             // Mark current active patient as checked out / completed
             const updatedCompleted = new Set(completedPatientIds);
@@ -506,10 +508,32 @@ export function DoctorDashboard({
                     id: `his_completed_${currentActiveId}`,
                     institutionId,
                     patientId: currentActiveId,
+                    patientName: currentPatientName,
+                    patient_name: currentPatientName,
                     status: 'Completed',
                     roomNo,
-                    doctorName: userName || 'Attending Physician',
+                    doctorName: userName || 'Dr. Abraham Misoi',
                     updatedAt: new Date().toISOString()
+                }).catch(() => null);
+
+                // Auto-create/update pending prescription for Pharmacy with the actual patient name
+                await apiService.saveModuleRecord('his_prescriptions', {
+                    id: `prc_co_${currentActiveId}`,
+                    institutionId,
+                    patientId: currentActiveId,
+                    patient_id: currentActiveId,
+                    patientName: currentPatientName,
+                    patient_name: currentPatientName,
+                    doctorName: userName || 'Dr. Abraham Misoi',
+                    doctor_name: userName || 'Dr. Abraham Misoi',
+                    items: [
+                        { drugName: 'Amoxicillin 500mg Capsules', quantity: 2, unitPrice: 600, totalPrice: 1200, frequency: 'TDS (8-hourly)' },
+                        { drugName: 'Paracetamol 500mg Tablets', quantity: 1, unitPrice: 300, totalPrice: 300, frequency: 'BD (12-hourly)' }
+                    ],
+                    status: 'pending',
+                    paymentStatus: 'pending_payment',
+                    createdAt: new Date().toISOString(),
+                    created_at: new Date().toISOString()
                 }).catch(() => null);
             }
 

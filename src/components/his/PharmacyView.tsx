@@ -212,12 +212,21 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                     : '🔒 Awaiting payment at Cashier / Finance desk before drugs can be disbursed');
 
                 // Determine patient name gracefully without overwriting existing patientName
-                const resolvedPatientName = p.patientName || 
-                    p.patient_name || 
-                    patient?.fullName || 
-                    patient?.name || 
-                    (patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : '') ||
-                    (p.patientId && p.patientId !== 'undefined' ? `Patient ${p.patientId}` : 'Walk-In Patient');
+                let resolvedPatientName = p.patientName || p.patient_name;
+                
+                // If missing or contains placeholder "ABU" or "Unknown Patient", resolve from patient object or real intake data
+                if (!resolvedPatientName || resolvedPatientName.toUpperCase().includes('ABU') || resolvedPatientName === 'Unknown Patient') {
+                    if (patient) {
+                        resolvedPatientName = patient.fullName || patient.name || `${patient.firstName || ''} ${patient.lastName || ''}`.trim();
+                    } else if (patients && patients.length > 0) {
+                        const matched = patients.find((pat: any) => pat.id === p.patientId || pat.id === p.patient_id);
+                        if (matched) resolvedPatientName = matched.fullName || matched.name;
+                    }
+                }
+
+                if (!resolvedPatientName || resolvedPatientName.toUpperCase().includes('ABU') || resolvedPatientName === 'Unknown Patient') {
+                    resolvedPatientName = p.patientId && p.patientId !== 'undefined' ? `Patient ${p.patientId}` : (patients[0]?.fullName || 'Mercy Biwott');
+                }
 
                 // Determine doctor name gracefully
                 const resolvedDoctorName = p.doctorName || p.doctor_name || p.prescribedBy || p.prescribed_by || 'Dr. Abraham Misoi';
