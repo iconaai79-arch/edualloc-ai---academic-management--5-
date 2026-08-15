@@ -284,7 +284,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                 }
             }
         };
-        // Auto-migrate to add all patient columns to public.his_patients if not exists
+        // Auto-migrate to add all patient and queue columns if not exists
         const autoMigratePatientSql = `
             ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS full_name text;
             ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS name text;
@@ -300,6 +300,26 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
             ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS admission_number text;
             ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS grade_level text;
             ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS stream text;
+
+            CREATE TABLE IF NOT EXISTS public.his_queue_calls (
+                id TEXT PRIMARY KEY,
+                institution_id TEXT NOT NULL,
+                patient_id TEXT,
+                patient_name TEXT,
+                doctor_id TEXT,
+                doctor_name TEXT,
+                room_no TEXT DEFAULT 'Waiting Area',
+                token_no TEXT,
+                priority TEXT DEFAULT 'Routine',
+                wait_mins INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'Waiting',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            ALTER TABLE public.his_queue_calls ADD COLUMN IF NOT EXISTS priority text DEFAULT 'Routine';
+            ALTER TABLE public.his_queue_calls ADD COLUMN IF NOT EXISTS token_no text;
+            ALTER TABLE public.his_queue_calls ADD COLUMN IF NOT EXISTS wait_mins integer DEFAULT 0;
+            ALTER TABLE public.his_queue_calls ADD COLUMN IF NOT EXISTS room_no text DEFAULT 'Waiting Area';
         `;
         apiService.runMigration(autoMigratePatientSql).catch(() => {});
         loadInst();

@@ -1592,6 +1592,9 @@ CREATE TABLE IF NOT EXISTS his_queue_calls (
     doctor_id TEXT,
     doctor_name TEXT,
     room_no TEXT DEFAULT 'Waiting Area',
+    token_no TEXT,
+    priority TEXT DEFAULT 'Routine',
+    wait_mins INTEGER DEFAULT 0,
     status TEXT DEFAULT 'Waiting',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
