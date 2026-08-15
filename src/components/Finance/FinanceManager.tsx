@@ -262,6 +262,137 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return '';
     }, [enrollments, allBranchEnrollments]);
 
+    const getStudentClassName = useCallback((s: any): string => {
+        if (!s) return 'Unclassified';
+        
+        // 1. Direct properties on student object
+        const directCandidates = [
+            s.className,
+            s.class_name,
+            s.gradeLevel,
+            s.grade_level,
+            s.studentClass,
+            s.student_class,
+            s.class,
+            s.grade,
+            s.form,
+            s.stream,
+            s.academicLevel,
+            s.academic_level,
+            s.courseName,
+            s.course_name,
+            s.course
+        ];
+        for (const val of directCandidates) {
+            if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== '—') {
+                return String(val).trim();
+            }
+        }
+
+        // 2. Metadata properties on student object
+        if (s.metadata && typeof s.metadata === 'object') {
+            const metaCandidates = [
+                s.metadata.className,
+                s.metadata.class_name,
+                s.metadata.gradeLevel,
+                s.metadata.grade_level,
+                s.metadata.studentClass,
+                s.metadata.student_class,
+                s.metadata.class,
+                s.metadata.grade,
+                s.metadata.form,
+                s.metadata.stream,
+                s.metadata.academicLevel,
+                s.metadata.academic_level,
+                s.metadata.courseName,
+                s.metadata.course
+            ];
+            for (const val of metaCandidates) {
+                if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== '—') {
+                    return String(val).trim();
+                }
+            }
+        }
+
+        // 3. Match from enrollments (student_enrollments)
+        const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
+        if (allEnrs.length > 0) {
+            const sId = s.id || s.userId || s.user_id;
+            const enr = allEnrs.find((e: any) => e && (e.userId === sId || e.user_id === sId || e.studentId === sId || e.student_id === sId || e.id === sId));
+            if (enr) {
+                const enrCandidates = [
+                    enr.className,
+                    enr.class_name,
+                    enr.gradeLevel,
+                    enr.grade_level,
+                    enr.grade,
+                    enr.form,
+                    enr.stream,
+                    enr.studentClass,
+                    enr.courseName,
+                    enr.course_name,
+                    enr.course,
+                    enr.courseLevel,
+                    enr.metadata?.className,
+                    enr.metadata?.class_name,
+                    enr.metadata?.gradeLevel,
+                    enr.metadata?.grade_level,
+                    enr.metadata?.class,
+                    enr.metadata?.grade,
+                    enr.metadata?.form,
+                    enr.metadata?.stream
+                ];
+                for (const val of enrCandidates) {
+                    if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== '—') {
+                        return String(val).trim();
+                    }
+                }
+            }
+        }
+
+        // 4. Match from invoices for this student
+        const sInvs = (props.invoices || []).filter((inv: any) => inv && (inv.studentId === s.id || inv.userId === s.id));
+        for (const inv of sInvs) {
+            const invCls = inv.studentClass || inv.className || inv.gradeLevel || inv.metadata?.className || inv.metadata?.studentClass;
+            if (invCls && String(invCls).trim() && String(invCls).trim() !== 'undefined' && String(invCls).trim() !== 'null' && String(invCls).trim() !== 'N/A') {
+                return String(invCls).trim();
+            }
+        }
+
+        return 'Unclassified';
+    }, [enrollments, allBranchEnrollments, props.invoices]);
+
+    const getAllDistinctClasses = useCallback((): string[] => {
+        const set = new Set<string>();
+        (props.students || []).forEach((s: any) => {
+            const c = getStudentClassName(s);
+            if (c && c !== 'Unclassified') set.add(c);
+        });
+        (enrollments || []).forEach((e: any) => {
+            const c = e.className || e.class_name || e.gradeLevel || e.grade_level || e.grade || e.form || e.metadata?.className;
+            if (c && String(c).trim() && String(c).trim() !== 'Unclassified') set.add(String(c).trim());
+        });
+        (props.feeStructures || []).forEach((fs: any) => {
+            const c = fs.gradeLevel || fs.className || fs.class_name || fs.name;
+            if (c && String(c).trim() && String(c).trim() !== 'Unclassified') set.add(String(c).trim());
+        });
+        (props.courses || []).forEach((co: any) => {
+            const c = co.name || co.title || co.code;
+            if (c && String(c).trim() && String(c).trim() !== 'Unclassified') set.add(String(c).trim());
+        });
+        (props.invoices || []).forEach((inv: any) => {
+            const c = inv.studentClass || inv.className || inv.gradeLevel;
+            if (c && String(c).trim() && String(c).trim() !== 'Unclassified') set.add(String(c).trim());
+        });
+
+        const list = Array.from(set).filter(Boolean).sort();
+        const hasUnclassified = (props.students || []).some((s: any) => getStudentClassName(s) === 'Unclassified');
+        if (hasUnclassified && !list.includes('Unclassified')) {
+            list.push('Unclassified');
+        }
+        return list;
+    }, [props.students, enrollments, props.feeStructures, props.courses, props.invoices, getStudentClassName]);
+
     // Reset multi-branch satellite data whenever active institution changes
     useEffect(() => {
         setSelectedBranchId('ALL');
@@ -13830,7 +13961,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 const filteredFeeRegStudents = props.students.filter((s: any) => {
                                     if (!feeRegClass || feeRegClass === 'All') return true;
-                                    const sClass = s.gradeLevel || s.class || 'Unclassified';
+                                    const sClass = getStudentClassName(s);
                                     return sClass.toLowerCase() === feeRegClass.toLowerCase();
                                 });
 
@@ -13874,7 +14005,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         id: s.id,
                                         name: s.name,
                                         admissionNumber: getStudentAdmNumber(s),
-                                        class: s.gradeLevel || s.class || 'Unclassified',
+                                        class: getStudentClassName(s),
                                         bf,
                                         t1Count,
                                         t1Amount,
@@ -14224,7 +14355,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                         {/* 3. Fee Register */}
                                         {ledgerSubTab === 'fee_register' && (() => {
-                                            const feeRegClasses = Array.from(new Set(props.students.map((s: any) => s.gradeLevel || s.class || 'Unclassified'))).filter(Boolean).sort() as string[];
+                                            const feeRegClasses = getAllDistinctClasses();
                                             
                                             const totalBfSum = feeRegister.reduce((s, it) => s + it.bf, 0);
                                             const totalT1Sum = feeRegister.reduce((s, it) => s + it.t1Amount, 0);
@@ -14525,11 +14656,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                         {/* 5. Fees Installments */}
                                         {ledgerSubTab === 'fee_installment' && (() => {
-                                            const installmentClasses = Array.from(new Set(props.students.map((s: any) => s.gradeLevel || s.class || 'Unclassified'))).filter(Boolean).sort() as string[];
+                                            const installmentClasses = getAllDistinctClasses();
 
                                             const filteredStudents = props.students.filter((s: any) => {
                                                 if (!installmentClass || installmentClass === 'All') return true;
-                                                const sClass = s.gradeLevel || s.class || 'Unclassified';
+                                                const sClass = getStudentClassName(s);
                                                 return sClass.toLowerCase() === installmentClass.toLowerCase();
                                             });
 
