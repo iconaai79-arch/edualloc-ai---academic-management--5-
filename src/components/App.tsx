@@ -7312,7 +7312,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                         ) : showGuestFeedback ? (
                             <GuestFeedbackView 
                                 onSubmit={async (f) => { 
-                                    await apiService.saveModuleRecord('guest_feedback', { ...f, id: `fdb_${Date.now()}` }); 
+                                    await apiService.saveModuleRecord('feedback_submissions', { 
+                                        ...f, 
+                                        id: `fdb_${Date.now()}`,
+                                        studentId: f.isAnonymous ? 'anonymous_guest' : (f.guestName || 'guest_visitor'),
+                                        content: f.comments || f.title || 'Guest Feedback Submission',
+                                        title: f.title || 'General Guest Feedback'
+                                    }); 
                                     success('Feedback submitted!'); 
                                     setShowGuestFeedback(false);
                                     loadData();

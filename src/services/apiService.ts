@@ -1467,6 +1467,15 @@ export const apiService = {
                 delete item.admissionNumber;
                 delete item.name;
             }
+
+            // Feedback submissions normalization
+            if (module === 'feedback_submissions' || module === 'guest_feedback' || module === 'guest_feedbacks') {
+                item.title = item.title || 'General Guest Feedback';
+                item.content = item.content || item.comments || item.title || 'Guest Feedback Submission';
+                if (!item.student_id && !item.studentId) {
+                    item.student_id = (item.is_anonymous || item.isAnonymous) ? 'anonymous_guest' : (item.guest_name || item.guestName || 'guest_visitor');
+                }
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {

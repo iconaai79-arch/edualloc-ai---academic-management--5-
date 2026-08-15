@@ -119,8 +119,15 @@ const PUBLIC_MODULES = [
   'his_lab_orders', 'bulletin_items', 'document_collections', 'watchlist', 'watchlist_records', 'maintenance_requests',
   'student_absence_requests', 'time_off_requests', 'teacher_check_ins', 'leave_requests', 'financial_goals',
   'payroll_records', 'building_floors', 'building_offices', 'building_visitor_logs', 'building_visitor_assets',
-  'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'bank_transactions'
+  'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'bank_transactions',
+  'feedback_submissions', 'guest_feedback', 'guest_feedbacks'
 ];
+
+const MODULE_ALIASES: Record<string, string> = {
+  'guest_feedback': 'feedback_submissions',
+  'guest_feedbacks': 'feedback_submissions',
+  'guestfeedback': 'feedback_submissions'
+};
 
 const isTableWithoutInstitutionId = (module: string) => {
   return [
@@ -140,7 +147,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { module, id, select, order, limit, institutionId: queryInstitutionId, countyId: queryCountyId } = req.query;
     const getStrParam = (p: any): string => (Array.isArray(p) ? p[0] : (p as string) || '');
-    const moduleName = getStrParam(module);
+    const rawModuleName = getStrParam(module);
+    const moduleName = MODULE_ALIASES[rawModuleName] || rawModuleName;
     
     if (!moduleName) return res.status(400).json({ success: false, error: 'Module required' });
 
@@ -150,11 +158,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const authHeader = req.headers.authorization;
         const user = await getAuthUser(supabase, authHeader);
-        const isPublicModule = PUBLIC_MODULES.includes(moduleName);
+        const isPublicModule = PUBLIC_MODULES.includes(moduleName) || PUBLIC_MODULES.includes(rawModuleName);
         const isPublicGet = req.method === 'GET' && isPublicModule;
         
         // Allow POST for registration and social interactions
-        const isPublicPost = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 'voter_outreach', 'alumnae_members', 'invoices', 'receipts', 'event_participants', 'event_pledges', 'ds_students', 'ds_lessons', 'event_pins', 'ds_leads', 'biometric_devices', 'biometric_enrollments', 'staff_attendance_daily', 'heritage_members', 'heritage_stories', 'heritage_gallery', 'heritage_announcements', 'school_remedial_subjects', 'school_remedial_sessions', 'school_remedial_rate_settings', 'school_remedial_payouts', 'school_remedial_allocations'].includes(moduleName));
+        const isPublicPost = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 'voter_outreach', 'alumnae_members', 'invoices', 'receipts', 'event_participants', 'event_pledges', 'ds_students', 'ds_lessons', 'event_pins', 'ds_leads', 'biometric_devices', 'biometric_enrollments', 'staff_attendance_daily', 'heritage_members', 'heritage_stories', 'heritage_gallery', 'heritage_announcements', 'school_remedial_subjects', 'school_remedial_sessions', 'school_remedial_rate_settings', 'school_remedial_payouts', 'school_remedial_allocations', 'feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
         if (!user && !isPublicGet && !isPublicPost && !isSocialInteraction) {
@@ -388,6 +396,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanPatient) : cleanPatient(currentPayload);
+            }
+            if (moduleName === 'feedback_submissions') {
+                const cleanFeedback = (f: any) => {
+                    if (!f || typeof f !== 'object') return f;
+                    const copy = { ...f };
+                    copy.title = copy.title || 'General Guest Feedback';
+                    copy.content = copy.content || copy.comments || copy.title || 'Guest Feedback Submission';
+                    if (!copy.student_id && !copy.studentId) {
+                        copy.student_id = (copy.is_anonymous || copy.isAnonymous) ? 'anonymous_guest' : (copy.guest_name || copy.guestName || 'guest_visitor');
+                    }
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanFeedback) : cleanFeedback(currentPayload);
             }
             let data: any = null;
             let error: any = null;
