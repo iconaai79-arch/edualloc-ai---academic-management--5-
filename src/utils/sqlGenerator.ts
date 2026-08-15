@@ -1611,6 +1611,25 @@ CREATE TABLE IF NOT EXISTS his_staff_attendance (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS leave_requests (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    user_id TEXT,
+    staff_id TEXT,
+    student_id TEXT,
+    applicant_name TEXT,
+    leave_type TEXT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    days INTEGER DEFAULT 1,
+    reason TEXT,
+    status TEXT DEFAULT 'Pending',
+    approved_by TEXT,
+    approved_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS his_dental_charts (
     id TEXT PRIMARY KEY,
     patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,

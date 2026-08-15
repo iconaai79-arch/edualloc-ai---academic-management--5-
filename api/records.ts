@@ -117,7 +117,7 @@ const PUBLIC_MODULES = [
   'his_vital_statistics', 'his_financial_records', 'his_admissions', 'his_beds', 'his_wards', 'his_dental_charts',
   'his_eye_prescriptions', 'his_medication_logs', 'his_broadcasts', 'his_prescriptions', 'his_pharmacy_inventory',
   'his_lab_orders', 'bulletin_items', 'document_collections', 'watchlist', 'maintenance_requests',
-  'student_absence_requests', 'time_off_requests', 'teacher_check_ins'
+  'student_absence_requests', 'time_off_requests', 'teacher_check_ins', 'leave_requests'
 ];
 
 const isTableWithoutInstitutionId = (module: string) => {
