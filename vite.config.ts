@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
   process.env.DATABASE_URL = env.DATABASE_URL || env.VITE_DATABASE_URL || "";
   process.env.API_KEY = env.API_KEY || env.VITE_API_KEY || env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY || "";
   process.env.GEMINI_API_KEY = env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY || env.API_KEY || "";
+  process.env.OPENAI_API_KEY = env.OPENAI_API_KEY || env.VITE_OPENAI_API_KEY || "";
 
   return {
     plugins: [

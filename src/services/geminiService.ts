@@ -45,14 +45,14 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
 
     try {
         const token = await apiService.getAuthToken();
-        const customApiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+        const customGeminiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+        const customOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || '';
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
             'Authorization': token ? `Bearer ${token}` : ''
         };
-        if (customApiKey) {
-            headers['x-gemini-api-key'] = customApiKey;
-        }
+        if (customGeminiKey) headers['x-gemini-api-key'] = customGeminiKey;
+        if (customOpenAiKey) headers['x-openai-api-key'] = customOpenAiKey;
 
         const response = await fetch('/api/ai', {
             method: 'POST',
@@ -1398,6 +1398,161 @@ Return strict valid JSON array (without markdown code blocks) of objects with th
             }
         }
         return mock;
+    }
+};
+
+/**
+ * Converts a Blob or File to a base64 string
+ */
+export const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            resolve(base64String);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+};
+
+/**
+ * Transcribes spoken audio into text using OpenAI Whisper
+ * Ideal for teacher report card remarks dictation, doctor clinical EHR notes, etc.
+ */
+export const transcribeVoiceAudio = async (
+    audioBlob: Blob,
+    language?: string
+): Promise<string> => {
+    try {
+        const token = await apiService.getAuthToken();
+        const base64Audio = await blobToBase64(audioBlob);
+        const customGeminiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+        const customOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || '';
+        
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+        };
+        if (customGeminiKey) headers['x-gemini-api-key'] = customGeminiKey;
+        if (customOpenAiKey) headers['x-openai-api-key'] = customOpenAiKey;
+
+        const response = await fetch('/api/ai', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                mode: 'transcribe',
+                audioBase64: base64Audio,
+                mimeType: audioBlob.type || 'audio/webm',
+                language
+            })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.details || errData.message || `Whisper Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.text || '';
+    } catch (err: any) {
+        console.error("[geminiService] Voice transcription error:", err);
+        throw sanitizeAiError(err);
+    }
+};
+
+/**
+ * Synthesizes human-like speech from text using OpenAI TTS
+ * Returns an audio Blob playable via HTML5 Audio
+ */
+export const generateSpeechAudio = async (
+    text: string,
+    voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'alloy'
+): Promise<Blob | null> => {
+    try {
+        const token = await apiService.getAuthToken();
+        const customGeminiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+        const customOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || '';
+        
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+        };
+        if (customGeminiKey) headers['x-gemini-api-key'] = customGeminiKey;
+        if (customOpenAiKey) headers['x-openai-api-key'] = customOpenAiKey;
+
+        const response = await fetch('/api/ai', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                mode: 'tts',
+                text,
+                voice
+            })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.details || errData.message || `TTS Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.audioBase64) {
+            const byteCharacters = atob(data.audioBase64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: 'audio/mp3' });
+        }
+        return null;
+    } catch (err: any) {
+        console.error("[geminiService] Speech synthesis error:", err);
+        throw sanitizeAiError(err);
+    }
+};
+
+/**
+ * Evaluates and transcribes handwritten exams, student scripts, bank deposit slips, or prescriptions
+ * using multimodal Vision (OpenAI GPT-4o Vision with Gemini 1.5 Flash fallback)
+ */
+export const analyzeDocumentVision = async (
+    imageBase64: string,
+    prompt: string = "Analyze this image and extract all text, tables, handwritten marks, or exam details clearly."
+): Promise<string> => {
+    try {
+        const token = await apiService.getAuthToken();
+        const customGeminiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+        const customOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || '';
+        
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+        };
+        if (customGeminiKey) headers['x-gemini-api-key'] = customGeminiKey;
+        if (customOpenAiKey) headers['x-openai-api-key'] = customOpenAiKey;
+
+        const response = await fetch('/api/ai', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                mode: 'vision',
+                imageBase64,
+                prompt
+            })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.details || errData.message || `Vision Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.text || '';
+    } catch (err: any) {
+        console.error("[geminiService] Vision analysis error:", err);
+        throw sanitizeAiError(err);
     }
 };
 

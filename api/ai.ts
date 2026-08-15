@@ -36,7 +36,7 @@ async function checkAuthUser(supabase: any, authHeader?: string) {
     return null;
 }
 
-const getApiKey = (req?: VercelRequest) => {
+const getGeminiApiKey = (req?: VercelRequest): string => {
     const customKey = req?.headers?.['x-gemini-api-key'] as string;
     if (customKey && customKey.trim()) return customKey.trim();
     return process.env.GEMINI_API_KEY ||
@@ -45,120 +45,409 @@ const getApiKey = (req?: VercelRequest) => {
         process.env.API_KEY || '';
 };
 
+const getOpenAiApiKey = (req?: VercelRequest): string => {
+    const customKey = req?.headers?.['x-openai-api-key'] as string;
+    if (customKey && customKey.trim()) return customKey.trim();
+    return process.env.OPENAI_API_KEY ||
+        process.env.VITE_OPENAI_API_KEY || '';
+};
+
 export const config = {
     maxDuration: 60,
     api: {
         bodyParser: {
-            sizeLimit: '10mb'
+            sizeLimit: '15mb'
         }
     }
 };
 
+// ─── OpenAI Runner Helpers ──────────────────────────────────────────────────
+
+async function runOpenAiChat({
+    apiKey,
+    messages,
+    model = 'gpt-4o-mini',
+    temperature = 0.7,
+    maxTokens,
+    jsonMode = false
+}: {
+    apiKey: string;
+    messages: Array<{ role: string; content: any }>;
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    jsonMode?: boolean;
+}) {
+    const payload: any = {
+        model: model || 'gpt-4o-mini',
+        messages,
+        temperature
+    };
+    if (maxTokens) payload.max_tokens = maxTokens;
+    if (jsonMode) payload.response_format = { type: 'json_object' };
+
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || `OpenAI API Error: ${res.status}`);
+    }
+
+    const data = await res.json();
+    return data?.choices?.[0]?.message?.content || '';
+}
+
+async function runOpenAiWhisper({
+    apiKey,
+    audioBase64,
+    mimeType = 'audio/webm',
+    language
+}: {
+    apiKey: string;
+    audioBase64: string;
+    mimeType?: string;
+    language?: string;
+}) {
+    const buffer = Buffer.from(audioBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+    const ext = mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a' : (mimeType.includes('wav') ? 'wav' : (mimeType.includes('mp3') ? 'mp3' : 'webm'));
+    const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+
+    const formDataParts: Buffer[] = [];
+    formDataParts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n`));
+    if (language) {
+        formDataParts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\n${language}\r\n`));
+    }
+    formDataParts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.${ext}"\r\nContent-Type: ${mimeType}\r\n\r\n`));
+    formDataParts.push(buffer);
+    formDataParts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+
+    const finalBody = Buffer.concat(formDataParts);
+
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': `multipart/form-data; boundary=${boundary}`
+        },
+        body: finalBody
+    });
+
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || `OpenAI Whisper Error: ${res.status}`);
+    }
+
+    const data = await res.json();
+    return data.text || '';
+}
+
+async function runOpenAiTts({
+    apiKey,
+    text,
+    voice = 'alloy',
+    model = 'tts-1'
+}: {
+    apiKey: string;
+    text: string;
+    voice?: string;
+    model?: string;
+}) {
+    const res = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model: model || 'tts-1',
+            input: text,
+            voice: voice || 'alloy'
+        })
+    });
+
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || `OpenAI TTS Error: ${res.status}`);
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer).toString('base64');
+}
+
+// ─── Main Handler ───────────────────────────────────────────────────────────
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // Standard CORS headers
+    // CORS headers
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-gemini-api-key');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-gemini-api-key, x-openai-api-key');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     try {
-        // Safe Supabase session validation (if configured)
         const supabase = getSupabase();
         if (supabase) {
-            const user = await checkAuthUser(supabase, req.headers.authorization);
-            if (!user && req.headers.authorization) {
-                console.warn('[AI API] Session validation skipped or invalid token, continuing request execution.');
-            }
+            await checkAuthUser(supabase, req.headers.authorization);
         }
 
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-        const apiKey = getApiKey(req);
-        if (!apiKey) {
-            console.error("AI Service Error: API Key missing on server.");
-            return res.status(503).json({
-                error: "AI Service Unavailable",
-                message: "Server configuration error. GEMINI_API_KEY not found in environment."
-            });
-        }
-
-        const genAI = new GoogleGenerativeAI(apiKey);
-
-        // Parse request body safely
         let body = req.body;
         if (typeof body === 'string') {
             try { body = JSON.parse(body); } catch (_) {}
         }
         body = body || {};
 
-        const { model: requestedModel, contents, config: genConfig, history, message } = body;
+        const geminiApiKey = getGeminiApiKey(req);
+        const openAiApiKey = getOpenAiApiKey(req);
 
-        // Model fallback selection list (using active modern Gemini models)
-        const primaryModel = requestedModel === 'gemini-pro' ? 'gemini-1.5-flash' : (requestedModel || 'gemini-1.5-flash');
-        const fallbackModels = [primaryModel, 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'].filter((v, i, a) => a.indexOf(v) === i);
+        const {
+            mode,
+            provider,
+            model: requestedModel,
+            contents,
+            config: genConfig,
+            history,
+            message,
+            audioBase64,
+            mimeType,
+            language,
+            text,
+            voice,
+            imageBase64,
+            prompt
+        } = body;
 
-        let lastError: any = null;
+        // ── 1. Specialized Mode: Whisper Speech-to-Text ──
+        if (mode === 'transcribe' || mode === 'audio_transcribe') {
+            if (!openAiApiKey) {
+                return res.status(503).json({
+                    error: "Whisper Service Unavailable",
+                    message: "OpenAI API Key not configured. Please supply OPENAI_API_KEY or x-openai-api-key header."
+                });
+            }
+            if (!audioBase64) {
+                return res.status(400).json({ error: "Invalid Request", message: "Missing 'audioBase64' payload for transcription." });
+            }
 
-        for (const targetModel of fallbackModels) {
             try {
-                const model = genAI.getGenerativeModel({ model: targetModel });
-
-                // Mode 1: Multi-turn Chat
-                if (history && message) {
-                    const chat = model.startChat({
-                        history: history,
-                        generationConfig: genConfig
-                    });
-                    const result = await chat.sendMessage(message);
-                    const response = await result.response;
-                    return res.status(200).json({ text: response.text() });
-                }
-
-                // Mode 2: Single-turn Generate Content
-                if (contents) {
-                    const promptContent = Array.isArray(contents) ? contents : [{ role: 'user', parts: [{ text: typeof contents === 'string' ? contents : JSON.stringify(contents) }] }];
-
-                    const result = await model.generateContent({
-                        contents: promptContent,
-                        generationConfig: genConfig
-                    });
-                    const response = await result.response;
-                    return res.status(200).json({
-                        text: response.text()
-                    });
-                }
-
-                return res.status(400).json({ error: "Invalid Request", message: "Missing 'contents' or 'history/message' in body." });
-
-            } catch (err: any) {
-                console.warn(`[AI API] Model ${targetModel} failed:`, err?.message || err);
-                lastError = err;
-                // If it's not a model availability error (e.g. safety block or prompt issue), break early
-                if (err?.response?.promptFeedback?.blockReason) break;
+                const transcribedText = await runOpenAiWhisper({
+                    apiKey: openAiApiKey,
+                    audioBase64,
+                    mimeType: mimeType || 'audio/webm',
+                    language
+                });
+                return res.status(200).json({ text: transcribedText, provider: 'openai_whisper' });
+            } catch (wErr: any) {
+                console.error("[AI API Whisper Error]:", wErr);
+                return res.status(500).json({ error: "WHISPER_TRANSCRIPTION_FAILED", details: wErr.message });
             }
         }
 
-        const errorMessage = lastError?.response?.promptFeedback?.blockReason 
-            ? `Blocked by Safety: ${lastError.response.promptFeedback.blockReason}`
-            : (lastError?.message || "Unknown Engine Error");
+        // ── 2. Specialized Mode: Text-to-Speech (TTS) ──
+        if (mode === 'tts' || mode === 'speech') {
+            if (!openAiApiKey) {
+                return res.status(503).json({
+                    error: "TTS Service Unavailable",
+                    message: "OpenAI API Key not configured for Text-to-Speech."
+                });
+            }
+            const inputSpeechText = text || prompt || message || '';
+            if (!inputSpeechText) {
+                return res.status(400).json({ error: "Invalid Request", message: "Missing 'text' for speech synthesis." });
+            }
 
+            try {
+                const audioBase64Result = await runOpenAiTts({
+                    apiKey: openAiApiKey,
+                    text: inputSpeechText,
+                    voice: voice || 'alloy'
+                });
+                return res.status(200).json({
+                    audioBase64: audioBase64Result,
+                    format: 'mp3',
+                    provider: 'openai_tts'
+                });
+            } catch (tErr: any) {
+                console.error("[AI API TTS Error]:", tErr);
+                return res.status(500).json({ error: "TTS_SYNTHESIS_FAILED", details: tErr.message });
+            }
+        }
+
+        // ── 3. Specialized Mode: Vision Document & Handwriting Analysis ──
+        if (mode === 'vision' || imageBase64) {
+            const visionPrompt = prompt || message || "Analyze this image and extract all text, tables, handwritten remarks, or assessment details cleanly.";
+            
+            // Try OpenAI GPT-4o Vision if available
+            if (openAiApiKey) {
+                try {
+                    const formattedImgUrl = imageBase64.startsWith('data:') ? imageBase64 : `data:${mimeType || 'image/jpeg'};base64,${imageBase64}`;
+                    const visionResponse = await runOpenAiChat({
+                        apiKey: openAiApiKey,
+                        model: 'gpt-4o',
+                        messages: [
+                            {
+                                role: 'user',
+                                content: [
+                                    { type: 'text', text: visionPrompt },
+                                    { type: 'image_url', image_url: { url: formattedImgUrl } }
+                                ]
+                            }
+                        ]
+                    });
+                    return res.status(200).json({ text: visionResponse, provider: 'openai_vision' });
+                } catch (vErr: any) {
+                    console.warn("[AI API OpenAI Vision Warning, attempting Gemini fallback]:", vErr?.message || vErr);
+                }
+            }
+
+            // Fallback to Gemini 1.5 Flash Vision
+            if (geminiApiKey) {
+                try {
+                    const genAI = new GoogleGenerativeAI(geminiApiKey);
+                    const geminiVisionModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+                    const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
+                    const result = await geminiVisionModel.generateContent([
+                        visionPrompt,
+                        {
+                            inlineData: {
+                                data: cleanBase64,
+                                mimeType: mimeType || 'image/jpeg'
+                            }
+                        }
+                    ]);
+                    const response = await result.response;
+                    return res.status(200).json({ text: response.text(), provider: 'gemini_vision' });
+                } catch (gvErr: any) {
+                    console.error("[AI API Gemini Vision Error]:", gvErr);
+                }
+            }
+        }
+
+        // ── 4. Standard Text & Multi-turn Chat Generation (Dual-Engine Failover) ──
+        if (!geminiApiKey && !openAiApiKey) {
+            return res.status(503).json({
+                error: "AI Service Unavailable",
+                message: "No active AI API key found. Please configure GEMINI_API_KEY or OPENAI_API_KEY."
+            });
+        }
+
+        let primaryProvider = provider || (geminiApiKey ? 'gemini' : 'openai');
+        let executionSuccess = false;
+        let finalResponseText = '';
+        let lastErrorMsg = '';
+
+        // Helper to format messages for OpenAI
+        const buildOpenAiMessages = () => {
+            const msgs: Array<{ role: string; content: string }> = [];
+            if (history && Array.isArray(history)) {
+                history.forEach((h: any) => {
+                    const role = h.role === 'model' || h.role === 'assistant' ? 'assistant' : 'user';
+                    const textContent = Array.isArray(h.parts) ? h.parts.map((p: any) => p.text || '').join('\n') : (h.text || h.content || '');
+                    if (textContent) msgs.push({ role, content: textContent });
+                });
+            }
+            if (message) {
+                msgs.push({ role: 'user', content: message });
+            } else if (contents) {
+                const textContent = Array.isArray(contents)
+                    ? contents.map((c: any) => Array.isArray(c.parts) ? c.parts.map((p: any) => p.text || '').join('\n') : (c.text || JSON.stringify(c))).join('\n')
+                    : (typeof contents === 'string' ? contents : JSON.stringify(contents));
+                msgs.push({ role: 'user', content: textContent });
+            }
+            return msgs;
+        };
+
+        // --- ATTEMPT 1: Primary Provider ---
+        if (primaryProvider === 'gemini' && geminiApiKey) {
+            try {
+                const genAI = new GoogleGenerativeAI(geminiApiKey);
+                const primaryModel = requestedModel === 'gemini-pro' ? 'gemini-1.5-flash' : (requestedModel || 'gemini-1.5-flash');
+                const fallbackModels = [primaryModel, 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'].filter((v, i, a) => a.indexOf(v) === i);
+
+                for (const targetModel of fallbackModels) {
+                    try {
+                        const model = genAI.getGenerativeModel({ model: targetModel });
+
+                        if (history && message) {
+                            const chat = model.startChat({ history, generationConfig: genConfig });
+                            const result = await chat.sendMessage(message);
+                            const response = await result.response;
+                            finalResponseText = response.text();
+                            executionSuccess = true;
+                            return res.status(200).json({ text: finalResponseText, provider: 'gemini', model: targetModel });
+                        }
+
+                        if (contents) {
+                            const promptContent = Array.isArray(contents) ? contents : [{ role: 'user', parts: [{ text: typeof contents === 'string' ? contents : JSON.stringify(contents) }] }];
+                            const result = await model.generateContent({ contents: promptContent, generationConfig: genConfig });
+                            const response = await result.response;
+                            finalResponseText = response.text();
+                            executionSuccess = true;
+                            return res.status(200).json({ text: finalResponseText, provider: 'gemini', model: targetModel });
+                        }
+                    } catch (mErr: any) {
+                        lastErrorMsg = mErr?.message || String(mErr);
+                        console.warn(`[AI API] Gemini model ${targetModel} issue:`, lastErrorMsg);
+                    }
+                }
+            } catch (geminiErr: any) {
+                lastErrorMsg = geminiErr?.message || String(geminiErr);
+                console.warn("[AI API] Gemini primary failed:", lastErrorMsg);
+            }
+        }
+
+        // --- ATTEMPT 2: OpenAI Execution (or Failover from Gemini) ---
+        if (!executionSuccess && openAiApiKey) {
+            console.log("[AI API] Routing request to OpenAI engine (failover/direct)...");
+            try {
+                const openAiMsgs = buildOpenAiMessages();
+                if (openAiMsgs.length === 0) {
+                    return res.status(400).json({ error: "Invalid Request", message: "No prompt content found." });
+                }
+
+                const targetOpenAiModel = requestedModel?.startsWith('gpt-') ? requestedModel : 'gpt-4o-mini';
+                const openAiResult = await runOpenAiChat({
+                    apiKey: openAiApiKey,
+                    messages: openAiMsgs,
+                    model: targetOpenAiModel,
+                    temperature: genConfig?.temperature || 0.7
+                });
+
+                return res.status(200).json({
+                    text: openAiResult,
+                    provider: 'openai',
+                    model: targetOpenAiModel,
+                    failover: primaryProvider === 'gemini'
+                });
+            } catch (oaErr: any) {
+                console.error("[AI API] OpenAI execution error:", oaErr);
+                lastErrorMsg = `OpenAI: ${oaErr.message} | Previous: ${lastErrorMsg}`;
+            }
+        }
+
+        // --- If both providers failed or keys missing ---
         return res.status(500).json({
             error: "AI_PROCESSING_FAILED",
-            details: errorMessage,
-            message: "The Gemini engine encountered a problem or blocked the content.",
-            type: lastError?.name || 'Error'
+            details: lastErrorMsg || "All available AI engines encountered a problem.",
+            message: "Unable to process AI request. Please check that a valid GEMINI_API_KEY or OPENAI_API_KEY is configured in Settings.",
+            providersChecked: { gemini: Boolean(geminiApiKey), openai: Boolean(openAiApiKey) }
         });
 
     } catch (error: any) {
         console.error("AI Generation Critical Exception:", error);
-
         return res.status(500).json({
             error: "AI_PROCESSING_FAILED",
             details: error?.message || "Unknown Engine Exception",
-            message: "Server exception during AI execution.",
-            type: error?.name || 'Error'
+            message: "Server exception during AI execution."
         });
     }
 }
