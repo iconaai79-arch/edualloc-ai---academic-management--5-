@@ -630,10 +630,18 @@ export const App: React.FC = () => {
             moduleStates: (institutionModuleStates || []).filter(m => (m.institutionId || (m as any).institution_id) === inst.id)
         });
 
+        const cleanId = (id?: string) => id ? String(id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase() : '';
+
         // Support showroom/school context via URL param or subdomain (even if not logged in)
         const targetId = activeStoreTenantId || (currentUser && currentUser.role !== 'super_admin' ? currentUser.institutionId : null);
         if (targetId) {
-            const found = institutions.find(i => i && (i.id === targetId || i.slug === targetId || (i.useSubdomain && i.customSubdomain === targetId)));
+            const normTarget = cleanId(targetId);
+            const found = institutions.find(i => i && (
+                i.id === targetId || 
+                i.slug === targetId || 
+                (i.useSubdomain && i.customSubdomain === targetId) ||
+                (normTarget && cleanId(i.id) === normTarget)
+            ));
             if (found) return mergeModules(found);
 
             // Check if they are a constituency user
@@ -664,7 +672,13 @@ export const App: React.FC = () => {
             }
 
             // Fallback to registry if not onboarded
-            const registryEntry = schoolRegistry.find(s => s.id === targetId || s.institutionId === targetId || s.slug === targetId || s.customSubdomain === targetId);
+            const registryEntry = schoolRegistry.find(s => 
+                s.id === targetId || 
+                s.institutionId === targetId || 
+                s.slug === targetId || 
+                s.customSubdomain === targetId ||
+                (normTarget && (cleanId(s.id) === normTarget || cleanId(s.institutionId) === normTarget))
+            );
             if (registryEntry) {
                 return mergeModules({
                     id: targetId,
@@ -678,7 +692,11 @@ export const App: React.FC = () => {
         }
 
         if (currentUser) {
-            const found = institutions.find(i => i && i.id === currentUser.institutionId);
+            const normUserInstId = cleanId(currentUser.institutionId);
+            const found = institutions.find(i => i && (
+                i.id === currentUser.institutionId || 
+                (normUserInstId && cleanId(i.id) === normUserInstId)
+            ));
             if (found) return mergeModules(found);
         }
 
@@ -3153,13 +3171,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         setTimeout(async () => {
             const adminRoles = [
                 // Primary Tenant/Institution Administrators
-                'super_admin', 'admin', 'reseller', 'property_admin', 'cooperative_manager', 'coop_chairman', 'coop_admin',
+                'admin', 'principal', 'headmaster', 'headmistress', 'head_teacher', 'managing_director', 'hoi',
+                'school_admin', 'group_admin', 'school_group_admin', 'dean', 'director',
+                'reseller', 'property_admin', 'cooperative_manager', 'coop_chairman', 'coop_admin',
                 'his_admin', 'pharmacy_admin', 'carwash_admin', 'agrovet_admin', 'church_admin', 'pastor',
-                'mechanic_admin', 'fuel_admin', 'legal_admin', 'restaurant_admin', 'director',
+                'mechanic_admin', 'fuel_admin', 'legal_admin', 'restaurant_admin',
                 'constituency_admin', 'county_admin',
                 
                 // School / Institutional Leaders & Secondary Admins
-                'head_teacher', 'deputy', 'dos', 'hod', 'tto', 'group_admin', 'school_group_admin', 'school_admin',
+                'deputy', 'dos', 'hod', 'tto',
                 
                 // Staff / Officers
                 'finance', 'finance_officer', 'academics_officer', 'hr_officer', 'transport_admin',
@@ -3172,7 +3192,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 'transport_assistant', 'driver'
             ];
 
-            const cleanId = (id?: string) => id ? String(id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '') : '';
+            const cleanId = (id?: string) => id ? String(id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase() : '';
             const normTargetId = cleanId(institutionId);
 
             const branchRecord = (branches || []).find((b: any) => {
@@ -3185,11 +3205,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 return false;
             });
 
-            let targetInst = institutions.find(i => i.id === institutionId || cleanId(i.id) === normTargetId);
+            let targetInst = institutions.find(i => i.id === institutionId || (normTargetId && cleanId(i.id) === normTargetId));
             
             if (!targetInst) {
-                const regEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId || cleanId(s.id) === normTargetId || cleanId(s.institutionId) === normTargetId);
-                const parentInst = branchRecord ? institutions.find(i => i.id === branchRecord.institution_id || cleanId(i.id) === cleanId(branchRecord.institution_id)) : null;
+                const regEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId || (normTargetId && (cleanId(s.id) === normTargetId || cleanId(s.institutionId) === normTargetId)));
+                const parentInst = branchRecord ? institutions.find(i => i.id === branchRecord.institution_id || (cleanId(branchRecord.institution_id) && cleanId(i.id) === cleanId(branchRecord.institution_id))) : null;
                 
                 targetInst = {
                     id: institutionId,
@@ -3200,7 +3220,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                     status: 'active'
                 } as any;
 
-                setInstitutions(prev => [...prev, targetInst!]);
+                setInstitutions(prev => [...prev.filter(i => i.id !== institutionId), targetInst!]);
             }
 
             const parentInstId = (targetInst as any)?.parentInstitutionId || 
@@ -3210,6 +3230,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
             const isUserForInst = (u: any) => {
                 if (!u) return false;
+                // Exclude global super admins with empty, ALL or SYSTEM institution IDs
+                if (u.role === 'super_admin' && (!u.institutionId || u.institutionId === 'ALL' || u.institutionId === 'all' || u.institutionId === 'SYSTEM')) return false;
+
                 const uInst = u.institutionId || u.institution_id;
                 const uBranch = u.branchId || u.branch_id || u.metadata?.branchId || u.metadata?.branch_id;
                 
@@ -3242,9 +3265,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 }
             }
 
-            const matchedAdmins = currentUsers.filter(u => isUserForInst(u) && adminRoles.includes(u.role));
+            // Exclude super_admin accounts from being matched as tenant admins
+            const matchedAdmins = currentUsers.filter(u => isUserForInst(u) && adminRoles.includes(u.role) && u.role !== 'super_admin');
             let admin = null;
-            if (matchedAdmins.length > 0) {
+
+            if (initialRole && initialRole !== 'super_admin') {
+                const exactRoleMatch = matchedAdmins.find(u => u.role === initialRole);
+                if (exactRoleMatch) admin = exactRoleMatch;
+            }
+
+            if (!admin && matchedAdmins.length > 0) {
                 matchedAdmins.sort((a, b) => {
                     const indexA = adminRoles.indexOf(a.role);
                     const indexB = adminRoles.indexOf(b.role);
@@ -3255,8 +3285,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
             if (!admin) {
                 console.warn(`Strict admin lookup failed for institution ${institutionId}. Falling back to non-portal user.`);
-                const excludedRoles = ['student', 'parent', 'customer'];
-                const fallbackUsers = currentUsers.filter(u => isUserForInst(u) && (!excludedRoles.includes(u.role) || initialRole === u.role));
+                const excludedRoles = ['student', 'parent', 'customer', 'super_admin'];
+                const fallbackUsers = currentUsers.filter(u => isUserForInst(u) && (!excludedRoles.includes(u.role) || (initialRole && initialRole === u.role && initialRole !== 'super_admin')));
                 if (fallbackUsers.length > 0) {
                     admin = fallbackUsers[0];
                 }
@@ -3264,18 +3294,22 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
             if (!admin) {
                 console.warn(`No users found for institution ${institutionId}. Creating temporary admin session.`);
-                const registryEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId);
+                const registryEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId || (normTargetId && (cleanId(s.id) === normTargetId || cleanId(s.institutionId) === normTargetId)));
                 const isPM = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
-                const fallbackRole = (targetInst?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') ? 'reseller' : isPM ? 'property_admin' : (initialRole || 'admin');
+                const fallbackRole = (targetInst?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') 
+                    ? 'reseller' 
+                    : isPM 
+                        ? 'property_admin' 
+                        : (initialRole && initialRole !== 'super_admin') ? initialRole : 'admin';
 
-                const cleanName = targetInst?.name || registryEntry?.name || 'Grouped Institution';
+                const cleanName = targetInst?.name || registryEntry?.name || 'Academic Institution';
                 const isActualBranch = (branches || []).some((b: any) => b.id === institutionId);
                 admin = {
                     id: `temp_admin_${institutionId.replace(/\s+/g, '_')}_${Date.now()}`,
                     institutionId: institutionId,
                     branchId: isActualBranch ? institutionId : undefined,
                     role: fallbackRole as Role,
-                    email: `admin@${institutionId.replace('demo_', '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'cdf'}.eduai.io`,
+                    email: `admin@${institutionId.replace('demo_', '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'school'}.eduai.io`,
                     name: `${cleanName} Admin`,
                     phoneNumber: '+254700000000',
                     password: 'password123',
@@ -3296,11 +3330,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 // For Property Management institutions, always use property_admin so routing
                 // lands on PropertyManagementView rather than LandlordPortalView
                 const isPMInstitution = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
-                const resolvedRole = initialRole
+                const resolvedRole = (initialRole && initialRole !== 'super_admin')
                     ? initialRole
                     : isPMInstitution && (admin.role === 'landlord' || admin.role === 'admin')
                         ? 'property_admin'
-                        : admin.role;
+                        : admin.role === 'super_admin' ? 'admin' : admin.role;
 
                 const isBranchInst = (branches || []).some((b: any) => b.id === institutionId || b.id === `br_${institutionId}` || b.linked_institution_id === institutionId);
 
@@ -3308,13 +3342,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                     ...admin,
                     institutionId: institutionId,
                     branchId: isBranchInst ? institutionId : undefined,
-                    role: resolvedRole as Role
+                    role: resolvedRole as Role,
+                    isImpersonated: true
                 };
                 
                 console.log(`[Simulator] Impersonating ${impersonatedUser.role} for ${institutionId}`);
                 setCurrentUser(impersonatedUser);
                 apiService.storeSession(impersonatedUser);
-                setImpersonatedRole(initialRole || null);
+                setImpersonatedRole((initialRole && initialRole !== 'super_admin') ? initialRole : (resolvedRole as Role));
             } else {
                 toastError("Critical: Failed to generate administrative session.");
             }

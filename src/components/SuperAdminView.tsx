@@ -1777,7 +1777,14 @@ Please change it after login.`;
         }
 
         if (isEdu) {
-            const eduAllowed = ['admin', 'head_teacher', 'academics_officer', 'security', 'store', 'transport_admin', 'transport_assistant', 'boarding_master', 'info_desk', 'librarian', 'parent', 'student', 'lecturer'];
+            const eduAllowed = [
+                'admin', 'principal', 'headmaster', 'headmistress', 'head_teacher', 'managing_director', 'hoi',
+                'school_admin', 'group_admin', 'school_group_admin', 'dean', 'director',
+                'deputy', 'dos', 'hod', 'tto',
+                'academics_officer', 'finance', 'finance_officer', 'security', 'store',
+                'transport_admin', 'transport_assistant', 'boarding_master', 'info_desk',
+                'librarian', 'parent', 'student', 'lecturer', 'teacher', 'practice_teacher', 'alumni_admin'
+            ];
             return eduAllowed.includes(opt.role);
         }
 
@@ -1789,7 +1796,11 @@ Please change it after login.`;
     });
 
     const activeRole = currentUser?.role;
-    const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'managing_director', 'hoi'].includes(activeRole || '');
+    const isAdminCatchAll = [
+        'admin', 'principal', 'headmaster', 'headmistress', 'head_teacher', 'managing_director', 'hoi',
+        'school_admin', 'group_admin', 'school_group_admin', 'dean', 'director',
+        'deputy', 'dos', 'hod', 'tto'
+    ].includes(activeRole || '');
 
     // Render logic moved from App.tsx into component to reuse for perspective switching
     // Wrapped in Suspense to handle lazy loading

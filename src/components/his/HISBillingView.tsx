@@ -181,7 +181,7 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
         status: 'Paid',
         notes: ''
     });
-    const [invoices, setInvoices] = useState<PatientInvoice[]>(MOCK_PATIENT_INVOICES);
+    const [invoices, setInvoices] = useState<PatientInvoice[]>([]);
     const [patients, setPatients] = useState<any[]>([]);
     const [insuranceProviders, setInsuranceProviders] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -251,7 +251,20 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
         };
 
         try {
-            await apiService.saveModuleRecord('his_invoices', updated).catch(() => null);
+            const dbPayload = {
+                ...updated,
+                institution_id: institutionId,
+                institutionId: institutionId,
+                patient_id: updated.patientId,
+                patient_name: updated.patientName,
+                invoice_number: updated.invoiceNumber,
+                total_amount: updated.totalAmount,
+                amount_paid: updated.amountPaid,
+                balance: updated.balance,
+                status: updated.status,
+                updated_at: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('his_invoices', dbPayload).catch(() => null);
             setInvoices(prev => prev.map(i => i.id === editingInvoice.id ? updated : i));
             alert(`✓ Invoice ${updated.invoiceNumber} updated successfully!`);
             setEditingInvoice(null);
@@ -267,34 +280,7 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     const [pdfPreviewTitle, setPdfPreviewTitle] = useState('Invoice PDF Preview');
 
     // Incoming Doctor Orders & Prescriptions Queue
-    const [doctorOrdersQueue, setDoctorOrdersQueue] = useState<any[]>([
-        {
-            id: 'ord_101',
-            patientName: 'Dr. Prescribed: Grace Wanjiru',
-            patientId: 'pat_10',
-            doctorName: 'Dr. John Smith',
-            type: 'Prescription',
-            items: [
-                { itemName: 'Amoxicillin 500mg Caps', category: 'Pharmacy', quantity: 2, unitPrice: 600, total: 1200 },
-                { itemName: 'Paracetamol 500mg Tabs', category: 'Pharmacy', quantity: 1, unitPrice: 200, total: 200 }
-            ],
-            totalAmount: 1400,
-            time: '10 mins ago'
-        },
-        {
-            id: 'ord_102',
-            patientName: 'Dr. Ordered: Kevin Otieno',
-            patientId: 'pat_11',
-            doctorName: 'Dr. Sarah Omondi',
-            type: 'Lab Test & Meds',
-            items: [
-                { itemName: 'Full Blood Count (FBC)', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 },
-                { itemName: 'Ciprofloxacin 500mg', category: 'Pharmacy', quantity: 1, unitPrice: 1500, total: 1500 }
-            ],
-            totalAmount: 4000,
-            time: '25 mins ago'
-        }
-    ]);
+    const [doctorOrdersQueue, setDoctorOrdersQueue] = useState<any[]>([]);
 
     // New Invoice Form
     const [selectedPatientId, setSelectedPatientId] = useState('');
@@ -330,13 +316,14 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
             if (!institutionId) return;
             setIsLoading(true);
             try {
-                const [bItems, dbInvoices, dbPrescs, dbExps, pData, insData] = await Promise.all([
+                const [bItems, dbInvoices, dbPrescs, dbExps, pData, insData, dbRemittances] = await Promise.all([
                     apiService.fetchModuleRecords('his_billing_items', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
                     apiService.fetchModuleRecords('his_invoices', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
                     apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
                     apiService.fetchModuleRecords('his_expenditures', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
                     apiService.fetchModuleRecords('his_patients', institutionId).catch(() => []),
-                    apiService.fetchModuleRecords('his_insurance_providers', institutionId).catch(() => [])
+                    apiService.fetchModuleRecords('his_insurance_providers', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('his_insurance_remittances', institutionId, undefined, { order: 'created_at.desc' }).catch(() => [])
                 ]);
                 
                 setPatients(pData || []);
@@ -348,6 +335,10 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                     { name: 'UAP Old Mutual', code: 'UAP-MED-05' },
                     { name: 'Britam Health', code: 'BRIT-MED-06' }
                 ]);
+
+                if (dbRemittances && dbRemittances.length > 0) {
+                    setRemittanceLogs(dbRemittances);
+                }
 
                 if (bItems && bItems.length > 0) {
                     const enhanced = bItems.map((i: any) => ({
@@ -361,9 +352,13 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                     setExpenditures(dbExps);
                 }
 
-                // Transform real prescriptions into Doctor Orders Queue
+                // Transform real pending prescriptions into Doctor Orders Queue (exclude dispensed, cleared, or invoiced)
                 if (dbPrescs && dbPrescs.length > 0) {
-                    const realDoctorOrders = dbPrescs.filter((pr: any) => pr.status !== 'dispensed' && pr.status !== 'cleared').map((pr: any) => {
+                    const realDoctorOrders = dbPrescs.filter((pr: any) => {
+                        const st = (pr.status || '').toLowerCase();
+                        const paySt = (pr.paymentStatus || pr.payment_status || '').toLowerCase();
+                        return st !== 'dispensed' && st !== 'cleared' && st !== 'invoiced' && paySt !== 'cleared';
+                    }).map((pr: any) => {
                         const patObj = (pData || []).find((p: any) => p.id === pr.patientId || p.id === pr.patient_id);
                         const patName = pr.patientName || pr.patient_name || patObj?.fullName || patObj?.name || 'Patient';
                         const docName = pr.doctorName || pr.doctor_name || 'Dr. Attending Physician';
@@ -383,127 +378,67 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                             time: pr.createdAt ? new Date(pr.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'
                         };
                     });
-                    if (realDoctorOrders.length > 0) {
-                        setDoctorOrdersQueue(realDoctorOrders);
-                    }
+                    setDoctorOrdersQueue(realDoctorOrders);
+                } else {
+                    setDoctorOrdersQueue([]);
                 }
 
-                // Construct / Merge Real Invoices from DB and Pending Patient Items
-                const realInvoices: PatientInvoice[] = [];
-
+                // 1. Process persisted DB Invoices first
                 if (dbInvoices && dbInvoices.length > 0) {
-                    const invoiceMapByPatient = new Map<string, PatientInvoice>();
-
-                    dbInvoices.forEach((inv: any) => {
-                        const patObj = (pData || []).find((p: any) => p.id === inv.patientId || p.id === inv.patient_id);
+                    const mappedDbInvoices: PatientInvoice[] = dbInvoices.map((inv: any) => {
                         const pId = inv.patientId || inv.patient_id || inv.id;
-                        const pName = inv.patientName || inv.patient_name || patObj?.fullName || 'Patient';
-                        let pItems: any[] = Array.isArray(inv.items) && inv.items.length > 0 ? [...inv.items] : [];
-
-                        // Ensure Consultation Fee item is ALWAYS present as first line item
-                        const hasConsultation = pItems.some((it: any) => 
-                            it.category?.toLowerCase() === 'consultation' || 
-                            it.itemName?.toLowerCase().includes('consultation')
-                        );
-                        if (!hasConsultation) {
-                            pItems.unshift({
-                                itemName: 'General Practitioner Consultation Fee',
-                                category: 'Consultation',
-                                quantity: 1,
-                                unitPrice: 2000,
-                                total: 2000
-                            });
+                        const patObj = (pData || []).find((p: any) => p.id === pId);
+                        const pName = inv.patientName || inv.patient_name || patObj?.fullName || patObj?.name || 'Patient';
+                        const pType = inv.payerType || inv.payer_type || 'Self-Pay';
+                        const tot = Number(inv.totalAmount || inv.total_amount || 0);
+                        const paid = Number(inv.amountPaid || inv.amount_paid || 0);
+                        const copay = Number(inv.copayAmount || inv.copay_amount || 0);
+                        const insCover = Number(inv.insuranceCoverAmount || inv.insurance_cover_amount || 0);
+                        const bal = Number(inv.balance !== undefined ? inv.balance : Math.max(0, tot - paid));
+                        const rawStatus = (inv.status || '').toLowerCase();
+                        const status = (rawStatus === 'paid' || bal === 0) ? 'Paid' : (rawStatus === 'partial' || paid > 0) ? 'Partial' : (inv.status || 'Pending');
+                        
+                        let parsedItems: any[] = [];
+                        if (Array.isArray(inv.items)) {
+                            parsedItems = inv.items;
+                        } else if (typeof inv.items === 'string') {
+                            try { parsedItems = JSON.parse(inv.items); } catch { parsedItems = []; }
                         }
 
-                        if (invoiceMapByPatient.has(pId)) {
-                            // Merge into existing master invoice for this patient
-                            const existing = invoiceMapByPatient.get(pId)!;
-                            pItems.forEach((newItem: any) => {
-                                if (!existing.items.some((i: any) => i.itemName === newItem.itemName)) {
-                                    existing.items.push(newItem);
-                                }
-                            });
-                            existing.totalAmount = existing.items.reduce((s: number, it: any) => s + (it.total || (it.quantity * it.unitPrice) || 0), 0);
-                            existing.balance = Math.max(0, existing.totalAmount - existing.amountPaid);
-                            if (existing.payerType !== 'Self-Pay') {
-                                existing.insuranceCoverAmount = Math.max(0, existing.totalAmount - (existing.copayAmount || 500));
-                            }
-                        } else {
-                            const tot = pItems.reduce((s: number, it: any) => s + (it.total || (it.quantity * it.unitPrice) || 0), 0);
-                            const paid = inv.amountPaid || inv.amount_paid || 0;
-                            const pType = inv.payerType || inv.payer_type || 'Self-Pay';
-                            const copay = inv.copayAmount || inv.copay_amount || (pType !== 'Self-Pay' ? 500 : tot);
-                            const insCover = inv.insuranceCoverAmount || inv.insurance_cover_amount || (pType !== 'Self-Pay' ? Math.max(0, tot - copay) : 0);
-
-                            invoiceMapByPatient.set(pId, {
-                                id: inv.id,
-                                invoiceNumber: inv.invoiceNumber || inv.invoice_number || `INV-${inv.id}`,
-                                patientId: pId,
-                                patientName: pName,
-                                payerType: pType,
-                                insuranceProvider: inv.insuranceProvider || inv.insurance_provider,
-                                policyNumber: inv.policyNumber || inv.policy_number,
-                                copayAmount: copay,
-                                insuranceCoverAmount: insCover,
-                                items: pItems,
-                                totalAmount: tot,
-                                amountPaid: paid,
-                                balance: Math.max(0, tot - paid),
-                                status: inv.status === 'paid' ? 'Paid' : inv.status === 'partial' ? 'Partial' : (inv.status || 'Pending'),
-                                date: inv.date || inv.createdAt || inv.created_at || new Date().toISOString().slice(0, 10),
-                                paymentMethod: inv.paymentMethod || inv.payment_method
-                            });
+                        if (parsedItems.length === 0) {
+                            parsedItems = [{ itemName: 'General Healthcare Service Fee', category: 'Consultation', quantity: 1, unitPrice: tot || 2000, total: tot || 2000 }];
                         }
+
+                        return {
+                            id: inv.id,
+                            invoiceNumber: inv.invoiceNumber || inv.invoice_number || `INV-${inv.id}`,
+                            patientId: pId,
+                            patientName: pName,
+                            payerType: pType,
+                            insuranceProvider: inv.insuranceProvider || inv.insurance_provider || undefined,
+                            policyNumber: inv.policyNumber || inv.policy_number || undefined,
+                            copayAmount: copay,
+                            insuranceCoverAmount: insCover,
+                            items: parsedItems,
+                            totalAmount: tot,
+                            amountPaid: paid,
+                            balance: bal,
+                            status: status as any,
+                            date: inv.date || (inv.createdAt ? new Date(inv.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)),
+                            paymentMethod: inv.paymentMethod || inv.payment_method
+                        };
                     });
 
-                    invoiceMapByPatient.forEach(singleInv => realInvoices.push(singleInv));
-                }
-
-                // Auto-generate invoice items from patient records if no custom invoices in DB yet
-                if (pData && pData.length > 0 && realInvoices.length === 0) {
-                    pData.forEach((p: any, idx: number) => {
+                    setInvoices(mappedDbInvoices);
+                } else if (pData && pData.length > 0) {
+                    // Fallback only if no invoices exist in database yet
+                    const initialPatientInvoices: PatientInvoice[] = pData.map((p: any, idx: number) => {
                         const patName = p.fullName || p.name || 'Patient';
-                        const patientId = p.id;
-                        const patPrescs = (dbPrescs || []).filter((pr: any) => pr.patientId === patientId || pr.patient_id === patientId);
-                        const patBills = (bItems || []).filter((bi: any) => bi.patientId === patientId || bi.patient_id === patientId);
-
-                        let invoiceItems: any[] = [
-                            { itemName: 'General Practitioner Consultation Fee', category: 'Consultation', quantity: 1, unitPrice: 2000, total: 2000 }
-                        ];
-
-                        patPrescs.forEach((pr: any) => {
-                            if (Array.isArray(pr.items)) {
-                                pr.items.forEach((it: any) => {
-                                    invoiceItems.push({
-                                        itemName: it.drugName || it.itemName || 'Pharmacy Medication',
-                                        category: 'Pharmacy',
-                                        quantity: it.quantity || 1,
-                                        unitPrice: it.unitPrice || 600,
-                                        total: (it.quantity || 1) * (it.unitPrice || 600)
-                                    });
-                                });
-                            }
-                        });
-
-                        patBills.forEach((bi: any) => {
-                            invoiceItems.push({
-                                itemName: bi.itemName || bi.description || 'Clinical Service Fee',
-                                category: bi.category || 'Diagnostics',
-                                quantity: bi.quantity || 1,
-                                unitPrice: bi.unitPrice || bi.amount || 1500,
-                                total: (bi.quantity || 1) * (bi.unitPrice || bi.amount || 1500)
-                            });
-                        });
-
-                        if (invoiceItems.length === 1) {
-                            invoiceItems.push({ itemName: 'Diagnostic Lab Screening', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 });
-                        }
-
-                        const tot = invoiceItems.reduce((s: number, it: any) => s + (it.total || 0), 0);
                         const isInsured = !!p.insuranceProvider || !!p.insurance_provider;
+                        const tot = 4500;
                         const copay = isInsured ? 500 : tot;
 
-                        realInvoices.push({
+                        return {
                             id: `inv_live_${p.id}`,
                             invoiceNumber: `INV-${new Date().getFullYear()}-${String(idx + 1).padStart(3, '0')}`,
                             patientId: p.id,
@@ -513,18 +448,20 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                             policyNumber: p.shaNumber || p.policyNumber || (isInsured ? 'SHA-8849-K' : undefined),
                             copayAmount: isInsured ? copay : 0,
                             insuranceCoverAmount: isInsured ? Math.max(0, tot - copay) : 0,
-                            items: invoiceItems,
+                            items: [
+                                { itemName: 'General Practitioner Consultation Fee', category: 'Consultation', quantity: 1, unitPrice: 2000, total: 2000 },
+                                { itemName: 'Diagnostic Lab Screening', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 }
+                            ],
                             totalAmount: tot,
                             amountPaid: 0,
                             balance: tot,
                             status: 'Pending',
                             date: new Date().toISOString().slice(0, 10)
-                        });
+                        };
                     });
-                }
-
-                if (realInvoices.length > 0) {
-                    setInvoices(realInvoices);
+                    setInvoices(initialPatientInvoices);
+                } else {
+                    setInvoices(MOCK_PATIENT_INVOICES);
                 }
             } catch (e) { 
                 console.error("Failed to load billing records:", e); 
@@ -582,7 +519,7 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
 
         const newInv: PatientInvoice = {
             id: `inv_${Date.now()}`,
-            invoiceNumber: `INV-2025-${Math.floor(100 + Math.random() * 900)}`,
+            invoiceNumber: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
             patientId: selectedPatientId || 'walkin',
             patientName: pName,
             payerType,
@@ -598,15 +535,54 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
             date: new Date().toISOString().split('T')[0]
         };
 
-        setInvoices(prev => [newInv, ...prev]);
+        setInvoices(prev => [newInv, ...prev.filter(i => i.id !== newInv.id)]);
 
         if (institutionId) {
             try {
-                await apiService.saveModuleRecord('his_billing_items', {
+                // 1. Save full master invoice to his_invoices table
+                const invoiceDbPayload = {
+                    id: newInv.id,
                     institution_id: institutionId,
+                    institutionId: institutionId,
+                    patient_id: newInv.patientId,
                     patientId: newInv.patientId,
+                    patient_name: newInv.patientName,
+                    patientName: newInv.patientName,
+                    invoice_number: newInv.invoiceNumber,
+                    invoiceNumber: newInv.invoiceNumber,
+                    payer_type: newInv.payerType,
+                    payerType: newInv.payerType,
+                    insurance_provider: newInv.insuranceProvider || null,
+                    insuranceProvider: newInv.insuranceProvider || null,
+                    policy_number: newInv.policyNumber || null,
+                    policyNumber: newInv.policyNumber || null,
+                    copay_amount: newInv.copayAmount || 0,
+                    copayAmount: newInv.copayAmount || 0,
+                    insurance_cover_amount: newInv.insuranceCoverAmount || 0,
+                    insuranceCoverAmount: newInv.insuranceCoverAmount || 0,
+                    items: newInv.items,
+                    total_amount: newInv.totalAmount,
+                    totalAmount: newInv.totalAmount,
+                    amount_paid: 0,
+                    amountPaid: 0,
+                    balance: newInv.balance,
+                    status: 'Pending',
+                    date: newInv.date,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('his_invoices', invoiceDbPayload);
+
+                // 2. Also register line items into his_billing_items for billing ledger
+                await apiService.saveModuleRecord('his_billing_items', {
+                    id: `bi_${Date.now()}`,
+                    institution_id: institutionId,
+                    institutionId: institutionId,
+                    patientId: newInv.patientId,
+                    patient_id: newInv.patientId,
                     patientName: newInv.patientName,
                     invoiceNumber: newInv.invoiceNumber,
+                    invoice_number: newInv.invoiceNumber,
                     payerType: newInv.payerType,
                     totalAmount: newInv.totalAmount,
                     copayAmount: copay,
@@ -615,24 +591,51 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                     created_at: new Date().toISOString()
                 });
                 
-                // If insurance involved, also log insurance claim for the remaining balance
+                // 3. If insurance involved, log insurance claim for the remaining balance
                 if (isInsurance && insuranceCover > 0) {
                     await apiService.saveModuleRecord('his_claims', {
+                        id: `clm_${newInv.patientId}_${Date.now()}`,
                         institution_id: institutionId,
+                        institutionId: institutionId,
                         patientId: newInv.patientId,
+                        patient_id: newInv.patientId,
                         patientName: newInv.patientName,
                         insuranceProvider: selectedInsurance,
+                        insurance_provider: selectedInsurance,
                         policyNumber,
+                        policy_number: policyNumber,
                         claimAmount: insuranceCover,
+                        claim_amount: insuranceCover,
                         copayAmount: copay,
+                        copay_amount: copay,
                         status: 'Pending',
-                        submissionDate: new Date().toISOString()
+                        submissionDate: new Date().toISOString(),
+                        created_at: new Date().toISOString()
                     });
+                }
+
+                // 4. Mark doctor prescription order as invoiced so it doesn't reappear in checkout queue
+                if (selectedPatientId && selectedPatientId !== 'walkin') {
+                    const prescs = await apiService.fetchModuleRecords('his_prescriptions', institutionId).catch(() => []);
+                    const matchPrescs = (prescs || []).filter((p: any) => 
+                        (p.patientId === selectedPatientId || p.patient_id === selectedPatientId) && 
+                        p.status !== 'dispensed' && p.status !== 'cleared'
+                    );
+                    for (const p of matchPrescs) {
+                        await apiService.updateModuleRecord('his_prescriptions', p.id, {
+                            status: 'invoiced',
+                            invoiceNumber: newInv.invoiceNumber,
+                            invoice_number: newInv.invoiceNumber
+                        }).catch(() => null);
+                    }
                 }
             } catch (err) {
                 console.error("Failed to save invoice to Supabase:", err);
             }
         }
+
+        // Clean up from doctor orders queue
+        setDoctorOrdersQueue(prev => prev.filter(q => q.patientId !== selectedPatientId));
 
         setIsGenerateModalOpen(false);
         const splitMsg = isInsurance 
@@ -651,10 +654,11 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
             ? customPayAmount
             : selectedInvoice.balance;
 
-        setTimeout(async () => {
-            const newAmountPaid = selectedInvoice.amountPaid + amountToPay;
-            const newBalance = Math.max(0, selectedInvoice.totalAmount - newAmountPaid);
+        try {
+            const newAmountPaid = (selectedInvoice.amountPaid || 0) + amountToPay;
+            const newBalance = Math.max(0, (selectedInvoice.totalAmount || 0) - newAmountPaid);
             const isFullyPaid = newBalance === 0;
+            const recipNo = `REC-${Math.floor(10000 + Math.random() * 90000)}`;
 
             const updatedInv: PatientInvoice = {
                 ...selectedInvoice,
@@ -667,42 +671,109 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
             setInvoices(prev => prev.map(inv => inv.id === selectedInvoice.id ? updatedInv : inv));
             
             if (institutionId) {
-                try {
-                    await apiService.saveModuleRecord('his_billing_items', {
-                        institution_id: institutionId,
-                        id: selectedInvoice.id,
-                        status: isFullyPaid ? 'paid' : 'partial',
-                        amountPaid: newAmountPaid,
-                        balance: newBalance,
-                        paymentMethod,
-                        paidAt: new Date().toISOString()
-                    });
+                // 1. Persist updated invoice to his_invoices table
+                const invoiceUpdatePayload = {
+                    ...updatedInv,
+                    institution_id: institutionId,
+                    institutionId: institutionId,
+                    patient_id: selectedInvoice.patientId,
+                    patientId: selectedInvoice.patientId,
+                    patient_name: selectedInvoice.patientName,
+                    patientName: selectedInvoice.patientName,
+                    invoice_number: selectedInvoice.invoiceNumber,
+                    invoiceNumber: selectedInvoice.invoiceNumber,
+                    payer_type: selectedInvoice.payerType,
+                    payerType: selectedInvoice.payerType,
+                    insurance_provider: selectedInvoice.insuranceProvider || null,
+                    insuranceProvider: selectedInvoice.insuranceProvider || null,
+                    policy_number: selectedInvoice.policyNumber || null,
+                    policyNumber: selectedInvoice.policyNumber || null,
+                    copay_amount: selectedInvoice.copayAmount || 0,
+                    copayAmount: selectedInvoice.copayAmount || 0,
+                    insurance_cover_amount: selectedInvoice.insuranceCoverAmount || 0,
+                    insuranceCoverAmount: selectedInvoice.insuranceCoverAmount || 0,
+                    items: selectedInvoice.items,
+                    total_amount: selectedInvoice.totalAmount,
+                    totalAmount: selectedInvoice.totalAmount,
+                    amount_paid: newAmountPaid,
+                    amountPaid: newAmountPaid,
+                    balance: newBalance,
+                    status: isFullyPaid ? 'Paid' : 'Partial',
+                    payment_method: updatedInv.paymentMethod,
+                    paymentMethod: updatedInv.paymentMethod,
+                    date: selectedInvoice.date || new Date().toISOString().slice(0, 10),
+                    updated_at: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('his_invoices', invoiceUpdatePayload);
 
-                    // Auto-clear pharmacy prescription for this patient in Pharmacy module
-                    const prescs = await apiService.fetchModuleRecords('his_prescriptions', institutionId).catch(() => []);
-                    const patientPrescs = (prescs || []).filter((p: any) => p.patientId === selectedInvoice.patientId && p.status !== 'dispensed');
-                    const recipNo = `REC-${Math.floor(10000 + Math.random() * 90000)}`;
-                    const financeNote = `✓ Cleared for Dispensing at Finance Desk (Receipt #${recipNo} | Method: ${paymentMethod} | Paid KES ${amountToPay.toLocaleString()})`;
+                // 2. Record payment in his_payments table
+                await apiService.saveModuleRecord('his_payments', {
+                    id: `hpay_${Date.now()}`,
+                    institution_id: institutionId,
+                    institutionId: institutionId,
+                    invoice_id: selectedInvoice.id,
+                    invoiceId: selectedInvoice.id,
+                    patient_id: selectedInvoice.patientId,
+                    patientId: selectedInvoice.patientId,
+                    patient_name: selectedInvoice.patientName,
+                    patientName: selectedInvoice.patientName,
+                    receipt_number: recipNo,
+                    receiptNumber: recipNo,
+                    amount: amountToPay,
+                    payment_method: paymentMethod,
+                    paymentMethod: paymentMethod,
+                    payment_date: new Date().toISOString().slice(0, 10),
+                    notes: `Payment for Invoice #${selectedInvoice.invoiceNumber}`,
+                    status: 'Verified',
+                    created_at: new Date().toISOString()
+                }).catch(() => null);
 
-                    for (const p of patientPrescs) {
-                        await apiService.updateModuleRecord('his_prescriptions', p.id, {
-                            paymentStatus: 'cleared',
-                            financeNotes: financeNote,
-                            receiptNumber: recipNo,
-                            clearedByFinanceAt: new Date().toISOString()
-                        }).catch(() => null);
-                    }
-                } catch (err) {
-                    console.error("Failed to record payment in Supabase:", err);
+                // 3. Update his_billing_items
+                await apiService.saveModuleRecord('his_billing_items', {
+                    institution_id: institutionId,
+                    id: `bi_${selectedInvoice.id}`,
+                    patientId: selectedInvoice.patientId,
+                    status: isFullyPaid ? 'paid' : 'partial',
+                    amountPaid: newAmountPaid,
+                    balance: newBalance,
+                    paymentMethod,
+                    paidAt: new Date().toISOString()
+                }).catch(() => null);
+
+                // 4. Auto-clear pharmacy prescription for this patient in Pharmacy module
+                const prescs = await apiService.fetchModuleRecords('his_prescriptions', institutionId).catch(() => []);
+                const patientPrescs = (prescs || []).filter((p: any) => 
+                    (p.patientId === selectedInvoice.patientId || p.patient_id === selectedInvoice.patientId) && 
+                    p.status !== 'dispensed'
+                );
+                const financeNote = `✓ Cleared for Dispensing at Finance Desk (Receipt #${recipNo} | Method: ${paymentMethod} | Paid KES ${amountToPay.toLocaleString()})`;
+
+                for (const p of patientPrescs) {
+                    await apiService.updateModuleRecord('his_prescriptions', p.id, {
+                        status: 'cleared',
+                        paymentStatus: 'cleared',
+                        payment_status: 'cleared',
+                        financeNotes: financeNote,
+                        finance_notes: financeNote,
+                        receiptNumber: recipNo,
+                        receipt_number: recipNo,
+                        clearedByFinanceAt: new Date().toISOString()
+                    }).catch(() => null);
                 }
             }
 
+            // Remove from doctor orders queue if paid
+            setDoctorOrdersQueue(prev => prev.filter(q => q.patientId !== selectedInvoice.patientId));
+
             setIsProcessingPayment(false);
             setIsPaymentModalOpen(false);
+            alert(`✓ Payment of KES ${amountToPay.toLocaleString()} recorded via ${paymentMethod}!\nReceipt #: ${recipNo}\nRemaining Outstanding Balance: KES ${newBalance.toLocaleString()}`);
+        } catch (err) {
+            console.error("Failed to record payment in Supabase:", err);
             setIsProcessingPayment(false);
             setIsPaymentModalOpen(false);
-            alert(`✓ Payment of KES ${amountToPay.toLocaleString()} recorded via ${paymentMethod}!\nRemaining Outstanding Balance: KES ${newBalance.toLocaleString()}`);
-        }, 1200);
+            alert("Error saving payment to database.");
+        }
     };
 
     const handlePrintB2bMasterInvoice = () => {
