@@ -7,6 +7,7 @@ import { StethoscopeIcon } from '../icons/StethoscopeIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { HeartIcon, ActivityIcon, ClockIcon } from './HealthIcons';
 import { apiService } from '../../services/apiService';
+import { getConsultationFeeFromSettings } from '../../utils/hisFeeUtils';
 
 interface SOAPEncounterModalProps {
     isOpen: boolean;

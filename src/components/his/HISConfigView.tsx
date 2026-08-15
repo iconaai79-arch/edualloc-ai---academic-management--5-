@@ -69,12 +69,41 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
     };
 
     // ── Tariffs & Fee Schedule State ──────────────────────────────────────────
-    const [consultationRates, setConsultationRates] = useState({
-        cashConsultation: 1000,
-        coverConsultation: 1500,
-        emergencySurcharge: 500,
-        revisitFee: 500,
+    const [consultationRates, setConsultationRates] = useState(() => {
+        try {
+            const saved = localStorage.getItem(`his_consultation_rates_${institutionId}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {
+            cashConsultation: 1000,
+            coverConsultation: 1500,
+            emergencySurcharge: 500,
+            revisitFee: 500,
+        };
     });
+
+    const handleSaveConsultationRates = async () => {
+        if (!institutionId) return;
+        setIsSavingTariffs(true);
+        try {
+            localStorage.setItem(`his_consultation_rates_${institutionId}`, JSON.stringify(consultationRates));
+            await apiService.saveModuleRecord('his_tariffs', {
+                id: `consultation_rates_${institutionId}`,
+                institutionId,
+                institution_id: institutionId,
+                type: 'consultation_rates',
+                ...consultationRates,
+                updatedAt: new Date().toISOString()
+            }).catch(() => null);
+            alert(`✓ Consultation fee schedule updated successfully!\n\n• Cash Consultation Fee: KES ${consultationRates.cashConsultation.toLocaleString()}\n• Cover / Insurance Consultation Fee: KES ${consultationRates.coverConsultation.toLocaleString()}`);
+        } catch (e) {
+            console.error('Failed to save consultation rates:', e);
+            alert('Failed to save consultation rates.');
+        } finally {
+            setIsSavingTariffs(false);
+        }
+    };
+
     const [customTariffs, setCustomTariffs] = useState<any[]>([]);
     const [editingTariff, setEditingTariff] = useState<any | null>(null);
     const [tariffCategory, setTariffCategory] = useState<string>('All');

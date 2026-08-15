@@ -14,6 +14,7 @@ import { SOAPEncounterModal } from './SOAPEncounterModal';
 import { apiService } from '../../services/apiService';
 import { generateFbcLabReportPdf } from '../../services/pdfService';
 import { PdfViewer } from '../PdfViewer';
+import { getConsultationFeeFromSettings } from '../../utils/hisFeeUtils';
 
 interface DoctorDashboardProps {
     patients: HISPatient[];
@@ -540,9 +541,10 @@ export function DoctorDashboard({
                 const isInsured = !!(currentActivePatient?.insuranceProvider || (currentActivePatient as any)?.shaNumber || (currentActivePatient as any)?.insurance_provider);
                 const insProvider = currentActivePatient?.insuranceProvider || (currentActivePatient as any)?.insurance_provider || (isInsured ? 'SHA (Social Health Authority)' : undefined);
                 const policyNo = (currentActivePatient as any)?.shaNumber || (currentActivePatient as any)?.policyNumber || (isInsured ? 'SHA-8849-K' : undefined);
+                const consultationFeeVal = getConsultationFeeFromSettings(institutionId, isInsured);
 
                 const consolidatedItems = [
-                    { itemName: 'General Practitioner Consultation', category: 'Consultation', quantity: 1, unitPrice: 2000, total: 2000 },
+                    { itemName: 'General Practitioner Consultation Fee', category: 'Consultation', quantity: 1, unitPrice: consultationFeeVal, total: consultationFeeVal },
                     { itemName: 'Full Blood Count (FBC) Lab Screening', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 },
                     { itemName: 'Amoxicillin 500mg Capsules (20 Caps)', category: 'Pharmacy', quantity: 1, unitPrice: 1200, total: 1200 },
                     { itemName: 'Paracetamol 500mg Tablets (10 Tabs)', category: 'Pharmacy', quantity: 1, unitPrice: 300, total: 300 }

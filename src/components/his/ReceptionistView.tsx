@@ -131,21 +131,49 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
     const handleRegisterPatient = async (patientData: any) => {
         if (!institutionId) return;
         try {
+            const patName = patientData.fullName || `${patientData.firstName || ''} ${patientData.lastName || ''}`.trim() || 'Registered Patient';
+            const patNo = patientData.customPatientId || patientData.patientNumber || `PID-${Math.floor(100 + Math.random() * 900)}`;
+
             const record: HISPatient = {
                 ...patientData,
                 id: `his_p_${Date.now()}`,
                 institutionId,
+                institution_id: institutionId,
+                fullName: patName,
+                name: patName,
+                patientNumber: patNo,
+                customPatientId: patNo,
+                status: 'active',
                 createdAt: new Date().toISOString(),
+                created_at: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
             };
+
             await apiService.saveModuleRecord('his_patients', record);
+
+            // Also add patient to HIS queue calls so doctor can see them in consultation queue!
+            await apiService.saveModuleRecord('his_queue_calls', {
+                id: `his_q_${record.id}`,
+                institutionId,
+                institution_id: institutionId,
+                patientId: record.id,
+                patient_id: record.id,
+                patientName: patName,
+                patient_name: patName,
+                status: 'Waiting',
+                roomNo: 'Waiting Area',
+                doctorName: 'Unassigned',
+                updatedAt: new Date().toISOString()
+            }).catch(() => null);
+
             setPatients(prev => [record, ...prev]);
             setIsRegisterOpen(false);
             setSelectedPatient(record);
-            showNotif(`${record.fullName} registered successfully`);
+            showNotif(`${patName} registered successfully`);
             setTimeout(() => setIsBookingOpen(true), 300);
         } catch (e) {
-            console.error(e);
+            console.error('Registration failed:', e);
             showNotif('Registration failed', 'error');
         }
     };
