@@ -392,27 +392,58 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                 const realInvoices: PatientInvoice[] = [];
 
                 if (dbInvoices && dbInvoices.length > 0) {
+                    const invoiceMapByPatient = new Map<string, PatientInvoice>();
+
                     dbInvoices.forEach((inv: any) => {
                         const patObj = (pData || []).find((p: any) => p.id === inv.patientId || p.id === inv.patient_id);
-                        realInvoices.push({
-                            id: inv.id,
-                            invoiceNumber: inv.invoiceNumber || inv.invoice_number || `INV-${inv.id}`,
-                            patientId: inv.patientId || inv.patient_id,
-                            patientName: inv.patientName || inv.patient_name || patObj?.fullName || 'Patient',
-                            payerType: inv.payerType || inv.payer_type || 'Self-Pay',
-                            insuranceProvider: inv.insuranceProvider || inv.insurance_provider,
-                            policyNumber: inv.policyNumber || inv.policy_number,
-                            copayAmount: inv.copayAmount || inv.copay_amount || 0,
-                            insuranceCoverAmount: inv.insuranceCoverAmount || inv.insurance_cover_amount || 0,
-                            items: inv.items || [{ itemName: 'Medical Service', category: 'Consultation', quantity: 1, unitPrice: inv.totalAmount || 1500, total: inv.totalAmount || 1500 }],
-                            totalAmount: inv.totalAmount || inv.total_amount || 0,
-                            amountPaid: inv.amountPaid || inv.amount_paid || 0,
-                            balance: inv.balance !== undefined ? inv.balance : ((inv.totalAmount || 0) - (inv.amountPaid || 0)),
-                            status: inv.status === 'paid' ? 'Paid' : inv.status === 'partial' ? 'Partial' : inv.status === 'pending' ? 'Pending' : (inv.status || 'Pending'),
-                            date: inv.date || inv.createdAt || inv.created_at || new Date().toISOString().slice(0, 10),
-                            paymentMethod: inv.paymentMethod || inv.payment_method
-                        });
+                        const pId = inv.patientId || inv.patient_id || inv.id;
+                        const pName = inv.patientName || inv.patient_name || patObj?.fullName || 'Patient';
+                        const pItems = Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : [
+                            { itemName: 'General GP Consultation', category: 'Consultation', quantity: 1, unitPrice: inv.totalAmount || 2000, total: inv.totalAmount || 2000 }
+                        ];
+
+                        if (invoiceMapByPatient.has(pId)) {
+                            // Merge into existing master invoice for this patient
+                            const existing = invoiceMapByPatient.get(pId)!;
+                            pItems.forEach((newItem: any) => {
+                                if (!existing.items.some((i: any) => i.itemName === newItem.itemName)) {
+                                    existing.items.push(newItem);
+                                }
+                            });
+                            existing.totalAmount = existing.items.reduce((s: number, it: any) => s + (it.total || (it.quantity * it.unitPrice) || 0), 0);
+                            existing.balance = Math.max(0, existing.totalAmount - existing.amountPaid);
+                            if (existing.payerType !== 'Self-Pay') {
+                                existing.insuranceCoverAmount = Math.max(0, existing.totalAmount - (existing.copayAmount || 500));
+                            }
+                        } else {
+                            const tot = inv.totalAmount || inv.total_amount || pItems.reduce((s: number, it: any) => s + (it.total || 0), 0);
+                            const paid = inv.amountPaid || inv.amount_paid || 0;
+                            const pType = inv.payerType || inv.payer_type || 'Self-Pay';
+                            const copay = inv.copayAmount || inv.copay_amount || (pType !== 'Self-Pay' ? 500 : tot);
+                            const insCover = inv.insuranceCoverAmount || inv.insurance_cover_amount || (pType !== 'Self-Pay' ? Math.max(0, tot - copay) : 0);
+
+                            invoiceMapByPatient.set(pId, {
+                                id: inv.id,
+                                invoiceNumber: inv.invoiceNumber || inv.invoice_number || `INV-${inv.id}`,
+                                patientId: pId,
+                                patientName: pName,
+                                payerType: pType,
+                                insuranceProvider: inv.insuranceProvider || inv.insurance_provider,
+                                policyNumber: inv.policyNumber || inv.policy_number,
+                                copayAmount: copay,
+                                insuranceCoverAmount: insCover,
+                                items: pItems,
+                                totalAmount: tot,
+                                amountPaid: paid,
+                                balance: Math.max(0, tot - paid),
+                                status: inv.status === 'paid' ? 'Paid' : inv.status === 'partial' ? 'Partial' : (inv.status || 'Pending'),
+                                date: inv.date || inv.createdAt || inv.created_at || new Date().toISOString().slice(0, 10),
+                                paymentMethod: inv.paymentMethod || inv.payment_method
+                            });
+                        }
                     });
+
+                    invoiceMapByPatient.forEach(singleInv => realInvoices.push(singleInv));
                 }
 
                 // Auto-generate invoice items from patient records if no custom invoices in DB yet
