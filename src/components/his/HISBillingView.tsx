@@ -398,9 +398,22 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                         const patObj = (pData || []).find((p: any) => p.id === inv.patientId || p.id === inv.patient_id);
                         const pId = inv.patientId || inv.patient_id || inv.id;
                         const pName = inv.patientName || inv.patient_name || patObj?.fullName || 'Patient';
-                        const pItems = Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : [
-                            { itemName: 'General GP Consultation', category: 'Consultation', quantity: 1, unitPrice: inv.totalAmount || 2000, total: inv.totalAmount || 2000 }
-                        ];
+                        let pItems: any[] = Array.isArray(inv.items) && inv.items.length > 0 ? [...inv.items] : [];
+
+                        // Ensure Consultation Fee item is ALWAYS present as first line item
+                        const hasConsultation = pItems.some((it: any) => 
+                            it.category?.toLowerCase() === 'consultation' || 
+                            it.itemName?.toLowerCase().includes('consultation')
+                        );
+                        if (!hasConsultation) {
+                            pItems.unshift({
+                                itemName: 'General Practitioner Consultation Fee',
+                                category: 'Consultation',
+                                quantity: 1,
+                                unitPrice: 2000,
+                                total: 2000
+                            });
+                        }
 
                         if (invoiceMapByPatient.has(pId)) {
                             // Merge into existing master invoice for this patient
@@ -416,7 +429,7 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                 existing.insuranceCoverAmount = Math.max(0, existing.totalAmount - (existing.copayAmount || 500));
                             }
                         } else {
-                            const tot = inv.totalAmount || inv.total_amount || pItems.reduce((s: number, it: any) => s + (it.total || 0), 0);
+                            const tot = pItems.reduce((s: number, it: any) => s + (it.total || (it.quantity * it.unitPrice) || 0), 0);
                             const paid = inv.amountPaid || inv.amount_paid || 0;
                             const pType = inv.payerType || inv.payer_type || 'Self-Pay';
                             const copay = inv.copayAmount || inv.copay_amount || (pType !== 'Self-Pay' ? 500 : tot);
@@ -454,7 +467,10 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                         const patPrescs = (dbPrescs || []).filter((pr: any) => pr.patientId === patientId || pr.patient_id === patientId);
                         const patBills = (bItems || []).filter((bi: any) => bi.patientId === patientId || bi.patient_id === patientId);
 
-                        let invoiceItems: any[] = [];
+                        let invoiceItems: any[] = [
+                            { itemName: 'General Practitioner Consultation Fee', category: 'Consultation', quantity: 1, unitPrice: 2000, total: 2000 }
+                        ];
+
                         patPrescs.forEach((pr: any) => {
                             if (Array.isArray(pr.items)) {
                                 pr.items.forEach((it: any) => {
@@ -472,18 +488,15 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                         patBills.forEach((bi: any) => {
                             invoiceItems.push({
                                 itemName: bi.itemName || bi.description || 'Clinical Service Fee',
-                                category: bi.category || 'Consultation',
+                                category: bi.category || 'Diagnostics',
                                 quantity: bi.quantity || 1,
                                 unitPrice: bi.unitPrice || bi.amount || 1500,
                                 total: (bi.quantity || 1) * (bi.unitPrice || bi.amount || 1500)
                             });
                         });
 
-                        if (invoiceItems.length === 0) {
-                            invoiceItems = [
-                                { itemName: 'General Practitioner Consultation', category: 'Consultation', quantity: 1, unitPrice: 2000, total: 2000 },
-                                { itemName: 'Diagnostic Lab Screening', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 }
-                            ];
+                        if (invoiceItems.length === 1) {
+                            invoiceItems.push({ itemName: 'Diagnostic Lab Screening', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 });
                         }
 
                         const tot = invoiceItems.reduce((s: number, it: any) => s + (it.total || 0), 0);

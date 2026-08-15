@@ -134,10 +134,53 @@ export function SOAPEncounterModal({
                 createdAt: new Date().toISOString()
             });
 
-            // Update patient's clinical summary
-            await apiService.updateModuleRecord('his_patients', patient.id, {
-                clinicalNotes: fullNotes,
-                updatedAt: new Date().toISOString()
+            // Save consolidated master invoice with Consultation Fee included
+            const isInsured = !!(patient.insuranceProvider || (patient as any).shaNumber || (patient as any).insurance_provider);
+            const insProvider = patient.insuranceProvider || (patient as any).insurance_provider || (isInsured ? 'SHA (Social Health Authority)' : undefined);
+            const policyNo = (patient as any).shaNumber || (patient as any).policyNumber || (isInsured ? 'SHA-8849-K' : undefined);
+
+            const consolidatedItems = [
+                { itemName: 'General Practitioner Consultation Fee', category: 'Consultation', quantity: 1, unitPrice: 2000, total: 2000 },
+                { itemName: 'Diagnostic Lab Screening', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 },
+                { itemName: 'Prescription Medications & Dispensing', category: 'Pharmacy', quantity: 1, unitPrice: 1500, total: 1500 }
+            ];
+
+            const totalInvoiceAmount = consolidatedItems.reduce((s, it) => s + it.total, 0); // Total KES 6,000
+            const copay = isInsured ? 500 : totalInvoiceAmount;
+            const insCover = isInsured ? Math.max(0, totalInvoiceAmount - copay) : 0;
+            const payerTypeVal = isInsured ? 'Split (Co-Pay + Insurance)' : 'Self-Pay';
+            const invNo = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+            await apiService.saveModuleRecord('his_invoices', {
+                id: `inv_soap_${patient.id}`,
+                institutionId,
+                institution_id: institutionId,
+                invoiceNumber: invNo,
+                invoice_number: invNo,
+                patientId: patient.id,
+                patient_id: patient.id,
+                patientName: patient.fullName,
+                patient_name: patient.fullName,
+                payerType: payerTypeVal,
+                payer_type: payerTypeVal,
+                insuranceProvider: insProvider,
+                insurance_provider: insProvider,
+                policyNumber: policyNo,
+                policy_number: policyNo,
+                copayAmount: copay,
+                copay_amount: copay,
+                insuranceCoverAmount: insCover,
+                insurance_cover_amount: insCover,
+                items: consolidatedItems,
+                totalAmount: totalInvoiceAmount,
+                total_amount: totalInvoiceAmount,
+                amountPaid: 0,
+                amount_paid: 0,
+                balance: totalInvoiceAmount,
+                status: 'Pending',
+                date: new Date().toISOString().slice(0, 10),
+                createdAt: new Date().toISOString(),
+                created_at: new Date().toISOString()
             }).catch(() => null);
 
             alert(`✓ EMR Consultation Encounter saved for ${patient.fullName}!`);
