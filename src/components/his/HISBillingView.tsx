@@ -188,6 +188,18 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
 
+    // Billing number settings loaded from his_billing_settings (configured in HIS Config)
+    const [billingSettings, setBillingSettings] = useState({
+        invoicePrefix: 'INV',
+        invoiceStartNumber: 1001,
+        receiptPrefix: 'RCT',
+        receiptStartNumber: 5001,
+        currency: 'KES',
+        financialYear: new Date().getFullYear().toString(),
+        includeYearInNumber: true,
+        zeroPadLength: 4,
+    });
+
     // Revenue Period Generator state
     const [revenuePeriod, setRevenuePeriod] = useState<'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'>('month');
     const [customStartDate, setCustomStartDate] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
@@ -318,15 +330,32 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
             if (!institutionId) return;
             setIsLoading(true);
             try {
-                const [bItems, dbInvoices, dbPrescs, dbExps, pData, insData, dbRemittances] = await Promise.all([
+                const [bItems, dbInvoices, dbPrescs, dbExps, pData, insData, dbRemittances, dbBillingSettings] = await Promise.all([
                     apiService.fetchModuleRecords('his_billing_items', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
                     apiService.fetchModuleRecords('his_invoices', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
                     apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
                     apiService.fetchModuleRecords('his_expenditures', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
                     apiService.fetchModuleRecords('his_patients', institutionId).catch(() => []),
                     apiService.fetchModuleRecords('his_insurance_providers', institutionId).catch(() => []),
-                    apiService.fetchModuleRecords('his_insurance_remittances', institutionId, undefined, { order: 'created_at.desc' }).catch(() => [])
+                    apiService.fetchModuleRecords('his_insurance_remittances', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
+                    apiService.fetchModuleRecords('his_billing_settings', institutionId).catch(() => [])
                 ]);
+
+                // Apply configured billing number prefix/format from HIS Settings
+                if (dbBillingSettings && dbBillingSettings.length > 0) {
+                    const s = dbBillingSettings[0];
+                    setBillingSettings(prev => ({
+                        ...prev,
+                        invoicePrefix: s.invoicePrefix || s.invoice_prefix || prev.invoicePrefix,
+                        invoiceStartNumber: Number(s.invoiceStartNumber || s.invoice_start_number || prev.invoiceStartNumber),
+                        receiptPrefix: s.receiptPrefix || s.receipt_prefix || prev.receiptPrefix,
+                        receiptStartNumber: Number(s.receiptStartNumber || s.receipt_start_number || prev.receiptStartNumber),
+                        currency: s.currency || prev.currency,
+                        financialYear: s.financialYear || s.financial_year || prev.financialYear,
+                        includeYearInNumber: s.includeYearInNumber ?? s.include_year_in_number ?? prev.includeYearInNumber,
+                        zeroPadLength: Number(s.zeroPadLength || s.zero_pad_length || prev.zeroPadLength),
+                    }));
+                }
                 
                 setPatients(pData || []);
                 setInsuranceProviders(insData && insData.length > 0 ? insData : [
@@ -519,9 +548,15 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
         const copay = isInsurance ? Number(copayAmount) || 0 : 0;
         const insuranceCover = isInsurance ? Math.max(0, newInvoiceSubtotal - copay) : 0;
 
+        // Generate invoice number using prefix/format configured in HIS Settings
+        const invYr = billingSettings.includeYearInNumber ? `-${new Date().getFullYear()}` : '';
+        const invPad = (n: number) => String(n).padStart(billingSettings.zeroPadLength || 4, '0');
+        const invSeq = (billingSettings.invoiceStartNumber || 1001) + Math.floor(Math.random() * 8999);
+        const generatedInvoiceNumber = `${billingSettings.invoicePrefix}${invYr}-${invPad(invSeq)}`;
+
         const newInv: PatientInvoice = {
             id: `inv_${Date.now()}`,
-            invoiceNumber: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+            invoiceNumber: generatedInvoiceNumber,
             patientId: selectedPatientId || 'walkin',
             patientName: pName,
             payerType,
@@ -678,7 +713,11 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
             const newAmountPaid = (selectedInvoice.amountPaid || 0) + amountToPay;
             const newBalance = Math.max(0, (selectedInvoice.totalAmount || 0) - newAmountPaid);
             const isFullyPaid = newBalance === 0;
-            const recipNo = `REC-${Math.floor(10000 + Math.random() * 90000)}`;
+            // Generate receipt number using prefix/format from HIS billing settings
+            const recYr = billingSettings.includeYearInNumber ? `-${new Date().getFullYear()}` : '';
+            const recPad = (n: number) => String(n).padStart(billingSettings.zeroPadLength || 4, '0');
+            const recSeq = (billingSettings.receiptStartNumber || 5001) + Math.floor(Math.random() * 89999);
+            const recipNo = `${billingSettings.receiptPrefix}${recYr}-${recPad(recSeq)}`;
 
             const updatedInv: PatientInvoice = {
                 ...selectedInvoice,
