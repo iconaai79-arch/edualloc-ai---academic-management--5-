@@ -3532,6 +3532,7 @@ export interface HISPatient {
     userId?: string;
     fullName: string;
     patientNumber?: string;
+    customPatientId?: string;
     dob?: string;
     gender: 'Male' | 'Female' | 'Other';
     bloodGroup?: string;

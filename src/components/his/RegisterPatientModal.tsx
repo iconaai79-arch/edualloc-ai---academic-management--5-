@@ -36,6 +36,7 @@ function ChevronLeftIcon(props: any) {
 export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], isEdu = false }: RegisterPatientModalProps) {
     const [currentStep, setCurrentStep] = useState(1);
     const [formData, setFormData] = useState({
+        customPatientId: '',
         fullName: '',
         dob: '',
         gender: 'Male',
@@ -57,6 +58,23 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
     const [directorySearch, setDirectorySearch] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isAutoFilled, setIsAutoFilled] = useState(false);
+
+    React.useEffect(() => {
+        if (!isOpen) return;
+        try {
+            const keys = Object.keys(localStorage).filter(k => k.startsWith('his_patient_id_config_'));
+            let config = { customPrefix: 'PID-', startNumber: 1, zeroPadLength: 3, includeYear: false };
+            if (keys.length > 0) {
+                const saved = localStorage.getItem(keys[0]);
+                if (saved) config = { ...config, ...JSON.parse(saved) };
+            }
+            if (!formData.customPatientId) {
+                const yearPart = config.includeYear ? `${new Date().getFullYear()}-` : '';
+                const sampleNum = String(config.startNumber).padStart(config.zeroPadLength, '0');
+                setFormData(f => ({ ...f, customPatientId: `${config.customPrefix}${yearPart}${sampleNum}` }));
+            }
+        } catch (e) {}
+    }, [isOpen]);
 
     // Calculate Age Automatically based on DOB
     const calculatedAge = useMemo(() => {
@@ -180,8 +198,11 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
         if (!isStepValid()) return;
         setIsSubmitting(true);
         try {
+            const generatedId = formData.customPatientId || `PID-${Math.floor(100 + Math.random() * 900)}`;
             await onRegister({
                 ...formData,
+                patientNumber: generatedId,
+                customPatientId: generatedId,
                 gender: formData.gender as 'Male' | 'Female' | 'Other',
                 allergies: formData.allergies
                     ? formData.allergies.split(',').map(s => s.trim()).filter(Boolean)
@@ -301,6 +322,24 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                             )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 ml-1 flex items-center justify-between">
+                                        <span>Custom Patient ID / MRN *</span>
+                                        <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Set in HIS Config</span>
+                                    </label>
+                                    <div className="relative group">
+                                        <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500 group-focus-within:text-indigo-400 transition-colors" />
+                                        <input
+                                            required
+                                            type="text"
+                                            placeholder="E.G. PID-001"
+                                            className="w-full bg-indigo-50/50 dark:bg-white/5 border-2 border-indigo-500/30 focus:border-indigo-500 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-indigo-600 dark:text-indigo-300 font-mono"
+                                            value={formData.customPatientId}
+                                            onChange={e => setFormData({ ...formData, customPatientId: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Full Identity Name</label>
                                     <div className="relative group">

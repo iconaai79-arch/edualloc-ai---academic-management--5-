@@ -719,7 +719,9 @@ export function DoctorDashboard({
                                                 <div className="flex items-center gap-2 mt-0.5">
                                                     <span className="text-[9px] font-black text-slate-400 uppercase">{q.patient.gender}</span>
                                                     <span className="text-slate-300 dark:text-slate-600">•</span>
-                                                    <span className="text-[9px] font-black text-indigo-500 uppercase">{q.complaint}</span>
+                                                    <span className="text-[9px] font-mono font-black text-indigo-500 uppercase bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/30">
+                                                        {q.patient.customPatientId || q.patient.patientNumber || q.complaint}
+                                                    </span>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3 flex-shrink-0">

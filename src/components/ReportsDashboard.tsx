@@ -1826,7 +1826,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 receipts={[]}
                                 expenses={[]}
                                 institution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
-                                companyDetails={companyDetails}
                             />
                         </div>
                     )}

@@ -798,8 +798,8 @@ export function EduPulsePatientsList({
 
                                     {/* Adm No */}
                                     <td className="px-7 py-5">
-                                        <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/30 px-3 py-1 rounded-full border border-indigo-200/50 dark:border-indigo-800/30">
-                                            {p.admissionNumber || (p as any).admission_number || '—'}
+                                        <span className="text-[10px] font-mono font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/30 px-3 py-1 rounded-full border border-indigo-200/50 dark:border-indigo-800/30">
+                                            {p.customPatientId || p.patientNumber || p.admissionNumber || (p as any).admission_number || '—'}
                                         </span>
                                     </td>
 

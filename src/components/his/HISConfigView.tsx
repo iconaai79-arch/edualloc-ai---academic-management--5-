@@ -6,7 +6,7 @@ import { PencilIcon } from '../icons/PencilIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import { XIcon } from '../icons/XIcon';
 import { HISStaff, User, BiometricDevice } from '../../types';
-import { GlobeAltIcon, PhotoIcon, BuildingOfficeIcon } from './HealthIcons';
+import { GlobeAltIcon, PhotoIcon, BuildingOfficeIcon, IdentificationIcon } from './HealthIcons';
 import { apiService } from '../../services/apiService';
 import { registerWebAuthn } from '../../utils/biometrics';
 
@@ -17,7 +17,7 @@ interface HISConfigProps {
     onStaffUpdated?: () => void;
 }
 
-type ConfigTab = 'branding' | 'staff' | 'clinic' | 'rooms' | 'tariffs' | 'insurance' | 'billing' | 'partner_labs';
+type ConfigTab = 'branding' | 'staff' | 'clinic' | 'rooms' | 'tariffs' | 'insurance' | 'billing' | 'partner_labs' | 'patient_id';
 
 const FINGER_OPTIONS = [
     { index: 0, label: 'Right Thumb' },
@@ -134,6 +134,43 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         discountRate: 10,
         isActive: true,
     });
+
+    // ── Custom Patient ID & Prefix Settings State ──────────────────────────────
+    const [patientIdSettings, setPatientIdSettings] = useState(() => {
+        try {
+            const saved = localStorage.getItem(`his_patient_id_config_${institutionId}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {
+            customPrefix: 'PID-',
+            startNumber: 1,
+            zeroPadLength: 3,
+            includeYear: false,
+            autoAssign: true
+        };
+    });
+    const [isSavingPatientIdConfig, setIsSavingPatientIdConfig] = useState(false);
+
+    const handleSavePatientIdSettings = async () => {
+        if (!institutionId) return;
+        setIsSavingPatientIdConfig(true);
+        try {
+            localStorage.setItem(`his_patient_id_config_${institutionId}`, JSON.stringify(patientIdSettings));
+            await apiService.saveModuleRecord('his_patient_id_config', {
+                id: `his_pid_${institutionId}`,
+                institutionId,
+                institution_id: institutionId,
+                ...patientIdSettings,
+                updatedAt: new Date().toISOString()
+            }).catch(() => null);
+            alert(`✓ Custom Patient ID settings committed successfully!\n\nSample format: ${patientIdSettings.customPrefix}${patientIdSettings.includeYear ? new Date().getFullYear() + '-' : ''}${String(patientIdSettings.startNumber).padStart(patientIdSettings.zeroPadLength, '0')}`);
+        } catch (e) {
+            console.error('Failed to save Patient ID settings:', e);
+            alert('Failed to save Custom Patient ID configuration.');
+        } finally {
+            setIsSavingPatientIdConfig(false);
+        }
+    };
 
     // ── Hospital Rooms & Facilities State ─────────────────────────────────────
     const [hospitalRooms, setHospitalRooms] = useState<any[]>([]);
@@ -878,6 +915,134 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
 
     const renderTab = () => {
         switch (activeTab) {
+            case 'patient_id':
+                return (
+                    <div className="space-y-8 animate-fade-in text-slate-900 dark:text-white">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 p-8 rounded-[2.5rem] bg-gradient-to-r from-indigo-950 via-slate-900 to-purple-950 border border-indigo-500/30 shadow-2xl">
+                            <div>
+                                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 text-[9px] font-black rounded-full border border-indigo-500/30 uppercase tracking-widest mb-2 inline-block">
+                                    HIS Master Identifier Sequence
+                                </span>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white italic">Custom Patient ID <span className="text-indigo-400">&amp; MRN Prefix Configuration</span></h3>
+                                <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-1">Define custom patient ID format, prefix (e.g. PID-001), auto-sequence counter &amp; zero-padding</p>
+                            </div>
+                            <button
+                                onClick={handleSavePatientIdSettings}
+                                disabled={isSavingPatientIdConfig}
+                                className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all shadow-xl shadow-indigo-900/50 flex items-center gap-2 italic disabled:opacity-50 cursor-pointer"
+                            >
+                                <SparklesIcon className="w-4 h-4 text-white" />
+                                <span>{isSavingPatientIdConfig ? 'Saving Settings...' : 'Save Patient ID Config'}</span>
+                            </button>
+                        </div>
+
+                        {/* Configuration Form Card & Live Preview */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="lg:col-span-2 bg-white dark:bg-slate-900/50 rounded-[2.5rem] border border-slate-200 dark:border-white/10 p-8 shadow-xl space-y-6">
+                                <h4 className="text-sm font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 italic border-b border-slate-100 dark:border-white/5 pb-4">
+                                    ⚙️ Custom Patient ID Rules &amp; Formatting
+                                </h4>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Custom Prefix (e.g. PID-, PAT-, MED-, PID ) *</label>
+                                        <input
+                                            type="text"
+                                            value={patientIdSettings.customPrefix}
+                                            onChange={e => setPatientIdSettings(s => ({ ...s, customPrefix: e.target.value }))}
+                                            placeholder="e.g. PID-"
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3.5 text-sm font-black text-indigo-600 dark:text-indigo-300 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                                        />
+                                        <p className="text-[9px] font-bold text-slate-400 mt-1.5">Prefix prepended to all newly registered patients (e.g. PID-001).</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Starting Sequence Counter *</label>
+                                        <input
+                                            type="number"
+                                            value={patientIdSettings.startNumber}
+                                            onChange={e => setPatientIdSettings(s => ({ ...s, startNumber: Math.max(1, parseInt(e.target.value) || 1) }))}
+                                            min={1}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3.5 text-sm font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                                        />
+                                        <p className="text-[9px] font-bold text-slate-400 mt-1.5">Starting index for new patient intake (e.g. 1 -&gt; 001, 100 -&gt; 100).</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Sequence Zero-Padding Digits *</label>
+                                        <select
+                                            value={patientIdSettings.zeroPadLength}
+                                            onChange={e => setPatientIdSettings(s => ({ ...s, zeroPadLength: parseInt(e.target.value) || 3 }))}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3.5 text-sm font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value={2}>2 Digits (e.g. PID-01)</option>
+                                            <option value={3}>3 Digits (e.g. PID-001)</option>
+                                            <option value={4}>4 Digits (e.g. PID-0001)</option>
+                                            <option value={5}>5 Digits (e.g. PID-00001)</option>
+                                            <option value={6}>6 Digits (e.g. PID-000001)</option>
+                                        </select>
+                                        <p className="text-[9px] font-bold text-slate-400 mt-1.5">Number of leading zeros applied to sequence numbers.</p>
+                                    </div>
+
+                                    <div className="flex flex-col justify-center space-y-3 p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={patientIdSettings.includeYear}
+                                                onChange={e => setPatientIdSettings(s => ({ ...s, includeYear: e.target.checked }))}
+                                                className="w-5 h-5 text-indigo-600 rounded-lg border-slate-300 focus:ring-indigo-500"
+                                            />
+                                            <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Include Current Year in ID (e.g. PID-2026-001)</span>
+                                        </label>
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={patientIdSettings.autoAssign}
+                                                onChange={e => setPatientIdSettings(s => ({ ...s, autoAssign: e.target.checked }))}
+                                                className="w-5 h-5 text-indigo-600 rounded-lg border-slate-300 focus:ring-indigo-500"
+                                            />
+                                            <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Auto-prefill next ID during patient intake</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Live Interactive Preview Card */}
+                            <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-950 rounded-[2.5rem] p-8 text-white border border-indigo-500/30 shadow-2xl flex flex-col justify-between space-y-6">
+                                <div>
+                                    <span className="px-3 py-1 bg-white/10 text-indigo-200 text-[9px] font-black rounded-full uppercase tracking-widest inline-block border border-white/20 mb-3">
+                                        Live Generated Preview
+                                    </span>
+                                    <h4 className="text-lg font-black uppercase tracking-tight italic">Patient Identifier Sequence</h4>
+                                    <p className="text-[10px] text-indigo-200/70 font-medium mt-1">Here is how next generated patient IDs will appear in EMR, prescriptions &amp; receipts:</p>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {[0, 1, 2].map((offset) => {
+                                        const seq = patientIdSettings.startNumber + offset;
+                                        const formattedSeq = String(seq).padStart(patientIdSettings.zeroPadLength, '0');
+                                        const yearPart = patientIdSettings.includeYear ? `${new Date().getFullYear()}-` : '';
+                                        const sampleId = `${patientIdSettings.customPrefix}${yearPart}${formattedSeq}`;
+
+                                        return (
+                                            <div key={offset} className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
+                                                offset === 0 ? 'bg-indigo-600/40 border-indigo-400 text-white shadow-lg' : 'bg-black/30 border-white/10 text-indigo-200/80'
+                                            }`}>
+                                                <span className="text-[10px] font-black uppercase tracking-widest">{offset === 0 ? 'Next Intake (Patient #1)' : `Patient #${offset + 1}`}</span>
+                                                <span className="text-sm font-mono font-black tracking-widest bg-black/40 px-3 py-1.5 rounded-xl border border-white/10">{sampleId}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="p-4 bg-white/10 rounded-2xl border border-white/10 text-[9px] font-bold text-indigo-200 space-y-1">
+                                    <p className="font-black uppercase tracking-widest text-white">💡 Pro Tip:</p>
+                                    <p>Staff can search, filter, or scan barcodes using custom patient IDs across Reception, Triage, Doctor SOAP &amp; Pharmacy.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
             case 'rooms': {
                 const filteredRooms = hospitalRooms.filter(r => 
                     roomCategoryFilter === 'All' || r.roomType === roomCategoryFilter
@@ -1807,6 +1972,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
             <div className="flex flex-wrap gap-4 p-2 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/5 w-fit shadow-inner">
                 {[
                     { id: 'branding', label: 'Identity & DNA', icon: SparklesIcon },
+                    { id: 'patient_id', label: 'Custom Patient ID Prefix', icon: IdentificationIcon },
                     { id: 'staff', label: 'Staff Registry', icon: UsersIcon },
                     { id: 'clinic', label: 'Clinic Setup', icon: SettingsIcon },
                     { id: 'rooms', label: 'Rooms & Facilities', icon: BuildingOfficeIcon },
