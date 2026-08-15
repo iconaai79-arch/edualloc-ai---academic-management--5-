@@ -264,6 +264,20 @@ export const apiService = {
                 return `${docType.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`;
             }
 
+            const cleanInstId = String(instId || '').replace(/^inst_/, '').trim();
+            const defaultPrefixes: Record<string, string> = {
+                invoice: 'INV-',
+                receipt: 'REC-',
+                payment_voucher: 'PV-',
+                credit_note: 'CN-',
+                debit_note: 'DN-',
+                goods_in_lieu: 'GIL-',
+                lpo: 'LPO-',
+                requisition: 'REQ-',
+                admission: 'ADM-',
+                student: 'ADM-'
+            };
+
             // Try atomic RPC first to avoid concurrent/race-condition duplicate numbers
             if (!_rpcGetNextDocFailed) {
                 try {
@@ -282,26 +296,36 @@ export const apiService = {
                 }
             }
 
-            const numberingConfigs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
-            let config = numberingConfigs.find((c: any) => c.documentType === docType || c.document_type === docType);
-            
-            const defaultPrefixes: Record<string, string> = {
-                invoice: 'INV-',
-                receipt: 'REC-',
-                payment_voucher: 'PV-',
-                credit_note: 'CN-',
-                debit_note: 'DN-',
-                goods_in_lieu: 'GIL-',
-                lpo: 'LPO-',
-                requisition: 'REQ-',
-                admission: 'ADM-',
-                student: 'ADM-'
-            };
+            // Fallback 1: Query numbering config directly via supabase
+            let config: any = null;
+            try {
+                const { data: dbConfigs, error: queryErr } = await supabaseClient
+                    .from('finance_numbering_configs')
+                    .select('*')
+                    .or(`institution_id.eq.${instId},institution_id.eq.${cleanInstId},institution_id.eq.inst_${cleanInstId}`)
+                    .eq('document_type', docType)
+                    .limit(1);
+
+                if (!queryErr && Array.isArray(dbConfigs) && dbConfigs.length > 0) {
+                    config = dbConfigs[0];
+                }
+            } catch (qErr) {
+                // Ignore query error and fallback to fetchModuleRecords
+            }
 
             if (!config) {
-                const prefix = defaultPrefixes[docType] || 'DOC-';
+                const numberingConfigs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId).catch(() => []);
+                config = (numberingConfigs || []).find((c: any) => 
+                    String(c.documentType || c.document_type || '').toLowerCase() === docType.toLowerCase()
+                );
+            }
+
+            const prefix = config?.prefix || defaultPrefixes[docType] || 'DOC-';
+            const stableId = config?.id || `num_cfg_${docType}_${cleanInstId || instId}`;
+
+            if (!config) {
                 config = {
-                    id: `num_cfg_${docType}_${instId}_${Date.now()}`,
+                    id: stableId,
                     institutionId: instId,
                     institution_id: instId,
                     documentType: docType,
@@ -312,20 +336,52 @@ export const apiService = {
                     updatedAt: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 };
-                await apiService.saveModuleRecord('finance_numbering_configs', config).catch(() => {});
+
+                // Upsert via supabase if available to prevent 23505 conflict
+                try {
+                    const { data: upserted } = await supabaseClient
+                        .from('finance_numbering_configs')
+                        .upsert({
+                            id: stableId,
+                            institution_id: instId,
+                            document_type: docType,
+                            prefix: prefix,
+                            next_number: 1001,
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'institution_id,document_type' })
+                        .select()
+                        .single();
+                    if (upserted) {
+                        config = upserted;
+                    }
+                } catch (upErr) {
+                    await apiService.saveModuleRecord('finance_numbering_configs', config).catch(() => {});
+                }
             }
 
             const nextNum = Number(config.nextNumber || config.next_number || 1001);
-            const prefix = config.prefix || defaultPrefixes[docType] || 'DOC-';
             const formattedNum = `${prefix}${nextNum}`;
 
-            await apiService.updateModuleRecord('finance_numbering_configs', config.id, {
-                ...config,
-                nextNumber: nextNum + 1,
-                next_number: nextNum + 1,
-                updatedAt: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            }).catch(() => {});
+            // Increment next number
+            if (config.id) {
+                try {
+                    await supabaseClient
+                        .from('finance_numbering_configs')
+                        .update({
+                            next_number: nextNum + 1,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', config.id);
+                } catch (uErr) {
+                    await apiService.updateModuleRecord('finance_numbering_configs', config.id, {
+                        ...config,
+                        nextNumber: nextNum + 1,
+                        next_number: nextNum + 1,
+                        updatedAt: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    }).catch(() => {});
+                }
+            }
 
             return formattedNum;
         } catch (err) {

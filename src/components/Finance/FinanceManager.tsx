@@ -1031,9 +1031,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const handleSaveNumberingConfig = async (docType: string, prefix: string, nextNumber: number) => {
         try {
             const instId = props.institution.id;
-            const existing = numberingConfigs.find(c => c.documentType === docType || c.document_type === docType);
+            const cleanInstId = String(instId || '').replace(/^inst_/, '').trim();
+            const existing = numberingConfigs.find(c => String(c.documentType || c.document_type || '').toLowerCase() === docType.toLowerCase());
+            const stableId = existing?.id || `num_cfg_${docType}_${cleanInstId || instId}`;
             const payload = {
-                id: existing?.id || `num_cfg_${docType}_${Date.now()}`,
+                id: stableId,
                 institutionId: instId,
                 institution_id: instId,
                 documentType: docType,
@@ -1048,7 +1050,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             if (existing?.id) {
                 await apiService.updateModuleRecord('finance_numbering_configs', existing.id, payload);
             } else {
-                await apiService.saveModuleRecord('finance_numbering_configs', payload);
+                try {
+                    await apiService.saveModuleRecord('finance_numbering_configs', payload);
+                } catch (saveErr: any) {
+                    if (saveErr?.code === '23505' || String(saveErr?.message || '').includes('already exists')) {
+                        await apiService.updateModuleRecord('finance_numbering_configs', stableId, payload).catch(() => {});
+                    } else {
+                        throw saveErr;
+                    }
+                }
             }
             alert(`${docType.replace('_', ' ').toUpperCase()} numbering config saved successfully!`);
             fetchNumberingConfigs();
