@@ -126,7 +126,7 @@ const isTableWithoutInstitutionId = (module: string) => {
   return [
     'counties', 'constituencies', 'wards', 'political_parties',
     'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs',
-    'county_bursary_funds', 'ng_cdf_funds'
+    'county_bursary_funds', 'ng_cdf_funds', 'building_offices', 'building_visitor_assets'
   ].includes(module);
 };
 
