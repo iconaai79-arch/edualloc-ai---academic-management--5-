@@ -20,6 +20,8 @@ interface FiscalGuardProps {
     invoices: Invoice[];
     receipts: Receipt[];
     expenses: Expense[];
+    students?: User[] | any[];
+    openingBalances?: number;
     institutionId: string;
     onRefreshData?: () => void;
 }
@@ -28,6 +30,8 @@ export const FiscalGuard: React.FC<FiscalGuardProps> = ({
     invoices,
     receipts,
     expenses,
+    students,
+    openingBalances,
     institutionId,
     onRefreshData,
 }) => {
@@ -134,6 +138,8 @@ export const FiscalGuard: React.FC<FiscalGuardProps> = ({
                     invoices={invoices}
                     receipts={receipts}
                     expenses={expenses}
+                    students={students}
+                    openingBalances={openingBalances}
                     institutionId={institutionId}
                 />
             ) : (

@@ -10,6 +10,8 @@ import {
     computeTrialBalance,
     computeVariance,
     scoreReceiptAnomalies,
+    getInvoiceAmount,
+    getReceiptAmount,
     type AuditReport,
     type AuditIssue,
     type AuditSeverity,
@@ -50,6 +52,8 @@ interface FinancialAuditDashboardProps {
     invoices: Invoice[];
     receipts: Receipt[];
     expenses: Expense[];
+    students?: any[];
+    openingBalances?: number;
     institutionId: string;
     currencySymbol?: string;
 }
@@ -123,7 +127,7 @@ const IssueRow = ({ issue, onResolve }: { issue: AuditIssue; onResolve?: (id: st
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = ({
-    invoices, receipts, expenses, institutionId, currencySymbol = 'KES',
+    invoices, receipts, expenses, students, openingBalances, institutionId, currencySymbol = 'KES',
 }) => {
     const [activeView, setActiveView] = useState<'overview' | 'issues' | 'trial' | 'anomalies' | 'variance' | 'history'>('overview');
     const [filterSeverity, setFilterSeverity] = useState<AuditSeverity | 'ALL'>('ALL');
@@ -134,6 +138,29 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
     const [pastReports, setPastReports] = useState<any[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
+
+    // Compute live metrics factoring opening balances
+    const totalOpeningBalances = useMemo(() => {
+        if (typeof openingBalances === 'number' && openingBalances >= 0) return openingBalances;
+        return (students || []).reduce((acc: number, s: any) => {
+            const ob = s?.metadata?.openingBalance ?? s?.openingBalance ?? s?.metadata?.balanceBf ?? s?.metadata?.balance ?? 0;
+            return acc + (Number(ob) || 0);
+        }, 0);
+    }, [openingBalances, students]);
+
+    const totalInvoiced = useMemo(() => {
+        return invoices.reduce((s, i) => s + getInvoiceAmount(i), 0);
+    }, [invoices]);
+
+    const totalBilled = totalInvoiced + totalOpeningBalances;
+
+    const totalCollected = useMemo(() => {
+        return receipts.reduce((s, r) => s + getReceiptAmount(r), 0);
+    }, [receipts]);
+
+    const totalExpenses = useMemo(() => {
+        return expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    }, [expenses]);
 
     // Simple default budget for variance view (editable)
     const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([
@@ -149,7 +176,14 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
         setIsRunning(true);
         await new Promise(r => setTimeout(r, 120));
         try {
-            const result = runFullAudit({ invoices, receipts, expenses, institutionId });
+            const result = runFullAudit({ 
+                invoices, 
+                receipts, 
+                expenses, 
+                students, 
+                openingBalances: totalOpeningBalances, 
+                institutionId 
+            });
             setReport(result);
             setHasRun(true);
 
@@ -205,7 +239,7 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
         } finally {
             setIsRunning(false);
         }
-    }, [invoices, receipts, expenses, institutionId]);
+    }, [invoices, receipts, expenses, students, totalOpeningBalances, institutionId]);
 
     // ── Load history from DB ──────────────────────────────────────────────────
     const loadHistory = useCallback(async () => {
@@ -240,7 +274,7 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
     }, []);
 
     // Trial balance — computed directly, no need to run audit first
-    const trialBalance = useMemo(() => computeTrialBalance(invoices, receipts, expenses), [invoices, receipts, expenses]);
+    const trialBalance = useMemo(() => computeTrialBalance(invoices, receipts, expenses, totalOpeningBalances), [invoices, receipts, expenses, totalOpeningBalances]);
 
     // Anomaly scores
     const scoredReceipts = useMemo(() => scoreReceiptAnomalies(receipts), [receipts]);
@@ -388,11 +422,30 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
                 <div className="space-y-6">
                     {/* KPI grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard label="Total Billed"       value={fmt(invoices.reduce((s, i) => s + i.totalAmount, 0))}  color="indigo" />
-                        <StatCard label="Total Collected"    value={fmt(receipts.reduce((s, r) => s + r.amountPaid, 0))}   color="emerald" />
-                        <StatCard label="Total Expenses"     value={fmt(expenses.reduce((s, e) => s + e.amount, 0))}       color="amber" />
-                        <StatCard label="Anomalous Receipts" value={anomalies.length}
-                            sub={`out of ${receipts.length} total`} color={anomalies.length > 0 ? 'rose' : 'slate'} />
+                        <StatCard 
+                            label="Total Billed" 
+                            value={fmt(report ? report.summary.totalBilled : totalBilled)} 
+                            sub={totalOpeningBalances > 0 ? `Incl. ${fmt(totalOpeningBalances)} Opening Bal.` : (totalInvoiced > 0 ? `${invoices.length} invoices` : undefined)} 
+                            color="indigo" 
+                        />
+                        <StatCard 
+                            label="Total Collected" 
+                            value={fmt(report ? report.summary.totalCollected : totalCollected)} 
+                            sub={`${receipts.length} receipts`} 
+                            color="emerald" 
+                        />
+                        <StatCard 
+                            label="Total Expenses" 
+                            value={fmt(totalExpenses)} 
+                            sub={`${expenses.length} records`} 
+                            color="amber" 
+                        />
+                        <StatCard 
+                            label="Anomalous Receipts" 
+                            value={anomalies.length}
+                            sub={`out of ${receipts.length} total`} 
+                            color={anomalies.length > 0 ? 'rose' : 'slate'} 
+                        />
                     </div>
 
                     {/* Issue breakdown (if run) */}

@@ -3612,6 +3612,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             invoices={props.invoices || []}
                             receipts={props.receipts || []}
                             expenses={props.expenses || []}
+                            students={props.users?.filter((u: any) => u.role === 'student') || []}
                             institutionId={props.currentInstitution?.id || ''}
                             onRefreshData={props.onRefreshData}
                         />

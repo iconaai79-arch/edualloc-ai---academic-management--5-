@@ -70,6 +70,36 @@ export interface AuditSummary {
     outstandingDebt: number;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+export const getInvoiceAmount = (inv: any): number => {
+    if (!inv) return 0;
+    if (typeof inv.totalAmount === 'number' && !isNaN(inv.totalAmount) && inv.totalAmount > 0) return inv.totalAmount;
+    if (typeof inv.total_amount === 'number' && !isNaN(inv.total_amount) && inv.total_amount > 0) return inv.total_amount;
+    if (typeof inv.amount === 'number' && !isNaN(inv.amount) && inv.amount > 0) return inv.amount;
+    if (inv.totalAmount && !isNaN(Number(inv.totalAmount)) && Number(inv.totalAmount) > 0) return Number(inv.totalAmount);
+    if (inv.total_amount && !isNaN(Number(inv.total_amount)) && Number(inv.total_amount) > 0) return Number(inv.total_amount);
+    if (inv.amount && !isNaN(Number(inv.amount)) && Number(inv.amount) > 0) return Number(inv.amount);
+    if (Array.isArray(inv.items) && inv.items.length > 0) {
+        return inv.items.reduce((s: number, it: any) => s + (Number(it.amount) || 0), 0);
+    }
+    if (Array.isArray(inv.feeItems) && inv.feeItems.length > 0) {
+        return inv.feeItems.reduce((s: number, it: any) => s + (Number(it.amount) || 0), 0);
+    }
+    return 0;
+};
+
+export const getReceiptAmount = (rcpt: any): number => {
+    if (!rcpt) return 0;
+    if (typeof rcpt.amountPaid === 'number' && !isNaN(rcpt.amountPaid)) return rcpt.amountPaid;
+    if (typeof rcpt.amount === 'number' && !isNaN(rcpt.amount)) return rcpt.amount;
+    if (typeof rcpt.amount_paid === 'number' && !isNaN(rcpt.amount_paid)) return rcpt.amount_paid;
+    if (rcpt.amountPaid && !isNaN(Number(rcpt.amountPaid))) return Number(rcpt.amountPaid);
+    if (rcpt.amount && !isNaN(Number(rcpt.amount))) return Number(rcpt.amount);
+    if (rcpt.amount_paid && !isNaN(Number(rcpt.amount_paid))) return Number(rcpt.amount_paid);
+    return 0;
+};
+
 // ─── 1. Reconciliation ────────────────────────────────────────────────────────
 
 /**
@@ -81,20 +111,20 @@ export function reconcileInvoicesAndReceipts(
     receipts: Receipt[]
 ): AuditIssue[] {
     const issues: AuditIssue[] = [];
-    const invoiceMap = new Map(invoices.map(i => [i.id, i]));
 
     // Group receipts by invoiceId
     const receiptsByInvoice = new Map<string, Receipt[]>();
     for (const r of receipts) {
+        const rAmt = getReceiptAmount(r);
         if (!r.invoiceId) {
             issues.push({
                 id: `orphan-receipt-${r.id}`,
                 type: 'ORPHAN_RECEIPT',
-                severity: 'MEDIUM',
-                message: `Receipt #${r.receiptNumber} (KES ${r.amountPaid.toLocaleString()}) has no linked invoice.`,
+                severity: 'INFO',
+                message: `Receipt #${r.receiptNumber || r.id} (KES ${rAmt.toLocaleString()}) was recorded without an explicit invoice link (Direct Student / Opening Balance Payment).`,
                 recordId: r.id,
                 table: 'receipts',
-                amount: r.amountPaid,
+                amount: rAmt,
                 detectedAt: new Date().toISOString(),
             });
             continue;
@@ -105,21 +135,22 @@ export function reconcileInvoicesAndReceipts(
 
     // Check each invoice
     for (const inv of invoices) {
+        const invAmount = getInvoiceAmount(inv);
         const linked = receiptsByInvoice.get(inv.id) || [];
-        const totalPaid = linked.reduce((s, r) => s + r.amountPaid, 0);
-        const balance = inv.totalAmount - totalPaid;
+        const totalPaid = linked.reduce((s, r) => s + getReceiptAmount(r), 0);
+        const balance = invAmount - totalPaid;
         const tolerance = 1; // 1 KES rounding tolerance
 
         // Overpayment
-        if (totalPaid > inv.totalAmount + tolerance) {
+        if (totalPaid > invAmount + tolerance) {
             issues.push({
                 id: `overpayment-${inv.id}`,
                 type: 'OVERPAYMENT',
                 severity: 'HIGH',
-                message: `Invoice #${inv.invoiceNumber}: overpaid by KES ${(totalPaid - inv.totalAmount).toLocaleString()}. Billed KES ${inv.totalAmount.toLocaleString()}, received KES ${totalPaid.toLocaleString()}.`,
+                message: `Invoice #${inv.invoiceNumber || inv.id}: overpaid by KES ${(totalPaid - invAmount).toLocaleString()}. Billed KES ${invAmount.toLocaleString()}, received KES ${totalPaid.toLocaleString()}.`,
                 recordId: inv.id,
                 table: 'invoices',
-                amount: totalPaid - inv.totalAmount,
+                amount: totalPaid - invAmount,
                 detectedAt: new Date().toISOString(),
             });
         }
@@ -130,11 +161,11 @@ export function reconcileInvoicesAndReceipts(
                 id: `overdue-balance-${inv.id}`,
                 type: 'OVERDUE_BALANCE',
                 severity: 'MEDIUM',
-                message: `Invoice #${inv.invoiceNumber} is overdue with KES ${balance.toLocaleString()} outstanding.`,
+                message: `Invoice #${inv.invoiceNumber || inv.id} is overdue with KES ${balance.toLocaleString()} outstanding.`,
                 recordId: inv.id,
                 table: 'invoices',
                 amount: balance,
-                metadata: { dueDate: inv.dueDate || inv.due_date },
+                metadata: { dueDate: inv.dueDate || (inv as any).due_date },
                 detectedAt: new Date().toISOString(),
             });
         }
@@ -145,7 +176,7 @@ export function reconcileInvoicesAndReceipts(
                 id: `false-paid-${inv.id}`,
                 type: 'STATUS_MISMATCH',
                 severity: 'CRITICAL',
-                message: `Invoice #${inv.invoiceNumber} is marked PAID but KES ${balance.toLocaleString()} is unaccounted for.`,
+                message: `Invoice #${inv.invoiceNumber || inv.id} is marked PAID but KES ${balance.toLocaleString()} is unaccounted for.`,
                 recordId: inv.id,
                 table: 'invoices',
                 amount: balance,
@@ -337,20 +368,23 @@ export interface TrialBalance {
 }
 
 /**
- * Compute a simple trial balance from invoices, receipts, and expenses.
+ * Compute a simple trial balance from invoices, receipts, expenses, and opening balances.
  */
 export function computeTrialBalance(
     invoices: Invoice[],
     receipts: Receipt[],
-    expenses: Expense[]
+    expenses: Expense[],
+    openingBalances: number = 0
 ): TrialBalance {
-    const totalBilled    = invoices.reduce((s, i) => s + i.totalAmount, 0);
-    const totalCollected = receipts.reduce((s, r) => s + r.amountPaid, 0);
-    const totalExpenses  = expenses.filter(e => e.status === 'paid' || e.status === 'approved').reduce((s, e) => s + e.amount, 0);
-    const totalPending   = expenses.filter(e => e.status === 'pending').reduce((s, e) => s + e.amount, 0);
+    const totalInvoiced  = invoices.reduce((s, i) => s + getInvoiceAmount(i), 0);
+    const totalBilled    = totalInvoiced + (openingBalances || 0);
+    const totalCollected = receipts.reduce((s, r) => s + getReceiptAmount(r), 0);
+    const totalExpenses  = expenses.filter(e => e.status === 'paid' || e.status === 'approved').reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const totalPending   = expenses.filter(e => e.status === 'pending').reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
     const lines: TrialBalanceLine[] = [
-        { category: 'Fees Billed (Receivables)',    debit: totalBilled,    credit: 0,              net: totalBilled },
+        ...(openingBalances > 0 ? [{ category: 'Opening Balances B/F (Receivables)', debit: openingBalances, credit: 0, net: openingBalances }] : []),
+        { category: 'Fees Invoiced (Receivables)',    debit: totalInvoiced,  credit: 0,              net: totalInvoiced },
         { category: 'Fees Collected (Cash/M-Pesa)', debit: 0,              credit: totalCollected,  net: -totalCollected },
         { category: 'Approved Expenses',            debit: totalExpenses,  credit: 0,               net: totalExpenses },
         { category: 'Pending Expenses',             debit: totalPending,   credit: 0,               net: totalPending },
@@ -384,7 +418,7 @@ export function computeVariance(budget: BudgetLine[], expenses: Expense[]): Vari
     return budget.map(line => {
         const actual = expenses
             .filter(e => e.category?.toLowerCase() === line.category?.toLowerCase())
-            .reduce((s, e) => s + e.amount, 0);
+            .reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
         const variance    = actual - line.budgetedAmount;
         const variancePct = line.budgetedAmount > 0
@@ -406,6 +440,8 @@ export interface FullAuditInput {
     invoices: Invoice[];
     receipts: Receipt[];
     expenses: Expense[];
+    students?: any[];
+    openingBalances?: number;
     institutionId: string;
     period?: string;
     policy?: AuditPolicyConfig;
@@ -429,8 +465,16 @@ export function runFullAudit(input: FullAuditInput): AuditReport {
     // Deduplicate by id
     const unique = Array.from(new Map(issues.map(i => [i.id, i])).values());
 
-    const totalBilled    = invoices.reduce((s, i) => s + i.totalAmount, 0);
-    const totalCollected = receipts.reduce((s, r) => s + r.amountPaid, 0);
+    const totalInvoiced = invoices.reduce((s, i) => s + getInvoiceAmount(i), 0);
+    const totalOpeningBalances = typeof input.openingBalances === 'number'
+        ? input.openingBalances
+        : (input.students || []).reduce((acc: number, s: any) => {
+            const ob = s?.metadata?.openingBalance ?? s?.openingBalance ?? s?.metadata?.balanceBf ?? s?.metadata?.balance ?? 0;
+            return acc + (Number(ob) || 0);
+        }, 0);
+
+    const totalBilled    = totalInvoiced + (totalOpeningBalances || 0);
+    const totalCollected = receipts.reduce((s, r) => s + getReceiptAmount(r), 0);
 
     const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
     for (const iss of unique) {

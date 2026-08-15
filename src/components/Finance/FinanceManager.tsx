@@ -9627,9 +9627,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         {auditSubTab === 'audit_dashboard' && (
                             <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
                                 <FinancialAuditDashboard
-                                    invoices={props.invoices}
-                                    receipts={props.receipts}
-                                    expenses={props.expenses}
+                                    invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
+                                    receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                                    expenses={props.expenses || []}
+                                    students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
                                     institutionId={props.institution.id}
                                 />
                             </div>
