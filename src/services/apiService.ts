@@ -1013,6 +1013,19 @@ export const apiService = {
                         }
                     });
                 }
+                if (module === 'his_patients' && Array.isArray(finalResult)) {
+                    finalResult.forEach((p: any) => {
+                        const fileNo = p.admissionNumber || p.admission_number || p.customPatientId || p.custom_patient_id || p.patientNumber || p.patient_number || p.opNumber || p.op_number || '';
+                        p.admissionNumber = fileNo;
+                        p.admission_number = fileNo;
+                        p.customPatientId = fileNo;
+                        p.custom_patient_id = fileNo;
+                        p.patientNumber = fileNo;
+                        p.patient_number = fileNo;
+                        p.opNumber = fileNo;
+                        p.op_number = fileNo;
+                    });
+                }
                 return finalResult;
             };
 
@@ -1428,31 +1441,31 @@ export const apiService = {
                 }
                 const pName = item.full_name || item.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Registered Patient';
                 item.full_name = pName;
-                item.name = pName;
                 
                 // Prioritize explicit newly edited file number / OP number
                 let opNo: any = null;
-                if (item.admission_number !== undefined && item.admission_number !== null) opNo = item.admission_number;
-                else if (item.admissionNumber !== undefined && item.admissionNumber !== null) opNo = item.admissionNumber;
-                else if (item.custom_patient_id !== undefined && item.custom_patient_id !== null) opNo = item.custom_patient_id;
-                else if (item.customPatientId !== undefined && item.customPatientId !== null) opNo = item.customPatientId;
-                else if (item.patient_number !== undefined && item.patient_number !== null) opNo = item.patient_number;
-                else if (item.patientNumber !== undefined && item.patientNumber !== null) opNo = item.patientNumber;
-                else if (item.op_number !== undefined && item.op_number !== null) opNo = item.op_number;
-                else if (item.opNumber !== undefined && item.opNumber !== null) opNo = item.opNumber;
-                else opNo = item.id;
+                if (item.admission_number !== undefined && item.admission_number !== null && String(item.admission_number).trim() !== '') opNo = item.admission_number;
+                else if (item.admissionNumber !== undefined && item.admissionNumber !== null && String(item.admissionNumber).trim() !== '') opNo = item.admissionNumber;
+                else if (item.custom_patient_id !== undefined && item.custom_patient_id !== null && String(item.custom_patient_id).trim() !== '') opNo = item.custom_patient_id;
+                else if (item.customPatientId !== undefined && item.customPatientId !== null && String(item.customPatientId).trim() !== '') opNo = item.customPatientId;
+                else if (item.patient_number !== undefined && item.patient_number !== null && String(item.patient_number).trim() !== '') opNo = item.patient_number;
+                else if (item.patientNumber !== undefined && item.patientNumber !== null && String(item.patientNumber).trim() !== '') opNo = item.patientNumber;
+                else if (item.op_number !== undefined && item.op_number !== null && String(item.op_number).trim() !== '') opNo = item.op_number;
+                else if (item.opNumber !== undefined && item.opNumber !== null && String(item.opNumber).trim() !== '') opNo = item.opNumber;
 
-                if (opNo !== null && opNo !== undefined) {
-                    const trimmed = String(opNo).trim();
-                    item.admission_number = trimmed;
-                    item.admissionNumber = trimmed;
-                    item.custom_patient_id = trimmed;
-                    item.customPatientId = trimmed;
-                    item.patient_number = trimmed;
-                    item.patientNumber = trimmed;
-                    item.op_number = trimmed;
-                    item.opNumber = trimmed;
+                if (opNo !== null && opNo !== undefined && String(opNo).trim() !== '') {
+                    item.admission_number = String(opNo).trim();
                 }
+                
+                // Delete non-existent DB alias keys to prevent Supabase schema cache stale errors & retries
+                delete item.custom_patient_id;
+                delete item.customPatientId;
+                delete item.patient_number;
+                delete item.patientNumber;
+                delete item.op_number;
+                delete item.opNumber;
+                delete item.admissionNumber;
+                delete item.name;
             }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors

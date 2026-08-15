@@ -371,6 +371,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : sanitizeUUIDs(recordWithBranch);
 
             let currentPayload = sanitizedRecords;
+            if (moduleName === 'his_patients') {
+                const cleanPatient = (p: any) => {
+                    if (!p || typeof p !== 'object') return p;
+                    const copy = { ...p };
+                    const opVal = copy.admission_number || copy.admissionNumber || copy.custom_patient_id || copy.customPatientId || copy.patient_number || copy.patientNumber || copy.op_number || copy.opNumber;
+                    if (opVal) copy.admission_number = String(opVal).trim();
+                    delete copy.custom_patient_id;
+                    delete copy.customPatientId;
+                    delete copy.patient_number;
+                    delete copy.patientNumber;
+                    delete copy.op_number;
+                    delete copy.opNumber;
+                    delete copy.admissionNumber;
+                    delete copy.name;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanPatient) : cleanPatient(currentPayload);
+            }
             let data: any = null;
             let error: any = null;
             let maxRetries = 5;
@@ -503,6 +521,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 const idsArray = Array.isArray(ids) ? ids : [ids];
                 let currentUpdateData = updateData;
+                if (moduleName === 'his_patients' && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    const opVal = copy.admission_number || copy.admissionNumber || copy.custom_patient_id || copy.customPatientId || copy.patient_number || copy.patientNumber || copy.op_number || copy.opNumber;
+                    if (opVal) copy.admission_number = String(opVal).trim();
+                    delete copy.custom_patient_id;
+                    delete copy.customPatientId;
+                    delete copy.patient_number;
+                    delete copy.patientNumber;
+                    delete copy.op_number;
+                    delete copy.opNumber;
+                    delete copy.admissionNumber;
+                    delete copy.name;
+                    currentUpdateData = copy;
+                }
                 let data: any = null;
                 let error: any = null;
                 let patchRetries = 5;
