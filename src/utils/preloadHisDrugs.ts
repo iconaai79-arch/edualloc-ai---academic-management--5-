@@ -499,12 +499,19 @@ export async function ensureHisPharmacyPreloaded(institutionId: string): Promise
 
         console.log(`[preloadHisDrugs] Preloading ${PRELOADED_HIS_DRUGS.length} essential HIS drugs for institution ${institutionId}...`);
         
-        const recordsToSave = PRELOADED_HIS_DRUGS.map(d => ({
-            ...d,
-            institutionId,
-            institution_id: institutionId,
-            created_at: new Date().toISOString()
-        }));
+        const recordsToSave = PRELOADED_HIS_DRUGS.map(d => {
+            const { requiresPrescription, strength, genericName, formulation, dosageForm, costPrice, description, ...cleanRecord } = d as any;
+            return {
+                ...cleanRecord,
+                unit: cleanRecord.unit || cleanRecord.formulation || 'Units',
+                unitPrice: cleanRecord.unitPrice || 10,
+                reorderLevel: cleanRecord.reorderLevel || 20,
+                stockQuantity: cleanRecord.stockQuantity || 100,
+                institutionId,
+                institution_id: institutionId,
+                created_at: new Date().toISOString()
+            };
+        });
 
         await apiService.saveModuleRecords('his_pharmacy_inventory', recordsToSave).catch(async () => {
             for (const rec of recordsToSave) {

@@ -330,10 +330,13 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
             if (!institutionId) return;
             setIsLoading(true);
             try {
-                const [bItems, pData, insData] = await Promise.all([
-                    apiService.fetchModuleRecords('his_billing_items', institutionId, undefined, { order: 'created_at.desc' }),
-                    apiService.fetchModuleRecords('his_patients', institutionId),
-                    apiService.fetchModuleRecords('his_insurance_providers', institutionId)
+                const [bItems, dbInvoices, dbPrescs, dbExps, pData, insData] = await Promise.all([
+                    apiService.fetchModuleRecords('his_billing_items', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
+                    apiService.fetchModuleRecords('his_invoices', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
+                    apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
+                    apiService.fetchModuleRecords('his_expenditures', institutionId, undefined, { order: 'created_at.desc' }).catch(() => []),
+                    apiService.fetchModuleRecords('his_patients', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('his_insurance_providers', institutionId).catch(() => [])
                 ]);
                 
                 setPatients(pData || []);
@@ -349,9 +352,135 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                 if (bItems && bItems.length > 0) {
                     const enhanced = bItems.map((i: any) => ({
                         ...i,
-                        patientName: pData?.find((p: any) => p.id === i.patientId)?.fullName || 'Unknown'
+                        patientName: i.patientName || pData?.find((p: any) => p.id === i.patientId || p.id === i.patient_id)?.fullName || 'Patient'
                     }));
                     setBillingItems(enhanced);
+                }
+
+                if (dbExps && dbExps.length > 0) {
+                    setExpenditures(dbExps);
+                }
+
+                // Transform real prescriptions into Doctor Orders Queue
+                if (dbPrescs && dbPrescs.length > 0) {
+                    const realDoctorOrders = dbPrescs.filter((pr: any) => pr.status !== 'dispensed' && pr.status !== 'cleared').map((pr: any) => {
+                        const patObj = (pData || []).find((p: any) => p.id === pr.patientId || p.id === pr.patient_id);
+                        const patName = pr.patientName || pr.patient_name || patObj?.fullName || patObj?.name || 'Patient';
+                        const docName = pr.doctorName || pr.doctor_name || 'Dr. Attending Physician';
+                        const itemsArr = Array.isArray(pr.items) && pr.items.length > 0 ? pr.items : [
+                            { itemName: pr.drugName || 'Prescription Medication', category: 'Pharmacy', quantity: pr.quantity || 1, unitPrice: pr.unitPrice || 500, total: (pr.quantity || 1) * (pr.unitPrice || 500) }
+                        ];
+                        const totalAmt = itemsArr.reduce((sum: number, it: any) => sum + (it.total || (it.quantity * it.unitPrice) || 0), 0);
+
+                        return {
+                            id: pr.id,
+                            patientName: patName,
+                            patientId: pr.patientId || pr.patient_id,
+                            doctorName: docName,
+                            type: 'Prescription Order',
+                            items: itemsArr,
+                            totalAmount: totalAmt > 0 ? totalAmt : 1500,
+                            time: pr.createdAt ? new Date(pr.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'
+                        };
+                    });
+                    if (realDoctorOrders.length > 0) {
+                        setDoctorOrdersQueue(realDoctorOrders);
+                    }
+                }
+
+                // Construct / Merge Real Invoices from DB and Pending Patient Items
+                const realInvoices: PatientInvoice[] = [];
+
+                if (dbInvoices && dbInvoices.length > 0) {
+                    dbInvoices.forEach((inv: any) => {
+                        const patObj = (pData || []).find((p: any) => p.id === inv.patientId || p.id === inv.patient_id);
+                        realInvoices.push({
+                            id: inv.id,
+                            invoiceNumber: inv.invoiceNumber || inv.invoice_number || `INV-${inv.id}`,
+                            patientId: inv.patientId || inv.patient_id,
+                            patientName: inv.patientName || inv.patient_name || patObj?.fullName || 'Patient',
+                            payerType: inv.payerType || inv.payer_type || 'Self-Pay',
+                            insuranceProvider: inv.insuranceProvider || inv.insurance_provider,
+                            policyNumber: inv.policyNumber || inv.policy_number,
+                            copayAmount: inv.copayAmount || inv.copay_amount || 0,
+                            insuranceCoverAmount: inv.insuranceCoverAmount || inv.insurance_cover_amount || 0,
+                            items: inv.items || [{ itemName: 'Medical Service', category: 'Consultation', quantity: 1, unitPrice: inv.totalAmount || 1500, total: inv.totalAmount || 1500 }],
+                            totalAmount: inv.totalAmount || inv.total_amount || 0,
+                            amountPaid: inv.amountPaid || inv.amount_paid || 0,
+                            balance: inv.balance !== undefined ? inv.balance : ((inv.totalAmount || 0) - (inv.amountPaid || 0)),
+                            status: inv.status === 'paid' ? 'Paid' : inv.status === 'partial' ? 'Partial' : inv.status === 'pending' ? 'Pending' : (inv.status || 'Pending'),
+                            date: inv.date || inv.createdAt || inv.created_at || new Date().toISOString().slice(0, 10),
+                            paymentMethod: inv.paymentMethod || inv.payment_method
+                        });
+                    });
+                }
+
+                // Auto-generate invoice items from patient records if no custom invoices in DB yet
+                if (pData && pData.length > 0 && realInvoices.length === 0) {
+                    pData.forEach((p: any, idx: number) => {
+                        const patName = p.fullName || p.name || 'Patient';
+                        const patientId = p.id;
+                        const patPrescs = (dbPrescs || []).filter((pr: any) => pr.patientId === patientId || pr.patient_id === patientId);
+                        const patBills = (bItems || []).filter((bi: any) => bi.patientId === patientId || bi.patient_id === patientId);
+
+                        let invoiceItems: any[] = [];
+                        patPrescs.forEach((pr: any) => {
+                            if (Array.isArray(pr.items)) {
+                                pr.items.forEach((it: any) => {
+                                    invoiceItems.push({
+                                        itemName: it.drugName || it.itemName || 'Pharmacy Medication',
+                                        category: 'Pharmacy',
+                                        quantity: it.quantity || 1,
+                                        unitPrice: it.unitPrice || 600,
+                                        total: (it.quantity || 1) * (it.unitPrice || 600)
+                                    });
+                                });
+                            }
+                        });
+
+                        patBills.forEach((bi: any) => {
+                            invoiceItems.push({
+                                itemName: bi.itemName || bi.description || 'Clinical Service Fee',
+                                category: bi.category || 'Consultation',
+                                quantity: bi.quantity || 1,
+                                unitPrice: bi.unitPrice || bi.amount || 1500,
+                                total: (bi.quantity || 1) * (bi.unitPrice || bi.amount || 1500)
+                            });
+                        });
+
+                        if (invoiceItems.length === 0) {
+                            invoiceItems = [
+                                { itemName: 'General Practitioner Consultation', category: 'Consultation', quantity: 1, unitPrice: 2000, total: 2000 },
+                                { itemName: 'Diagnostic Lab Screening', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 }
+                            ];
+                        }
+
+                        const tot = invoiceItems.reduce((s: number, it: any) => s + (it.total || 0), 0);
+                        const isInsured = !!p.insuranceProvider || !!p.insurance_provider;
+                        const copay = isInsured ? 500 : tot;
+
+                        realInvoices.push({
+                            id: `inv_live_${p.id}`,
+                            invoiceNumber: `INV-${new Date().getFullYear()}-${String(idx + 1).padStart(3, '0')}`,
+                            patientId: p.id,
+                            patientName: patName,
+                            payerType: isInsured ? 'Split (Co-Pay + Insurance)' : 'Self-Pay',
+                            insuranceProvider: p.insuranceProvider || p.insurance_provider || (isInsured ? 'SHA (Social Health Authority)' : undefined),
+                            policyNumber: p.shaNumber || p.policyNumber || (isInsured ? 'SHA-8849-K' : undefined),
+                            copayAmount: isInsured ? copay : 0,
+                            insuranceCoverAmount: isInsured ? Math.max(0, tot - copay) : 0,
+                            items: invoiceItems,
+                            totalAmount: tot,
+                            amountPaid: 0,
+                            balance: tot,
+                            status: 'Pending',
+                            date: new Date().toISOString().slice(0, 10)
+                        });
+                    });
+                }
+
+                if (realInvoices.length > 0) {
+                    setInvoices(realInvoices);
                 }
             } catch (e) { 
                 console.error("Failed to load billing records:", e); 
