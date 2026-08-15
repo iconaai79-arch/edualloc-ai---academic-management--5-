@@ -1705,6 +1705,175 @@ CREATE TABLE IF NOT EXISTS his_queue_calls (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS his_pharmacy_inventory (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    category TEXT,
+    unit TEXT,
+    unit_price DECIMAL(10,2) DEFAULT 0,
+    stock_quantity INTEGER DEFAULT 0,
+    reorder_level INTEGER DEFAULT 10,
+    sku TEXT,
+    is_narcotic BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_pharmacy_batches (
+    id TEXT PRIMARY KEY,
+    medication_id TEXT REFERENCES his_pharmacy_inventory(id) ON DELETE CASCADE,
+    batch_number VARCHAR(100) NOT NULL,
+    expiry_date DATE NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    unit_cost DECIMAL(10,2) DEFAULT 0,
+    supplier_info TEXT,
+    received_date DATE DEFAULT CURRENT_DATE,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_pharmacy_interactions (
+    id TEXT PRIMARY KEY,
+    drug_a TEXT NOT NULL,
+    drug_b TEXT NOT NULL,
+    severity VARCHAR(50) DEFAULT 'Moderate',
+    description TEXT,
+    recommendation TEXT,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_pharmacy_sales (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE SET NULL,
+    customer_name TEXT,
+    customer_phone TEXT,
+    total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+    payment_method TEXT DEFAULT 'Cash',
+    payment_status TEXT DEFAULT 'Paid',
+    staff_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_pharmacy_sale_items (
+    id TEXT PRIMARY KEY,
+    sale_id TEXT REFERENCES his_pharmacy_sales(id) ON DELETE CASCADE,
+    medication_id TEXT REFERENCES his_pharmacy_inventory(id) ON DELETE SET NULL,
+    batch_id TEXT REFERENCES his_pharmacy_batches(id) ON DELETE SET NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    unit_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+    total_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_pharmacy_ledger (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    type TEXT CHECK (type IN ('Income', 'Expense')),
+    category TEXT,
+    amount DECIMAL(15,2) NOT NULL DEFAULT 0,
+    reference_id TEXT,
+    description TEXT,
+    recorded_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_pharmacy_staff (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    full_name TEXT,
+    role TEXT DEFAULT 'Pharmacist',
+    specialization TEXT,
+    license_number TEXT,
+    salary DECIMAL(12,2) DEFAULT 0,
+    hire_date DATE DEFAULT CURRENT_DATE,
+    shift_preference TEXT,
+    status TEXT DEFAULT 'Active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_pharmacy_adherence_alerts (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT NOT NULL REFERENCES his_patients(id) ON DELETE CASCADE,
+    reminder_time TIME,
+    frequency TEXT DEFAULT 'Daily',
+    status TEXT DEFAULT 'active',
+    last_sent_at TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_pharmacy_settings (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    tax_rate DECIMAL(5,2) DEFAULT 0,
+    enable_fefo BOOLEAN DEFAULT TRUE,
+    low_stock_threshold INTEGER DEFAULT 10,
+    currency TEXT DEFAULT 'KES',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_pharmacy_narcotics_ledger (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    drug_id TEXT REFERENCES his_pharmacy_inventory(id) ON DELETE SET NULL,
+    drug_name TEXT NOT NULL,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE SET NULL,
+    prescription_id TEXT,
+    quantity_dispensed INTEGER NOT NULL DEFAULT 1,
+    dispensed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    witness_name TEXT,
+    reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_prescriptions (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT NOT NULL REFERENCES his_patients(id) ON DELETE CASCADE,
+    doctor_id TEXT,
+    doctor_name TEXT,
+    status TEXT DEFAULT 'pending',
+    notes TEXT,
+    clinical_notes TEXT,
+    attached_files TEXT[],
+    medication_image TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_prescription_items (
+    id TEXT PRIMARY KEY,
+    prescription_id TEXT REFERENCES his_prescriptions(id) ON DELETE CASCADE,
+    drug_id TEXT REFERENCES his_pharmacy_inventory(id) ON DELETE SET NULL,
+    drug_name TEXT NOT NULL,
+    dosage TEXT,
+    frequency TEXT,
+    duration TEXT,
+    quantity INTEGER DEFAULT 1,
+    unit_price DECIMAL(10,2) DEFAULT 0,
+    total_price DECIMAL(10,2) DEFAULT 0,
+    instructions TEXT
+);
+
+CREATE TABLE IF NOT EXISTS his_billing_items (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT NOT NULL REFERENCES his_patients(id) ON DELETE CASCADE,
+    source_type TEXT NOT NULL,
+    source_id TEXT,
+    item_name TEXT NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    unit_price DECIMAL(10,2) DEFAULT 0,
+    total_amount DECIMAL(10,2) DEFAULT 0,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS his_staff_attendance (
     id TEXT PRIMARY KEY,
     staff_id TEXT REFERENCES his_staff(id) ON DELETE CASCADE,
