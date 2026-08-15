@@ -423,8 +423,6 @@ export function DoctorDashboard({
         syncQueueStateFromDb();
     }, [institutionId]);
 
-    const [soapPatient, setSoapPatient] = useState<HISPatient | null>(null);
-    const [isSoapModalOpen, setIsSoapModalOpen] = useState(false);
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [showSickOffModal, setShowSickOffModal] = useState(false);
     const [showDischargeModal, setShowDischargeModal] = useState(false);
