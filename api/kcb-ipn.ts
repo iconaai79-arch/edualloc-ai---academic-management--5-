@@ -802,12 +802,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     carInvoiceData = directInvoiceMatch;
                     
                     if (!carInvoiceData) {
-                        const { data: regMatch } = await supabase
-                            .from('car_sales_invoices')
-                            .select('*')
-                            .ilike('registration_number', referenceCode)
-                            .maybeSingle();
-                        carInvoiceData = regMatch;
+                        try {
+                            const { data: regMatch } = await supabase
+                                .from('car_sales_invoices')
+                                .select('*')
+                                .ilike('registration_number', referenceCode)
+                                .maybeSingle();
+                            carInvoiceData = regMatch;
+                        } catch {
+                            // Column registration_number might not exist yet
+                        }
                     }
 
                     if (carInvoiceData) {

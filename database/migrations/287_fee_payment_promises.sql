@@ -2,9 +2,9 @@
 -- Create table for tracking parent Promise to Pay (PTP) commitments
 
 CREATE TABLE IF NOT EXISTS public.fee_promises (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    institution_id UUID NOT NULL,
-    student_id UUID NOT NULL,
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL,
+    student_id TEXT NOT NULL,
     student_name TEXT,
     admission_number TEXT,
     class_name TEXT,

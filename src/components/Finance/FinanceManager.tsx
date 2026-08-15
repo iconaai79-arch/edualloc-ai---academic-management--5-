@@ -183,6 +183,85 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const cleanId = React.useCallback((id?: string) => id ? String(id).trim().replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '') : '', []);
 
+    const getStudentAdmNumber = useCallback((s: any): string => {
+        if (!s) return '';
+        // 1. Direct properties on student object
+        const directCandidates = [
+            s.admissionNumber,
+            s.admission_number,
+            s.admissionNo,
+            s.admNo,
+            s.adm_no,
+            s.staffId,
+            s.staff_id,
+            s.studentId,
+            s.student_id,
+            s.customStudentId,
+            s.custom_student_id,
+            s.regNo,
+            s.reg_no,
+            s.registrationNumber,
+            s.registration_number
+        ];
+        for (const val of directCandidates) {
+            if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A') {
+                return String(val).trim();
+            }
+        }
+
+        // 2. Metadata properties on student object
+        if (s.metadata && typeof s.metadata === 'object') {
+            const metaCandidates = [
+                s.metadata.admissionNumber,
+                s.metadata.admission_number,
+                s.metadata.admissionNo,
+                s.metadata.admNo,
+                s.metadata.adm_no,
+                s.metadata.staffId,
+                s.metadata.staff_id,
+                s.metadata.studentId,
+                s.metadata.student_id,
+                s.metadata.regNo,
+                s.metadata.registrationNumber
+            ];
+            for (const val of metaCandidates) {
+                if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A') {
+                    return String(val).trim();
+                }
+            }
+        }
+
+        // 3. Match from student_enrollments state
+        const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
+        if (allEnrs.length > 0) {
+            const sId = s.id || s.userId || s.user_id;
+            const enr = allEnrs.find((e: any) => e && (e.userId === sId || e.user_id === sId || e.studentId === sId || e.student_id === sId || e.id === sId));
+            if (enr) {
+                const enrCandidates = [
+                    enr.admissionNumber,
+                    enr.admission_number,
+                    enr.admissionNo,
+                    enr.admNo,
+                    enr.adm_no,
+                    enr.staffId,
+                    enr.metadata?.admissionNumber,
+                    enr.metadata?.admission_number,
+                    enr.metadata?.admissionNo,
+                    enr.metadata?.admNo,
+                    enr.metadata?.staffId,
+                    enr.metadata?.studentId
+                ];
+                for (const val of enrCandidates) {
+                    if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A') {
+                        return String(val).trim();
+                    }
+                }
+            }
+        }
+
+        return '';
+    }, [enrollments, allBranchEnrollments]);
+
     // Reset multi-branch satellite data whenever active institution changes
     useEffect(() => {
         setSelectedBranchId('ALL');
@@ -13794,7 +13873,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     return {
                                         id: s.id,
                                         name: s.name,
-                                        admissionNumber: s.admissionNumber || s.admNo || '',
+                                        admissionNumber: getStudentAdmNumber(s),
                                         class: s.gradeLevel || s.class || 'Unclassified',
                                         bf,
                                         t1Count,
@@ -14489,7 +14568,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 return {
                                                     id: s.id,
                                                     name: s.name,
-                                                    admissionNumber: s.admissionNumber || s.admNo || '',
+                                                    admissionNumber: getStudentAdmNumber(s),
                                                     expectedFees,
                                                     installments,
                                                     totals,

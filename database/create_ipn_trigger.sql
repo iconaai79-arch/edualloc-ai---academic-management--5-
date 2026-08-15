@@ -340,9 +340,15 @@ BEGIN
         -- 3. Try to resolve by matching customerReference
         IF payload_ref IS NOT NULL AND payload_ref <> '' THEN
             IF resolved_invoice_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'car_sales_invoices') THEN
-                EXECUTE 'SELECT institution_id, id FROM public.car_sales_invoices WHERE invoice_number = $1 OR registration_number = $1 LIMIT 1'
-                INTO resolved_inst_id, resolved_invoice_id
-                USING payload_ref;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'car_sales_invoices' AND column_name = 'registration_number') THEN
+                    EXECUTE 'SELECT institution_id, id FROM public.car_sales_invoices WHERE invoice_number = $1 OR registration_number = $1 LIMIT 1'
+                    INTO resolved_inst_id, resolved_invoice_id
+                    USING payload_ref;
+                ELSE
+                    EXECUTE 'SELECT institution_id, id FROM public.car_sales_invoices WHERE invoice_number = $1 LIMIT 1'
+                    INTO resolved_inst_id, resolved_invoice_id
+                    USING payload_ref;
+                END IF;
             END IF;
             
             IF resolved_invoice_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'invoices') THEN
@@ -382,7 +388,11 @@ BEGIN
         -- 5. If resolved_inst_id is known but invoice is not
         IF resolved_inst_id IS NOT NULL AND resolved_invoice_id IS NULL AND payload_ref IS NOT NULL AND payload_ref <> '' THEN
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'car_sales_invoices') THEN
-                EXECUTE 'SELECT id FROM public.car_sales_invoices WHERE (invoice_number = $1 OR registration_number = $1) AND institution_id = $2 LIMIT 1' INTO resolved_invoice_id USING payload_ref, resolved_inst_id;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'car_sales_invoices' AND column_name = 'registration_number') THEN
+                    EXECUTE 'SELECT id FROM public.car_sales_invoices WHERE (invoice_number = $1 OR registration_number = $1) AND institution_id = $2 LIMIT 1' INTO resolved_invoice_id USING payload_ref, resolved_inst_id;
+                ELSE
+                    EXECUTE 'SELECT id FROM public.car_sales_invoices WHERE invoice_number = $1 AND institution_id = $2 LIMIT 1' INTO resolved_invoice_id USING payload_ref, resolved_inst_id;
+                END IF;
             END IF;
             IF resolved_invoice_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'invoices') THEN
                 EXECUTE 'SELECT id FROM public.invoices WHERE invoice_number = $1 AND institution_id = $2 LIMIT 1' INTO resolved_invoice_id USING payload_ref, resolved_inst_id;

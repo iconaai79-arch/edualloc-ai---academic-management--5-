@@ -310,6 +310,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.info(`[API GET] Table '${moduleName}' not in DB schema cache, returning empty list.`);
                     return res.status(200).json([]);
                 }
+                const isUuidMismatch = error.code === '22P02' || 
+                                       error.message?.includes('invalid input syntax for type uuid');
+                if (isUuidMismatch) {
+                    console.warn(`[API GET] UUID type mismatch for '${moduleName}' (DB column expects UUID, received string ID), returning empty list fallback.`);
+                    return res.status(200).json([]);
+                }
                 console.error(`[API GET Error] ${moduleName}:`, error);
                 return res.status(500).json({ success: false, error: error.message, code: error.code });
             }
@@ -502,10 +508,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        error.code === 'PGRST204' ||
                                        error.code === 'PGRST200' ||
                                        error.code === '23503' ||
+                                       error.code === '22P02' ||
                                        message.includes('schema cache') || 
                                        message.includes('column') ||
                                        message.includes('does not exist') ||
                                        message.includes('foreign key') ||
+                                       message.includes('invalid input syntax for type uuid') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
                     console.warn(`[api/records POST] Table/column '${moduleName}' schema mismatch, fallback handled locally:`, error.message);
@@ -629,7 +637,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const isTableMissing = error.code === '42P01' || 
                                            error.code === 'PGRST205' || 
                                            error.code === 'PGRST204' ||
+                                           error.code === '22P02' ||
                                            error.message?.includes('schema cache') || 
+                                           error.message?.includes('invalid input syntax for type uuid') ||
                                            error.message?.includes('does not exist');
                     if (isTableMissing) {
                         return res.status(200).json([]);
