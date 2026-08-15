@@ -281,6 +281,8 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
 
     // Incoming Doctor Orders & Prescriptions Queue
     const [doctorOrdersQueue, setDoctorOrdersQueue] = useState<any[]>([]);
+    // Tracks the prescription ID(s) being actively checked out so handleCreateInvoice can target them directly
+    const [checkingOutPrescriptionIds, setCheckingOutPrescriptionIds] = useState<string[]>([]);
 
     // New Invoice Form
     const [selectedPatientId, setSelectedPatientId] = useState('');
@@ -615,11 +617,27 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                 }
 
                 // 4. Mark doctor prescription order as invoiced so it doesn't reappear in checkout queue
+                // Use the IDs that were eagerly marked when cashier clicked "Checkout & Invoice"
+                const prescIdsToUpdate = checkingOutPrescriptionIds.length > 0
+                    ? checkingOutPrescriptionIds
+                    : (() => { // fallback: find by patient if IDs weren't tracked
+                        return [];
+                    })();
+
+                for (const prescId of prescIdsToUpdate) {
+                    await apiService.updateModuleRecord('his_prescriptions', prescId, {
+                        status: 'invoiced',
+                        invoiceNumber: newInv.invoiceNumber,
+                        invoice_number: newInv.invoiceNumber
+                    }).catch(() => null);
+                }
+
+                // Also sweep any remaining pending prescriptions for this patient by patientId
                 if (selectedPatientId && selectedPatientId !== 'walkin') {
                     const prescs = await apiService.fetchModuleRecords('his_prescriptions', institutionId).catch(() => []);
-                    const matchPrescs = (prescs || []).filter((p: any) => 
-                        (p.patientId === selectedPatientId || p.patient_id === selectedPatientId) && 
-                        p.status !== 'dispensed' && p.status !== 'cleared'
+                    const matchPrescs = (prescs || []).filter((p: any) =>
+                        (p.patientId === selectedPatientId || p.patient_id === selectedPatientId) &&
+                        p.status !== 'dispensed' && p.status !== 'cleared' && p.status !== 'invoiced'
                     );
                     for (const p of matchPrescs) {
                         await apiService.updateModuleRecord('his_prescriptions', p.id, {
@@ -629,6 +647,8 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                         }).catch(() => null);
                     }
                 }
+                // Reset tracked IDs
+                setCheckingOutPrescriptionIds([]);
             } catch (err) {
                 console.error("Failed to save invoice to Supabase:", err);
             }
@@ -1196,7 +1216,22 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                     <div className="text-right flex-shrink-0 space-y-2">
                                         <p className="text-sm font-black text-amber-400">KES {ord.totalAmount.toLocaleString()}</p>
                                         <button
-                                            onClick={() => {
+                                            onClick={async () => {
+                                                // 1. Immediately remove from live feed UI
+                                                setDoctorOrdersQueue(prev => prev.filter(q => q.id !== ord.id));
+
+                                                // 2. Eagerly persist status='invoiced' to DB right now so refresh won't restore it
+                                                if (ord.id && institutionId) {
+                                                    apiService.updateModuleRecord('his_prescriptions', ord.id, {
+                                                        status: 'invoiced',
+                                                        checked_out_at: new Date().toISOString()
+                                                    }).catch(() => null);
+                                                }
+
+                                                // 3. Track this prescription ID for the invoice form
+                                                setCheckingOutPrescriptionIds([ord.id]);
+
+                                                // 4. Pre-fill invoice form
                                                 setManualPatientName(ord.patientName.replace(/^Dr\. (Prescribed|Ordered): /, ''));
                                                 setSelectedPatientId(ord.patientId);
                                                 setLineItems(ord.items.map((i: any) => ({
@@ -1206,7 +1241,6 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                                     unitPrice: i.unitPrice
                                                 })));
                                                 setIsGenerateModalOpen(true);
-                                                setDoctorOrdersQueue(prev => prev.filter(q => q.id !== ord.id));
                                             }}
                                             className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md shadow-emerald-500/20"
                                         >
