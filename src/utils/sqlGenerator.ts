@@ -1660,6 +1660,22 @@ CREATE TABLE IF NOT EXISTS his_admissions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS his_inpatient_records (
+    id TEXT PRIMARY KEY,
+    ward_id TEXT REFERENCES his_wards(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
+    bed_number VARCHAR(50) NOT NULL,
+    admission_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    discharge_date TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(50) DEFAULT 'Admitted',
+    diagnosis TEXT,
+    attending_doctor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    notes TEXT,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS his_appointments (
     id TEXT PRIMARY KEY,
     patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,

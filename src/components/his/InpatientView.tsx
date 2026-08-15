@@ -27,9 +27,9 @@ export function InpatientView({ institutionId, onAddWard, refreshTrigger }: Inpa
         setIsLoading(true);
         try {
             const [wardsData, recordsData, patientsData] = await Promise.all([
-                apiService.fetchModuleRecords('his_wards', institutionId),
-                apiService.fetchModuleRecords('his_inpatient_records', institutionId),
-                apiService.fetchModuleRecords('his_patients', institutionId)
+                apiService.fetchModuleRecords('his_wards', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('his_inpatient_records', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('his_patients', institutionId).catch(() => [])
             ]);
             setWards(wardsData || []);
             setInpatientRecords(recordsData || []);
