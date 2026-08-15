@@ -454,12 +454,21 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
 
             // 7. Mark Prescription as Dispensed
             await apiService.updateModuleRecord('his_prescriptions', presc.id, {
-                status: 'dispensed'
+                status: 'dispensed',
+                dispensed_at: new Date().toISOString()
             });
 
-            alert(`Successfully dispensed prescription for ${presc.patientName}. Batches updated, Ledger logged, Billing linked.`);
-            loadData();
+            // Optimistically move prescription from queue → logs immediately (no refresh flicker)
+            setPrescriptions(prev => prev.map(p =>
+                p.id === presc.id ? { ...p, status: 'dispensed' as any } : p
+            ));
+
+            alert(`✓ Medication dispensed for ${presc.patientName}. Check the Logs tab for the full dispensing record.`);
             setSelectedPrescription(null);
+            // Auto-switch to Logs tab so pharmacist sees the record immediately
+            setActiveTab('history');
+            // Reload in background for full data sync
+            loadData();
         } catch (e) {
             console.error("Dispensing failure:", e);
             alert("Dispensing failed. Check batch levels and connection.");
@@ -544,8 +553,13 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
         });
     }, [inventory, batches, searchTerm, stockFilter, now, in60Days]);
 
-    const pendingPrescs = prescriptions.filter(p => p.status === 'pending');
-    const historyPrescs = prescriptions.filter(p => p.status === 'dispensed');
+    // Pharmacy queue: show prescriptions that are pending, finance-invoiced, or finance-cleared — not yet dispensed
+    const pendingPrescs = prescriptions.filter(p => {
+        const st = (p.status || '').toLowerCase();
+        return st === 'pending' || st === 'invoiced' || st === 'cleared';
+    });
+    // Dispensing logs: all dispensed prescriptions
+    const historyPrescs = prescriptions.filter(p => (p.status || '').toLowerCase() === 'dispensed');
     const lowStockDrugs = inventory.filter(i => i.stockQuantity <= i.reorderLevel);
 
     return (

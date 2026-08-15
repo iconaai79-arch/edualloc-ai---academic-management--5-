@@ -610,8 +610,17 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                 recordedBy: currentUser.id
             });
 
-            alert("Medication dispensed successfully!");
+            alert("✓ Medication dispensed successfully! The record is now in the Sales Ledger.");
             setSelectedPrescriptionForDispense(null);
+
+            // Optimistically move prescription to dispensed state immediately (no flicker)
+            setPrescriptions(prev => prev.map(p =>
+                p.id === prescriptionId ? { ...p, status: 'dispensed' as any } : p
+            ));
+
+            // Auto-navigate to sales/reports tab to show the dispense record
+            setActiveTab('sales');
+            // Background reload for full data sync
             loadData();
         } catch (error) {
             console.error("Dispensing failed:", error);
