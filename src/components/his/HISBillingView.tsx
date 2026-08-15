@@ -383,20 +383,39 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                     setExpenditures(dbExps);
                 }
 
-                // Transform real pending prescriptions into Doctor Orders Queue (exclude dispensed, cleared, or invoiced)
+                // Transform real pending prescriptions into Doctor Orders Queue (exclude dispensed, cleared, invoiced, or already have an invoice)
                 if (dbPrescs && dbPrescs.length > 0) {
+                    // Build a Set of patient IDs that already have an invoice so we don't re-show them
+                    const alreadyInvoicedPatientIds = new Set(
+                        (dbInvoices || []).map((inv: any) => inv.patientId || inv.patient_id).filter(Boolean)
+                    );
+
                     const realDoctorOrders = dbPrescs.filter((pr: any) => {
                         const st = (pr.status || '').toLowerCase();
                         const paySt = (pr.paymentStatus || pr.payment_status || '').toLowerCase();
-                        return st !== 'dispensed' && st !== 'cleared' && st !== 'invoiced' && paySt !== 'cleared';
+                        const pid = pr.patientId || pr.patient_id;
+                        // Exclude if already dispensed/cleared/invoiced, or if an invoice already exists for this patient
+                        return st !== 'dispensed' && st !== 'cleared' && st !== 'invoiced'
+                            && paySt !== 'cleared'
+                            && !alreadyInvoicedPatientIds.has(pid);
                     }).map((pr: any) => {
                         const patObj = (pData || []).find((p: any) => p.id === pr.patientId || p.id === pr.patient_id);
                         const patName = pr.patientName || pr.patient_name || patObj?.fullName || patObj?.name || 'Patient';
                         const docName = pr.doctorName || pr.doctor_name || 'Dr. Attending Physician';
-                        const itemsArr = Array.isArray(pr.items) && pr.items.length > 0 ? pr.items : [
-                            { itemName: pr.drugName || 'Prescription Medication', category: 'Pharmacy', quantity: pr.quantity || 1, unitPrice: pr.unitPrice || 500, total: (pr.quantity || 1) * (pr.unitPrice || 500) }
-                        ];
-                        const totalAmt = itemsArr.reduce((sum: number, it: any) => sum + (it.total || (it.quantity * it.unitPrice) || 0), 0);
+
+                        // Normalize items: handle drugName/drug_name/itemName/name variants
+                        const rawItems = Array.isArray(pr.items) && pr.items.length > 0 ? pr.items : null;
+                        const itemsArr = rawItems
+                            ? rawItems.map((it: any) => ({
+                                itemName: it.itemName || it.item_name || it.drugName || it.drug_name || it.name || 'Medication',
+                                category: it.category || 'Pharmacy',
+                                quantity: Number(it.quantity) || 1,
+                                unitPrice: Number(it.unitPrice || it.unit_price || it.price || 0),
+                                total: Number(it.total || it.totalPrice || it.total_price || (it.quantity * (it.unitPrice || it.unit_price || 0)) || 0)
+                            }))
+                            : [{ itemName: pr.drugName || pr.drug_name || 'Prescription Medication', category: 'Pharmacy', quantity: pr.quantity || 1, unitPrice: pr.unitPrice || pr.unit_price || 500, total: (pr.quantity || 1) * (pr.unitPrice || pr.unit_price || 500) }];
+
+                        const totalAmt = itemsArr.reduce((sum: number, it: any) => sum + (it.total || 0), 0);
 
                         return {
                             id: pr.id,
@@ -406,13 +425,14 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                             type: 'Prescription Order',
                             items: itemsArr,
                             totalAmount: totalAmt > 0 ? totalAmt : 1500,
-                            time: pr.createdAt ? new Date(pr.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'
+                            time: pr.createdAt || pr.created_at ? new Date(pr.createdAt || pr.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'
                         };
                     });
                     setDoctorOrdersQueue(realDoctorOrders);
                 } else {
                     setDoctorOrdersQueue([]);
                 }
+
 
                 // 1. Process persisted DB Invoices first
                 if (dbInvoices && dbInvoices.length > 0) {
