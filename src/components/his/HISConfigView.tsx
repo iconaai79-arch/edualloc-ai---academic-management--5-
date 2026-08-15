@@ -446,7 +446,33 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         loadInsuranceProviders();
         loadPartnerLabs();
         loadHospitalRooms();
-    }, [loadPractitioners, loadTariffs, loadInsuranceProviders, loadPartnerLabs, loadHospitalRooms]);
+
+        // Load persisted billing settings from DB
+        if (institutionId) {
+            apiService.fetchModuleRecords('his_billing_settings', institutionId)
+                .then((rows: any[]) => {
+                    if (rows && rows.length > 0) {
+                        const s = rows[0];
+                        setInvoiceSettings(prev => ({
+                            ...prev,
+                            invoicePrefix:        s.invoicePrefix        || s.invoice_prefix        || prev.invoicePrefix,
+                            invoiceStartNumber:   Number(s.invoiceStartNumber   || s.invoice_start_number   || prev.invoiceStartNumber),
+                            receiptPrefix:        s.receiptPrefix        || s.receipt_prefix        || prev.receiptPrefix,
+                            receiptStartNumber:   Number(s.receiptStartNumber   || s.receipt_start_number   || prev.receiptStartNumber),
+                            claimPrefix:          s.claimPrefix          || s.claim_prefix          || prev.claimPrefix,
+                            claimStartNumber:     Number(s.claimStartNumber     || s.claim_start_number     || prev.claimStartNumber),
+                            currency:             s.currency                                        || prev.currency,
+                            financialYear:        s.financialYear        || s.financial_year        || prev.financialYear,
+                            paymentTermsDays:     Number(s.paymentTermsDays     || s.payment_terms_days     || prev.paymentTermsDays),
+                            autoResetYearly:      s.autoResetYearly      ?? s.auto_reset_yearly      ?? prev.autoResetYearly,
+                            includeYearInNumber:  s.includeYearInNumber  ?? s.include_year_in_number ?? prev.includeYearInNumber,
+                            zeroPadLength:        Number(s.zeroPadLength        || s.zero_pad_length        || prev.zeroPadLength),
+                        }));
+                    }
+                })
+                .catch(() => null); // table may not exist yet — silently use defaults
+        }
+    }, [loadPractitioners, loadTariffs, loadInsuranceProviders, loadPartnerLabs, loadHospitalRooms, institutionId]);
 
     const handleScanBiometrics = async () => {
         setIsScanningBiometric(true);
@@ -710,13 +736,39 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         try {
             await apiService.saveModuleRecord('his_billing_settings', {
                 id: `billing_${institutionId}`,
+                institution_id: institutionId,
                 institutionId,
-                ...invoiceSettings,
-                updatedAt: new Date().toISOString(),
+                // camelCase (app layer)
+                invoicePrefix:       invoiceSettings.invoicePrefix,
+                invoiceStartNumber:  invoiceSettings.invoiceStartNumber,
+                receiptPrefix:       invoiceSettings.receiptPrefix,
+                receiptStartNumber:  invoiceSettings.receiptStartNumber,
+                claimPrefix:         invoiceSettings.claimPrefix,
+                claimStartNumber:    invoiceSettings.claimStartNumber,
+                currency:            invoiceSettings.currency,
+                financialYear:       invoiceSettings.financialYear,
+                paymentTermsDays:    invoiceSettings.paymentTermsDays,
+                autoResetYearly:     invoiceSettings.autoResetYearly,
+                includeYearInNumber: invoiceSettings.includeYearInNumber,
+                zeroPadLength:       invoiceSettings.zeroPadLength,
+                // snake_case (DB layer)
+                invoice_prefix:       invoiceSettings.invoicePrefix,
+                invoice_start_number: invoiceSettings.invoiceStartNumber,
+                receipt_prefix:       invoiceSettings.receiptPrefix,
+                receipt_start_number: invoiceSettings.receiptStartNumber,
+                claim_prefix:         invoiceSettings.claimPrefix,
+                claim_start_number:   invoiceSettings.claimStartNumber,
+                financial_year:       invoiceSettings.financialYear,
+                payment_terms_days:   invoiceSettings.paymentTermsDays,
+                auto_reset_yearly:    invoiceSettings.autoResetYearly,
+                include_year_in_number: invoiceSettings.includeYearInNumber,
+                zero_pad_length:      invoiceSettings.zeroPadLength,
+                updated_at: new Date().toISOString(),
             });
             alert('✓ Billing & Numbering settings saved successfully!');
-        } catch (e) {
-            alert('Failed to save billing settings.');
+        } catch (e: any) {
+            console.error('Failed to save billing settings:', e);
+            alert('Failed to save billing settings. Error: ' + (e?.message || e));
         } finally {
             setIsSavingBilling(false);
         }
