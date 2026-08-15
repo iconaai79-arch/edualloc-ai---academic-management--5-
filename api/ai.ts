@@ -36,7 +36,9 @@ async function checkAuthUser(supabase: any, authHeader?: string) {
     return null;
 }
 
-const getApiKey = () => {
+const getApiKey = (req?: VercelRequest) => {
+    const customKey = req?.headers?.['x-gemini-api-key'] as string;
+    if (customKey && customKey.trim()) return customKey.trim();
     return process.env.GEMINI_API_KEY ||
         process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
         process.env.VITE_GEMINI_API_KEY ||
@@ -57,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-gemini-api-key');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
@@ -73,7 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-        const apiKey = getApiKey();
+        const apiKey = getApiKey(req);
         if (!apiKey) {
             console.error("AI Service Error: API Key missing on server.");
             return res.status(503).json({
@@ -93,9 +95,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const { model: requestedModel, contents, config: genConfig, history, message } = body;
 
-        // Model fallback selection list
-        const primaryModel = requestedModel || 'gemini-1.5-flash';
-        const fallbackModels = [primaryModel, 'gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-pro'].filter((v, i, a) => a.indexOf(v) === i);
+        // Model fallback selection list (using active modern Gemini models)
+        const primaryModel = requestedModel === 'gemini-pro' ? 'gemini-1.5-flash' : (requestedModel || 'gemini-1.5-flash');
+        const fallbackModels = [primaryModel, 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'].filter((v, i, a) => a.indexOf(v) === i);
 
         let lastError: any = null;
 

@@ -23,11 +23,13 @@ const sanitizeAiError = (error: any): Error => {
     msg = msg.replace(/v1beta/gi, 'Core Engine');
 
     // Mask specific technical status codes if they look like branding leaks
-    if (msg.includes('404') || msg.includes('not found') || msg.includes('400') || msg.includes('401')) {
-        if (msg.toLowerCase().includes('api key') || msg.toLowerCase().includes('key not valid')) {
-            msg = "Gemini 3.0 Pro Authentication: Please verify your Visionary Engine API key in Settings.";
+    if (msg.includes('suspended') || msg.includes('CONSUMER_SUSPENDED') || msg.includes('Permission denied: Consumer')) {
+        msg = "Gemini AI Service Alert: Your Google Gemini API Key has been suspended or is inactive in Google Cloud. Please provide an active GEMINI_API_KEY in your server environment or Settings.";
+    } else if (msg.includes('404') || msg.includes('not found') || msg.includes('400') || msg.includes('401') || msg.includes('403')) {
+        if (msg.toLowerCase().includes('api key') || msg.toLowerCase().includes('key not valid') || msg.toLowerCase().includes('permission denied')) {
+            msg = "Gemini AI Authentication: Please verify your Gemini API key in server environment / Settings.";
         } else {
-            msg = "Gemini 3.0 Pro Logic Matrix is currently optimizing your request. Please wait a few seconds and try again.";
+            msg = "Gemini AI Logic Matrix is currently optimizing your request. Please wait a few seconds and try again.";
         }
     }
 
@@ -43,12 +45,18 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
 
     try {
         const token = await apiService.getAuthToken();
+        const customApiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+        };
+        if (customApiKey) {
+            headers['x-gemini-api-key'] = customApiKey;
+        }
+
         const response = await fetch('/api/ai', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': token ? `Bearer ${token}` : ''
-            },
+            headers,
             body: JSON.stringify({
                 model,
                 contents,
@@ -528,13 +536,16 @@ export const getChatResponse = async (history: { role: string, parts: { text: st
     try {
         const token = await apiService.getAuthToken();
         const cleanHistory = sanitizeChatHistory(history);
+        const customApiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+        const headers: Record<string, string> = { 
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+        };
+        if (customApiKey) headers['x-gemini-api-key'] = customApiKey;
 
         const response = await fetch('/api/ai', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': token ? `Bearer ${token}` : ''
-            },
+            headers,
             body: JSON.stringify({
                 model: PRO_LOGICAL_CORE, // Default to Pro for chat
                 history: cleanHistory,
@@ -584,6 +595,12 @@ export const getInstitutionAwareChatResponse = async (
     try {
         const token = await apiService.getAuthToken();
         const cleanHistory = sanitizeChatHistory(history);
+        const customApiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+        };
+        if (customApiKey) headers['x-gemini-api-key'] = customApiKey;
 
         // Inject context as the first model turn so it acts as a system prompt
         const enrichedHistory = [
@@ -594,10 +611,7 @@ export const getInstitutionAwareChatResponse = async (
 
         const response = await fetch('/api/ai', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': token ? `Bearer ${token}` : ''
-            },
+            headers,
             body: JSON.stringify({
                 model: PRO_LOGICAL_CORE,
                 history: enrichedHistory,

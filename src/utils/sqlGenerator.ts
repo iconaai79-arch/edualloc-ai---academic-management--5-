@@ -1669,8 +1669,22 @@ CREATE TABLE IF NOT EXISTS his_broadcasts (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS his_queue_calls (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE SET NULL,
+    patient_name TEXT,
+    status VARCHAR(50) DEFAULT 'Waiting',
+    room_no VARCHAR(50),
+    doctor_name TEXT,
+    ticket_no TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Enable RLS for HIS Tables
 ALTER TABLE his_staff ENABLE ROW LEVEL SECURITY;
+ALTER TABLE his_queue_calls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_patients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_wards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_beds ENABLE ROW LEVEL SECURITY;

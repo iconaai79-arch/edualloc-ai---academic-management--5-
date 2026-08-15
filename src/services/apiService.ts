@@ -1081,6 +1081,10 @@ export const apiService = {
             }
 
             const data = await response.json();
+            if (data && typeof data === 'object' && !Array.isArray(data) && (data.success === false || data.error)) {
+                console.warn(`[apiService] Server returned error object for [${module}]:`, data.error || data.message);
+                return queryLocal();
+            }
             const result = toCamelCase(data);
             if (module === 'institutions' && Array.isArray(result)) {
                 result.forEach((inst: any) => {

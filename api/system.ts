@@ -157,7 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'rooms', 'buildings', 'departments', 'his_medication_logs', 'his_clinical_events', 
                     'his_vital_statistics', 'his_financial_records', 'his_staff_attendance', 'his_appointments', 
                     'his_admissions', 'his_beds', 'his_wards', 'his_patients', 'his_staff', 'his_dental_charts', 
-                    'his_eye_prescriptions', 'his_broadcasts', 'vehicles', 'transport_onboarding', 'vehicle_logs'
+                    'his_eye_prescriptions', 'his_broadcasts', 'his_queue_calls', 'his_prescriptions', 'his_pharmacy_inventory', 'his_lab_orders', 'vehicles', 'transport_onboarding', 'vehicle_logs'
                 ];
 
                 const results: any = {};
