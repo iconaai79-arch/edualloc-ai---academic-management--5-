@@ -513,14 +513,15 @@ export function DoctorDashboard({
         return () => clearInterval(interval);
     }, [institutionId]);
 
-    const handleCallNextVoice = async (bypassSoapReminder: boolean = false) => {
+    const handleCallNextVoice = async (bypassSoapReminder: boolean | React.MouseEvent = false) => {
+        const shouldBypass = typeof bypassSoapReminder === 'boolean' ? bypassSoapReminder : false;
         try {
             const currentActiveId = activeConsultationId || patients.find(p => !completedPatientIds.has(p.id))?.id || patients[0]?.id;
             const currentActivePatient = patients.find(p => p.id === currentActiveId) || patients[0];
             const currentPatientName = currentActivePatient?.fullName || (currentActivePatient as any)?.name || 'Mercy Biwott';
 
             // ── SOAP Clinical Note Reminder Check ──
-            if (currentActivePatient && !completedSoapPatientIds.has(currentActiveId) && !bypassSoapReminder) {
+            if (currentActivePatient && !completedSoapPatientIds.has(currentActiveId) && !shouldBypass) {
                 const events = await apiService.fetchModuleRecords('his_clinical_events', institutionId, undefined, { filter: { patientId: currentActiveId } }).catch(() => []);
                 const hasSoapRecord = (events || []).some((e: any) => e.event?.includes('Clinical Encounter') || e.notes?.includes('[SUBJECTIVE]'));
 
