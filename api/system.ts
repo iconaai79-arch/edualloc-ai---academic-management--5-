@@ -228,9 +228,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         .replace(/\?$/, '');
                 }
 
-                // Prevent TLS self-signed cert chain rejection for Supabase connection poolers
-                process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
                 const pool = new Pool({
                     connectionString: cleanConnString,
                     ssl: { rejectUnauthorized: false },
