@@ -591,9 +591,8 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
                     onAdd={handleBookAppointment}
                     isEdu={false}
                     referredBy={userName || ''}
-                    students={selectedPatient
-                        ? [{ id: selectedPatient.id, name: selectedPatient.fullName }]
-                        : patients.map(p => ({ id: p.id, name: p.fullName }))}
+                    initialPatient={selectedPatient}
+                    patients={patients}
                 />,
                 document.body
             )}

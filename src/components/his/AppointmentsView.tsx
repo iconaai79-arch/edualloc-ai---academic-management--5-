@@ -41,16 +41,23 @@ export function AppointmentsView({ activeRole, userName, institutionId, demoAppo
     const [notification, setNotification] = useState<{ show: boolean, message: string }>({ show: false, message: '' });
     const [isLoading, setIsLoading] = useState(true);
     const [appointments, setAppointments] = useState<HISAppointment[]>(demoAppointments || []);
+    const [patients, setPatients] = useState<any[]>([]);
 
     const fetchAppointments = async () => {
         if (!institutionId) return;
         setIsLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<HISAppointment>('his_appointments', institutionId);
+            const [data, patData] = await Promise.all([
+                apiService.fetchModuleRecords<HISAppointment>('his_appointments', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('his_patients', institutionId).catch(() => [])
+            ]);
             if (data && data.length > 0) {
                 setAppointments(data);
             } else if (demoAppointments) {
                 setAppointments(demoAppointments);
+            }
+            if (patData && patData.length > 0) {
+                setPatients(patData);
             }
         } catch (error) {
             console.error('Failed to fetch appointments:', error);
@@ -422,6 +429,7 @@ export function AppointmentsView({ activeRole, userName, institutionId, demoAppo
                     isEdu={isEdu}
                     referredBy={isEdu ? (userName || '') : ''}
                     students={isEdu ? availableStudents : []}
+                    patients={patients}
                 />,
                 document.body
             )}

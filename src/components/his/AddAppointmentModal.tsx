@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { XIcon } from '../icons/XIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
@@ -7,12 +7,25 @@ import { UsersIcon } from '../icons/UsersIcon';
 import { SearchIcon } from '../icons/SearchIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 
-interface Student {
+interface PatientItem {
     id: string;
-    name: string;
+    name?: string;
+    fullName?: string;
+    full_name?: string;
     role?: string;
     metadata?: { gradeLevel?: string; class?: string; admissionNumber?: string; [key: string]: any };
     admissionNumber?: string;
+    admission_number?: string;
+    patientNumber?: string;
+    patient_number?: string;
+    customPatientId?: string;
+    custom_patient_id?: string;
+    opNumber?: string;
+    op_number?: string;
+    gradeLevel?: string;
+    grade_level?: string;
+    stream?: string;
+    [key: string]: any;
 }
 
 interface AddAppointmentModalProps {
@@ -24,7 +37,13 @@ interface AddAppointmentModalProps {
     /** Pre-fill referred-by field with the logged-in teacher's name */
     referredBy?: string;
     /** List of students/users the teacher can select on behalf of */
-    students?: Student[];
+    students?: PatientItem[];
+    /** List of clinic/hospital patients */
+    patients?: PatientItem[];
+    /** Pre-selected patient if opened from a specific row */
+    initialPatient?: PatientItem | null;
+    selectedPatient?: PatientItem | null;
+    doctorName?: string;
 }
 
 export function AddAppointmentModal({
@@ -34,13 +53,19 @@ export function AddAppointmentModal({
     isEdu = false,
     referredBy = '',
     students = [],
+    patients = [],
+    initialPatient = null,
+    selectedPatient = null,
+    doctorName = '',
 }: AddAppointmentModalProps) {
+    const defaultDoctor = isEdu ? 'School Nurse' : (doctorName || 'Medical Officer on Duty');
+
     const [formData, setFormData] = useState({
         patientName: '',
         patientId: '',
         studentClass: '',
         admissionNumber: '',
-        doctorName: isEdu ? 'School Nurse' : '',
+        doctorName: defaultDoctor,
         referredByTeacher: referredBy,
         specialty: isEdu ? 'General Wellness' : 'General Medicine',
         date: new Date().toISOString().split('T')[0],
@@ -53,36 +78,101 @@ export function AddAppointmentModal({
         insurancePolicyNumber: '',
     });
 
-    const [studentSearch, setStudentSearch] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Combine any passed student/patient pools
+    const candidateList = (students && students.length > 0)
+        ? students
+        : (patients && patients.length > 0 ? patients : []);
+
+    // Sync selected patient on open or prop change
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const target = initialPatient || selectedPatient || (candidateList.length === 1 ? candidateList[0] : null);
+        if (target) {
+            const name = target.fullName || target.name || target.full_name || '';
+            const id = target.id || (name ? name.toLowerCase().replace(/\s+/g, '_') : '');
+            const adm = target.admissionNumber || target.admission_number || target.customPatientId || target.custom_patient_id || target.patientNumber || target.patient_number || target.opNumber || target.op_number || '';
+            const cls = target.metadata?.gradeLevel || target.metadata?.class || target.gradeLevel || target.grade_level || target.stream || '';
+
+            setFormData(prev => ({
+                ...prev,
+                patientName: name || prev.patientName,
+                patientId: id || prev.patientId,
+                admissionNumber: adm || prev.admissionNumber,
+                studentClass: cls || prev.studentClass,
+                doctorName: prev.doctorName || defaultDoctor,
+                referredByTeacher: referredBy || prev.referredByTeacher,
+            }));
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                doctorName: prev.doctorName || defaultDoctor,
+                referredByTeacher: referredBy || prev.referredByTeacher,
+            }));
+        }
+    }, [isOpen, initialPatient, selectedPatient, candidateList, defaultDoctor, referredBy]);
 
     if (!isOpen) return null;
 
-    // Filtered student list for the dropdown
-    const filteredStudents = students.filter(s =>
-        s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
-        (s.admissionNumber || s.metadata?.admissionNumber || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
-        (s.metadata?.gradeLevel || '').toLowerCase().includes(studentSearch.toLowerCase())
-    );
+    // Filtered patient list for autocomplete dropdown
+    const filteredCandidates = candidateList.filter(s => {
+        const name = (s.fullName || s.name || s.full_name || '').toLowerCase();
+        const adm = (s.admissionNumber || s.admission_number || s.customPatientId || s.custom_patient_id || s.patientNumber || s.patient_number || s.opNumber || s.metadata?.admissionNumber || '').toLowerCase();
+        const cls = (s.metadata?.gradeLevel || s.gradeLevel || s.grade_level || s.role || '').toLowerCase();
+        const query = searchQuery.toLowerCase();
+        return name.includes(query) || adm.includes(query) || cls.includes(query);
+    });
 
-    const handleSelectStudent = (student: Student) => {
+    const handleSelectCandidate = (cand: PatientItem) => {
+        const name = cand.fullName || cand.name || cand.full_name || '';
+        const id = cand.id || name.toLowerCase().replace(/\s+/g, '_');
+        const adm = cand.admissionNumber || cand.admission_number || cand.customPatientId || cand.custom_patient_id || cand.patientNumber || cand.patient_number || cand.opNumber || cand.metadata?.admissionNumber || '';
+        const cls = cand.metadata?.gradeLevel || cand.metadata?.class || cand.gradeLevel || cand.grade_level || '';
+
         setFormData(prev => ({
             ...prev,
-            patientName: student.name,
-            patientId: student.id,
-            admissionNumber: student.admissionNumber || student.metadata?.admissionNumber || '',
-            studentClass: student.metadata?.gradeLevel || student.metadata?.class || '',
+            patientName: name,
+            patientId: id,
+            admissionNumber: adm,
+            studentClass: cls,
         }));
-        setStudentSearch('');
+        setSearchQuery('');
+    };
+
+    const handleClearSelectedPatient = () => {
+        setFormData(prev => ({
+            ...prev,
+            patientName: '',
+            patientId: '',
+            studentClass: '',
+            admissionNumber: '',
+        }));
+        setSearchQuery('');
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
+
+        const finalPatName = formData.patientName.trim() || (searchQuery.trim() || 'Walk-in Patient');
+        const finalPatId = formData.patientId || (finalPatName ? finalPatName.toLowerCase().replace(/\s+/g, '_') : `his_p_${Date.now()}`);
+        const finalDocName = formData.doctorName.trim() || defaultDoctor;
+
         try {
             await onAdd({
                 ...formData,
-                // Include referral info in the saved record
+                patientName: finalPatName,
+                patient_name: finalPatName,
+                patientId: finalPatId,
+                patient_id: finalPatId,
+                doctorName: finalDocName,
+                doctor_name: finalDocName,
+                admissionNumber: formData.admissionNumber,
+                admission_number: formData.admissionNumber,
+                // Include referral info in the saved record if in school context
                 ...(isEdu ? { referredByTeacher: formData.referredByTeacher || referredBy } : {}),
             });
             onClose();
@@ -92,7 +182,7 @@ export function AddAppointmentModal({
                 patientId: '',
                 studentClass: '',
                 admissionNumber: '',
-                doctorName: isEdu ? 'School Nurse' : '',
+                doctorName: defaultDoctor,
                 referredByTeacher: referredBy,
                 specialty: isEdu ? 'General Wellness' : 'General Medicine',
                 date: new Date().toISOString().split('T')[0],
@@ -104,6 +194,7 @@ export function AddAppointmentModal({
                 insuranceProvider: '',
                 insurancePolicyNumber: '',
             });
+            setSearchQuery('');
         } catch (error) {
             console.error(error);
         } finally {
@@ -132,112 +223,89 @@ export function AddAppointmentModal({
 
                 <form onSubmit={handleSubmit} className="p-8 space-y-5">
 
-                    {/* ── EduPulse: Student Picker ── */}
-                    {isEdu ? (
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <UsersIcon className="w-3 h-3" /> Select Student
-                            </label>
+                    {/* ── Patient Identity / Selector ── */}
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                            <UsersIcon className="w-3 h-3 text-indigo-500" /> {isEdu ? 'Select Student' : 'Patient Identity'}
+                        </label>
 
-                            {/* Selected student badge */}
-                            {formData.patientName ? (
-                                <div className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800">
-                                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
-                                        {formData.patientName[0].toUpperCase()}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">{formData.patientName}</p>
-                                        <p className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
-                                            {formData.studentClass && `Class: ${formData.studentClass}`}
-                                            {formData.admissionNumber && ` • Adm: ${formData.admissionNumber}`}
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, patientName: '', patientId: '', studentClass: '', admissionNumber: '' }))}
-                                        className="p-2 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-xl text-slate-400 hover:text-rose-500 transition-all"
-                                    >
-                                        <XIcon className="w-4 h-4" />
-                                    </button>
+                        {formData.patientName ? (
+                            /* Selected patient card badge */
+                            <div className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800">
+                                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0 shadow-md">
+                                    {formData.patientName[0].toUpperCase()}
                                 </div>
-                            ) : (
-                                <div className="relative">
-                                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="SEARCH STUDENT BY NAME OR ADM NO..."
-                                        value={studentSearch}
-                                        onChange={e => setStudentSearch(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all dark:text-white"
-                                    />
-                                    {/* Dropdown */}
-                                    {studentSearch && (
-                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl z-50 max-h-48 overflow-y-auto">
-                                            {filteredStudents.length > 0 ? filteredStudents.map(s => (
-                                                <button
-                                                    key={s.id}
-                                                    type="button"
-                                                    onClick={() => handleSelectStudent(s)}
-                                                    className="w-full flex items-center gap-3 p-3 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-all text-left border-b border-slate-50 dark:border-white/5 last:border-0"
-                                                >
-                                                    <div className="w-8 h-8 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-600 font-black text-xs flex-shrink-0">
-                                                        {s.name[0].toUpperCase()}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white">{s.name}</p>
-                                                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                                                            {s.metadata?.gradeLevel || s.role || 'Student'}
-                                                            {(s.admissionNumber || s.metadata?.admissionNumber) && ` • ${s.admissionNumber || s.metadata?.admissionNumber}`}
-                                                        </p>
-                                                    </div>
-                                                </button>
-                                            )) : (
-                                                <div className="p-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">No students found</div>
-                                            )}
-                                        </div>
-                                    )}
-                                    {/* Manual entry fallback */}
-                                    {!studentSearch && students.length === 0 && (
-                                        <input
-                                            type="text"
-                                            required
-                                            placeholder="TYPE STUDENT NAME..."
-                                            value={formData.patientName}
-                                            onChange={e => setFormData(prev => ({ ...prev, patientName: e.target.value, patientId: e.target.value.toLowerCase().replace(/\s/g, '_') }))}
-                                            className="w-full mt-2 bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all dark:text-white"
-                                        />
-                                    )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white truncate">
+                                        {formData.patientName}
+                                    </p>
+                                    <p className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-2 mt-0.5">
+                                        {formData.admissionNumber && <span className="font-mono bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded-full">OP: {formData.admissionNumber}</span>}
+                                        {formData.studentClass && <span>• {formData.studentClass}</span>}
+                                    </p>
                                 </div>
-                            )}
-
-                            {/* Hidden required input to enforce student selection */}
-                            <input type="text" required value={formData.patientName} onChange={() => {}} className="sr-only" tabIndex={-1} />
-                        </div>
-                    ) : (
-                        /* ── Standard HIS: Patient Text Input ── */
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <UsersIcon className="w-3 h-3" /> Patient Identity
-                            </label>
+                                <button
+                                    type="button"
+                                    onClick={handleClearSelectedPatient}
+                                    className="p-2 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-xl text-slate-400 hover:text-rose-500 transition-all flex-shrink-0"
+                                    title="Clear / Change Patient"
+                                >
+                                    <XIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            /* Search / Autocomplete input */
                             <div className="relative">
                                 <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                 <input
                                     type="text"
-                                    required
-                                    placeholder="PATIENT NAME OR REGISTRY ID..."
-                                    value={formData.patientName}
-                                    onChange={e => setFormData(prev => ({ ...prev, patientName: e.target.value, patientId: e.target.value.toLowerCase().replace(/\s/g, '_') }))}
+                                    placeholder={isEdu ? "SEARCH STUDENT BY NAME OR ADM NO..." : "PATIENT NAME OR REGISTRY ID..."}
+                                    value={searchQuery}
+                                    onChange={e => {
+                                        setSearchQuery(e.target.value);
+                                        setFormData(prev => ({ ...prev, patientName: e.target.value, patientId: e.target.value.toLowerCase().replace(/\s+/g, '_') }));
+                                    }}
                                     className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all dark:text-white"
                                 />
+
+                                {/* Dropdown matching results */}
+                                {searchQuery && filteredCandidates.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl z-50 max-h-52 overflow-y-auto">
+                                        {filteredCandidates.map((cand, idx) => {
+                                            const cName = cand.fullName || cand.name || cand.full_name || 'Patient';
+                                            const cAdm = cand.admissionNumber || cand.admission_number || cand.customPatientId || cand.custom_patient_id || cand.patientNumber || cand.patient_number || cand.opNumber || cand.metadata?.admissionNumber || '';
+                                            const cCls = cand.metadata?.gradeLevel || cand.gradeLevel || cand.grade_level || cand.role || '';
+                                            return (
+                                                <button
+                                                    key={cand.id || idx}
+                                                    type="button"
+                                                    onClick={() => handleSelectCandidate(cand)}
+                                                    className="w-full flex items-center gap-3 p-3 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-all text-left border-b border-slate-50 dark:border-white/5 last:border-0"
+                                                >
+                                                    <div className="w-8 h-8 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-600 font-black text-xs flex-shrink-0">
+                                                        {cName[0].toUpperCase()}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white truncate">{cName}</p>
+                                                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 mt-0.5">
+                                                            {cAdm && <span className="font-mono text-indigo-600 dark:text-indigo-400">OP: {cAdm}</span>}
+                                                            {cCls && <span>• {cCls}</span>}
+                                                        </p>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
 
                     {/* ── EduPulse: Referred by Teacher (read-only) ── */}
                     {isEdu && (
                         <div className="space-y-3">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <SparklesIcon className="w-3 h-3" /> Referred by (Class Teacher)
+                                <SparklesIcon className="w-3 h-3 text-indigo-500" /> Referred by (Class Teacher)
                             </label>
                             <input
                                 type="text"
@@ -253,11 +321,10 @@ export function AddAppointmentModal({
                     <div className="grid grid-cols-2 gap-5">
                         <div className="space-y-3">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <UsersIcon className="w-3 h-3" /> {isEdu ? 'Seen By' : 'Attending Practitioner'}
+                                <UsersIcon className="w-3 h-3 text-indigo-500" /> {isEdu ? 'Seen By' : 'Attending Practitioner'}
                             </label>
                             <input
                                 type="text"
-                                required
                                 placeholder={isEdu ? 'E.G. SCHOOL NURSE' : 'E.G. DR. SMITH'}
                                 value={formData.doctorName}
                                 onChange={e => setFormData(prev => ({ ...prev, doctorName: e.target.value }))}
@@ -266,7 +333,7 @@ export function AddAppointmentModal({
                         </div>
                         <div className="space-y-3">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <SparklesIcon className="w-3 h-3" /> {isEdu ? 'Health Area' : 'Specialty'}
+                                <SparklesIcon className="w-3 h-3 text-indigo-500" /> {isEdu ? 'Health Area' : 'Specialty'}
                             </label>
                             <select
                                 value={formData.specialty}
@@ -299,7 +366,7 @@ export function AddAppointmentModal({
                     <div className="grid grid-cols-2 gap-5">
                         <div className="space-y-3">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <CalendarDaysIcon className="w-3 h-3" /> {isEdu ? 'Visit Date' : 'Target Date'}
+                                <CalendarDaysIcon className="w-3 h-3 text-indigo-500" /> {isEdu ? 'Visit Date' : 'Target Date'}
                             </label>
                             <input
                                 type="date"
@@ -311,7 +378,7 @@ export function AddAppointmentModal({
                         </div>
                         <div className="space-y-3">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <ClockIcon className="w-3 h-3" /> Time
+                                <ClockIcon className="w-3 h-3 text-indigo-500" /> Time
                             </label>
                             <input
                                 type="time"
@@ -356,42 +423,29 @@ export function AddAppointmentModal({
 
                             {formData.paymentMethod === 'Cover' && (
                                 <div className="grid grid-cols-2 gap-3 pt-2">
-                                    <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Insurance Provider</label>
-                                        <select
-                                            value={formData.insuranceProvider}
-                                            onChange={e => setFormData(p => ({ ...p, insuranceProvider: e.target.value }))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider outline-none dark:text-white"
-                                        >
-                                            <option value="SHA (Social Health Authority)">SHA (Social Health Authority)</option>
-                                            <option value="Jubilee Insurance">Jubilee Insurance</option>
-                                            <option value="UAP Old Mutual">UAP Old Mutual</option>
-                                            <option value="AAR Insurance">AAR Insurance</option>
-                                            <option value="APA Insurance">APA Insurance</option>
-                                            <option value="Britam Health">Britam Health</option>
-                                            <option value="CIC Africa Group">CIC Africa Group</option>
-                                            <option value="Other Commercial Cover">Other Commercial Cover</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Policy / Card ID</label>
-                                        <input
-                                            type="text"
-                                            placeholder="e.g. SHA-94820"
-                                            value={formData.insurancePolicyNumber}
-                                            onChange={e => setFormData(p => ({ ...p, insurancePolicyNumber: e.target.value }))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider outline-none dark:text-white"
-                                        />
-                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="INSURANCE / SCHEME (E.G. SHA, CIC, JUBILEE)"
+                                        value={formData.insuranceProvider}
+                                        onChange={e => setFormData(p => ({ ...p, insuranceProvider: e.target.value }))}
+                                        className="w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-900 rounded-xl px-4 py-3 text-[9px] font-black uppercase tracking-widest outline-none dark:text-white"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="POLICY / MEMBER NUMBER"
+                                        value={formData.insurancePolicyNumber}
+                                        onChange={e => setFormData(p => ({ ...p, insurancePolicyNumber: e.target.value }))}
+                                        className="w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-900 rounded-xl px-4 py-3 text-[9px] font-black uppercase tracking-widest outline-none dark:text-white font-mono"
+                                    />
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* ── Visit Type ── */}
+                    {/* ── Visit Category ── */}
                     <div className="space-y-3">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                            <SparklesIcon className="w-3 h-3" /> {isEdu ? 'Visit Reason' : 'Visit Category'}
+                            <SparklesIcon className="w-3 h-3 text-indigo-500" /> Visit Category
                         </label>
                         <select
                             value={formData.type}
@@ -401,20 +455,18 @@ export function AddAppointmentModal({
                             {isEdu ? (
                                 <>
                                     <option value="Health Check">Routine Health Check</option>
-                                    <option value="Sick Bay">Sick Bay Visit</option>
-                                    <option value="Injury">Injury / Accident</option>
-                                    <option value="Follow-up">Follow-up Visit</option>
-                                    <option value="Mental Health">Mental Health Support</option>
-                                    <option value="Medication">Medication Administration</option>
-                                    <option value="Referral">External Referral</option>
-                                    <option value="Immunization">Immunization / Vaccination</option>
+                                    <option value="Triage">Acute Illness / Triage</option>
+                                    <option value="First Aid">First Aid Treatment</option>
+                                    <option value="Counselling">Guidance & Counselling</option>
+                                    <option value="Follow-up">Medical Follow-up</option>
                                 </>
                             ) : (
                                 <>
                                     <option value="Initial Consultation">Initial Consultation</option>
-                                    <option value="Follow-up">Follow-up Visit</option>
-                                    <option value="Emergency">Urgent Care</option>
-                                    <option value="Procedure">Surgical/Minor Procedure</option>
+                                    <option value="Follow-up Visit">Follow-up Visit</option>
+                                    <option value="Specialist Review">Specialist Review</option>
+                                    <option value="Emergency Triage">Emergency / Triage</option>
+                                    <option value="Routine Checkup">Routine Checkup</option>
                                 </>
                             )}
                         </select>
@@ -423,7 +475,7 @@ export function AddAppointmentModal({
                     {/* ── Notes / Reason ── */}
                     <div className="space-y-3">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                            <DocumentTextIcon className="w-3 h-3" /> {isEdu ? 'Teacher\'s Notes' : 'Notes / Reason'}
+                            <DocumentTextIcon className="w-3 h-3 text-indigo-500" /> {isEdu ? 'Teacher\'s Notes' : 'Notes / Reason'}
                         </label>
                         <textarea
                             rows={3}
@@ -446,7 +498,7 @@ export function AddAppointmentModal({
 
                     <button
                         type="submit"
-                        disabled={isSubmitting || (isEdu && !formData.patientName)}
+                        disabled={isSubmitting}
                         className={`w-full py-5 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-[0.3em] hover:scale-[1.02] active:scale-95 transition-all shadow-xl disabled:opacity-50 flex items-center justify-center gap-3 italic ${
                             isEdu
                                 ? 'bg-gradient-to-r from-indigo-600 to-violet-600 shadow-indigo-500/20'
