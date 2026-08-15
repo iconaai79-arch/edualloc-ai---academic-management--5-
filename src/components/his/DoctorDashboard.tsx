@@ -1159,29 +1159,6 @@ export function DoctorDashboard({
                 </div>
             </div>
 
-            {isSoapModalOpen && soapPatient && (
-                <SOAPEncounterModal
-                    isOpen={isSoapModalOpen}
-                    onClose={() => { setIsSoapModalOpen(false); setSoapPatient(null); }}
-                    patient={soapPatient}
-                    institutionId={institutionId}
-                    doctorName={userName}
-                    onEncounterSaved={() => {
-                        if (soapPatient) {
-                            setCompletedPatientIds(prev => new Set(prev).add(soapPatient.id));
-                        }
-                    }}
-                    onAddPrescription={(pId) => {
-                        setIsSoapModalOpen(false);
-                        onAddPrescription();
-                    }}
-                    onAddLabOrder={(pId) => {
-                        setIsSoapModalOpen(false);
-                        setShowLabOrderModal(true);
-                    }}
-                />
-            )}
-
             {showNoteModal && <QuickNoteModal onClose={() => setShowNoteModal(false)} patients={patients} />}
             {showLabOrderModal && (
                 <QuickLabOrderModal 
