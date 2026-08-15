@@ -9,6 +9,7 @@ import { SearchIcon } from '../icons/SearchIcon';
 import { ArrowPathIcon } from '../icons/ArrowPathIcon';
 import { Role, HISPatient, User } from '../../types';
 import { apiService } from '../../services/apiService';
+import { isEduInstitution } from '../../utils/roleUtils';
 
 type IntelligenceSubTab = 'visits' | 'student_history' | 'pharmacy_inventory' | 'activity_log';
 
@@ -17,9 +18,12 @@ interface HISReportsProps {
     institutionId?: string;
     patients?: HISPatient[];
     users?: User[];
+    isEdu?: boolean;
+    institutionData?: any;
 }
 
-export function HISReportsView({ activeRole, institutionId, patients = [], users = [] }: HISReportsProps) {
+export function HISReportsView({ activeRole, institutionId, patients = [], users = [], isEdu: isEduProp, institutionData }: HISReportsProps) {
+    const isEdu = isEduProp !== undefined ? isEduProp : isEduInstitution(institutionData);
     const [activeSubTab, setActiveSubTab] = useState<IntelligenceSubTab>('visits');
     const [patientsList, setPatientsList] = useState<HISPatient[]>(patients);
     const [clinicalEvents, setClinicalEvents] = useState<any[]>([]);
@@ -401,13 +405,13 @@ export function HISReportsView({ activeRole, institutionId, patients = [], users
                                                 <p className="text-sm font-black italic group-hover:text-indigo-600 transition-colors">{student.fullName}</p>
                                                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Gender: {student.gender} • Emergency Phone: {student.emergencyContactPhone || 'N/A'}</p>
                                             </div>
-                                            <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1.5 bg-indigo-50 dark:bg-white/5 text-indigo-600 rounded-full border border-indigo-100/50">
-                                                Adm: {student.admissionNumber || student.admission_number || 'N/A'}
+                                            <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1.5 bg-indigo-50 dark:bg-white/5 text-indigo-600 dark:text-indigo-400 rounded-full border border-indigo-100/50">
+                                                {isEdu ? 'Adm' : 'File No'}: {student.admissionNumber || student.admission_number || (student as any).customPatientId || (student as any).patientNumber || (student as any).opNumber || 'N/A'}
                                             </span>
                                         </button>
                                     ))
                                 ) : (
-                                    <div className="p-8 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">No matching student registry found</div>
+                                    <div className="p-8 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">{isEdu ? 'No matching student registry found' : 'No matching patient record found'}</div>
                                 )}
                             </div>
                         )}
@@ -415,7 +419,7 @@ export function HISReportsView({ activeRole, institutionId, patients = [], users
                 </div>
             </div>
 
-            {/* Selected Student Medical Dossier */}
+            {/* Selected Student / Patient Medical Dossier */}
             {selectedPatient ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Patient Profile Card */}
@@ -426,8 +430,8 @@ export function HISReportsView({ activeRole, institutionId, patients = [], users
                                 <span className="text-3xl font-black italic tracking-tighter">{selectedPatient.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}</span>
                             </div>
                             <h4 className="text-lg font-black uppercase tracking-tight italic mt-4">{selectedPatient.fullName}</h4>
-                            <span className="inline-block text-[9px] font-black uppercase tracking-widest px-4 py-1.5 bg-indigo-50 dark:bg-white/5 text-indigo-600 rounded-full border border-indigo-100/50 italic">
-                                Admission No: {selectedPatient.admissionNumber || selectedPatient.admission_number || 'PENDING'}
+                            <span className="inline-block text-[9px] font-black uppercase tracking-widest px-4 py-1.5 bg-indigo-50 dark:bg-white/5 text-indigo-600 dark:text-indigo-400 rounded-full border border-indigo-100/50 italic">
+                                {isEdu ? 'Admission No' : 'Patient File / OP No'}: {selectedPatient.admissionNumber || selectedPatient.admission_number || (selectedPatient as any).customPatientId || (selectedPatient as any).patientNumber || (selectedPatient as any).opNumber || 'PENDING'}
                             </span>
                         </div>
 

@@ -1720,7 +1720,7 @@ function InpatientDischargeModal({ onClose, patients, institutionId, userName, d
                     <div class="section-title">1. Patient Demographic & Admission Details</div>
                     <div class="grid-3" style="margin-top: 10px;">
                         <div><div class="label">Patient Name</div><div class="val">${patient?.fullName || 'N/A'}</div></div>
-                        <div><div class="label">Admission / Reg No</div><div class="val">${patient?.admissionNumber || patient?.id || 'N/A'}</div></div>
+                        <div><div class="label">Patient File / OP No</div><div class="val">${patient?.admissionNumber || (patient as any)?.admission_number || (patient as any)?.customPatientId || patient?.id || 'N/A'}</div></div>
                         <div><div class="label">Gender / Age</div><div class="val">${patient?.gender || 'N/A'}, ${patient?.age || 'N/A'} Yrs</div></div>
                     </div>
                     <div class="grid-3" style="margin-top: 12px;">
@@ -2061,7 +2061,7 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
                 </div>
 
                 <div class="box">
-                    <p>This is to certify that I have examined <strong>${patient?.fullName || 'the patient'}</strong> (Admission/ID No: <strong>${patient?.admissionNumber || patient?.id || 'N/A'}</strong>, Gender: <strong>${patient?.gender || 'N/A'}</strong>) on <strong>${new Date().toLocaleDateString()}</strong>.</p>
+                    <p>This is to certify that I have examined <strong>${patient?.fullName || 'the patient'}</strong> (Patient File / OP No: <strong>${patient?.admissionNumber || (patient as any)?.admission_number || (patient as any)?.customPatientId || patient?.id || 'N/A'}</strong>, Gender: <strong>${patient?.gender || 'N/A'}</strong>) on <strong>${new Date().toLocaleDateString()}</strong>.</p>
                     
                     <p style="margin-top: 15px;"><strong>Clinical Diagnosis / Condition:</strong> ${diagnosis}</p>
                     <p><strong>Clinical Recommendation:</strong> ${recommendation}</p>
@@ -2150,7 +2150,7 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
                         >
                             {patients.map(p => (
                                 <option key={p.id} value={p.id} className="bg-slate-900 text-white">
-                                    {p.fullName} (ID/ADM: {p.admissionNumber || p.id.substring(0, 8)})
+                                    {p.fullName} (File: {p.admissionNumber || (p as any).admission_number || (p as any).customPatientId || p.id.substring(0, 8)})
                                 </option>
                             ))}
                         </select>

@@ -1067,6 +1067,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                             onPatientUpdated={fetchPatients}
                                             institutionId={institutionId}
                                             institutionData={institutionData}
+                                            isEdu={isEdu}
                                             onPreviewPdf={(url) => setPdfPreviewUrl(url)}
                                         />
                                     );
@@ -1130,13 +1131,14 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                     onPatientUpdated={fetchPatients}
                                     institutionId={institutionId}
                                     institutionData={institutionData}
+                                    isEdu={isEdu}
                                     onPreviewPdf={(url) => setPdfPreviewUrl(url)}
                                 />
                             );
                             case 'broadcaster': return <HISBroadcasterView />;
                             case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} isEdu={isEdu} users={users} />;
                             case 'config': return <HISConfigView institutionId={institutionId} users={users} demoStaff={demoData?.hisStaff} onStaffUpdated={fetchPatients} />;
-                            case 'reports': return <HISReportsView activeRole={activeRole} institutionId={institutionId} patients={patients} users={users} />;
+                            case 'reports': return <HISReportsView activeRole={activeRole} institutionId={institutionId} patients={patients} users={users} isEdu={isEdu} institutionData={institutionData} />;
                             case 'attendance': return <StaffAttendanceView userName={userName} institutionId={institutionId} demoAttendance={demoData?.hisAttendance} />;
                             default: return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} onOpenTransferLetter={() => setIsTransferModalOpen(true)} />;
                         }

@@ -10,6 +10,7 @@ import { HeartIcon, CalendarIcon, IdentificationIcon } from './HealthIcons';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { apiService } from '../../services/apiService';
 import { generatePatientHistoryPdf } from '../../services/pdfService';
+import { isEduInstitution } from '../../utils/roleUtils';
 import { SmartHISPatientImporterModal } from './SmartHISPatientImporterModal';
 
 interface Patient {
@@ -38,16 +39,19 @@ interface EduPulsePatientsListProps {
     onPatientUpdated: () => void;
     institutionId?: string;
     institutionData?: any;
+    isEdu?: boolean;
     onPreviewPdf?: (pdfUrl: string) => void;
 }
 
 /* ─── Inline Edit Modal ─── */
 function EditPatientModal({
     patient,
+    isEdu = false,
     onClose,
     onSave
 }: {
     patient: Patient;
+    isEdu?: boolean;
     onClose: () => void;
     onSave: (updated: Patient) => Promise<void>;
 }) {
@@ -106,7 +110,7 @@ function EditPatientModal({
                             Edit <span className="text-indigo-200">Patient Record</span>
                         </h2>
                         <p className="text-[9px] font-black text-indigo-100 uppercase tracking-widest mt-1 opacity-80">
-                            Current File No: {formData.admissionNumber || formData.admission_number || 'N/A'}
+                            {isEdu ? 'Admission No' : 'File No'}: {formData.admissionNumber || formData.admission_number || 'N/A'}
                         </p>
                     </div>
                     <button onClick={onClose} className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all">
@@ -116,7 +120,7 @@ function EditPatientModal({
 
                 <form onSubmit={handleSubmit} className="p-7 space-y-5">
                     
-                    {/* Row 1: Name & Adm No */}
+                    {/* Row 1: Name & Adm / File No */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className={labelCls}>Full Name</label>
@@ -125,8 +129,8 @@ function EditPatientModal({
                                 className={inputCls} />
                         </div>
                         <div>
-                            <label className={labelCls}>Patient File / OP Number</label>
-                            <input type="text" placeholder="PAT-0001" value={formData.admissionNumber || ''}
+                            <label className={labelCls}>{isEdu ? 'Student Admission Number' : 'Patient File / OP Number'}</label>
+                            <input type="text" placeholder={isEdu ? 'ADM-001' : 'PAT-0001'} value={formData.admissionNumber || ''}
                                 onChange={e => {
                                     const val = e.target.value;
                                     setFormData(p => ({
@@ -257,12 +261,14 @@ function PatientHistoryModal({
     patient,
     institutionId,
     institutionData,
+    isEdu = false,
     onPreviewPdf,
     onClose
 }: {
     patient: Patient;
     institutionId?: string;
     institutionData?: any;
+    isEdu?: boolean;
     onPreviewPdf?: (pdfUrl: string) => void;
     onClose: () => void;
 }) {
@@ -418,7 +424,10 @@ function PatientHistoryModal({
                                 </span>
                             </div>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                                Reg: {patient.admissionNumber || (patient as any).admission_number || (patient as any).customPatientId || (patient as any).patientNumber || 'N/A'} · Age: {age !== null ? `${age} yrs` : 'N/A'} · Blood: {patient.bloodGroup || 'UNK'}
+                                {isEdu 
+                                    ? `Adm: ${patient.admissionNumber || (patient as any).admission_number || 'N/A'}` 
+                                    : `File No: ${patient.admissionNumber || (patient as any).admission_number || (patient as any).customPatientId || (patient as any).patientNumber || (patient as any).opNumber || 'N/A'}`
+                                } · Age: {age !== null ? `${age} yrs` : 'N/A'} · Blood: {patient.bloodGroup || 'UNK'}
                             </p>
                         </div>
                     </div>
@@ -604,8 +613,10 @@ export function EduPulsePatientsList({
     onPatientUpdated,
     institutionId,
     institutionData,
+    isEdu: isEduProp,
     onPreviewPdf,
 }: EduPulsePatientsListProps) {
+    const isEdu = isEduProp !== undefined ? isEduProp : isEduInstitution(institutionData);
     const [searchTerm, setSearchTerm] = useState('');
     const [genderFilter, setGenderFilter] = useState<'All' | 'Male' | 'Female'>('All');
     const [selectedGrade, setSelectedGrade] = useState<string>('All');
@@ -818,7 +829,7 @@ export function EduPulsePatientsList({
                 <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
                     className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none">
                     <option value="name">Sort: A–Z</option>
-                    <option value="adm">Sort: Patient File #</option>
+                    <option value="adm">{isEdu ? 'Sort: Admission #' : 'Sort: Patient File #'}</option>
                     <option value="recent">Sort: Most Recent</option>
                 </select>
             </div>
@@ -841,7 +852,7 @@ export function EduPulsePatientsList({
                     <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
                         <tr>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Patient</th>
-                            <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Patient File #</th>
+                            <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">{isEdu ? 'Admission #' : 'Patient File #'}</th>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Age / DOB</th>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Gender</th>
                             <th className="px-7 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Contact</th>
@@ -977,7 +988,10 @@ export function EduPulsePatientsList({
                                         <h4 className="text-sm font-black uppercase italic text-slate-900 dark:text-white">{p.fullName}</h4>
                                         <div className="flex gap-2 items-center mt-1">
                                             <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                                                {p.admissionNumber || (p as any).admission_number || 'No Adm No'}
+                                                {isEdu 
+                                                    ? (p.admissionNumber || (p as any).admission_number || 'No Adm No')
+                                                    : (p.admissionNumber || (p as any).admission_number || (p as any).customPatientId || (p as any).patientNumber || (p as any).opNumber || 'No File No')
+                                                }
                                             </span>
                                             {(p.gradeLevel || (p as any).grade_level) && (
                                                 <span className="text-[8px] font-black text-indigo-500 dark:text-indigo-300 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
@@ -1015,18 +1029,26 @@ export function EduPulsePatientsList({
                                 </div>
                             )}
 
-                            <div className="flex gap-2 flex-wrap mt-4">
-                                <button onClick={() => setHistoryPatient(p)}
-                                    className="flex-1 min-w-[70px] py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all animate-pulse-subtle">
-                                    📋 History
+                            <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                                <button
+                                    onClick={() => onSelectPatient(p.id)}
+                                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-center shadow-md shadow-indigo-600/20"
+                                >
+                                    Select Patient
                                 </button>
-                                <button onClick={() => setEditingPatient(p)}
-                                    className="flex-1 min-w-[70px] py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30 text-amber-700 dark:text-amber-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
-                                    ✏ Edit
+                                <button
+                                    onClick={() => setHistoryPatient(p)}
+                                    className="px-3 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                    title="View Medical Dossier"
+                                >
+                                    Dossier
                                 </button>
-                                <button onClick={() => onSelectPatient(p.id)}
-                                    className="flex-1 min-w-[70px] py-3 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
-                                    Open 360 →
+                                <button
+                                    onClick={() => setEditingPatient(p)}
+                                    className="px-3 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                    title="Edit Patient Details"
+                                >
+                                    Edit
                                 </button>
                             </div>
                         </div>
@@ -1036,11 +1058,11 @@ export function EduPulsePatientsList({
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900/50 rounded-[2rem] border border-slate-200 dark:border-white/5 p-6 shadow-md mt-6">
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                        Page {currentPage} of {totalPages} · Showing {Math.min(filtered.length, (currentPage - 1) * itemsPerPage + 1)} to {Math.min(filtered.length, currentPage * itemsPerPage)} of {filtered.length} patients
-                    </span>
-                    <div className="flex gap-2 items-center">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-200 dark:border-white/5 shadow-xl mt-6">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length} entries
+                    </p>
+                    <div className="flex items-center gap-2">
                         <button
                             disabled={currentPage === 1}
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -1048,25 +1070,26 @@ export function EduPulsePatientsList({
                         >
                             ◄ Prev
                         </button>
-                        {Array.from({ length: totalPages }).map((_, i) => {
-                            const pNum = i + 1;
-                            if (pNum === 1 || pNum === totalPages || Math.abs(pNum - currentPage) <= 1) {
+                        {Array.from({ length: totalPages }).map((_, idx) => {
+                            const pageNum = idx + 1;
+                            // Show first, last, and current +/- 1
+                            if (pageNum === 1 || pageNum === totalPages || (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)) {
                                 return (
                                     <button
-                                        key={pNum}
-                                        onClick={() => setCurrentPage(pNum)}
-                                        className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${
-                                            currentPage === pNum
-                                                ? 'bg-indigo-600 text-white shadow-lg'
-                                                : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-slate-600'
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={`w-8 h-8 rounded-xl text-[9px] font-black uppercase transition-all ${
+                                            currentPage === pageNum
+                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                : 'bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-300'
                                         }`}
                                     >
-                                        {pNum}
+                                        {pageNum}
                                     </button>
                                 );
                             }
-                            if (pNum === 2 || pNum === totalPages - 1) {
-                                return <span key={pNum} className="text-slate-400 text-xs">...</span>;
+                            if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
+                                return <span key={pageNum} className="text-slate-400 text-xs">...</span>;
                             }
                             return null;
                         })}
@@ -1085,6 +1108,7 @@ export function EduPulsePatientsList({
             {editingPatient && (
                 <EditPatientModal
                     patient={editingPatient}
+                    isEdu={isEdu}
                     onClose={() => setEditingPatient(null)}
                     onSave={handleSaveEdit}
                 />
@@ -1096,6 +1120,7 @@ export function EduPulsePatientsList({
                     patient={historyPatient}
                     institutionId={institutionId}
                     institutionData={institutionData}
+                    isEdu={isEdu}
                     onPreviewPdf={onPreviewPdf}
                     onClose={() => setHistoryPatient(null)}
                 />

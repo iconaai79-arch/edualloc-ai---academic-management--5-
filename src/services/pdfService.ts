@@ -5,7 +5,7 @@ import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlot
 
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
 import { getInitials } from '../utils/stringUtils';
-import { formatRoleDisplayName } from '../utils/roleUtils';
+import { formatRoleDisplayName, isEduInstitution } from '../utils/roleUtils';
 
 
 // Use a safer way to access the global jsPDF object which might be on window or just global
@@ -9626,11 +9626,19 @@ export const generatePatientHistoryPdf = async (
 
     // 3. Patient Information Table
     yPos += 10;
+    const isEdu = isEduInstitution(institution);
+    const idLabel = isEdu ? 'Admission No' : 'File / OP No';
+    const classOrDeptLabel = isEdu ? 'Grade / Stream' : 'Department / Category';
+    const idValue = (patient as any).admissionNumber || (patient as any).admission_number || (patient as any).customPatientId || (patient as any).patientNumber || (patient as any).opNumber || '—';
+    const deptValue = isEdu
+        ? `${(patient as any).gradeLevel || (patient as any).grade_level || '—'} / ${patient.stream || '—'}`
+        : `${(patient as any).gradeLevel || (patient as any).grade_level || (patient as any).stream || 'Outpatient'}`;
+
     const infoHead = [['Field', 'Detail', 'Field', 'Detail']];
     const infoBody = [
         ['Full Name', patient.fullName.toUpperCase(), 'Date of Birth', patient.dob || '—'],
-        ['Gender', patient.gender || '—', 'Admission No', (patient as any).admissionNumber || (patient as any).admission_number || '—'],
-        ['Grade / Stream', `${(patient as any).gradeLevel || (patient as any).grade_level || '—'} / ${patient.stream || '—'}`, 'Blood Group', patient.bloodGroup || '—'],
+        ['Gender', patient.gender || '—', idLabel, idValue],
+        [classOrDeptLabel, deptValue, 'Blood Group', patient.bloodGroup || '—'],
         ['Contact', patient.contact || '—', 'Known Allergies', patient.allergies || 'No known allergies'],
     ];
 
