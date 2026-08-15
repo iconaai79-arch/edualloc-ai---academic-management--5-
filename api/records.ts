@@ -102,7 +102,23 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   return null;
 }
 
-const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'car_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages', 'hospitality_items', 'hospitality_menu_items', 'hospitality_vehicles', 'events', 'event_categories', 'event_participants', 'event_splits', 'event_pledges', 'ds_students', 'ds_lessons', 'ds_settings', 'ds_invoices', 'ds_payments', 'ds_instructors', 'ds_vehicles', 'ds_skill_mastery', 'ds_votes', 'ds_license_categories', 'ds_leads', 'store_categories', 'integration_logs', 'event_pins', 'institution_events', 'student_enrollments', 'county_bursary_funds', 'bursary_applications', 'ng_cdf_funds', 'ng_cdf_bursaries', 'broadcaster_messages', 'biometric_devices', 'biometric_enrollments', 'staff_attendance_daily', 'heritage_members', 'heritage_stories', 'heritage_gallery', 'heritage_announcements', 'school_remedial_subjects', 'school_remedial_sessions', 'school_remedial_rate_settings', 'school_remedial_payouts', 'school_remedial_allocations', 'his_patients', 'his_queue_calls', 'his_staff', 'his_appointments', 'his_vital_statistics', 'his_financial_records', 'his_admissions', 'his_beds', 'his_wards', 'his_dental_charts', 'his_eye_prescriptions', 'his_medication_logs', 'his_broadcasts', 'his_prescriptions', 'his_pharmacy_inventory', 'his_lab_orders'];
+const PUBLIC_MODULES = [
+  'users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings',
+  'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'car_listings', 'campaign_profiles',
+  'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages', 'hospitality_items', 'hospitality_menu_items',
+  'hospitality_vehicles', 'events', 'event_categories', 'event_participants', 'event_splits', 'event_pledges',
+  'ds_students', 'ds_lessons', 'ds_settings', 'ds_invoices', 'ds_payments', 'ds_instructors', 'ds_vehicles',
+  'ds_skill_mastery', 'ds_votes', 'ds_license_categories', 'ds_leads', 'store_categories', 'integration_logs',
+  'event_pins', 'institution_events', 'student_enrollments', 'county_bursary_funds', 'bursary_applications',
+  'ng_cdf_funds', 'ng_cdf_bursaries', 'broadcaster_messages', 'biometric_devices', 'biometric_enrollments',
+  'staff_attendance_daily', 'heritage_members', 'heritage_stories', 'heritage_gallery', 'heritage_announcements',
+  'school_remedial_subjects', 'school_remedial_sessions', 'school_remedial_rate_settings', 'school_remedial_payouts',
+  'school_remedial_allocations', 'his_patients', 'his_queue_calls', 'his_staff', 'his_appointments',
+  'his_vital_statistics', 'his_financial_records', 'his_admissions', 'his_beds', 'his_wards', 'his_dental_charts',
+  'his_eye_prescriptions', 'his_medication_logs', 'his_broadcasts', 'his_prescriptions', 'his_pharmacy_inventory',
+  'his_lab_orders', 'bulletin_items', 'document_collections', 'watchlist', 'maintenance_requests',
+  'student_absence_requests', 'time_off_requests', 'teacher_check_ins'
+];
 
 const isTableWithoutInstitutionId = (module: string) => {
   return [
@@ -260,10 +276,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const { data, error } = await q;
             if (error) {
-                console.error(`[API GET Error] ${moduleName}:`, error);
-                if (error.code === '42P01' || error.message?.includes('does not exist')) {
+                const isTableMissing = error.code === '42P01' || 
+                                       error.code === 'PGRST205' || 
+                                       error.code === 'PGRST204' ||
+                                       error.message?.includes('schema cache') || 
+                                       error.message?.includes('does not exist');
+                if (isTableMissing) {
+                    console.info(`[API GET] Table '${moduleName}' not in DB schema cache, returning empty list.`);
                     return res.status(200).json([]);
                 }
+                console.error(`[API GET Error] ${moduleName}:`, error);
                 return res.status(500).json({ success: false, error: error.message, code: error.code });
             }
             return res.status(200).json(data || []);
@@ -402,7 +424,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                 }
 
-                if (error.code === '42P01' || message.includes('does not exist')) {
+                const isTableMissing = error.code === '42P01' || 
+                                       error.code === 'PGRST205' || 
+                                       error.code === 'PGRST204' ||
+                                       message.includes('schema cache') || 
+                                       message.includes('does not exist');
+                if (isTableMissing) {
                     return res.status(200).json({
                         success: true,
                         offlineFallback: true,
@@ -506,6 +533,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.log(`[API PATCH DEBUG] ds_settings update result:`, { success: !error, count: data?.length, error, ids: idsArray });
                 }
                 if (error) {
+                    const isTableMissing = error.code === '42P01' || 
+                                           error.code === 'PGRST205' || 
+                                           error.code === 'PGRST204' ||
+                                           error.message?.includes('schema cache') || 
+                                           error.message?.includes('does not exist');
+                    if (isTableMissing) {
+                        return res.status(200).json([]);
+                    }
                     console.error(`[API PATCH Error] ${moduleName}:`, error);
                     return res.status(500).json({ 
                         success: false, 
