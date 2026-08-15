@@ -118,7 +118,8 @@ const PUBLIC_MODULES = [
   'his_eye_prescriptions', 'his_medication_logs', 'his_broadcasts', 'his_prescriptions', 'his_pharmacy_inventory',
   'his_lab_orders', 'bulletin_items', 'document_collections', 'watchlist', 'watchlist_records', 'maintenance_requests',
   'student_absence_requests', 'time_off_requests', 'teacher_check_ins', 'leave_requests', 'financial_goals',
-  'payroll_records', 'building_floors', 'building_offices', 'building_visitor_logs', 'building_visitor_assets'
+  'payroll_records', 'building_floors', 'building_offices', 'building_visitor_logs', 'building_visitor_assets',
+  'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'bank_transactions'
 ];
 
 const isTableWithoutInstitutionId = (module: string) => {

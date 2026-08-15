@@ -1644,6 +1644,58 @@ CREATE TABLE IF NOT EXISTS financial_goals (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS mpesa_transactions (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    receipt_no TEXT NOT NULL,
+    phone_number TEXT,
+    account_reference TEXT,
+    amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+    transaction_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    status TEXT DEFAULT 'Completed',
+    raw_payload JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS airtel_transactions (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    receipt_no TEXT NOT NULL,
+    phone_number TEXT,
+    account_reference TEXT,
+    amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+    transaction_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    status TEXT DEFAULT 'Completed',
+    raw_payload JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS intasend_transactions (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    tracking_id TEXT NOT NULL,
+    phone_number TEXT,
+    email TEXT,
+    account_reference TEXT,
+    amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+    transaction_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    status TEXT DEFAULT 'Completed',
+    raw_payload JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ncba_transactions (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    reference_no TEXT NOT NULL,
+    account_number TEXT,
+    amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+    transaction_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    status TEXT DEFAULT 'Completed',
+    raw_payload JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS his_dental_charts (
     id TEXT PRIMARY KEY,
     patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
