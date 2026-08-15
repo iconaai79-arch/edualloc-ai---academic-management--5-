@@ -429,13 +429,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const isTableMissing = error.code === '42P01' || 
                                        error.code === 'PGRST205' || 
                                        error.code === 'PGRST204' ||
+                                       error.code === 'PGRST200' ||
                                        message.includes('schema cache') || 
-                                       message.includes('does not exist');
+                                       message.includes('column') ||
+                                       message.includes('does not exist') ||
+                                       message.includes('not found in the schema cache');
                 if (isTableMissing) {
+                    console.warn(`[api/records POST] Table/column '${moduleName}' schema mismatch, fallback handled locally:`, error.message);
                     return res.status(200).json({
                         success: true,
                         offlineFallback: true,
-                        message: `Table '${moduleName}' does not exist in remote DB; auto-handled locally.`,
+                        message: `Table/column '${moduleName}' auto-handled locally.`,
                         id: (recordData as any)?.id || getStrParam(id)
                     });
                 }
