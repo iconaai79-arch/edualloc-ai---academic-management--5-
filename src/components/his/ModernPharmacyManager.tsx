@@ -2266,11 +2266,17 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                             const qty = (document.getElementById('rx_qty') as HTMLInputElement).value;
                             const notes = (document.getElementById('rx_notes') as HTMLTextAreaElement).value;
                             try {
+                                const selectedPatObj = patients.find((p: any) => p.id === patId || p.patient_id === patId);
                                 await apiService.saveModuleRecord('his_prescriptions', {
                                     id: `rx_${Date.now()}`,
                                     institutionId,
                                     patientId: patId,
-                                    doctorName: doctor,
+                                    patientName: selectedPatObj?.fullName || selectedPatObj?.name || 'Patient',
+                                    patient_name: selectedPatObj?.fullName || selectedPatObj?.name || 'Patient',
+                                    doctorName: doctor || 'Dr. Abraham Misoi',
+                                    doctor_name: doctor || 'Dr. Abraham Misoi',
+                                    createdAt: new Date().toISOString(),
+                                    created_at: new Date().toISOString(),
                                     items: [{ drugName: drug, quantity: Number(qty) || 1, frequency: 'Once Daily' }],
                                     clinicalNotes: notes,
                                     status: 'pending',

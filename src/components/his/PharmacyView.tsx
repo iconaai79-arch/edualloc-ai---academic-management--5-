@@ -189,11 +189,21 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             
             // Link prescription to patient name, items, and finance clearance status
             const enhancedPrescs = await Promise.all((prescs || []).map(async (p: any) => {
-                const patient = (patients || []).find((pat: any) => pat.id === p.patientId);
-                const items = await apiService.fetchModuleRecords('his_prescription_items', undefined, undefined, { filter: { prescription_id: p.id } });
+                const patient = (patients || []).find((pat: any) => 
+                    pat.id === p.patientId || 
+                    pat.id === p.patient_id || 
+                    (p.patientId && pat.id === String(p.patientId)) ||
+                    (p.patient_id && pat.id === String(p.patient_id)) ||
+                    pat.admissionNumber === p.patientId ||
+                    pat.customPatientId === p.patientId
+                );
+                const items = await apiService.fetchModuleRecords('his_prescription_items', undefined, undefined, { filter: { prescription_id: p.id } }).catch(() => []);
                 
                 // Check if patient has a paid billing item or existing clearance
-                const patientBill = (allBillingItems || []).find((b: any) => b.patientId === p.patientId && (b.status === 'Paid' || b.status === 'paid' || b.status === 'cleared'));
+                const patientBill = (allBillingItems || []).find((b: any) => 
+                    (b.patientId === p.patientId || b.patient_id === p.patient_id || b.patientId === p.patient_id) && 
+                    (b.status === 'Paid' || b.status === 'paid' || b.status === 'cleared')
+                );
                 
                 const isCleared = p.paymentStatus === 'cleared' || p.paymentStatus === 'insurance_covered' || !!patientBill || p.status === 'dispensed';
                 const paymentStatus = p.paymentStatus || (isCleared ? 'cleared' : 'pending_payment');
@@ -201,10 +211,35 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                     ? `✓ Cleared for Dispensing at Finance Cashier Desk (Receipt ${p.receiptNumber || 'REC-CONFIRMED'})` 
                     : '🔒 Awaiting payment at Cashier / Finance desk before drugs can be disbursed');
 
+                // Determine patient name gracefully without overwriting existing patientName
+                const resolvedPatientName = p.patientName || 
+                    p.patient_name || 
+                    patient?.fullName || 
+                    patient?.name || 
+                    (patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : '') ||
+                    (p.patientId && p.patientId !== 'undefined' ? `Patient ${p.patientId}` : 'Walk-In Patient');
+
+                // Determine doctor name gracefully
+                const resolvedDoctorName = p.doctorName || p.doctor_name || p.prescribedBy || p.prescribed_by || 'Dr. Abraham Misoi';
+
+                // Determine date gracefully without resulting in Invalid Date
+                const rawDate = p.createdAt || p.created_at || p.date || p.timestamp || p.updatedAt || p.updated_at;
+                let validIsoDate = new Date().toISOString();
+                if (rawDate) {
+                    const parsed = new Date(rawDate);
+                    if (!isNaN(parsed.getTime())) {
+                        validIsoDate = parsed.toISOString();
+                    } else if (!isNaN(Number(rawDate)) && Number(rawDate) > 0) {
+                        validIsoDate = new Date(Number(rawDate)).toISOString();
+                    }
+                }
+
                 return { 
                     ...p, 
-                    patientName: patient?.fullName || 'Unknown Patient', 
-                    items,
+                    patientName: resolvedPatientName,
+                    doctorName: resolvedDoctorName,
+                    createdAt: validIsoDate,
+                    items: items && items.length > 0 ? items : (p.items || []),
                     paymentStatus,
                     financeNotes
                 };
@@ -872,11 +907,18 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                                 <UserIcon className="w-6 h-6" />
                                             </div>
                                             <div>
-                                                <p className="text-lg font-black uppercase tracking-tighter">{p.patientName}</p>
-                                                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mt-1 italic">Dr. {p.doctorName}</p>
+                                                <p className="text-lg font-black uppercase tracking-tighter">{p.patientName || 'Walk-In Patient'}</p>
+                                                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mt-1 italic">
+                                                    {p.doctorName ? (p.doctorName.startsWith('Dr.') ? p.doctorName : `Dr. ${p.doctorName}`) : 'Dr. Abraham Misoi'}
+                                                </p>
                                             </div>
                                         </div>
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2"><ClockIcon className="w-4 h-4" /> {new Date(p.createdAt).toLocaleTimeString()}</p>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                            <ClockIcon className="w-4 h-4" /> 
+                                            {p.createdAt && !isNaN(new Date(p.createdAt).getTime()) 
+                                                ? new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                                                : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
                                     </div>
                                     <div className="flex gap-2 flex-wrap">
                                         {p.items?.map((item, idx) => (

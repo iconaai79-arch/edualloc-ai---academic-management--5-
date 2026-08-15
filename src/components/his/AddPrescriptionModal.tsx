@@ -167,7 +167,12 @@ export function AddPrescriptionModal({
                 id: prescId,
                 institutionId,
                 patientId,
-                doctorName: doctorName || 'Attending Physician',
+                patientName: patientName || (patient ? (patient.fullName || patient.name) : 'Patient'),
+                patient_name: patientName || (patient ? (patient.fullName || patient.name) : 'Patient'),
+                doctorName: doctorName || 'Dr. Abraham Misoi',
+                doctor_name: doctorName || 'Dr. Abraham Misoi',
+                createdAt: new Date().toISOString(),
+                created_at: new Date().toISOString(),
                 notes,
                 attached_files: fileUrls,
                 status: 'pending'
