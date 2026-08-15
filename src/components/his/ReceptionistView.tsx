@@ -13,9 +13,11 @@ import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { XIcon } from '../icons/XIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
+import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 
 import { AddAppointmentModal } from './AddAppointmentModal';
 import { RegisterPatientModal } from './RegisterPatientModal';
+import { SmartHISPatientImporterModal } from './SmartHISPatientImporterModal';
 import { generateNextPatientId, advancePatientIdSequence } from '../../utils/hisPatientIdGenerator';
 import { apiService } from '../../services/apiService';
 import type { HISAppointment, HISPatient } from '../../types';
@@ -47,6 +49,7 @@ export function ReceptionistView({ institutionId, userName, users = [], onPatien
     const [selectedPatient, setSelectedPatient] = useState<HISPatient | null>(null);
     const [isBookingOpen, setIsBookingOpen] = useState(false);
     const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+    const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
     const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
 
@@ -267,6 +270,12 @@ export function ReceptionistView({ institutionId, userName, users = [], onPatien
                     </p>
                 </div>
                 <div className="flex gap-3 flex-wrap">
+                    <button
+                        onClick={() => setIsExcelImportOpen(true)}
+                        className="flex items-center gap-2 px-5 py-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-600 dark:text-emerald-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all border border-emerald-500/30 shadow-lg shadow-emerald-500/10"
+                    >
+                        <ArrowUpTrayIcon className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> Import Excel
+                    </button>
                     <button
                         onClick={() => setIsRegisterOpen(true)}
                         className="flex items-center gap-2 px-6 py-3 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-white/20 transition-all border border-slate-200 dark:border-white/5"
@@ -642,6 +651,21 @@ export function ReceptionistView({ institutionId, userName, users = [], onPatien
                 institutionId={institutionId}
                 existingPatients={patients}
             />
+
+            {/* ── Smart Excel Patient Importer ─────────────────────────────────── */}
+            {isExcelImportOpen && (
+                <SmartHISPatientImporterModal
+                    onClose={() => setIsExcelImportOpen(false)}
+                    onImportCompleted={() => {
+                        loadData();
+                        if (onPatientsUpdated) onPatientsUpdated();
+                        setNotification({ msg: 'Patient roster imported successfully from Excel!', type: 'success' });
+                        setTimeout(() => setNotification(null), 4000);
+                    }}
+                    institutionId={institutionId}
+                    existingPatients={patients}
+                />
+            )}
         </div>
     );
 };

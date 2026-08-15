@@ -5,10 +5,12 @@ import { SearchIcon } from '../icons/SearchIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import { XIcon } from '../icons/XIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
+import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { HeartIcon, CalendarIcon, IdentificationIcon } from './HealthIcons';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { apiService } from '../../services/apiService';
 import { generatePatientHistoryPdf } from '../../services/pdfService';
+import { SmartHISPatientImporterModal } from './SmartHISPatientImporterModal';
 
 interface Patient {
     id: string;
@@ -611,6 +613,7 @@ export function EduPulsePatientsList({
     const [sortBy, setSortBy] = useState<'name' | 'adm' | 'recent'>('name');
     const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
     const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
+    const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
     const [notification, setNotification] = useState('');
 
     const [isSyncing, setIsSyncing] = useState(false);
@@ -733,6 +736,15 @@ export function EduPulsePatientsList({
                     </p>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                        type="button"
+                        onClick={() => setIsExcelImportOpen(true)}
+                        className="bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-400 dark:text-emerald-300 px-5 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 shadow-lg shadow-emerald-500/10"
+                        title="Import patients in bulk from Excel (.xlsx, .xls) or CSV"
+                    >
+                        <ArrowUpTrayIcon className="w-4 h-4 text-emerald-400" />
+                        <span>Import Excel</span>
+                    </button>
                     <button
                         type="button"
                         onClick={handleManualSync}
@@ -1086,6 +1098,20 @@ export function EduPulsePatientsList({
                     institutionData={institutionData}
                     onPreviewPdf={onPreviewPdf}
                     onClose={() => setHistoryPatient(null)}
+                />
+            )}
+
+            {/* Smart Excel Importer Modal */}
+            {isExcelImportOpen && (
+                <SmartHISPatientImporterModal
+                    onClose={() => setIsExcelImportOpen(false)}
+                    onImportCompleted={() => {
+                        if (onPatientUpdated) onPatientUpdated();
+                        setNotification('Excel patients successfully imported into registry.');
+                        setTimeout(() => setNotification(''), 4000);
+                    }}
+                    institutionId={institutionId}
+                    existingPatients={patients}
                 />
             )}
         </div>
