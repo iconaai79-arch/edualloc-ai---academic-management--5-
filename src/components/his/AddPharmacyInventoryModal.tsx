@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { HISPharmacyInventory } from '../../types';
 import { XIcon } from '../icons/XIcon';
 import { PlusIcon } from '../icons/PlusIcon';
@@ -62,8 +63,8 @@ export function AddPharmacyInventoryModal({
         }
     };
 
-    return (
-        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
+    return createPortal(
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[99999] flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden animate-fade-in-up">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <h3 className="text-xl font-black uppercase tracking-tight">{item ? 'Edit Medication' : 'Add New Medication'}</h3>
@@ -196,7 +197,8 @@ export function AddPharmacyInventoryModal({
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

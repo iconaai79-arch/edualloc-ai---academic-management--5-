@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { ArchiveBoxIcon } from '../icons/ArchiveBoxIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -1143,15 +1144,24 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             )}
 
             {/* Add Medication / Batch Modal Overlay */}
-            {isAddDrugOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="glass-morphism p-10 rounded-[3rem] border border-white/10 w-full max-w-xl shadow-2xl relative">
-                        <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-8">
-                            {showBatchRegistry ? 'Record New ' : 'Add New '}
-                            <span className={showBatchRegistry ? 'text-indigo-400' : 'text-emerald-400'}>
-                                {showBatchRegistry ? 'Inventory Batch' : 'Medication'}
-                            </span>
-                        </h3>
+            {isAddDrugOpen && createPortal(
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in">
+                    <div className="glass-morphism bg-slate-900 border border-white/10 p-8 sm:p-10 rounded-[2.5rem] w-full max-w-xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-8 pb-3 border-b border-white/10">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter italic">
+                                {showBatchRegistry ? 'Record New ' : 'Add New '}
+                                <span className={showBatchRegistry ? 'text-indigo-400' : 'text-emerald-400'}>
+                                    {showBatchRegistry ? 'Inventory Batch' : 'Medication'}
+                                </span>
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setIsAddDrugOpen(false)}
+                                className="p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                            >
+                                ✕
+                            </button>
+                        </div>
                         
                         <form onSubmit={async (e) => {
                             e.preventDefault();
@@ -1192,26 +1202,26 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                             {!showBatchRegistry ? (
                                 <>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Drug Name</label>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Drug Name</label>
                                         <input name="name" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-emerald-500/50 outline-none" />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Category</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Category</label>
                                             <input name="category" placeholder="Antibiotic, etc" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-emerald-500/50 outline-none" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Base Unit</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Base Unit</label>
                                             <input name="unit" placeholder="Tablet, Vial" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-emerald-500/50 outline-none" />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Unit Price (KES)</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Unit Price (KES)</label>
                                             <input name="unitPrice" type="number" step="0.01" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-emerald-500/50 outline-none" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Reorder Level</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Reorder Level</label>
                                             <input name="reorderLevel" type="number" defaultValue="10" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-emerald-500/50 outline-none" />
                                         </div>
                                     </div>
@@ -1223,28 +1233,28 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                             ) : (
                                 <>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Select Medication</label>
-                                        <select name="medicationId" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none appearance-none">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Select Medication</label>
+                                        <select name="medicationId" required className="w-full bg-slate-800 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none">
                                             {inventory.map(i => <option key={i.id} value={i.id} className="bg-slate-900">{i.name}</option>)}
                                         </select>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Batch Number</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Batch Number</label>
                                             <input name="batchNumber" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Expiry Date</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Expiry Date</label>
                                             <input name="expiryDate" type="date" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none" />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Batch Quantity</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Batch Quantity</label>
                                             <input name="quantity" type="number" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Unit Cost (KES)</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Unit Cost (KES)</label>
                                             <input name="unitCost" type="number" step="0.01" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none" />
                                         </div>
                                     </div>
@@ -1259,7 +1269,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ── REQUISITIONS TAB ───────────────────────────────────── */}
@@ -1364,9 +1375,9 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             )}
 
             {/* ── NEW REQUISITION MODAL ─────────────────────────────── */}
-            {isNewRequisitionOpen && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+            {isNewRequisitionOpen && createPortal(
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
                         <div className="flex items-center justify-between p-6 border-b border-white/10 shrink-0">
                             <div>
                                 <h2 className="text-xl font-black text-white">New <span className="text-amber-400">Drug Requisition</span></h2>
@@ -1388,7 +1399,7 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                                 onClick={() => setReqItems(prev => prev.filter((_, i) => i !== idx))}
                                                 className="text-rose-400 hover:text-rose-300 text-xs font-bold transition-colors"
                                             >
-                                                Remove
+                                                ✕ Remove
                                             </button>
                                         )}
                                     </div>
@@ -1483,7 +1494,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ── BATCH INTAKE MODAL ──────────────────────────────── */}
@@ -1501,8 +1513,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             )}
 
             {/* ── FEFO BATCH DETAIL DRAWER MODAL ───────────────────── */}
-            {fefoModalDrug && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            {fefoModalDrug && createPortal(
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
                     <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-white animate-fade-in-up">
                         <div className="p-6 border-b border-white/10 flex justify-between items-center bg-indigo-950/80">
                             <div>
@@ -1625,7 +1637,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
 
@@ -1645,8 +1658,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             )}
 
             {/* MODAL: ON-SCREEN EXTERNAL PRESCRIPTION PDF PREVIEW */}
-            {isPdfModalOpen && pdfPreviewUri && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+            {isPdfModalOpen && pdfPreviewUri && createPortal(
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
                     <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 max-w-5xl w-full h-[90vh] flex flex-col shadow-2xl overflow-hidden">
                         <div className="flex justify-between items-center pb-4 border-b border-white/10 flex-shrink-0">
                             <div>
@@ -1666,14 +1679,15 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                             <PdfViewer pdfDataUri={pdfPreviewUri} title={pdfPreviewTitle} />
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Edit Medication Modal Overlay */}
-            {editingDrug && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="glass-morphism p-10 rounded-[3rem] border border-white/10 w-full max-w-xl shadow-2xl relative">
-                        <div className="flex justify-between items-center mb-8">
+            {editingDrug && createPortal(
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in">
+                    <div className="glass-morphism bg-slate-900 border border-white/10 p-8 sm:p-10 rounded-[2.5rem] w-full max-w-xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-8 pb-3 border-b border-white/10">
                             <h3 className="text-2xl font-black uppercase tracking-tighter italic text-amber-400">
                                 Edit Medication
                             </h3>
@@ -1759,14 +1773,14 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
 
                             <div className="flex gap-4 pt-4">
                                 <button 
-                                    type="submit"
+                                    type="submit" 
                                     className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 cursor-pointer"
                                 >
                                     Save Changes
                                 </button>
                                 <button 
-                                    type="button"
-                                    onClick={() => setEditingDrug(null)}
+                                    type="button" 
+                                    onClick={() => setEditingDrug(null)} 
                                     className="px-8 bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer"
                                 >
                                     Cancel
@@ -1774,7 +1788,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ── Pharmacist Payment STK Prompt Modal ── */}
@@ -1867,8 +1882,8 @@ function PharmacistPaymentPromptModal({
         onSuccessClearance(recipNo, 'Direct Cash at Pharmacy Desk');
     };
 
-    return (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+    return createPortal(
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[99999] p-4">
             <div className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden text-white animate-in zoom-in-95 duration-200">
                 <div className="px-8 py-5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-between">
                     <div>
@@ -2005,7 +2020,8 @@ function PharmacistPaymentPromptModal({
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 

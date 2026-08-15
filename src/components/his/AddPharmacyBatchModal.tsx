@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { HISPharmacyInventory, HISPharmacyBatch } from '../../types';
 import { XIcon } from '../icons/XIcon';
 import { ArchiveBoxIcon } from '../icons/ArchiveBoxIcon';
@@ -108,8 +109,8 @@ export function AddPharmacyBatchModal({
 
     const selectedMed = inventory.find(m => m.id === medicationId);
 
-    return (
-        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
+    return createPortal(
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[99999] flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden animate-fade-in-up">
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-950 text-white">
@@ -316,6 +317,7 @@ export function AddPharmacyBatchModal({
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
