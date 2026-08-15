@@ -116,8 +116,9 @@ const PUBLIC_MODULES = [
   'school_remedial_allocations', 'his_patients', 'his_queue_calls', 'his_staff', 'his_appointments',
   'his_vital_statistics', 'his_financial_records', 'his_admissions', 'his_beds', 'his_wards', 'his_dental_charts',
   'his_eye_prescriptions', 'his_medication_logs', 'his_broadcasts', 'his_prescriptions', 'his_pharmacy_inventory',
-  'his_lab_orders', 'bulletin_items', 'document_collections', 'watchlist', 'maintenance_requests',
-  'student_absence_requests', 'time_off_requests', 'teacher_check_ins', 'leave_requests'
+  'his_lab_orders', 'bulletin_items', 'document_collections', 'watchlist', 'watchlist_records', 'maintenance_requests',
+  'student_absence_requests', 'time_off_requests', 'teacher_check_ins', 'leave_requests', 'financial_goals',
+  'payroll_records', 'building_floors', 'building_offices', 'building_visitor_logs', 'building_visitor_assets'
 ];
 
 const isTableWithoutInstitutionId = (module: string) => {

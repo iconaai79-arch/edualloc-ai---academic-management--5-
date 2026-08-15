@@ -1630,6 +1630,20 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS financial_goals (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    target_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+    current_amount NUMERIC(15,2) DEFAULT 0.00,
+    deadline DATE,
+    category TEXT DEFAULT 'General',
+    status TEXT DEFAULT 'In Progress',
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS his_dental_charts (
     id TEXT PRIMARY KEY,
     patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
