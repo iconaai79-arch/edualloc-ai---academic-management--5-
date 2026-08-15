@@ -358,8 +358,63 @@ export function DoctorDashboard({
     const [labFeed, setLabFeed] = useState<any[]>([]);
     const [selectedLabReport, setSelectedLabReport] = useState<any | null>(null);
 
-    const [completedPatientIds, setCompletedPatientIds] = useState<Set<string>>(new Set());
-    const [activeConsultationId, setActiveConsultationId] = useState<string | null>(null);
+    const [completedPatientIds, setCompletedPatientIds] = useState<Set<string>>(() => {
+        try {
+            const saved = localStorage.getItem(`his_completed_patients_${institutionId}`);
+            if (saved) return new Set(JSON.parse(saved));
+        } catch (e) {}
+        return new Set();
+    });
+
+    const [activeConsultationId, setActiveConsultationId] = useState<string | null>(() => {
+        try {
+            return localStorage.getItem(`his_active_consultation_${institutionId}`);
+        } catch (e) {
+            return null;
+        }
+    });
+
+    // Auto-save queue progress to localStorage whenever state changes
+    useEffect(() => {
+        try {
+            if (institutionId) {
+                localStorage.setItem(`his_completed_patients_${institutionId}`, JSON.stringify(Array.from(completedPatientIds)));
+            }
+        } catch (e) {}
+    }, [completedPatientIds, institutionId]);
+
+    useEffect(() => {
+        try {
+            if (institutionId) {
+                if (activeConsultationId) {
+                    localStorage.setItem(`his_active_consultation_${institutionId}`, activeConsultationId);
+                } else {
+                    localStorage.removeItem(`his_active_consultation_${institutionId}`);
+                }
+            }
+        } catch (e) {}
+    }, [activeConsultationId, institutionId]);
+
+    // Also sync queue state from Database (his_queue_calls & his_patients) on load
+    useEffect(() => {
+        if (!institutionId) return;
+        const syncQueueStateFromDb = async () => {
+            try {
+                const calls = await apiService.fetchModuleRecords('his_queue_calls', institutionId);
+                if (calls && calls.length > 0) {
+                    const completedInDb = calls.filter((c: any) => c.status === 'Completed' || c.status === 'DISCHARGED').map((c: any) => c.patientId || c.id);
+                    if (completedInDb.length > 0) {
+                        setCompletedPatientIds(prev => {
+                            const updated = new Set(prev);
+                            completedInDb.forEach((id: string) => updated.add(id));
+                            return updated;
+                        });
+                    }
+                }
+            } catch (e) {}
+        };
+        syncQueueStateFromDb();
+    }, [institutionId]);
 
     const [soapPatient, setSoapPatient] = useState<HISPatient | null>(null);
     const [isSoapModalOpen, setIsSoapModalOpen] = useState(false);
@@ -441,6 +496,20 @@ export function DoctorDashboard({
             if (currentActiveId) {
                 updatedCompleted.add(currentActiveId);
                 setCompletedPatientIds(updatedCompleted);
+                try {
+                    localStorage.setItem(`his_completed_patients_${institutionId}`, JSON.stringify(Array.from(updatedCompleted)));
+                } catch (e) {}
+
+                // Save to database table so it persists across refreshes
+                await apiService.saveModuleRecord('his_queue_calls', {
+                    id: `his_completed_${currentActiveId}`,
+                    institutionId,
+                    patientId: currentActiveId,
+                    status: 'Completed',
+                    roomNo,
+                    doctorName: userName || 'Attending Physician',
+                    updatedAt: new Date().toISOString()
+                }).catch(() => null);
             }
 
             // Find next uncompleted patient
@@ -449,8 +518,14 @@ export function DoctorDashboard({
 
             if (nextPatient) {
                 setActiveConsultationId(nextPatient.id);
+                try {
+                    localStorage.setItem(`his_active_consultation_${institutionId}`, nextPatient.id);
+                } catch (e) {}
             } else {
                 setActiveConsultationId(null);
+                try {
+                    localStorage.removeItem(`his_active_consultation_${institutionId}`);
+                } catch (e) {}
             }
 
             // Also update his_queue_calls in API / Supabase
@@ -616,6 +691,25 @@ export function DoctorDashboard({
                             <BellIcon className="w-4 h-4 text-slate-950" />
                             <span>Checkout &amp; Call Next</span>
                         </button>
+                        {completedPatientIds.size > 0 && (
+                            <button
+                                onClick={() => {
+                                    if (confirm("Reset today's consultation queue and re-open patient calls?")) {
+                                        setCompletedPatientIds(new Set());
+                                        setActiveConsultationId(patients[0]?.id || null);
+                                        try {
+                                            localStorage.removeItem(`his_completed_patients_${institutionId}`);
+                                            localStorage.removeItem(`his_active_consultation_${institutionId}`);
+                                        } catch (e) {}
+                                        alert("✓ Consultation queue reset successfully.");
+                                    }
+                                }}
+                                title="Reset queue for new day"
+                                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[9px] uppercase tracking-widest font-black transition-all border border-white/10 cursor-pointer"
+                            >
+                                🔄 Reset Queue ({completedPatientIds.size})
+                            </button>
+                        )}
                     </div>
 
                     <div className="flex gap-2 mt-4 flex-wrap lg:justify-end">
