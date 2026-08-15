@@ -108,16 +108,40 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
     const handleBookAppointment = async (data: any) => {
         if (!institutionId) return;
         try {
+            const patId = selectedPatient?.id || data.patientId || `his_p_${Date.now()}`;
+            const patName = selectedPatient?.fullName || data.patientName || 'Registered Patient';
+            const patAdm = selectedPatient?.admissionNumber || selectedPatient?.patientNumber || data.admissionNumber || '';
+
             const newApp: HISAppointment = {
                 ...data,
                 id: `app_${Date.now()}`,
                 institutionId,
-                patientId: selectedPatient?.id || data.patientId || '',
-                patientName: selectedPatient?.fullName || data.patientName || '',
-                status: 'Scheduled',
+                patientId: patId,
+                patientName: patName,
+                admissionNumber: patAdm,
+                status: data.status || 'Scheduled',
                 createdAt: new Date().toISOString(),
             };
             await apiService.saveModuleRecord('his_appointments', newApp);
+
+            // Also create or sync a his_queue_calls entry so the clinical queue is immediately up to date
+            await apiService.saveModuleRecord('his_queue_calls', {
+                id: `his_q_${newApp.id}`,
+                institutionId,
+                patientId: patId,
+                patient_id: patId,
+                patientName: patName,
+                patient_name: patName,
+                tokenNo: patAdm || `TK-${Math.floor(100 + Math.random() * 900)}`,
+                roomNo: data.status === 'Arrived' ? 'Waiting Area' : 'Reception Scheduled',
+                doctorName: data.doctorName || 'Medical Officer on Duty',
+                status: data.status === 'Arrived' ? 'Waiting' : 'Scheduled',
+                priority: data.type === 'Emergency Triage' ? 'Urgent' : 'Routine',
+                complaint: data.reason || data.type || 'Clinical Consultation',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            }).catch(() => null);
+
             setAppointments(prev => [newApp, ...prev]);
             setIsBookingOpen(false);
             setSelectedPatient(null);
@@ -158,21 +182,6 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
 
             await apiService.saveModuleRecord('his_patients', record);
 
-            // Also add patient to HIS queue calls so doctor can see them in consultation queue!
-            await apiService.saveModuleRecord('his_queue_calls', {
-                id: `his_q_${record.id}`,
-                institutionId: instId,
-                institution_id: instId,
-                patientId: record.id,
-                patient_id: record.id,
-                patientName: patName,
-                patient_name: patName,
-                status: 'Waiting',
-                roomNo: 'Waiting Area',
-                doctorName: 'Unassigned',
-                updatedAt: new Date().toISOString()
-            }).catch(() => null);
-
             setPatients(prev => [record, ...prev.filter(p => p.id !== record.id)]);
             setIsRegisterOpen(false);
             setSelectedPatient(record);
@@ -194,6 +203,23 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
                 ...(status === 'Arrived' ? { arrivedAt: new Date().toISOString() } : {}),
             };
             await apiService.saveModuleRecord('his_appointments', updated);
+
+            // Sync to his_queue_calls
+            const queueStatus = status === 'Arrived' ? 'Waiting' : (status === 'In-Progress' ? 'In Consultation' : status);
+            await apiService.saveModuleRecord('his_queue_calls', {
+                id: `his_q_${app.id}`,
+                institutionId,
+                patientId: app.patientId,
+                patient_id: app.patientId,
+                patientName: app.patientName,
+                patient_name: app.patientName,
+                status: queueStatus,
+                roomNo: status === 'In-Progress' ? 'Consultation Room 1' : 'Waiting Area',
+                doctorName: app.doctorName || 'Medical Officer on Duty',
+                tokenNo: app.admissionNumber || app.patientId?.slice(0, 6) || `TK-${Math.floor(100 + Math.random() * 900)}`,
+                updatedAt: new Date().toISOString()
+            }).catch(() => null);
+
             setAppointments(prev => prev.map(a => a.id === app.id ? updated as HISAppointment : a));
             showNotif(`${app.patientName || 'Patient'} marked as ${status}`);
         } catch (e) {

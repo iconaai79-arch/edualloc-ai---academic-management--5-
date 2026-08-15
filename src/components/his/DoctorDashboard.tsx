@@ -402,26 +402,42 @@ export function DoctorDashboard({
         } catch (e) {}
     }, [activeConsultationId, institutionId]);
 
-    // Also sync queue state from Database (his_queue_calls & his_patients) on load
-    useEffect(() => {
+    const [dbQueueCalls, setDbQueueCalls] = useState<any[]>([]);
+    const [dbAppointments, setDbAppointments] = useState<any[]>([]);
+
+    // Live sync queue state and appointments from Database (his_queue_calls & his_appointments)
+    const loadClinicalQueue = React.useCallback(async () => {
         if (!institutionId) return;
-        const syncQueueStateFromDb = async () => {
-            try {
-                const calls = await apiService.fetchModuleRecords('his_queue_calls', institutionId);
-                if (calls && calls.length > 0) {
-                    const completedInDb = calls.filter((c: any) => c.status === 'Completed' || c.status === 'DISCHARGED').map((c: any) => c.patientId || c.id);
-                    if (completedInDb.length > 0) {
-                        setCompletedPatientIds(prev => {
-                            const updated = new Set(prev);
-                            completedInDb.forEach((id: string) => updated.add(id));
-                            return updated;
-                        });
-                    }
+        try {
+            const [calls, apps] = await Promise.all([
+                apiService.fetchModuleRecords('his_queue_calls', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('his_appointments', institutionId).catch(() => [])
+            ]);
+            setDbQueueCalls(calls || []);
+            setDbAppointments(apps || []);
+
+            if (calls && calls.length > 0) {
+                const completedInDb = calls
+                    .filter((c: any) => c.status === 'Completed' || c.status === 'DISCHARGED')
+                    .map((c: any) => c.patientId || c.patient_id || c.id);
+                if (completedInDb.length > 0) {
+                    setCompletedPatientIds(prev => {
+                        const updated = new Set(prev);
+                        completedInDb.forEach((id: string) => updated.add(id));
+                        return updated;
+                    });
                 }
-            } catch (e) {}
-        };
-        syncQueueStateFromDb();
+            }
+        } catch (e) {
+            console.error('Error syncing clinical queue:', e);
+        }
     }, [institutionId]);
+
+    useEffect(() => {
+        loadClinicalQueue();
+        const interval = setInterval(loadClinicalQueue, 8000);
+        return () => clearInterval(interval);
+    }, [loadClinicalQueue]);
 
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [showSickOffModal, setShowSickOffModal] = useState(false);
@@ -716,39 +732,111 @@ export function DoctorDashboard({
         (p.contact || '').includes(searchPatient || '')
     );
 
-    const activePatId = activeConsultationId || patients.find(p => !completedPatientIds.has(p.id))?.id || patients[0]?.id;
-    const activeIndex = patients.findIndex(p => p.id === activePatId);
+    // ── Build Live Clinical Queue from Real Database Records ──
+    const todayIsoDate = currentTime.toISOString().slice(0, 10);
+    const todayApps = dbAppointments.filter(a => !a.date || a.date.startsWith(todayIsoDate));
+    
+    // Create combined map of real queue entries
+    const combinedEntriesMap = new Map<string, any>();
 
-    const queueItems = patients.map((p, i) => {
-        const isCompleted = completedPatientIds.has(p.id);
-        const isInConsult = !isCompleted && (activeConsultationId ? p.id === activeConsultationId : (activeIndex >= 0 ? p.id === activePatId : i === 0));
-        const isNextWaiting = !isCompleted && !isInConsult && (i === activeIndex + 1 || (activeIndex < 0 && i === 1));
+    // 1. Add from today's appointments
+    todayApps.forEach(app => {
+        const key = app.patientId || app.patientName || app.id;
+        combinedEntriesMap.set(key, {
+            id: app.id,
+            patientId: app.patientId,
+            patientName: app.patientName,
+            admissionNumber: app.admissionNumber,
+            status: app.status,
+            reason: app.reason || app.type || 'Clinical Consultation',
+            time: app.time || '09:00',
+            date: app.date,
+            doctorName: app.doctorName,
+            priority: app.type === 'Emergency Triage' ? 'urgent' : 'normal'
+        });
+    });
 
-        const status = isCompleted ? 'completed' : isInConsult ? 'in-consultation' : isNextWaiting ? 'waiting' : 'scheduled';
+    // 2. Add or override from queue calls
+    dbQueueCalls.forEach(call => {
+        const key = call.patientId || call.patientName || call.id;
+        const existing = combinedEntriesMap.get(key);
+        combinedEntriesMap.set(key, {
+            ...existing,
+            id: call.id || existing?.id,
+            patientId: call.patientId || existing?.patientId,
+            patientName: call.patientName || existing?.patientName,
+            status: call.status || existing?.status,
+            roomNo: call.roomNo || existing?.roomNo,
+            tokenNo: call.tokenNo || existing?.tokenNo,
+            doctorName: call.doctorName || existing?.doctorName,
+            priority: (call.priority || '').toLowerCase() === 'urgent' ? 'urgent' : (existing?.priority || 'normal'),
+            waitMins: call.waitMins || existing?.waitMins || 5
+        });
+    });
+
+    const activeEntries = Array.from(combinedEntriesMap.values());
+
+    const queueItems = activeEntries.map((entry, i) => {
+        // Resolve patient object from registered patient master
+        const p = patients.find(p => p.id === entry.patientId || (p.fullName && p.fullName.toLowerCase() === entry.patientName?.toLowerCase())) || {
+            id: entry.patientId || `pat_${i}`,
+            fullName: entry.patientName || 'Queued Patient',
+            name: entry.patientName || 'Queued Patient',
+            admissionNumber: entry.admissionNumber || entry.tokenNo || '',
+            gender: 'Male' as const,
+            dob: '',
+            contact: '',
+            allergies: [],
+            chronicConditions: []
+        };
+
+        const isCompleted = completedPatientIds.has(p.id) || entry.status === 'Completed' || entry.status === 'DISCHARGED';
+        const isInConsult = !isCompleted && (
+            (activeConsultationId && p.id === activeConsultationId) ||
+            entry.status === 'In-Progress' || 
+            entry.status === 'In Consultation'
+        );
+        const isWaiting = !isCompleted && !isInConsult && (
+            entry.status === 'Arrived' || 
+            entry.status === 'Waiting'
+        );
+
+        const status = isCompleted 
+            ? 'completed' 
+            : isInConsult 
+            ? 'in-consultation' 
+            : isWaiting 
+            ? 'waiting' 
+            : 'scheduled';
 
         return {
             patient: p,
             queueNo: i + 1,
-            complaint: COMPLAINT_TAGS[i % COMPLAINT_TAGS.length],
-            waitMins: (i + 1) * 8,
-            priority: i === 0 ? 'urgent' : i < 3 ? 'normal' : 'routine',
+            complaint: entry.reason || entry.complaint || 'Consultation Review',
+            waitMins: entry.waitMins || ((i + 1) * 6),
+            priority: entry.priority || (i === 0 ? 'urgent' : 'normal'),
             status,
         };
     });
 
     const visibleQueueItems = queueItems.filter(q => !hideCompletedInQueue || q.status !== 'completed');
 
+    const waitingCount = queueItems.filter(q => q.status === 'waiting').length;
+    const inConsultCount = queueItems.filter(q => q.status === 'in-consultation').length;
+    const completedCount = queueItems.filter(q => q.status === 'completed').length;
+    const totalTodayCount = queueItems.length;
+
     const stats = [
-        { label: "Today's Patients", value: Math.min(patients.length, 12), sub: 'booked today',
+        { label: "Today's Bookings", value: totalTodayCount, sub: `${waitingCount} waiting • ${inConsultCount} in consult`,
           bgClass: 'bg-indigo-950/60', borderClass: 'border-indigo-500/20', textClass: 'text-indigo-200',
           icon: <UsersIcon className="w-5 h-5" /> },
-        { label: 'In Queue', value: queueItems.filter(q => q.status !== 'completed').length, sub: 'awaiting consultation',
+        { label: 'Waiting in Queue', value: waitingCount, sub: 'ready for consultation',
           bgClass: 'bg-amber-950/50', borderClass: 'border-amber-500/20', textClass: 'text-amber-200',
           icon: <ClockIcon className="w-5 h-5" /> },
-        { label: 'Total Patients', value: patients.length, sub: 'in registry',
+        { label: 'Total Patients', value: patients.length, sub: 'in registered master',
           bgClass: 'bg-emerald-950/50', borderClass: 'border-emerald-500/20', textClass: 'text-emerald-200',
           icon: <HeartIcon className="w-5 h-5" /> },
-        { label: 'Prescriptions', value: Math.min(patients.length * 2, 28), sub: 'issued this week',
+        { label: 'Completed Today', value: completedCount, sub: 'consultations finished',
           bgClass: 'bg-violet-950/50', borderClass: 'border-violet-500/20', textClass: 'text-violet-200',
           icon: <DocumentTextIcon className="w-5 h-5" /> },
     ];
@@ -957,19 +1045,20 @@ export function DoctorDashboard({
                             ) : (
                                 visibleQueueItems.map((q) => {
                                     const badge = getStatusBadge(q.status);
+                                    const patName = q.patient?.fullName || (q.patient as any)?.name || 'Patient';
                                     return (
-                                        <div key={q.patient.id} onClick={() => onOpenPatient(q.patient.id)}
+                                        <div key={q.patient.id || `q_${q.queueNo}`} onClick={() => onOpenPatient(q.patient.id)}
                                             className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] hover:bg-indigo-50 dark:hover:bg-indigo-950/20 border border-slate-100 dark:border-white/5 cursor-pointer transition-all hover:border-indigo-300/30 hover:shadow-md group">
                                             <div className={`w-1.5 h-12 rounded-full flex-shrink-0 ${getPriorityDot(q.priority)}`} />
                                             <div className="w-9 h-9 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center font-black text-indigo-600 dark:text-indigo-300 text-sm flex-shrink-0">{q.queueNo}</div>
-                                            <div className="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-xl flex items-center justify-center font-black text-slate-600 dark:text-slate-200 flex-shrink-0">{q.patient.fullName[0]}</div>
+                                            <div className="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-xl flex items-center justify-center font-black text-slate-600 dark:text-slate-200 flex-shrink-0">{patName[0] || 'P'}</div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="font-black text-sm uppercase tracking-tight truncate">{q.patient.fullName}</p>
+                                                <p className="font-black text-sm uppercase tracking-tight truncate">{patName}</p>
                                                 <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-[9px] font-black text-slate-400 uppercase">{q.patient.gender}</span>
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase">{q.patient?.gender || 'Adult'}</span>
                                                     <span className="text-slate-300 dark:text-slate-600">•</span>
                                                     <span className="text-[9px] font-mono font-black text-indigo-500 uppercase bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/30">
-                                                        {q.patient.customPatientId || q.patient.patientNumber || q.complaint}
+                                                        {q.patient?.admissionNumber || q.patient?.customPatientId || q.patient?.patientNumber || q.complaint}
                                                     </span>
                                                 </div>
                                             </div>
