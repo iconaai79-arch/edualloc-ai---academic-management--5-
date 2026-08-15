@@ -159,24 +159,39 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
 
     if (!isOpen) return null;
 
+    const validateForm = (): boolean => {
+        if (!formData.fullName.trim()) {
+            setCurrentStep(1);
+            alert('Please enter Patient Full Name.');
+            return false;
+        }
+        if (!formData.dob.trim()) {
+            setCurrentStep(1);
+            alert('Please select or enter Patient Date of Birth.');
+            return false;
+        }
+        if (isMinor) {
+            if (!formData.guardianName.trim() || !formData.guardianPhone.trim()) {
+                setCurrentStep(4);
+                alert('For minor patients (<18 yrs), Parent/Guardian Name and Phone Line are required.');
+                return false;
+            }
+        }
+        return true;
+    };
+
     const isStepValid = () => {
         switch (currentStep) {
             case 1:
                 return formData.fullName.trim().length > 0 && formData.dob.trim().length > 0;
             case 2:
-                return true; // Medical details can be skipped
+                return true;
             case 3:
-                return formData.contact.trim().length > 0;
+                return true;
             case 4:
-                // If patient is a minor (<18), parent/guardian details are MANDATORY!
                 if (isMinor) {
-                    return (
-                        formData.guardianName.trim().length > 0 &&
-                        formData.guardianPhone.trim().length > 0 &&
-                        formData.guardianNationalId.trim().length > 0
-                    );
+                    return formData.guardianName.trim().length > 0 && formData.guardianPhone.trim().length > 0;
                 }
-                // If patient is over 18, emergency contact is OPTIONAL!
                 return true;
             default:
                 return false;
@@ -184,7 +199,11 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
     };
 
     const handleNext = () => {
-        if (isStepValid() && currentStep < 4) {
+        if (currentStep === 1) {
+            if (!formData.fullName.trim()) return alert('Please enter Patient Full Name.');
+            if (!formData.dob.trim()) return alert('Please enter Patient Date of Birth.');
+        }
+        if (currentStep < 4) {
             setCurrentStep(currentStep + 1);
         }
     };
@@ -195,14 +214,17 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!isStepValid()) return;
+    const handleSubmit = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!validateForm()) return;
         setIsSubmitting(true);
         try {
             const generatedId = formData.customPatientId || `PID-${Math.floor(100 + Math.random() * 900)}`;
+            const finalContact = formData.contact.trim() || formData.guardianPhone || formData.emergencyContactPhone || 'N/A';
+
             await onRegister({
                 ...formData,
+                contact: finalContact,
                 patientNumber: generatedId,
                 customPatientId: generatedId,
                 gender: formData.gender as 'Male' | 'Female' | 'Other',
@@ -210,9 +232,11 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                     ? formData.allergies.split(',').map(s => s.trim()).filter(Boolean)
                     : []
             });
+            handleResetForm();
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Registration failed", error);
+            alert("Registration Failed: " + (error?.message || 'Unable to store patient in database.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -683,24 +707,24 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                             <button
                                 type="button"
                                 onClick={handleNext}
-                                disabled={!isStepValid()}
-                                className="px-8 py-4 bg-indigo-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 disabled:hover:scale-100 transition-all shadow-xl shadow-indigo-500/20 disabled:shadow-none"
+                                className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-indigo-500/20 cursor-pointer"
                             >
                                 Continue
                                 <ChevronRightIcon className="w-4 h-4" />
                             </button>
                         ) : (
                             <button
+                                type="button"
                                 onClick={handleSubmit}
-                                disabled={isSubmitting || !isStepValid()}
-                                className="px-8 py-4 bg-indigo-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 disabled:hover:scale-100 transition-all shadow-xl shadow-indigo-500/20 disabled:shadow-none"
+                                disabled={isSubmitting}
+                                className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 disabled:hover:scale-100 transition-all shadow-xl shadow-indigo-500/20 disabled:shadow-none cursor-pointer"
                             >
                                 {isSubmitting ? (
                                     <ArrowPathIcon className="w-4 h-4 animate-spin" />
                                 ) : (
                                     <PlusIcon className="w-4 h-4" />
                                 )}
-                                Finalize Intake
+                                <span>{isSubmitting ? 'Registering Intake...' : 'Finalize Intake'}</span>
                             </button>
                         )}
                     </div>

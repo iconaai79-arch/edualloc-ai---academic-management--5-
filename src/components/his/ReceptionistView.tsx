@@ -129,7 +129,7 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
     };
 
     const handleRegisterPatient = async (patientData: any) => {
-        if (!institutionId) return;
+        const instId = institutionId || 'his_inst_1';
         try {
             const patName = patientData.fullName || `${patientData.firstName || ''} ${patientData.lastName || ''}`.trim() || 'Registered Patient';
             const patNo = patientData.customPatientId || patientData.patientNumber || `PID-${Math.floor(100 + Math.random() * 900)}`;
@@ -137,8 +137,8 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
             const record: HISPatient = {
                 ...patientData,
                 id: `his_p_${Date.now()}`,
-                institutionId,
-                institution_id: institutionId,
+                institutionId: instId,
+                institution_id: instId,
                 fullName: patName,
                 name: patName,
                 patientNumber: patNo,
