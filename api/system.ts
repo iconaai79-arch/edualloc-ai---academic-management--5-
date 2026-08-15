@@ -217,10 +217,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                 }
 
+                let cleanConnString = connectionString.trim();
+                if (cleanConnString.includes('sslmode=')) {
+                    cleanConnString = cleanConnString.replace(/[?&]sslmode=[^&]+/g, '');
+                    if (cleanConnString.includes('?&')) cleanConnString = cleanConnString.replace('?&', '?');
+                    if (cleanConnString.endsWith('?')) cleanConnString = cleanConnString.slice(0, -1);
+                }
+
+                // Prevent TLS self-signed cert chain rejection for Supabase connection poolers
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
                 const pool = new Pool({
-                    connectionString,
+                    connectionString: cleanConnString,
                     ssl: { rejectUnauthorized: false },
-                    connectionTimeoutMillis: 5000 
+                    connectionTimeoutMillis: 10000 
                 });
 
                 let client;
