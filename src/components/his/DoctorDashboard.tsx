@@ -358,6 +358,9 @@ export function DoctorDashboard({
     const [labFeed, setLabFeed] = useState<any[]>([]);
     const [selectedLabReport, setSelectedLabReport] = useState<any | null>(null);
 
+    const [completedPatientIds, setCompletedPatientIds] = useState<Set<string>>(new Set());
+    const [activeConsultationId, setActiveConsultationId] = useState<string | null>(null);
+
     const [soapPatient, setSoapPatient] = useState<HISPatient | null>(null);
     const [isSoapModalOpen, setIsSoapModalOpen] = useState(false);
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
@@ -431,6 +434,26 @@ export function DoctorDashboard({
 
     const handleCallNextVoice = async () => {
         try {
+            const currentActiveId = activeConsultationId || patients.find(p => !completedPatientIds.has(p.id))?.id || patients[0]?.id;
+
+            // Mark current active patient as checked out / completed
+            const updatedCompleted = new Set(completedPatientIds);
+            if (currentActiveId) {
+                updatedCompleted.add(currentActiveId);
+                setCompletedPatientIds(updatedCompleted);
+            }
+
+            // Find next uncompleted patient
+            const remaining = patients.filter(p => !updatedCompleted.has(p.id));
+            const nextPatient = remaining[0] || null;
+
+            if (nextPatient) {
+                setActiveConsultationId(nextPatient.id);
+            } else {
+                setActiveConsultationId(null);
+            }
+
+            // Also update his_queue_calls in API / Supabase
             const queueCalls = await apiService.fetchModuleRecords('his_queue_calls', institutionId) || [];
             const roomPrefix = roomNo.split(' ')[0];
             const active = queueCalls.find((q: any) => q.roomNo?.includes(roomPrefix) && q.status === 'In Consultation');
@@ -453,9 +476,18 @@ export function DoctorDashboard({
                     utterance.rate = 0.9;
                     window.speechSynthesis.speak(utterance);
                 }
-                alert(`✓ Calling token ${next.tokenNo} (${next.patientName}) to ${roomNo}!`);
+                alert(`✓ Checked out previous patient. Calling token ${next.tokenNo} (${next.patientName}) to ${roomNo}!`);
+            } else if (nextPatient) {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const text = `Attention please. Patient ${nextPatient.fullName}. Please proceed to ${roomNo}.`;
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.rate = 0.9;
+                    window.speechSynthesis.speak(utterance);
+                }
+                alert(`✓ Checked out previous patient. Calling patient ${nextPatient.fullName} to ${roomNo}!`);
             } else {
-                alert(`✓ Consultation completed. Zero waiting patients in queue.`);
+                alert(`✓ Consultation completed. All patients checked out! Zero waiting patients in queue.`);
             }
         } catch (err) {
             console.error(err);
@@ -475,20 +507,31 @@ export function DoctorDashboard({
         (p.contact || '').includes(searchPatient || '')
     );
 
-    const queueItems = patients.slice(0, 6).map((p, i) => ({
-        patient: p,
-        queueNo: i + 1,
-        complaint: COMPLAINT_TAGS[i % COMPLAINT_TAGS.length],
-        waitMins: (i + 1) * 8,
-        priority: i === 0 ? 'urgent' : i < 3 ? 'normal' : 'routine',
-        status: i === 0 ? 'in-consultation' : i === 1 ? 'waiting' : 'scheduled',
-    }));
+    const activePatId = activeConsultationId || patients.find(p => !completedPatientIds.has(p.id))?.id || patients[0]?.id;
+    const activeIndex = patients.findIndex(p => p.id === activePatId);
+
+    const queueItems = patients.map((p, i) => {
+        const isCompleted = completedPatientIds.has(p.id);
+        const isInConsult = !isCompleted && (activeConsultationId ? p.id === activeConsultationId : (activeIndex >= 0 ? p.id === activePatId : i === 0));
+        const isNextWaiting = !isCompleted && !isInConsult && (i === activeIndex + 1 || (activeIndex < 0 && i === 1));
+
+        const status = isCompleted ? 'completed' : isInConsult ? 'in-consultation' : isNextWaiting ? 'waiting' : 'scheduled';
+
+        return {
+            patient: p,
+            queueNo: i + 1,
+            complaint: COMPLAINT_TAGS[i % COMPLAINT_TAGS.length],
+            waitMins: (i + 1) * 8,
+            priority: i === 0 ? 'urgent' : i < 3 ? 'normal' : 'routine',
+            status,
+        };
+    });
 
     const stats = [
         { label: "Today's Patients", value: Math.min(patients.length, 12), sub: 'booked today',
           bgClass: 'bg-indigo-950/60', borderClass: 'border-indigo-500/20', textClass: 'text-indigo-200',
           icon: <UsersIcon className="w-5 h-5" /> },
-        { label: 'In Queue', value: queueItems.length, sub: 'awaiting consultation',
+        { label: 'In Queue', value: queueItems.filter(q => q.status !== 'completed').length, sub: 'awaiting consultation',
           bgClass: 'bg-amber-950/50', borderClass: 'border-amber-500/20', textClass: 'text-amber-200',
           icon: <ClockIcon className="w-5 h-5" /> },
         { label: 'Total Patients', value: patients.length, sub: 'in registry',
@@ -504,10 +547,12 @@ export function DoctorDashboard({
 
     const getStatusBadge = (s: string) =>
         s === 'in-consultation'
-            ? { text: 'IN CONSULT', cls: 'bg-indigo-600 text-white' }
+            ? { text: 'IN CONSULT', cls: 'bg-indigo-600 text-white font-black shadow-md' }
+            : s === 'completed'
+            ? { text: 'CHECKED OUT', cls: 'bg-emerald-600 text-white font-black shadow-md' }
             : s === 'waiting'
-            ? { text: 'WAITING', cls: 'bg-amber-500/20 text-amber-400 dark:text-amber-300' }
-            : { text: 'SCHEDULED', cls: 'bg-slate-500/10 text-slate-400' };
+            ? { text: 'WAITING', cls: 'bg-amber-500/20 text-amber-400 dark:text-amber-300 font-black' }
+            : { text: 'SCHEDULED', cls: 'bg-slate-500/10 text-slate-400 font-black' };
 
     return (
         <div className="space-y-8 text-slate-900 dark:text-white">
@@ -679,7 +724,7 @@ export function DoctorDashboard({
                                             </div>
                                             <div className="flex items-center gap-3 flex-shrink-0">
                                                 <span className="text-[9px] font-black text-slate-400 uppercase hidden sm:block">
-                                                    {q.status === 'in-consultation' ? 'NOW' : `${q.waitMins}m`}
+                                                    {q.status === 'in-consultation' ? 'NOW' : q.status === 'completed' ? 'DISCHARGED' : `${q.waitMins}m`}
                                                 </span>
                                                 <span className={`px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest ${badge.cls}`}>{badge.text}</span>
                                             </div>
@@ -870,6 +915,11 @@ export function DoctorDashboard({
                     patient={soapPatient}
                     institutionId={institutionId}
                     doctorName={userName}
+                    onEncounterSaved={() => {
+                        if (soapPatient) {
+                            setCompletedPatientIds(prev => new Set(prev).add(soapPatient.id));
+                        }
+                    }}
                     onAddPrescription={(pId) => {
                         setIsSoapModalOpen(false);
                         onAddPrescription();
