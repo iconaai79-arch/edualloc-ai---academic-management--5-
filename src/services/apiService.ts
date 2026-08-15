@@ -72,19 +72,53 @@ export const setSessionUser = (user: { institutionId?: string; branchId?: string
     _sessionUser = user;
 };
 
+// ── Resource Optimization: Client-side In-Flight Deduplication & Memory Cache ──
+interface CacheEntry {
+    data: any[];
+    timestamp: number;
+    ttl: number;
+}
+const _moduleMemoryCache = new Map<string, CacheEntry>();
+const _inFlightRequests = new Map<string, Promise<any>>();
+
+const STATIC_CONFIG_MODULES = new Set([
+    'institutions',
+    'departments',
+    'subjects',
+    'courses',
+    'academic_levels',
+    'academic_years',
+    'semesters',
+    'buildings',
+    'rooms',
+    'finance_numbering_configs',
+    'ds_settings',
+    'his_pharmacy_settings',
+    'his_insurance_providers',
+    'store_categories',
+    'system_settings',
+    'system_configs',
+    'branches',
+    'counties',
+    'constituencies'
+]);
+
+export const invalidateModuleCache = (module?: string) => {
+    if (!module) {
+        _moduleMemoryCache.clear();
+        return;
+    }
+    for (const key of _moduleMemoryCache.keys()) {
+        if (key.startsWith(`${module}:`)) {
+            _moduleMemoryCache.delete(key);
+        }
+    }
+};
+
 const _unsupportedServerModules = new Set<string>([
-    'retail_stores',
     'his_branding',
     'his_consultation_rates',
-    'his_hospital_rooms',
-    'his_nurse_tasks',
-    'his_partner_labs',
-    'his_insurance_providers',
-    'his_clinical_events',
-    'his_lab_orders',
-    'his_lab_results',
-    'his_vitals',
-    'his_prescriptions'
+    'his_hospital_rooms'
 ]);
 
 const PROTECTED_KEYS = new Set([
@@ -854,302 +888,322 @@ export const apiService = {
             offset?: number;
         }
     ): Promise<T[]> {
-        const getFilterCol = (mod: string, type: 'institution' | 'county') => {
-            if (type === 'institution') {
-                if (mod === 'institutions') return 'id';
-                if (mod === 'county_inventory') return 'target_institution_id';
-                if (mod === 'ng_cdf_funds') return 'constituency_id';
-                if (mod === 'ng_cdf_bursaries') return 'constituency_name';
-                return 'institution_id';
-            } else {
-                if (mod === 'counties') return 'id';
-                return 'county_id';
-            }
-        };
+        const cacheKey = `${module}:${institutionId || 'all'}:${countyId || 'none'}:${JSON.stringify(options || {})}`;
+        const now = Date.now();
+        const cached = _moduleMemoryCache.get(cacheKey);
+        if (cached && (now - cached.timestamp) < cached.ttl) {
+            return cached.data as T[];
+        }
 
-        const queryLocal = () => {
-            // Mapping for views in local storage mode
-            let effectiveModule = module;
-            if (module === 'v_house_statistics' || module === 'v_bed_occupancy') {
-                effectiveModule = 'boarding_houses';
-            }
+        if (_inFlightRequests.has(cacheKey)) {
+            return _inFlightRequests.get(cacheKey) as Promise<T[]>;
+        }
 
-            let records = ls.get(effectiveModule);
-            if (!Array.isArray(records)) records = [];
-            records = records.filter((r: any) => r && typeof r === 'object');
+        const executeFetch = async (): Promise<T[]> => {
+            const getFilterCol = (mod: string, type: 'institution' | 'county') => {
+                if (type === 'institution') {
+                    if (mod === 'institutions') return 'id';
+                    if (mod === 'county_inventory') return 'target_institution_id';
+                    if (mod === 'ng_cdf_funds') return 'constituency_id';
+                    if (mod === 'ng_cdf_bursaries') return 'constituency_name';
+                    return 'institution_id';
+                } else {
+                    if (mod === 'counties') return 'id';
+                    return 'county_id';
+                }
+            };
 
-            if (institutionId && institutionId !== 'ALL') {
-                const filterKey = getFilterCol(effectiveModule, 'institution');
-                records = records.filter((r: any) => r[filterKey] === institutionId);
-            }
-            if (countyId) {
-                const filterKey = getFilterCol(effectiveModule, 'county');
-                records = records.filter((r: any) => r[filterKey] === countyId);
-            }
-            
-            // Local simple filter
-            if (options?.filter) {
-                records = records.filter((r: any) => 
-                    Object.entries(options.filter as any).every(([k, v]) => {
-                        const snakeK = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-                        return r[k] === v || r[snakeK] === v;
-                    })
-                );
-            }
+            const queryLocal = () => {
+                // Mapping for views in local storage mode
+                let effectiveModule = module;
+                if (module === 'v_house_statistics' || module === 'v_bed_occupancy') {
+                    effectiveModule = 'boarding_houses';
+                }
 
-            const result = toCamelCase(records);
-            const finalResult = Array.isArray(result) ? result : [];
-            if (module === 'institutions' && Array.isArray(finalResult)) {
-                finalResult.forEach((inst: any) => {
-                    const settings = inst.coopSettings || inst.coop_settings;
-                    if (settings) {
-                        inst.coopConfig = {
-                            serviceName: settings.serviceName || '',
-                            connectionID: settings.connectionID || '',
-                            connectionPassword: settings.connectionPassword || '',
-                            institutionCode: settings.institutionCode || '',
-                        };
-                        inst.coopSettings = settings;
-                    }
-                    const tNodes = inst.treeGradingNodes || inst.tree_grading_nodes;
-                    if (tNodes) {
-                        const parsed = typeof tNodes === 'string' ? JSON.parse(tNodes) : tNodes;
-                        inst.treeGradingNodes = parsed;
-                        inst.tree_grading_nodes = parsed;
-                    }
-                    const cConfigs = inst.classExamConfigs || inst.class_exam_configs;
-                    if (cConfigs) {
-                        const parsed = typeof cConfigs === 'string' ? JSON.parse(cConfigs) : cConfigs;
-                        inst.classExamConfigs = parsed;
-                        inst.class_exam_configs = parsed;
-                    }
-                    const cComments = inst.classTeacherCommentsConfig || inst.class_teacher_comments_config;
-                    if (cComments) {
-                        const parsed = typeof cComments === 'string' ? JSON.parse(cComments) : cComments;
-                        inst.classTeacherCommentsConfig = parsed;
-                        inst.class_teacher_comments_config = parsed;
-                    }
-                    const cRankings = inst.classRankingConfigs || inst.class_ranking_configs;
-                    if (cRankings) {
-                        const parsed = typeof cRankings === 'string' ? JSON.parse(cRankings) : cRankings;
-                        inst.classRankingConfigs = parsed;
-                        inst.class_ranking_configs = parsed;
-                    }
-                    const oSettings = inst.othersExamSettings || inst.others_exam_settings;
-                    if (oSettings) {
-                        const parsed = typeof oSettings === 'string' ? JSON.parse(oSettings) : oSettings;
-                        inst.othersExamSettings = parsed;
-                        inst.others_exam_settings = parsed;
-                    }
-                });
-            }
-            if (module === 'courses' && Array.isArray(finalResult)) {
-                finalResult.forEach((course: any) => {
-                    if (Array.isArray(course.levels)) {
-                        course.levels = course.levels.map((l: any) => {
-                            const rawIds = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
-                            const sIds = Array.from(new Set(rawIds));
-                            const sMeta = l.subjectMetadata || (l as any).subject_metadata || [];
-                            const normalizedMeta = Array.isArray(sMeta) ? sMeta.map((m: any) => ({
-                                ...m,
-                                subjectId: m.subjectId || m.subject_id,
-                                subject_id: m.subjectId || m.subject_id,
-                                lessonStructure: m.lessonStructure || m.lesson_structure,
-                                lesson_structure: m.lessonStructure || m.lesson_structure
-                            })) : [];
-                            return {
-                                ...l,
-                                subjectIds: sIds,
-                                subject_ids: sIds,
-                                subjectMetadata: normalizedMeta
+                let records = ls.get(effectiveModule);
+                if (!Array.isArray(records)) records = [];
+                records = records.filter((r: any) => r && typeof r === 'object');
+
+                if (institutionId && institutionId !== 'ALL') {
+                    const filterKey = getFilterCol(effectiveModule, 'institution');
+                    records = records.filter((r: any) => r[filterKey] === institutionId);
+                }
+                if (countyId) {
+                    const filterKey = getFilterCol(effectiveModule, 'county');
+                    records = records.filter((r: any) => r[filterKey] === countyId);
+                }
+                
+                // Local simple filter
+                if (options?.filter) {
+                    records = records.filter((r: any) => 
+                        Object.entries(options.filter as any).every(([k, v]) => {
+                            const snakeK = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+                            return r[k] === v || r[snakeK] === v;
+                        })
+                    );
+                }
+
+                const result = toCamelCase(records);
+                const finalResult = Array.isArray(result) ? result : [];
+                if (module === 'institutions' && Array.isArray(finalResult)) {
+                    finalResult.forEach((inst: any) => {
+                        const settings = inst.coopSettings || inst.coop_settings;
+                        if (settings) {
+                            inst.coopConfig = {
+                                serviceName: settings.serviceName || '',
+                                connectionID: settings.connectionID || '',
+                                connectionPassword: settings.connectionPassword || '',
+                                institutionCode: settings.institutionCode || '',
                             };
-                        });
-                    }
-                });
-            }
-            return finalResult;
-        };
-
-        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module) || !_supabase) {
-            return queryLocal();
-        }
-
-        if (module === 'institution_module_states') {
-            let remoteRecords: any[] = [];
-            if (_supabase) {
-                try {
-                    let query = _supabase.from('institution_module_states').select('*');
-                    if (institutionId && institutionId !== 'ALL') {
-                        query = query.eq('institution_id', institutionId);
-                    }
-                    const { data: imsData, error: imsErr } = await query;
-                    if (!imsErr && imsData && imsData.length > 0) {
-                        remoteRecords = toCamelCase(imsData);
-                    }
-                } catch (e) {
-                    console.warn('[apiService] Supabase fetch for institution_module_states failed:', e);
-                }
-            }
-
-            // Always merge localDb records as fallback so trial activation never fails
-            const localRecords = (ls.get('institution_module_states') || []) as any[];
-            const localFiltered = localRecords.filter((m: any) => 
-                !institutionId || institutionId === 'ALL' || m.institutionId === institutionId || m.institution_id === institutionId
-            ).map((item: any) => toCamelCase(item));
-
-            const map = new Map<string, any>();
-            remoteRecords.forEach((r: any) => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
-            localFiltered.forEach((r: any) => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
-            return Array.from(map.values());
-        }
-
-        try {
-            // Determine Auth Token (Try JWT then ID fallback)
-            let token = await apiService.getAuthToken();
-
-            const url = new URL(`${window.location.origin}/api/records`);
-            url.searchParams.append('module', module);
-            if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
-            if (countyId) url.searchParams.append('countyId', countyId);
-            
-            // Append advanced options
-            if (options?.select) url.searchParams.append('select', options.select);
-            if (options?.order) url.searchParams.append('order', options.order);
-            if (options?.limit) url.searchParams.append('limit', options.limit.toString());
-            if (options?.offset) url.searchParams.append('offset', options.offset.toString());
-            if (options?.filter) {
-                // For now, only simple equality filters are sent to proxy as query params
-                // We could enhance the proxy to handle more complex filters
-                Object.entries(options.filter).forEach(([k, v]) => {
-                    // Convert camelCase filter keys to snake_case for Supabase/PostgreSQL compatibility
-                    const dbKey = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-                    url.searchParams.append(dbKey, v as string);
-                });
-            }
-
-            const doFetch = (tkn: string) => fetch(url.toString(), {
-                headers: {
-                    'Authorization': tkn ? `Bearer ${tkn}` : '',
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            let response = await doFetch(token);
-
-            // --- 401 handler: try silent token refresh then retry once ---
-            if (response.status === 401) {
-                console.warn(`[apiService] 401 on fetch [${module}] — attempting token refresh...`);
-                if (_supabase?.auth) {
-                    try {
-                        const { data: rd } = await _supabase.auth.refreshSession();
-                        if (rd?.session?.access_token) {
-                            token = rd.session.access_token;
-                            console.log('[apiService] Token refreshed, retrying fetch...');
-                            response = await doFetch(token);
+                            inst.coopSettings = settings;
                         }
-                    } catch (refreshErr) {
-                        console.warn('[apiService] Refresh failed during fetch:', refreshErr);
+                        const tNodes = inst.treeGradingNodes || inst.tree_grading_nodes;
+                        if (tNodes) {
+                            const parsed = typeof tNodes === 'string' ? JSON.parse(tNodes) : tNodes;
+                            inst.treeGradingNodes = parsed;
+                            inst.tree_grading_nodes = parsed;
+                        }
+                        const cConfigs = inst.classExamConfigs || inst.class_exam_configs;
+                        if (cConfigs) {
+                            const parsed = typeof cConfigs === 'string' ? JSON.parse(cConfigs) : cConfigs;
+                            inst.classExamConfigs = parsed;
+                            inst.class_exam_configs = parsed;
+                        }
+                        const cComments = inst.classTeacherCommentsConfig || inst.class_teacher_comments_config;
+                        if (cComments) {
+                            const parsed = typeof cComments === 'string' ? JSON.parse(cComments) : cComments;
+                            inst.classTeacherCommentsConfig = parsed;
+                            inst.class_teacher_comments_config = parsed;
+                        }
+                        const cRankings = inst.classRankingConfigs || inst.class_ranking_configs;
+                        if (cRankings) {
+                            const parsed = typeof cRankings === 'string' ? JSON.parse(cRankings) : cRankings;
+                            inst.classRankingConfigs = parsed;
+                            inst.class_ranking_configs = parsed;
+                        }
+                        const oSettings = inst.othersExamSettings || inst.others_exam_settings;
+                        if (oSettings) {
+                            const parsed = typeof oSettings === 'string' ? JSON.parse(oSettings) : oSettings;
+                            inst.othersExamSettings = parsed;
+                            inst.others_exam_settings = parsed;
+                        }
+                    });
+                }
+                if (module === 'courses' && Array.isArray(finalResult)) {
+                    finalResult.forEach((course: any) => {
+                        if (Array.isArray(course.levels)) {
+                            course.levels = course.levels.map((l: any) => {
+                                const rawIds = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
+                                const sIds = Array.from(new Set(rawIds));
+                                const sMeta = l.subjectMetadata || (l as any).subject_metadata || [];
+                                const normalizedMeta = Array.isArray(sMeta) ? sMeta.map((m: any) => ({
+                                    ...m,
+                                    subjectId: m.subjectId || m.subject_id,
+                                    subject_id: m.subjectId || m.subject_id,
+                                    lessonStructure: m.lessonStructure || m.lesson_structure,
+                                    lesson_structure: m.lessonStructure || m.lesson_structure
+                                })) : [];
+                                return {
+                                    ...l,
+                                    subjectIds: sIds,
+                                    subject_ids: sIds,
+                                    subjectMetadata: normalizedMeta
+                                };
+                            });
+                        }
+                    });
+                }
+                return finalResult;
+            };
+
+            if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module) || !_supabase) {
+                return queryLocal();
+            }
+
+            if (module === 'institution_module_states') {
+                let remoteRecords: any[] = [];
+                if (_supabase) {
+                    try {
+                        let query = _supabase.from('institution_module_states').select('*');
+                        if (institutionId && institutionId !== 'ALL') {
+                            query = query.eq('institution_id', institutionId);
+                        }
+                        const { data: imsData, error: imsErr } = await query;
+                        if (!imsErr && imsData && imsData.length > 0) {
+                            remoteRecords = toCamelCase(imsData);
+                        }
+                    } catch (e) {
+                        console.warn('[apiService] Supabase fetch for institution_module_states failed:', e);
                     }
                 }
+
+                // Always merge localDb records as fallback so trial activation never fails
+                const localRecords = (ls.get('institution_module_states') || []) as any[];
+                const localFiltered = localRecords.filter((m: any) => 
+                    !institutionId || institutionId === 'ALL' || m.institutionId === institutionId || m.institution_id === institutionId
+                ).map((item: any) => toCamelCase(item));
+
+                const map = new Map<string, any>();
+                remoteRecords.forEach((r: any) => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
+                localFiltered.forEach((r: any) => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
+                return Array.from(map.values());
+            }
+
+            try {
+                // Determine Auth Token (Try JWT then ID fallback)
+                let token = await apiService.getAuthToken();
+
+                const url = new URL(`${window.location.origin}/api/records`);
+                url.searchParams.append('module', module);
+                if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
+                if (countyId) url.searchParams.append('countyId', countyId);
+                
+                // Append advanced options
+                if (options?.select) url.searchParams.append('select', options.select);
+                if (options?.order) url.searchParams.append('order', options.order);
+                if (options?.limit) url.searchParams.append('limit', options.limit.toString());
+                if (options?.offset) url.searchParams.append('offset', options.offset.toString());
+                if (options?.filter) {
+                    Object.entries(options.filter).forEach(([k, v]) => {
+                        const dbKey = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+                        url.searchParams.append(dbKey, v as string);
+                    });
+                }
+
+                const doFetch = (tkn: string) => fetch(url.toString(), {
+                    headers: {
+                        'Authorization': tkn ? `Bearer ${tkn}` : '',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                let response = await doFetch(token);
+
+                // --- 401 handler: try silent token refresh then retry once ---
                 if (response.status === 401) {
-                    apiService._notifySessionExpired();
-                    console.warn(`[apiService] Session expired — falling back to local storage for [${module}]`);
+                    console.warn(`[apiService] 401 on fetch [${module}] — attempting token refresh...`);
+                    if (_supabase?.auth) {
+                        try {
+                            const { data: rd } = await _supabase.auth.refreshSession();
+                            if (rd?.session?.access_token) {
+                                token = rd.session.access_token;
+                                console.log('[apiService] Token refreshed, retrying fetch...');
+                                response = await doFetch(token);
+                            }
+                        } catch (refreshErr) {
+                            console.warn('[apiService] Refresh failed during fetch:', refreshErr);
+                        }
+                    }
+                    if (response.status === 401) {
+                        apiService._notifySessionExpired();
+                        console.warn(`[apiService] Session expired — falling back to local storage for [${module}]`);
+                        return queryLocal();
+                    }
+                }
+                // --- end 401 handler ---
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    console.error(`[apiService] Fetch API Error [${module}]:`, response.status, errData);
+                    
+                    if (response.status === 500 && errData.error) {
+                        console.warn(`[apiService] Critical Database Failure in [${module}]:`, errData.error);
+                    }
+                    
+                    console.warn(`[apiService] Falling back to local storage for module [${module}]`);
                     return queryLocal();
                 }
-            }
-            // --- end 401 handler ---
 
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                console.error(`[apiService] Fetch API Error [${module}]:`, response.status, errData);
-                
-                // If it's a 500 error from our proxy, it usually contains a 'Database Error' string with column details
-                if (response.status === 500 && errData.error) {
-                    console.warn(`[apiService] Critical Database Failure in [${module}]:`, errData.error);
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error(`[apiService] Non-JSON response for [${module}]:`, text.substring(0, 200));
+                    console.warn(`[apiService] Falling back to local storage for module [${module}]`);
+                    return queryLocal();
                 }
-                
+
+                const data = await response.json();
+                if (data && typeof data === 'object' && !Array.isArray(data) && (data.success === false || data.error)) {
+                    console.warn(`[apiService] Server returned error object for [${module}]:`, data.error || data.message);
+                    return queryLocal();
+                }
+                const result = toCamelCase(data);
+                if (module === 'institutions' && Array.isArray(result)) {
+                    result.forEach((inst: any) => {
+                        const settings = inst.coopSettings || inst.coop_settings;
+                        if (settings) {
+                            inst.coopConfig = {
+                                serviceName: settings.serviceName || '',
+                                connectionID: settings.connectionID || '',
+                                connectionPassword: settings.connectionPassword || '',
+                                institutionCode: settings.institutionCode || '',
+                            };
+                            inst.coopSettings = settings;
+                        }
+                        const tNodes = inst.treeGradingNodes || inst.tree_grading_nodes;
+                        if (tNodes) {
+                            const parsed = typeof tNodes === 'string' ? JSON.parse(tNodes) : tNodes;
+                            inst.treeGradingNodes = parsed;
+                            inst.tree_grading_nodes = parsed;
+                        }
+                        const cConfigs = inst.classExamConfigs || inst.class_exam_configs;
+                        if (cConfigs) {
+                            const parsed = typeof cConfigs === 'string' ? JSON.parse(cConfigs) : cConfigs;
+                            inst.classExamConfigs = parsed;
+                            inst.class_exam_configs = parsed;
+                        }
+                        const cComments = inst.classTeacherCommentsConfig || inst.class_teacher_comments_config;
+                        if (cComments) {
+                            const parsed = typeof cComments === 'string' ? JSON.parse(cComments) : cComments;
+                            inst.classTeacherCommentsConfig = parsed;
+                            inst.class_teacher_comments_config = parsed;
+                        }
+                        const cRankings = inst.classRankingConfigs || inst.class_ranking_configs;
+                        if (cRankings) {
+                            const parsed = typeof cRankings === 'string' ? JSON.parse(cRankings) : cRankings;
+                            inst.classRankingConfigs = parsed;
+                            inst.class_ranking_configs = parsed;
+                        }
+                        const oSettings = inst.othersExamSettings || inst.others_exam_settings;
+                        if (oSettings) {
+                            const parsed = typeof oSettings === 'string' ? JSON.parse(oSettings) : oSettings;
+                            inst.othersExamSettings = parsed;
+                            inst.others_exam_settings = parsed;
+                        }
+                    });
+                }
+
+                if (Array.isArray(result)) {
+                    const localData = queryLocal();
+                    if (result.length === 0 && localData.length > 0) {
+                        return localData;
+                    }
+                    if (result.length > 0 && localData.length > 0) {
+                        const combined = new Map<string, any>();
+                        localData.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
+                        result.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
+                        return Array.from(combined.values());
+                    }
+                    return result;
+                }
+                return queryLocal();
+            } catch (e) {
+                console.error(`Fetch Exception [${module}]:`, e);
                 console.warn(`[apiService] Falling back to local storage for module [${module}]`);
                 return queryLocal();
             }
+        };
 
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                const text = await response.text();
-                console.error(`[apiService] Non-JSON response for [${module}]:`, text.substring(0, 200));
-                console.warn(`[apiService] Falling back to local storage for module [${module}]`);
-                return queryLocal();
-            }
+        const promise = executeFetch().then(res => {
+            const ttl = STATIC_CONFIG_MODULES.has(module) ? 15000 : 3000;
+            _moduleMemoryCache.set(cacheKey, { data: res, timestamp: Date.now(), ttl });
+            return res;
+        }).finally(() => {
+            _inFlightRequests.delete(cacheKey);
+        });
 
-            const data = await response.json();
-            if (data && typeof data === 'object' && !Array.isArray(data) && (data.success === false || data.error)) {
-                console.warn(`[apiService] Server returned error object for [${module}]:`, data.error || data.message);
-                return queryLocal();
-            }
-            const result = toCamelCase(data);
-            if (module === 'institutions' && Array.isArray(result)) {
-                result.forEach((inst: any) => {
-                    const settings = inst.coopSettings || inst.coop_settings;
-                    if (settings) {
-                        inst.coopConfig = {
-                            serviceName: settings.serviceName || '',
-                            connectionID: settings.connectionID || '',
-                            connectionPassword: settings.connectionPassword || '',
-                            institutionCode: settings.institutionCode || '',
-                        };
-                        inst.coopSettings = settings;
-                    }
-                    const tNodes = inst.treeGradingNodes || inst.tree_grading_nodes;
-                    if (tNodes) {
-                        const parsed = typeof tNodes === 'string' ? JSON.parse(tNodes) : tNodes;
-                        inst.treeGradingNodes = parsed;
-                        inst.tree_grading_nodes = parsed;
-                    }
-                    const cConfigs = inst.classExamConfigs || inst.class_exam_configs;
-                    if (cConfigs) {
-                        const parsed = typeof cConfigs === 'string' ? JSON.parse(cConfigs) : cConfigs;
-                        inst.classExamConfigs = parsed;
-                        inst.class_exam_configs = parsed;
-                    }
-                    const cComments = inst.classTeacherCommentsConfig || inst.class_teacher_comments_config;
-                    if (cComments) {
-                        const parsed = typeof cComments === 'string' ? JSON.parse(cComments) : cComments;
-                        inst.classTeacherCommentsConfig = parsed;
-                        inst.class_teacher_comments_config = parsed;
-                    }
-                    const cRankings = inst.classRankingConfigs || inst.class_ranking_configs;
-                    if (cRankings) {
-                        const parsed = typeof cRankings === 'string' ? JSON.parse(cRankings) : cRankings;
-                        inst.classRankingConfigs = parsed;
-                        inst.class_ranking_configs = parsed;
-                    }
-                    const oSettings = inst.othersExamSettings || inst.others_exam_settings;
-                    if (oSettings) {
-                        const parsed = typeof oSettings === 'string' ? JSON.parse(oSettings) : oSettings;
-                        inst.othersExamSettings = parsed;
-                        inst.others_exam_settings = parsed;
-                    }
-                });
-            }
-
-            if (Array.isArray(result)) {
-                const localData = queryLocal();
-                if (result.length === 0 && localData.length > 0) {
-                    return localData;
-                }
-                if (result.length > 0 && localData.length > 0) {
-                    const combined = new Map<string, any>();
-                    localData.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
-                    result.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
-                    return Array.from(combined.values());
-                }
-                return result;
-            }
-            return queryLocal();
-        } catch (e) {
-            console.error(`Fetch Exception [${module}]:`, e);
-            console.warn(`[apiService] Falling back to local storage for module [${module}]`);
-            return queryLocal();
-        }
+        _inFlightRequests.set(cacheKey, promise);
+        return promise;
     },
     async fetchModuleRecord<T = any>(module: string, id: string): Promise<T | null> {
         const list = await apiService.fetchModuleRecords<T>(module, undefined, undefined, {
@@ -1419,6 +1473,7 @@ export const apiService = {
         return processItem(payload);
     },
     async updateModuleRecord<T = any>(module: string, id: string, data: Partial<T>): Promise<T | null> {
+        invalidateModuleCache(module);
         let payload = apiService.sanitizePayload(module, toSnakeCase(data), true);
         if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
             if (payload.id === id) {
@@ -1507,6 +1562,7 @@ export const apiService = {
     },
 
     async deleteModuleRecord(module: string, id: string): Promise<void> {
+        invalidateModuleCache(module);
         const idsArray = id.split(',').map(s => s.trim()).filter(Boolean);
         if (idsArray.length === 0) return;
         const idsSet = new Set(idsArray);
@@ -1628,6 +1684,7 @@ export const apiService = {
         }
     },
     async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {
+        invalidateModuleCache(module);
         if (module === 'invoices' && data && (data as any).studentId && ((data as any).status === 'pending' || !(data as any).status)) {
             const invData = data as any;
             try {
@@ -1866,6 +1923,7 @@ export const apiService = {
         await apiService.deleteModuleRecord('fee_promises', id);
     },
     async saveModuleRecords<T = any>(module: string, data: T[]): Promise<T[] | null> {
+        invalidateModuleCache(module);
         const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
         if (tablesWithBranchId.includes(module) && module !== 'branches') {
             const bId = _sessionUser?.branchId || _sessionUser?.branch_id;

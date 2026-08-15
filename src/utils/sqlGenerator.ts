@@ -3063,7 +3063,81 @@ CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expens
     sql += `    BEFORE UPDATE OF subscription_ends_at ON institutions\n`;
     sql += `    FOR EACH ROW\n`;
     sql += `    EXECUTE FUNCTION allocate_tenant_sms_bonus();\n`;
-    sql += ``;
+    sql += `\n`;
+
+    sql += `-- ==========================================================================\n`;
+    sql += `-- HIGH-PERFORMANCE DATABASE INDEXES (SUPABASE RESOURCE OPTIMIZATION)\n`;
+    sql += `-- Replaces slow CPU-intensive full table scans with <1ms indexed B-Tree lookups\n`;
+    sql += `-- ==========================================================================\n\n`;
+
+    const indexStatements = [
+        // Users & Auth
+        `CREATE INDEX IF NOT EXISTS idx_users_institution_id ON users(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`,
+        `CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);`,
+        // Academic Core
+        `CREATE INDEX IF NOT EXISTS idx_students_institution_id ON student_enrollments(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_attendances_institution_id ON student_attendances(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_attendances_date ON student_attendances(date);`,
+        // Finance & Billing
+        `CREATE INDEX IF NOT EXISTS idx_invoices_institution_id ON invoices(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_invoices_student_id ON invoices(student_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_invoices_created_at ON invoices(created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_receipts_institution_id ON receipts(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_receipts_student_id ON receipts(student_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_receipts_created_at ON receipts(created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_transactions_institution_id ON transactions(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_mpesa_txns_institution_id ON mpesa_transactions(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_bank_txns_institution_id ON bank_transactions(institution_id);`,
+        // Procurement
+        `CREATE INDEX IF NOT EXISTS idx_proc_supp_institution_id ON procurement_suppliers(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_proc_items_institution_id ON procurement_items(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_proc_lpos_institution_id ON procurement_lpos(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_proc_inv_institution_id ON procurement_invoices(institution_id);`,
+        // HIS / Hospital
+        `CREATE INDEX IF NOT EXISTS idx_his_patients_institution_id ON his_patients(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_inpatient_institution_id ON his_inpatient_records(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_inpatient_patient_id ON his_inpatient_records(patient_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_prescriptions_inst ON his_prescriptions(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_prescriptions_patient ON his_prescriptions(patient_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_presc_items_presc ON his_prescription_items(prescription_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_billing_items_inst ON his_billing_items(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_billing_items_patient ON his_billing_items(patient_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_pharm_inv_inst ON his_pharmacy_inventory(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_pharm_batches_med ON his_pharmacy_batches(medication_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_queue_calls_inst ON his_queue_calls(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_vital_stats_patient ON his_vital_statistics(patient_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_clinical_events_patient ON his_clinical_events(patient_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_nurse_tasks_patient ON his_nurse_tasks(patient_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_lab_requests_patient ON his_lab_requests(patient_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_medical_notes_patient ON his_medical_notes(patient_id);`,
+        // Driving School
+        `CREATE INDEX IF NOT EXISTS idx_ds_students_inst ON ds_students(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_lessons_inst ON ds_lessons(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_invoices_inst ON ds_invoices(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst ON ds_payments(institution_id);`,
+        // Property Management
+        `CREATE INDEX IF NOT EXISTS idx_pm_tenants_inst ON pm_tenants(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_pm_leases_inst ON pm_leases(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_pm_invoices_inst ON pm_invoices(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_pm_payments_inst ON pm_payments(institution_id);`,
+        // Cooperative
+        `CREATE INDEX IF NOT EXISTS idx_coop_farmers_inst ON coop_farmers(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_coop_collections_inst ON coop_collections(institution_id);`,
+        // Retail & Restaurant
+        `CREATE INDEX IF NOT EXISTS idx_retail_inv_inst ON retail_inventory(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_retail_sales_inst ON retail_sales(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_cafe_orders_inst ON cafe_orders(institution_id);`,
+        // Logistics & Security
+        `CREATE INDEX IF NOT EXISTS idx_vehicles_inst ON vehicles(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_visitors_inst ON visitors(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_event_pins_inst ON event_pins(institution_id);`
+    ];
+
+    indexStatements.forEach(stmt => {
+        sql += `${stmt}\n`;
+    });
+    sql += `\n`;
 
     sql += `\n\n-- ==========================================================================\n`;
     sql += `-- SEED INITIAL SYSTEM DATA\n`;
