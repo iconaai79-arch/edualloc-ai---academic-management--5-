@@ -1816,37 +1816,45 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                     )}
                     {subTab === 'promissory_commitments' && (
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
-                            <FeePromissoryTracker
-                                currentUser={currentUser}
-                                currentInstitution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
-                                onLogAction={props.onLogAction}
-                            />
+                            <FeePromissoryTracker />
                         </div>
                     )}
                     {subTab === 'annual_report_wizard' && (
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
                             <AnnualReportWizard
-                                currentUser={currentUser}
-                                currentInstitution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
-                                onLogAction={props.onLogAction}
+                                invoices={[]}
+                                receipts={[]}
+                                expenses={[]}
+                                institution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
+                                companyDetails={companyDetails}
                             />
                         </div>
                     )}
                     {subTab === 'revenue_warroom' && (
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
                             <RevenueWarRoom
-                                currentUser={currentUser}
-                                currentInstitution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
-                                onLogAction={props.onLogAction}
+                                invoices={[]}
+                                receipts={[]}
+                                expenses={[]}
+                                goals={[]}
+                                students={[]}
+                                institution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
+                                transactions={[]}
+                                receiptLimit={50}
+                                setReceiptLimit={() => {}}
+                                transactionLimit={50}
+                                setTransactionLimit={() => {}}
                             />
                         </div>
                     )}
                     {subTab === 'exam_permits' && (
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
                             <DigitalExamPermitManager
-                                currentUser={currentUser}
-                                currentInstitution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
-                                onLogAction={props.onLogAction}
+                                institution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
+                                students={[]}
+                                invoices={[]}
+                                receipts={[]}
+                                userName={currentUser.name}
                             />
                         </div>
                     )}
