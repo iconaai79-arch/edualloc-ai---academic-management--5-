@@ -218,10 +218,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 let cleanConnString = connectionString.trim();
-                if (cleanConnString.includes('sslmode=')) {
-                    cleanConnString = cleanConnString.replace(/[?&]sslmode=[^&]+/g, '');
-                    if (cleanConnString.includes('?&')) cleanConnString = cleanConnString.replace('?&', '?');
-                    if (cleanConnString.endsWith('?')) cleanConnString = cleanConnString.slice(0, -1);
+                try {
+                    const parsedUrl = new URL(cleanConnString);
+                    parsedUrl.searchParams.delete('sslmode');
+                    cleanConnString = parsedUrl.toString();
+                } catch {
+                    cleanConnString = cleanConnString
+                        .replace(/([?&])sslmode=[^&]*(&|$)/g, (_match, prefix, suffix) => suffix === '&' ? prefix : '')
+                        .replace(/\?$/, '');
                 }
 
                 // Prevent TLS self-signed cert chain rejection for Supabase connection poolers
