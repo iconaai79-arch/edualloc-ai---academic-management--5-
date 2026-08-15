@@ -368,6 +368,11 @@ export function DoctorDashboard({
         return new Set();
     });
 
+    const [completedSoapPatientIds, setCompletedSoapPatientIds] = useState<Set<string>>(new Set());
+    const [isSoapModalOpen, setIsSoapModalOpen] = useState(false);
+    const [selectedSoapPatient, setSelectedSoapPatient] = useState<HISPatient | null>(null);
+    const [isSoapReminderModalOpen, setIsSoapReminderModalOpen] = useState(false);
+
     const [activeConsultationId, setActiveConsultationId] = useState<string | null>(() => {
         try {
             return localStorage.getItem(`his_active_consultation_${institutionId}`);
@@ -483,17 +488,52 @@ export function DoctorDashboard({
         }
     };
 
+    const handleOpenSoapModal = (targetPatient?: HISPatient) => {
+        const activePat = targetPatient || selectedSoapPatient || patients.find(p => p.id === (activeConsultationId || patients[0]?.id));
+        if (activePat) {
+            setSelectedSoapPatient(activePat);
+            setIsSoapReminderModalOpen(false);
+            setIsSoapModalOpen(true);
+        } else {
+            alert('Please select a patient to start consultation encounter.');
+        }
+    };
+
+    const handleEncounterSaved = () => {
+        if (selectedSoapPatient) {
+            setCompletedSoapPatientIds(prev => new Set(prev).add(selectedSoapPatient.id));
+        }
+        setIsSoapModalOpen(false);
+        if (confirm(`✓ SOAP Clinical Note saved successfully!\n\nWould you like to complete checkout and call the next patient now?`)) {
+            handleCallNextVoice(true);
+        }
+    };
+
     useEffect(() => {
         fetchLabFeed();
         const interval = setInterval(fetchLabFeed, 15000);
         return () => clearInterval(interval);
     }, [institutionId]);
 
-    const handleCallNextVoice = async () => {
+    const handleCallNextVoice = async (bypassSoapReminder: boolean = false) => {
         try {
             const currentActiveId = activeConsultationId || patients.find(p => !completedPatientIds.has(p.id))?.id || patients[0]?.id;
             const currentActivePatient = patients.find(p => p.id === currentActiveId) || patients[0];
             const currentPatientName = currentActivePatient?.fullName || (currentActivePatient as any)?.name || 'Mercy Biwott';
+
+            // ── SOAP Clinical Note Reminder Check ──
+            if (currentActivePatient && !completedSoapPatientIds.has(currentActiveId) && !bypassSoapReminder) {
+                const events = await apiService.fetchModuleRecords('his_clinical_events', institutionId, undefined, { filter: { patientId: currentActiveId } }).catch(() => []);
+                const hasSoapRecord = (events || []).some((e: any) => e.event?.includes('Clinical Encounter') || e.notes?.includes('[SUBJECTIVE]'));
+
+                if (!hasSoapRecord) {
+                    setSelectedSoapPatient(currentActivePatient);
+                    setIsSoapReminderModalOpen(true);
+                    return; // Pause checkout to prompt doctor
+                }
+            }
+
+            setIsSoapReminderModalOpen(false);
 
             // Mark current active patient as checked out / completed
             const updatedCompleted = new Set(completedPatientIds);
@@ -811,15 +851,7 @@ export function DoctorDashboard({
 
                     <div className="flex gap-2 mt-4 flex-wrap lg:justify-end">
                         <button 
-                            onClick={() => {
-                                const activePat = queueItems.find(q => q.status === 'in-consultation')?.patient || patients[0];
-                                if (activePat) {
-                                    setSoapPatient(activePat);
-                                    setIsSoapModalOpen(true);
-                                } else {
-                                    alert('Please select a patient to start consultation encounter.');
-                                }
-                            }} 
+                            onClick={() => handleOpenSoapModal()} 
                             className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/30 italic"
                         >
                             <StethoscopeIcon className="w-3.5 h-3.5 text-slate-950" />
@@ -1362,6 +1394,70 @@ export function DoctorDashboard({
                     userName={userName}
                 />
             )}
+
+            {/* ── SOAP Clinical Notes Reminder Modal ── */}
+            {isSoapReminderModalOpen && selectedSoapPatient && (
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[9999] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-[3rem] shadow-2xl p-8 text-white space-y-6 animate-zoom-in relative">
+                        <div className="flex items-center space-x-4">
+                            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0">
+                                <StethoscopeIcon className="w-8 h-8" />
+                            </div>
+                            <div>
+                                <span className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[9px] font-black uppercase rounded-full tracking-widest">
+                                    📋 EMR Clinical Reminder
+                                </span>
+                                <h3 className="text-xl font-black uppercase tracking-tight mt-1 text-white">
+                                    Fill SOAP Notes First?
+                                </h3>
+                            </div>
+                        </div>
+
+                        <div className="p-5 bg-white/5 rounded-2xl border border-white/10 space-y-2">
+                            <p className="text-sm font-black text-slate-200">
+                                Patient: <span className="text-amber-400">{selectedSoapPatient.fullName}</span> ({selectedSoapPatient.gender || 'Female'} • {selectedSoapPatient.dob ? `${new Date().getFullYear() - new Date(selectedSoapPatient.dob).getFullYear()} yrs` : 'Adult'})
+                            </p>
+                            <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                                You are checking out <strong>{selectedSoapPatient.fullName}</strong>. The SOAP Consultation note for this patient has not been recorded yet.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3 pt-2">
+                            <button
+                                onClick={() => handleOpenSoapModal(selectedSoapPatient)}
+                                className="w-full py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-950/50 transition-all flex items-center justify-center gap-2"
+                            >
+                                <StethoscopeIcon className="w-4 h-4" />
+                                <span>📝 Fill SOAP Consultation Note First</span>
+                            </button>
+
+                            <button
+                                onClick={() => handleCallNextVoice(true)}
+                                className="w-full py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                            >
+                                <span>⚡ Bypass &amp; Checkout Patient Anyway</span>
+                            </button>
+
+                            <button
+                                onClick={() => setIsSoapReminderModalOpen(false)}
+                                className="w-full py-2.5 text-slate-400 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── EMR SOAP Consultation Encounter Modal ── */}
+            <SOAPEncounterModal
+                isOpen={isSoapModalOpen}
+                onClose={() => setIsSoapModalOpen(false)}
+                patient={selectedSoapPatient}
+                institutionId={institutionId}
+                doctorName={userName}
+                onEncounterSaved={handleEncounterSaved}
+            />
         </div>
     );
 }

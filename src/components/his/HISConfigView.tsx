@@ -720,24 +720,6 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         }
     };
 
-    const handleSaveConsultationRates = async () => {
-        if (!institutionId) return;
-        setIsSavingTariffs(true);
-        try {
-            await apiService.saveModuleRecord('his_consultation_rates', {
-                id: `rate_${institutionId}`,
-                institutionId,
-                ...consultationRates,
-                updatedAt: new Date().toISOString(),
-            });
-            alert('✓ Consultation Rates updated successfully!');
-        } catch (e) {
-            alert('Failed to save consultation rates.');
-        } finally {
-            setIsSavingTariffs(false);
-        }
-    };
-
     const handleAddTariffItem = async () => {
         if (!newTariff.name.trim()) return alert('Please enter service name.');
         if (!institutionId) return;
@@ -1391,7 +1373,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="number"
                                             value={consultationRates.cashConsultation}
-                                            onChange={e => setConsultationRates(r => ({ ...r, cashConsultation: Number(e.target.value) }))}
+                                            onChange={e => setConsultationRates((r: any) => ({ ...r, cashConsultation: Number(e.target.value) }))}
                                             className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl pl-14 pr-4 py-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-indigo-500"
                                         />
                                     </div>
@@ -1411,7 +1393,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="number"
                                             value={consultationRates.coverConsultation}
-                                            onChange={e => setConsultationRates(r => ({ ...r, coverConsultation: Number(e.target.value) }))}
+                                            onChange={e => setConsultationRates((r: any) => ({ ...r, coverConsultation: Number(e.target.value) }))}
                                             className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl pl-14 pr-4 py-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-indigo-500"
                                         />
                                     </div>
@@ -1431,7 +1413,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="number"
                                             value={consultationRates.emergencySurcharge}
-                                            onChange={e => setConsultationRates(r => ({ ...r, emergencySurcharge: Number(e.target.value) }))}
+                                            onChange={e => setConsultationRates((r: any) => ({ ...r, emergencySurcharge: Number(e.target.value) }))}
                                             className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl pl-14 pr-4 py-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-indigo-500"
                                         />
                                     </div>
@@ -1451,7 +1433,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="number"
                                             value={consultationRates.revisitFee}
-                                            onChange={e => setConsultationRates(r => ({ ...r, revisitFee: Number(e.target.value) }))}
+                                            onChange={e => setConsultationRates((r: any) => ({ ...r, revisitFee: Number(e.target.value) }))}
                                             className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl pl-14 pr-4 py-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-indigo-500"
                                         />
                                     </div>
