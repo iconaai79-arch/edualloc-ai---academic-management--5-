@@ -357,6 +357,7 @@ export function DoctorDashboard({
     const [roomNo, setRoomNo] = useState('Consultation Room 1');
     const [labFeed, setLabFeed] = useState<any[]>([]);
     const [selectedLabReport, setSelectedLabReport] = useState<any | null>(null);
+    const [hideCompletedInQueue, setHideCompletedInQueue] = useState(true);
 
     const [completedPatientIds, setCompletedPatientIds] = useState<Set<string>>(() => {
         try {
@@ -602,6 +603,8 @@ export function DoctorDashboard({
         };
     });
 
+    const visibleQueueItems = queueItems.filter(q => !hideCompletedInQueue || q.status !== 'completed');
+
     const stats = [
         { label: "Today's Patients", value: Math.min(patients.length, 12), sub: 'booked today',
           bgClass: 'bg-indigo-950/60', borderClass: 'border-indigo-500/20', textClass: 'text-indigo-200',
@@ -791,16 +794,43 @@ export function DoctorDashboard({
                     {/* Queue Tab */}
                     {activeTab === 'queue' && (
                         <div className="p-6 space-y-3">
-                            {queueItems.length === 0 ? (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-2 border-b border-slate-100 dark:border-white/5">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        Clinical Queue ({visibleQueueItems.length})
+                                    </span>
+                                    {completedPatientIds.size > 0 && hideCompletedInQueue && (
+                                        <span className="text-[9px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-0.5 rounded-full border border-emerald-200/40">
+                                            ✓ {completedPatientIds.size} Checked Out (Hidden)
+                                        </span>
+                                    )}
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer text-[9px] font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={hideCompletedInQueue}
+                                        onChange={e => setHideCompletedInQueue(e.target.checked)}
+                                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <span>Hide Checked-Out Patients</span>
+                                </label>
+                            </div>
+
+                            {visibleQueueItems.length === 0 ? (
                                 <div className="text-center py-20 opacity-40 space-y-3">
                                     <CalendarIcon className="w-16 h-16 mx-auto text-slate-400" />
-                                    <p className="text-sm font-black uppercase tracking-widest text-slate-400">No patients in queue</p>
+                                    <p className="text-sm font-black uppercase tracking-widest text-slate-400">No active patients in queue</p>
+                                    {completedPatientIds.size > 0 && hideCompletedInQueue && (
+                                        <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                                            All {completedPatientIds.size} patient consultations completed today!
+                                        </p>
+                                    )}
                                     <button onClick={onRegisterPatient} className="mt-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
-                                        Register First Patient
+                                        Register New Patient
                                     </button>
                                 </div>
                             ) : (
-                                queueItems.map((q) => {
+                                visibleQueueItems.map((q) => {
                                     const badge = getStatusBadge(q.status);
                                     return (
                                         <div key={q.patient.id} onClick={() => onOpenPatient(q.patient.id)}
