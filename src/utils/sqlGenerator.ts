@@ -1874,6 +1874,155 @@ CREATE TABLE IF NOT EXISTS his_billing_items (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS his_invoices (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE SET NULL,
+    invoice_number TEXT NOT NULL,
+    items JSONB DEFAULT '[]'::jsonb,
+    subtotal DECIMAL(12,2) DEFAULT 0,
+    tax DECIMAL(12,2) DEFAULT 0,
+    total_amount DECIMAL(12,2) DEFAULT 0,
+    amount_paid DECIMAL(12,2) DEFAULT 0,
+    balance DECIMAL(12,2) DEFAULT 0,
+    status TEXT DEFAULT 'Unpaid',
+    payment_method TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_claims (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE SET NULL,
+    provider_id TEXT,
+    claim_number TEXT,
+    amount DECIMAL(12,2) DEFAULT 0,
+    status TEXT DEFAULT 'Pending',
+    pre_auth_code TEXT,
+    notes TEXT,
+    submitted_date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_insurance_providers (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    code TEXT,
+    contact_person TEXT,
+    phone TEXT,
+    email TEXT,
+    coverage_details JSONB,
+    status TEXT DEFAULT 'Active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_insurance_remittances (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    provider_id TEXT,
+    claim_id TEXT,
+    remittance_number TEXT,
+    amount_claimed DECIMAL(12,2) DEFAULT 0,
+    amount_approved DECIMAL(12,2) DEFAULT 0,
+    amount_paid DECIMAL(12,2) DEFAULT 0,
+    disallowed_amount DECIMAL(12,2) DEFAULT 0,
+    disallowed_reason TEXT,
+    payment_reference TEXT,
+    payment_date DATE DEFAULT CURRENT_DATE,
+    status TEXT DEFAULT 'Completed',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_expenditures (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    category TEXT NOT NULL,
+    amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    description TEXT,
+    payment_method TEXT DEFAULT 'Cash',
+    reference_no TEXT,
+    recorded_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT DEFAULT 'Paid',
+    expense_date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_nurse_tasks (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
+    nurse_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    task_name TEXT NOT NULL,
+    task_type TEXT,
+    scheduled_time TIMESTAMP WITH TIME ZONE,
+    completed_time TIMESTAMP WITH TIME ZONE,
+    status TEXT DEFAULT 'Pending',
+    priority TEXT DEFAULT 'Routine',
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_lab_requests (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
+    doctor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    test_type TEXT NOT NULL,
+    clinical_indication TEXT,
+    priority TEXT DEFAULT 'Routine',
+    sample_type TEXT,
+    status TEXT DEFAULT 'Requested',
+    results JSONB,
+    technician_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_medical_notes (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
+    doctor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    subjective TEXT,
+    objective TEXT,
+    assessment TEXT,
+    plan TEXT,
+    diagnosis TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_vital_statistics (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
+    blood_pressure TEXT,
+    heart_rate INTEGER,
+    temperature DECIMAL(4,1),
+    respiratory_rate INTEGER,
+    oxygen_saturation DECIMAL(4,1),
+    weight DECIMAL(5,2),
+    height DECIMAL(5,2),
+    bmi DECIMAL(4,1),
+    recorded_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS his_clinical_events (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    severity TEXT DEFAULT 'Normal',
+    performed_by TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS his_staff_attendance (
     id TEXT PRIMARY KEY,
     staff_id TEXT REFERENCES his_staff(id) ON DELETE CASCADE,
