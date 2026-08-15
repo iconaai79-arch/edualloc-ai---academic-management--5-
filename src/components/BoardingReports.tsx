@@ -18,6 +18,7 @@ import { ChevronRightIcon } from './icons/ChevronRightIcon';
 import { apiService } from '../services/apiService';
 import { generateBoardingReportPdf } from '../services/pdfService';
 import { exportBoardingToExcel, exportBoardingSummaryToExcel } from '../utils/boardingExportUtils';
+import { BoardingHouseholdBalanceManager } from './Finance/BoardingHouseholdBalanceManager';
 
 interface BoardingReportsProps {
     currentUser: User;
@@ -25,7 +26,7 @@ interface BoardingReportsProps {
     onLogAction: (action: string) => Promise<void>;
 }
 
-type ReportType = 'occupancy' | 'allocations' | 'checkins' | 'checkouts' | 'maintenance' | 'summary';
+type ReportType = 'occupancy' | 'allocations' | 'checkins' | 'checkouts' | 'maintenance' | 'summary' | 'household_balances';
 
 const BoardingReports: React.FC<BoardingReportsProps> = ({
     currentUser,
@@ -364,6 +365,7 @@ const BoardingReports: React.FC<BoardingReportsProps> = ({
             <div className="flex overflow-x-auto pb-4 gap-4 no-scrollbar">
                 {[
                     { id: 'summary', label: 'Summary Pulse', icon: TrendingUpIcon },
+                    { id: 'household_balances', label: 'Household Balances', icon: HomeIcon },
                     { id: 'occupancy', label: 'Occupancy Grid', icon: ChartPieIcon },
                     { id: 'allocations', label: 'Allocation Logs', icon: UsersIcon },
                     { id: 'checkins', label: 'Arrival Stream', icon: FileTextIcon },
@@ -393,8 +395,17 @@ const BoardingReports: React.FC<BoardingReportsProps> = ({
                     </div>
                 ) : (
                     <>
+                        {selectedReport === 'household_balances' && (
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left animate-fade-in">
+                                <BoardingHouseholdBalanceManager
+                                    currentUser={currentUser}
+                                    currentInstitution={currentInstitution}
+                                    onLogAction={onLogAction}
+                                />
+                            </div>
+                        )}
                         {selectedReport === 'summary' && reportData?.summary && renderSummaryReport()}
-                        {selectedReport !== 'summary' && renderDataTable(selectedReport, reportData?.list || [])}
+                        {selectedReport !== 'summary' && selectedReport !== 'household_balances' && renderDataTable(selectedReport, reportData?.list || [])}
                     </>
                 )}
             </div>

@@ -196,7 +196,10 @@ const SIMULATOR_NAMES: Record<string, string> = {
     'tourism': 'Tourism & Hospitality Hub',
     'community': 'Community & Social Hub',
     'parent_portal': 'Parent Portal',
-    'eduvote': 'EduVote AI student elections'
+    'eduvote': 'EduVote AI student elections',
+    'private_security': 'Sentinel Private Security',
+    'security': 'Sentinel Private Security',
+    'private-security': 'Sentinel Private Security'
 };
 
 
@@ -3377,9 +3380,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                  modId === 'logistics' ? 'Logistics' : 
                                  modId === 'retail' ? 'Retail' :
                                  modId === 'autoservice' ? 'Car Wash' :
-                                  modId === 'showroom' ? 'Business' :
-                                   modId === 'tourism' ? 'Hospitality' :
-                                   modId === 'community' ? 'Community' :
+                                 modId === 'showroom' ? 'Business' :
+                                 modId === 'tourism' ? 'Hospitality' :
+                                 modId === 'community' ? 'Community' :
+                                 (modId === 'private_security' || modId === 'security' || modId === 'private-security') ? 'Private Security' :
                                  (modId === 'edu' || modId === 'parent_portal') ? 'Education' : 'Business') as any,
                 category: (modId === 'fuel' ? 'Fuel Station' : 
                            modId === 'retail' ? 'Retail' : 
@@ -3388,12 +3392,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                            modId === 'community' ? 'Community' : 
                            modId === 'his' ? 'Hospital/Clinic' :
                            modId === 'pharmacy' ? 'Hospital/Clinic' :
+                           (modId === 'private_security' || modId === 'security' || modId === 'private-security') ? 'Security' :
                            'General'),
                 businessSubType: (modId === 'fuel' ? 'Fuel Station' : 
                                   modId === 'retail' ? 'Retail' : 
                                   modId === 'autoservice' ? 'Car Wash' : 
-                                   modId === 'showroom' ? 'Automotive Marketplace' : 
-                                  modId === 'property' ? 'Property Management' : 'General'),
+                                  modId === 'showroom' ? 'Automotive Marketplace' : 
+                                  modId === 'property' ? 'Property Management' : 
+                                  (modId === 'private_security' || modId === 'security' || modId === 'private-security') ? 'Private Security' : 'General'),
                 status: 'active',
                 trialEndsAt: new Date(Date.now() + 86400000 * 30).toISOString(),
                 slug: `sim-${modId}-${Date.now()}`,
@@ -6931,6 +6937,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                     <ConstructionManager 
                                         currentInstitution={activeInstitution!}
                                         users={users.filter(u => u.institutionId === currentUser.institutionId)}
+                                    />
+                                ) : ((activeRole as string) === 'security' || (isAdminCatchAll && ((activeInstitution?.institutionType as string) === 'Private Security' || (activeInstitution?.institutionType as string) === 'Security' || (activeInstitution?.category as string) === 'Security' || activeInstitution?.businessSubType?.toLowerCase().includes('security')))) ? (
+                                    <PrivateSecurityCompanyView
+                                        currentUser={currentUser}
+                                        currentInstitution={activeInstitution!}
+                                        onLogAction={handleLogAction}
                                     />
                                 ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('fuel station')) ? (
                                     <FuelStationDashboard 

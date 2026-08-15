@@ -551,5 +551,23 @@ export const MODULES = [
         { title: "Transport & Billing", description: "Monitor live bus tracking, receive disruption alerts, and view transport fee invoices per child.", image: "/marketing/marketing_edu_1776367280172.png" }
       ]
     }
+  },
+  {
+    id: 'private_security',
+    title: "Sentinel Private Security",
+    description: "Enterprise operations suite for private security firms managing guard rosters, NFC/QR patrol scans, rapid response dispatches, digital occurrence books (OB), and armory inventory.",
+    advantages: ["NFC/QR Patrol Checkpoints", "Rapid Response Dispatch", "Digital Occurrence Book (OB)", "Armory & Equipment Ledger"],
+    role: 'security',
+    category: 'Security',
+    imageUrl: '/marketing/marketing_private_security.png',
+    tutorial: {
+      overview: "Complete operational suite for private security companies, guarding agencies, and rapid response units.",
+      steps: [
+        { title: "Guard Roster & Duty Shifts", description: "Manage duty rosters, real-time clock-in status, site assignments, and police vetting records.", image: "/marketing/marketing_private_security.png" },
+        { title: "Patrol NFC/QR Scans", description: "Track guard patrols live with GPS geofencing and instant alerts for delayed or missed scans.", image: "/marketing/marketing_private_security.png" },
+        { title: "Digital Occurrence Book (OB)", description: "Record security incidents digitally with police OB cross-referencing and severity matrix.", image: "/marketing/marketing_private_security.png" },
+        { title: "Rapid Response Dispatch", description: "Real-time dispatch matrix for mobile armed response units and client emergency alarms.", image: "/marketing/marketing_private_security.png" }
+      ]
+    }
   }
 ];

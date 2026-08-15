@@ -36,6 +36,12 @@ import { isEduInstitution } from '../utils/roleUtils';
 import { timeToMinutes, minutesToTime } from '../utils/timeUtils';
 import { ShieldIcon } from './icons/ShieldIcon';
 import { apiService } from '../services/apiService';
+import { BoardingHouseholdBalanceManager } from './Finance/BoardingHouseholdBalanceManager';
+import { FeePromissoryTracker } from './Finance/FeePromissoryTracker';
+import { AnnualReportWizard } from './Finance/AnnualReportWizard';
+import { RevenueWarRoom } from './Finance/RevenueWarRoom';
+import { DigitalExamPermitManager } from './Finance/DigitalExamPermitManager';
+import { HomeIcon } from './icons/HomeIcon';
 
 const UserManager = React.lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 
@@ -783,6 +789,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     };
 
     const subTabs = [
+        { key: 'household_balances', label: 'Boarding Household Balances', icon: <HomeIcon className="w-5 h-5 mr-3 text-emerald-500" /> },
+        { key: 'promissory_commitments', label: 'Fee Promissory Commitments', icon: <DocumentArrowDownIcon className="w-5 h-5 mr-3 text-amber-500" /> },
+        { key: 'annual_report_wizard', label: 'Annual Financial Report FY2025-26', icon: <BuildingOfficeIcon className="w-5 h-5 mr-3 text-indigo-500" /> },
+        { key: 'revenue_warroom', label: 'Revenue Realization & Arrears', icon: <TrendingUpIcon className="w-5 h-5 mr-3 text-rose-500" /> },
+        { key: 'exam_permits', label: 'Digital Exam Permits & Clearance', icon: <AcademicCapIcon className="w-5 h-5 mr-3 text-purple-500" /> },
         { key: 'heritage_summary', label: 'Family Lineage & Ancestry Report', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'turnout', label: 'Electoral Turnout & Ballots', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'candidates', label: 'Candidate Standing Reports', icon: <CheckCircleIcon className="w-5 h-5 mr-3" /> },
@@ -859,7 +870,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 return allowedKeys.includes(tab.key);
             }
             if (activeScope === 'boarding') {
-                return ['enrollment_capacity', 'attendance', 'audit'].includes(tab.key);
+                return ['household_balances', 'enrollment_capacity', 'attendance', 'audit'].includes(tab.key);
             }
             if (activeScope === 'logistics') {
                 return ['fleet_overview', 'route_analytics', 'commute_stats', 'distance', 'audit'].includes(tab.key);
@@ -1793,6 +1804,51 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 setPreviewPdfFilename(filename);
                             }}
                         />
+                    )}
+                    {subTab === 'household_balances' && (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
+                            <BoardingHouseholdBalanceManager
+                                currentUser={currentUser}
+                                currentInstitution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
+                                onLogAction={props.onLogAction}
+                            />
+                        </div>
+                    )}
+                    {subTab === 'promissory_commitments' && (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
+                            <FeePromissoryTracker
+                                currentUser={currentUser}
+                                currentInstitution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
+                                onLogAction={props.onLogAction}
+                            />
+                        </div>
+                    )}
+                    {subTab === 'annual_report_wizard' && (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
+                            <AnnualReportWizard
+                                currentUser={currentUser}
+                                currentInstitution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
+                                onLogAction={props.onLogAction}
+                            />
+                        </div>
+                    )}
+                    {subTab === 'revenue_warroom' && (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
+                            <RevenueWarRoom
+                                currentUser={currentUser}
+                                currentInstitution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
+                                onLogAction={props.onLogAction}
+                            />
+                        </div>
+                    )}
+                    {subTab === 'exam_permits' && (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
+                            <DigitalExamPermitManager
+                                currentUser={currentUser}
+                                currentInstitution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
+                                onLogAction={props.onLogAction}
+                            />
+                        </div>
                     )}
                     {(subTab === 'audit' || subTab === 'activity_logs') && (
                         <ActivityLogView 

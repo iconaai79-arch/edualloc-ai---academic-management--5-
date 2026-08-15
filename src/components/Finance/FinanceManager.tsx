@@ -64,6 +64,8 @@ const CommunicationsManager = React.lazy(() => import('../CommunicationsManager'
 const UserManager = React.lazy(() => import('../UserManager').then(m => ({ default: m.UserManager })));
 const LogisticsManager = React.lazy(() => import('../LogisticsManager').then(m => ({ default: m.LogisticsManager })));
 import { SiblingPaymentSplitterModal } from './SiblingPaymentSplitterModal';
+import { BoardingHouseholdBalanceManager } from './BoardingHouseholdBalanceManager';
+import { FeePromissoryTracker } from './FeePromissoryTracker';
 
 const parseMoneyAmount = (amt: any): number => {
     if (amt === null || amt === undefined) return 0;
@@ -134,8 +136,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
-    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs'>('collection');
-    const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
+    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
+    const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution' | 'household_balances' | 'promissory_commitments'>('all_balances');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
     const [pdfPreviewModal, setPdfPreviewModal] = useState<{ title: string; subtitle: string; studentName: string; admNo: string; className: string; invoiced: number; paid: number; balance: number; items?: any[] } | null>(null);
@@ -12698,10 +12700,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const reportSubTabs = [
                         { id: 'collection', label: 'Fee Collection', icon: '📥' },
                         { id: 'outstanding', label: 'Outstanding Balances', icon: '⚠️' },
+                        { id: 'household_balances', label: 'Household Fee Balances', icon: '🏡' },
+                        { id: 'promissory_commitments', label: 'Promissory Commitments', icon: '📝' },
+                        { id: 'revenue_warroom', label: 'Revenue Realization', icon: '🎯' },
+                        { id: 'exam_permits', label: 'Digital Exam Permits', icon: '🎟️' },
+                        { id: 'annual_wizard', label: 'FY2025-26 Annual Template', icon: '📑' },
                         { id: 'ledger', label: 'Receipts Ledger', icon: '🧾' },
                         { id: 'expenses', label: 'Expense Summary', icon: '💸' },
                         { id: 'payroll_summary', label: 'Payroll Summary', icon: '👔' },
-                        { id: 'annual', label: 'Annual Report', icon: '📊' },
+                        { id: 'annual', label: 'Annual Financial Overview', icon: '📊' },
                         { id: 'student_statement', label: 'Student Statement', icon: '🎓' },
                         { id: 'activity_logs', label: 'Activity Logs', icon: '📋' },
                     ];
@@ -12722,6 +12729,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     {[
                                         { id: 'balance_slip', label: 'Fee Balance Slip', icon: '🪪' },
                                         { id: 'all_balances', label: 'All Balances', icon: '📋' },
+                                        { id: 'household_balances', label: 'Household Balances', icon: '🏡' },
+                                        { id: 'promissory_commitments', label: 'Promissory Commitments', icon: '📝' },
                                         { id: 'student_summary', label: 'Student Summary', icon: '👤' },
                                         { id: 'class_summary', label: 'Class Summary', icon: '🏫' },
                                         { id: 'term_summary', label: 'Term Summary', icon: '📅' },
@@ -12730,9 +12739,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
-                                            onClick={() => setOutstandingSubTab(tab.id as any)}
+                                            onClick={() => {
+                                                if (tab.id === 'household_balances' || tab.id === 'promissory_commitments') {
+                                                    setReportsSubTab(tab.id as any);
+                                                } else {
+                                                    setOutstandingSubTab(tab.id as any);
+                                                }
+                                            }}
                                             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
-                                                outstandingSubTab === tab.id
+                                                (outstandingSubTab === tab.id || (reportsSubTab as string) === tab.id)
                                                     ? 'bg-rose-600 text-white shadow-md'
                                                     : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
                                             }`}
