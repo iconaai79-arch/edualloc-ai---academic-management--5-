@@ -284,10 +284,24 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                 }
             }
         };
-        // Auto-migrate to add columns to public.his_patients if not exists
-        apiService.runMigration("ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS admission_number text;").catch(() => {});
-        apiService.runMigration("ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS grade_level text;").catch(() => {});
-        apiService.runMigration("ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS stream text;").catch(() => {});
+        // Auto-migrate to add all patient columns to public.his_patients if not exists
+        const autoMigratePatientSql = `
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS full_name text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS name text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS patient_number text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS custom_patient_id text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS sha_number text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS insurance_provider text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS blood_group text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS dob text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS contact text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS emergency_contact_name text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS emergency_contact_phone text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS admission_number text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS grade_level text;
+            ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS stream text;
+        `;
+        apiService.runMigration(autoMigratePatientSql).catch(() => {});
         loadInst();
         fetchAllWellnessData();
     }, [institutionId, fetchAllWellnessData]);
