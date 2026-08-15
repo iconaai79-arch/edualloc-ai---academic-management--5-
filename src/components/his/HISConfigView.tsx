@@ -119,19 +119,25 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
     });
 
     // ── Invoice & Receipt Numbering State ────────────────────────────────────
-    const [invoiceSettings, setInvoiceSettings] = useState({
-        invoicePrefix: 'INV',
-        invoiceStartNumber: 1001,
-        receiptPrefix: 'RCT',
-        receiptStartNumber: 5001,
-        claimPrefix: 'CLM',
-        claimStartNumber: 2001,
-        currency: 'KES',
-        financialYear: new Date().getFullYear().toString(),
-        paymentTermsDays: 30,
-        autoResetYearly: true,
-        includeYearInNumber: true,
-        zeroPadLength: 4,
+    const [invoiceSettings, setInvoiceSettings] = useState(() => {
+        try {
+            const saved = localStorage.getItem(`his_billing_settings_${institutionId}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {
+            invoicePrefix: 'INV',
+            invoiceStartNumber: 1001,
+            receiptPrefix: 'RCT',
+            receiptStartNumber: 5001,
+            claimPrefix: 'CLM',
+            claimStartNumber: 2001,
+            currency: 'KES',
+            financialYear: new Date().getFullYear().toString(),
+            paymentTermsDays: 30,
+            autoResetYearly: true,
+            includeYearInNumber: true,
+            zeroPadLength: 4,
+        };
     });
     const [isSavingBilling, setIsSavingBilling] = useState(false);
 
@@ -447,27 +453,37 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         loadPartnerLabs();
         loadHospitalRooms();
 
-        // Load persisted billing settings from DB
+        // Load persisted billing settings from DB and localStorage
         if (institutionId) {
+            try {
+                const saved = localStorage.getItem(`his_billing_settings_${institutionId}`);
+                if (saved) {
+                    setInvoiceSettings(JSON.parse(saved));
+                }
+            } catch (_) {}
+
             apiService.fetchModuleRecords('his_billing_settings', institutionId)
                 .then((rows: any[]) => {
                     if (rows && rows.length > 0) {
                         const s = rows[0];
-                        setInvoiceSettings(prev => ({
-                            ...prev,
-                            invoicePrefix:        s.invoicePrefix        || s.invoice_prefix        || prev.invoicePrefix,
-                            invoiceStartNumber:   Number(s.invoiceStartNumber   || s.invoice_start_number   || prev.invoiceStartNumber),
-                            receiptPrefix:        s.receiptPrefix        || s.receipt_prefix        || prev.receiptPrefix,
-                            receiptStartNumber:   Number(s.receiptStartNumber   || s.receipt_start_number   || prev.receiptStartNumber),
-                            claimPrefix:          s.claimPrefix          || s.claim_prefix          || prev.claimPrefix,
-                            claimStartNumber:     Number(s.claimStartNumber     || s.claim_start_number     || prev.claimStartNumber),
-                            currency:             s.currency                                        || prev.currency,
-                            financialYear:        s.financialYear        || s.financial_year        || prev.financialYear,
-                            paymentTermsDays:     Number(s.paymentTermsDays     || s.payment_terms_days     || prev.paymentTermsDays),
-                            autoResetYearly:      s.autoResetYearly      ?? s.auto_reset_yearly      ?? prev.autoResetYearly,
-                            includeYearInNumber:  s.includeYearInNumber  ?? s.include_year_in_number ?? prev.includeYearInNumber,
-                            zeroPadLength:        Number(s.zeroPadLength        || s.zero_pad_length        || prev.zeroPadLength),
-                        }));
+                        const parsed = {
+                            invoicePrefix:        s.invoicePrefix        || s.invoice_prefix        || 'INV',
+                            invoiceStartNumber:   Number(s.invoiceStartNumber   || s.invoice_start_number   || 1001),
+                            receiptPrefix:        s.receiptPrefix        || s.receipt_prefix        || 'RCT',
+                            receiptStartNumber:   Number(s.receiptStartNumber   || s.receipt_start_number   || 5001),
+                            claimPrefix:          s.claimPrefix          || s.claim_prefix          || 'CLM',
+                            claimStartNumber:     Number(s.claimStartNumber     || s.claim_start_number     || 2001),
+                            currency:             s.currency                                        || 'KES',
+                            financialYear:        s.financialYear        || s.financial_year        || new Date().getFullYear().toString(),
+                            paymentTermsDays:     Number(s.paymentTermsDays     || s.payment_terms_days     || 30),
+                            autoResetYearly:      s.autoResetYearly      ?? s.auto_reset_yearly      ?? true,
+                            includeYearInNumber:  s.includeYearInNumber  ?? s.include_year_in_number ?? true,
+                            zeroPadLength:        Number(s.zeroPadLength        || s.zero_pad_length        || 4),
+                        };
+                        setInvoiceSettings(parsed);
+                        try {
+                            localStorage.setItem(`his_billing_settings_${institutionId}`, JSON.stringify(parsed));
+                        } catch (_) {}
                     }
                 })
                 .catch(() => null); // table may not exist yet — silently use defaults
@@ -731,13 +747,18 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
     };
 
     const handleSaveBillingSettings = async () => {
-        if (!institutionId) return;
         setIsSavingBilling(true);
+        const instId = institutionId || 'default';
+        // 1. Immediately cache in localStorage so values persist across refreshes
+        try {
+            localStorage.setItem(`his_billing_settings_${instId}`, JSON.stringify(invoiceSettings));
+        } catch (_) {}
+
         try {
             await apiService.saveModuleRecord('his_billing_settings', {
-                id: `billing_${institutionId}`,
-                institution_id: institutionId,
-                institutionId,
+                id: `billing_${instId}`,
+                institution_id: instId,
+                institutionId: instId,
                 // camelCase (app layer)
                 invoicePrefix:       invoiceSettings.invoicePrefix,
                 invoiceStartNumber:  invoiceSettings.invoiceStartNumber,
@@ -767,8 +788,8 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
             });
             alert('✓ Billing & Numbering settings saved successfully!');
         } catch (e: any) {
-            console.error('Failed to save billing settings:', e);
-            alert('Failed to save billing settings. Error: ' + (e?.message || e));
+            console.error('Failed to save billing settings to DB:', e);
+            alert('Settings saved locally! Note: Server reported: ' + (e?.message || e));
         } finally {
             setIsSavingBilling(false);
         }

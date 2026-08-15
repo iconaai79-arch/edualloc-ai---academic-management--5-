@@ -189,15 +189,21 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     const [statusFilter, setStatusFilter] = useState<string>('all');
 
     // Billing number settings loaded from his_billing_settings (configured in HIS Config)
-    const [billingSettings, setBillingSettings] = useState({
-        invoicePrefix: 'INV',
-        invoiceStartNumber: 1001,
-        receiptPrefix: 'RCT',
-        receiptStartNumber: 5001,
-        currency: 'KES',
-        financialYear: new Date().getFullYear().toString(),
-        includeYearInNumber: true,
-        zeroPadLength: 4,
+    const [billingSettings, setBillingSettings] = useState(() => {
+        try {
+            const saved = localStorage.getItem(`his_billing_settings_${institutionId}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {
+            invoicePrefix: 'INV',
+            invoiceStartNumber: 1001,
+            receiptPrefix: 'RCT',
+            receiptStartNumber: 5001,
+            currency: 'KES',
+            financialYear: new Date().getFullYear().toString(),
+            includeYearInNumber: true,
+            zeroPadLength: 4,
+        };
     });
 
     // Revenue Period Generator state
@@ -344,17 +350,20 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                 // Apply configured billing number prefix/format from HIS Settings
                 if (dbBillingSettings && dbBillingSettings.length > 0) {
                     const s = dbBillingSettings[0];
-                    setBillingSettings(prev => ({
-                        ...prev,
-                        invoicePrefix: s.invoicePrefix || s.invoice_prefix || prev.invoicePrefix,
-                        invoiceStartNumber: Number(s.invoiceStartNumber || s.invoice_start_number || prev.invoiceStartNumber),
-                        receiptPrefix: s.receiptPrefix || s.receipt_prefix || prev.receiptPrefix,
-                        receiptStartNumber: Number(s.receiptStartNumber || s.receipt_start_number || prev.receiptStartNumber),
-                        currency: s.currency || prev.currency,
-                        financialYear: s.financialYear || s.financial_year || prev.financialYear,
-                        includeYearInNumber: s.includeYearInNumber ?? s.include_year_in_number ?? prev.includeYearInNumber,
-                        zeroPadLength: Number(s.zeroPadLength || s.zero_pad_length || prev.zeroPadLength),
-                    }));
+                    const parsed = {
+                        invoicePrefix: s.invoicePrefix || s.invoice_prefix || 'INV',
+                        invoiceStartNumber: Number(s.invoiceStartNumber || s.invoice_start_number || 1001),
+                        receiptPrefix: s.receiptPrefix || s.receipt_prefix || 'RCT',
+                        receiptStartNumber: Number(s.receiptStartNumber || s.receipt_start_number || 5001),
+                        currency: s.currency || 'KES',
+                        financialYear: s.financialYear || s.financial_year || new Date().getFullYear().toString(),
+                        includeYearInNumber: s.includeYearInNumber ?? s.include_year_in_number ?? true,
+                        zeroPadLength: Number(s.zeroPadLength || s.zero_pad_length || 4),
+                    };
+                    setBillingSettings(parsed);
+                    try {
+                        localStorage.setItem(`his_billing_settings_${institutionId}`, JSON.stringify(parsed));
+                    } catch (_) {}
                 }
                 
                 setPatients(pData || []);
