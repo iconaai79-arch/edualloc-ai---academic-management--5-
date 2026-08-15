@@ -408,9 +408,41 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                             && paySt !== 'cleared'
                             && !alreadyInvoicedPatientIds.has(pid);
                     }).map((pr: any) => {
-                        const patObj = (pData || []).find((p: any) => p.id === pr.patientId || p.id === pr.patient_id);
-                        const patName = pr.patientName || pr.patient_name || patObj?.fullName || patObj?.name || 'Patient';
-                        const docName = pr.doctorName || pr.doctor_name || 'Dr. Attending Physician';
+                        // Match patient from pData with robust fallback strategies
+                        const pId = pr.patientId || pr.patient_id;
+                        const patObj = (pData || []).find((p: any) => 
+                            (p.id && p.id === pId) ||
+                            (p.patient_id && p.patient_id === pId) ||
+                            (p.admissionNumber && p.admissionNumber === pId) ||
+                            (p.admission_number && p.admission_number === pId) ||
+                            (p.patientNumber && p.patientNumber === pId) ||
+                            (p.patient_number && p.patient_number === pId) ||
+                            (p.customPatientId && p.customPatientId === pId) ||
+                            (p.custom_patient_id && p.custom_patient_id === pId)
+                        );
+
+                        // Clean doctor name formatting
+                        let rawDocName = pr.doctorName || pr.doctor_name || 'Attending Physician';
+                        if (rawDocName.toLowerCase().startsWith('dr. ')) {
+                            rawDocName = rawDocName.substring(4).trim();
+                        }
+
+                        // Determine real patient name (avoid generic 'Patient' or doctor's name)
+                        let patName = patObj?.fullName || patObj?.full_name || patObj?.name || patObj?.patient_name;
+                        if (!patName && pr.patientName && pr.patientName.toLowerCase() !== 'patient' && pr.patientName.toLowerCase() !== rawDocName.toLowerCase()) {
+                            patName = pr.patientName;
+                        }
+                        if (!patName && pr.patient_name && pr.patient_name.toLowerCase() !== 'patient' && pr.patient_name.toLowerCase() !== rawDocName.toLowerCase()) {
+                            patName = pr.patient_name;
+                        }
+                        if (!patName && patObj?.admissionNumber) {
+                            patName = `Patient (${patObj.admissionNumber})`;
+                        }
+                        if (!patName) {
+                            patName = pId ? `Patient #${String(pId).substring(0, 8)}` : 'Walk-in Patient';
+                        }
+
+                        const docName = `Dr. ${rawDocName}`;
 
                         // Normalize items: handle drugName/drug_name/itemName/name variants
                         const rawItems = Array.isArray(pr.items) && pr.items.length > 0 ? pr.items : null;
@@ -429,7 +461,7 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                         return {
                             id: pr.id,
                             patientName: patName,
-                            patientId: pr.patientId || pr.patient_id,
+                            patientId: pId,
                             doctorName: docName,
                             type: 'Prescription Order',
                             items: itemsArr,
