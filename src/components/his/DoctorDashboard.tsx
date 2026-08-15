@@ -404,21 +404,23 @@ export function DoctorDashboard({
 
     const [dbQueueCalls, setDbQueueCalls] = useState<any[]>([]);
     const [dbAppointments, setDbAppointments] = useState<any[]>([]);
+    const [isSyncingQueue, setIsSyncingQueue] = useState(false);
+    const [queueFilter, setQueueFilter] = useState<'all' | 'waiting' | 'in-consultation' | 'scheduled' | 'completed'>('all');
 
     // Live sync queue state and appointments from Database (his_queue_calls & his_appointments)
     const loadClinicalQueue = React.useCallback(async () => {
-        if (!institutionId) return;
+        setIsSyncingQueue(true);
         try {
             const [calls, apps] = await Promise.all([
-                apiService.fetchModuleRecords('his_queue_calls', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('his_appointments', institutionId).catch(() => [])
+                apiService.fetchModuleRecords('his_queue_calls', institutionId || undefined).catch(() => []),
+                apiService.fetchModuleRecords('his_appointments', institutionId || undefined).catch(() => [])
             ]);
             setDbQueueCalls(calls || []);
             setDbAppointments(apps || []);
 
             if (calls && calls.length > 0) {
                 const completedInDb = calls
-                    .filter((c: any) => c.status === 'Completed' || c.status === 'DISCHARGED')
+                    .filter((c: any) => (c.status || '').toLowerCase() === 'completed' || (c.status || '').toLowerCase() === 'discharged')
                     .map((c: any) => c.patientId || c.patient_id || c.id);
                 if (completedInDb.length > 0) {
                     setCompletedPatientIds(prev => {
@@ -430,6 +432,8 @@ export function DoctorDashboard({
             }
         } catch (e) {
             console.error('Error syncing clinical queue:', e);
+        } finally {
+            setIsSyncingQueue(false);
         }
     }, [institutionId]);
 
@@ -438,6 +442,22 @@ export function DoctorDashboard({
         const interval = setInterval(loadClinicalQueue, 8000);
         return () => clearInterval(interval);
     }, [loadClinicalQueue]);
+
+    const handleCallPatient = (pat: HISPatient) => {
+        setActiveConsultationId(pat.id);
+        try {
+            localStorage.setItem(`his_active_consultation_${institutionId}`, pat.id);
+        } catch (e) {}
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const text = `Attention please. Patient ${pat.fullName || (pat as any).name}. Please proceed to ${roomNo}.`;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.9;
+            window.speechSynthesis.speak(utterance);
+        }
+        setSelectedSoapPatient(pat);
+        setIsSoapModalOpen(true);
+    };
 
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [showSickOffModal, setShowSickOffModal] = useState(false);
@@ -734,13 +754,36 @@ export function DoctorDashboard({
 
     // ── Build Live Clinical Queue from Real Database Records ──
     const todayIsoDate = currentTime.toISOString().slice(0, 10);
-    const todayApps = dbAppointments.filter(a => !a.date || a.date.startsWith(todayIsoDate));
-    
-    // Create combined map of real queue entries
+
+    const isAppointmentToday = (dateVal?: string) => {
+        if (!dateVal) return true;
+        const trimmed = dateVal.trim();
+        if (trimmed.startsWith(todayIsoDate)) return true;
+        const todayDmy = `${String(currentTime.getDate()).padStart(2, '0')}/${String(currentTime.getMonth() + 1).padStart(2, '0')}/${currentTime.getFullYear()}`;
+        if (trimmed.startsWith(todayDmy)) return true;
+        const todayDmyHyphen = `${String(currentTime.getDate()).padStart(2, '0')}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${currentTime.getFullYear()}`;
+        if (trimmed.startsWith(todayDmyHyphen)) return true;
+        try {
+            const parsed = new Date(trimmed);
+            if (!isNaN(parsed.getTime())) {
+                return parsed.toISOString().slice(0, 10) === todayIsoDate;
+            }
+        } catch (e) {}
+        return false;
+    };
+
+    // Filter appointments for today or active arrivals
+    const relevantApps = dbAppointments.filter(a => {
+        const st = (a.status || '').toLowerCase();
+        if (st === 'cancelled' || st === 'rescheduled') return false;
+        if (st === 'arrived' || st === 'waiting' || st === 'in-progress' || st === 'in consultation') return true;
+        return isAppointmentToday(a.date);
+    });
+
     const combinedEntriesMap = new Map<string, any>();
 
     // 1. Add from today's appointments
-    todayApps.forEach(app => {
+    relevantApps.forEach(app => {
         const key = app.patientId || app.patientName || app.id;
         combinedEntriesMap.set(key, {
             id: app.id,
@@ -790,15 +833,17 @@ export function DoctorDashboard({
             chronicConditions: []
         };
 
-        const isCompleted = completedPatientIds.has(p.id) || entry.status === 'Completed' || entry.status === 'DISCHARGED';
+        const rawStatus = (entry.status || '').toLowerCase();
+        const isCompleted = completedPatientIds.has(p.id) || rawStatus === 'completed' || rawStatus === 'discharged';
         const isInConsult = !isCompleted && (
             (activeConsultationId && p.id === activeConsultationId) ||
-            entry.status === 'In-Progress' || 
-            entry.status === 'In Consultation'
+            rawStatus === 'in-progress' || 
+            rawStatus === 'in consultation'
         );
         const isWaiting = !isCompleted && !isInConsult && (
-            entry.status === 'Arrived' || 
-            entry.status === 'Waiting'
+            rawStatus === 'arrived' || 
+            rawStatus === 'waiting' ||
+            rawStatus === 'triage'
         );
 
         const status = isCompleted 
@@ -819,12 +864,19 @@ export function DoctorDashboard({
         };
     });
 
-    const visibleQueueItems = queueItems.filter(q => !hideCompletedInQueue || q.status !== 'completed');
-
     const waitingCount = queueItems.filter(q => q.status === 'waiting').length;
     const inConsultCount = queueItems.filter(q => q.status === 'in-consultation').length;
+    const scheduledCount = queueItems.filter(q => q.status === 'scheduled').length;
     const completedCount = queueItems.filter(q => q.status === 'completed').length;
     const totalTodayCount = queueItems.length;
+
+    const visibleQueueItems = queueItems.filter(q => {
+        if (queueFilter === 'waiting') return q.status === 'waiting';
+        if (queueFilter === 'in-consultation') return q.status === 'in-consultation';
+        if (queueFilter === 'scheduled') return q.status === 'scheduled';
+        if (queueFilter === 'completed') return q.status === 'completed';
+        return !hideCompletedInQueue || q.status !== 'completed';
+    });
 
     const stats = [
         { label: "Today's Bookings", value: totalTodayCount, sub: `${waitingCount} waiting • ${inConsultCount} in consult`,
@@ -846,12 +898,12 @@ export function DoctorDashboard({
 
     const getStatusBadge = (s: string) =>
         s === 'in-consultation'
-            ? { text: 'IN CONSULT', cls: 'bg-indigo-600 text-white font-black shadow-md' }
+            ? { text: 'IN CONSULT', cls: 'bg-indigo-600 text-white font-black shadow-md shadow-indigo-600/30' }
             : s === 'completed'
             ? { text: 'CHECKED OUT', cls: 'bg-emerald-600 text-white font-black shadow-md' }
             : s === 'waiting'
-            ? { text: 'WAITING', cls: 'bg-amber-500/20 text-amber-400 dark:text-amber-300 font-black' }
-            : { text: 'SCHEDULED', cls: 'bg-slate-500/10 text-slate-400 font-black' };
+            ? { text: 'WAITING (ARRIVED)', cls: 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/30' }
+            : { text: 'SCHEDULED (EXPECTED)', cls: 'bg-slate-500/20 text-slate-400 font-bold border border-slate-500/30' };
 
     return (
         <div className="space-y-8 text-slate-900 dark:text-white">
@@ -1006,67 +1058,132 @@ export function DoctorDashboard({
 
                     {/* Queue Tab */}
                     {activeTab === 'queue' && (
-                        <div className="p-6 space-y-3">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-2 border-b border-slate-100 dark:border-white/5">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                        Clinical Queue ({visibleQueueItems.length})
-                                    </span>
-                                    {completedPatientIds.size > 0 && hideCompletedInQueue && (
-                                        <span className="text-[9px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-0.5 rounded-full border border-emerald-200/40">
-                                            ✓ {completedPatientIds.size} Checked Out (Hidden)
-                                        </span>
-                                    )}
+                        <div className="p-6 space-y-4">
+                            {/* Queue Controls & Filters */}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+                                {/* Segmented Filter Pills */}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    {[
+                                        { id: 'all', label: 'All', count: totalTodayCount },
+                                        { id: 'waiting', label: 'Waiting', count: waitingCount, badgeColor: 'bg-amber-500/20 text-amber-300' },
+                                        { id: 'in-consultation', label: 'In Consult', count: inConsultCount, badgeColor: 'bg-indigo-500/20 text-indigo-300' },
+                                        { id: 'scheduled', label: 'Scheduled', count: scheduledCount, badgeColor: 'bg-slate-500/20 text-slate-300' },
+                                        { id: 'completed', label: 'Checked Out', count: completedCount, badgeColor: 'bg-emerald-500/20 text-emerald-300' }
+                                    ].map(f => (
+                                        <button
+                                            key={f.id}
+                                            type="button"
+                                            onClick={() => setQueueFilter(f.id as any)}
+                                            className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                                queueFilter === f.id
+                                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                                                    : 'bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-slate-200'
+                                            }`}
+                                        >
+                                            <span>{f.label}</span>
+                                            <span className={`px-1.5 py-0.2 rounded-full text-[8px] font-black ${f.badgeColor || 'bg-white/10 text-white'}`}>
+                                                {f.count}
+                                            </span>
+                                        </button>
+                                    ))}
                                 </div>
-                                <label className="flex items-center gap-2 cursor-pointer text-[9px] font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors">
-                                    <input
-                                        type="checkbox"
-                                        checked={hideCompletedInQueue}
-                                        onChange={e => setHideCompletedInQueue(e.target.checked)}
-                                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                                    />
-                                    <span>Hide Checked-Out Patients</span>
-                                </label>
+
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => loadClinicalQueue()}
+                                        disabled={isSyncingQueue}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest text-indigo-300 transition-all"
+                                    >
+                                        <span className={`inline-block ${isSyncingQueue ? 'animate-spin' : ''}`}>🔄</span>
+                                        <span>{isSyncingQueue ? 'Syncing...' : 'Sync Live'}</span>
+                                    </button>
+
+                                    <label className="flex items-center gap-2 cursor-pointer text-[9px] font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={hideCompletedInQueue}
+                                            onChange={e => setHideCompletedInQueue(e.target.checked)}
+                                            className="w-3.5 h-3.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                        />
+                                        <span>Hide Checked-Out</span>
+                                    </label>
+                                </div>
                             </div>
 
                             {visibleQueueItems.length === 0 ? (
-                                <div className="text-center py-20 opacity-40 space-y-3">
-                                    <CalendarIcon className="w-16 h-16 mx-auto text-slate-400" />
-                                    <p className="text-sm font-black uppercase tracking-widest text-slate-400">No active patients in queue</p>
-                                    {completedPatientIds.size > 0 && hideCompletedInQueue && (
+                                <div className="text-center py-16 opacity-60 space-y-3">
+                                    <CalendarIcon className="w-12 h-12 mx-auto text-slate-400" />
+                                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                                        {queueFilter === 'waiting'
+                                            ? 'Zero patients currently waiting in queue'
+                                            : queueFilter === 'in-consultation'
+                                            ? 'No active patient in consultation right now'
+                                            : queueFilter === 'scheduled'
+                                            ? 'No expected scheduled appointments for today'
+                                            : 'No matching queue records found for today'}
+                                    </p>
+                                    {completedCount > 0 && hideCompletedInQueue && (
                                         <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
-                                            All {completedPatientIds.size} patient consultations completed today!
+                                            ✓ {completedCount} patient consultations completed today
                                         </p>
                                     )}
-                                    <button onClick={onRegisterPatient} className="mt-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
-                                        Register New Patient
-                                    </button>
+                                    <div className="flex justify-center gap-2 pt-2">
+                                        <button onClick={() => loadClinicalQueue()} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+                                            🔄 Check for Arrivals
+                                        </button>
+                                        <button onClick={onRegisterPatient} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">
+                                            Register Walk-in Patient
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
                                 visibleQueueItems.map((q) => {
                                     const badge = getStatusBadge(q.status);
                                     const patName = q.patient?.fullName || (q.patient as any)?.name || 'Patient';
                                     return (
-                                        <div key={q.patient.id || `q_${q.queueNo}`} onClick={() => onOpenPatient(q.patient.id)}
-                                            className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] hover:bg-indigo-50 dark:hover:bg-indigo-950/20 border border-slate-100 dark:border-white/5 cursor-pointer transition-all hover:border-indigo-300/30 hover:shadow-md group">
-                                            <div className={`w-1.5 h-12 rounded-full flex-shrink-0 ${getPriorityDot(q.priority)}`} />
-                                            <div className="w-9 h-9 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center font-black text-indigo-600 dark:text-indigo-300 text-sm flex-shrink-0">{q.queueNo}</div>
-                                            <div className="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-xl flex items-center justify-center font-black text-slate-600 dark:text-slate-200 flex-shrink-0">{patName[0] || 'P'}</div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-black text-sm uppercase tracking-tight truncate">{patName}</p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-[9px] font-black text-slate-400 uppercase">{q.patient?.gender || 'Adult'}</span>
-                                                    <span className="text-slate-300 dark:text-slate-600">•</span>
-                                                    <span className="text-[9px] font-mono font-black text-indigo-500 uppercase bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/30">
-                                                        {q.patient?.admissionNumber || q.patient?.customPatientId || q.patient?.patientNumber || q.complaint}
-                                                    </span>
+                                        <div 
+                                            key={q.patient.id || `q_${q.queueNo}`}
+                                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] hover:bg-indigo-50 dark:hover:bg-indigo-950/20 border border-slate-100 dark:border-white/5 transition-all hover:border-indigo-300/30 hover:shadow-md group"
+                                        >
+                                            <div className="flex items-center gap-4 min-w-0" onClick={() => onOpenPatient(q.patient.id)}>
+                                                <div className={`w-1.5 h-12 rounded-full flex-shrink-0 ${getPriorityDot(q.priority)}`} />
+                                                <div className="w-9 h-9 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center font-black text-indigo-600 dark:text-indigo-300 text-sm flex-shrink-0">{q.queueNo}</div>
+                                                <div className="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-xl flex items-center justify-center font-black text-slate-600 dark:text-slate-200 flex-shrink-0">{patName[0] || 'P'}</div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-black text-sm uppercase tracking-tight truncate hover:text-indigo-400 cursor-pointer">{patName}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase">{q.patient?.gender || 'Adult'}</span>
+                                                        <span className="text-slate-300 dark:text-slate-600">•</span>
+                                                        <span className="text-[9px] font-mono font-black text-indigo-500 uppercase bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/30">
+                                                            {q.patient?.admissionNumber || q.patient?.customPatientId || q.patient?.patientNumber || q.complaint}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3 flex-shrink-0">
-                                                <span className="text-[9px] font-black text-slate-400 uppercase hidden sm:block">
-                                                    {q.status === 'in-consultation' ? 'NOW' : q.status === 'completed' ? 'DISCHARGED' : `${q.waitMins}m`}
+
+                                            {/* Action Buttons & Status Badge */}
+                                            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end shrink-0">
+                                                <span className={`px-2.5 py-1 rounded-xl text-[8px] font-black uppercase tracking-widest ${badge.cls}`}>
+                                                    {badge.text}
                                                 </span>
-                                                <span className={`px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest ${badge.cls}`}>{badge.text}</span>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCallPatient(q.patient)}
+                                                    className="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                                                    title="Call patient name into room and open consultation"
+                                                >
+                                                    <span>⚡ Call</span>
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleOpenSoapModal(q.patient)}
+                                                    className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 rounded-xl text-[9px] font-black uppercase tracking-wider shadow-md flex items-center gap-1 transition-all"
+                                                >
+                                                    <span>🩺 EMR Notes</span>
+                                                </button>
                                             </div>
                                         </div>
                                     );
