@@ -132,17 +132,23 @@ export function ReceptionistView({ institutionId, userName, users = [] }: Recept
         const instId = institutionId || 'his_inst_1';
         try {
             const patName = patientData.fullName || `${patientData.firstName || ''} ${patientData.lastName || ''}`.trim() || 'Registered Patient';
-            const patNo = patientData.customPatientId || patientData.patientNumber || `PID-${Math.floor(100 + Math.random() * 900)}`;
+            const patNo = patientData.admissionNumber || patientData.admission_number || patientData.customPatientId || patientData.custom_patient_id || patientData.patientNumber || patientData.patient_number || patientData.opNumber || patientData.op_number || `PID-${Math.floor(100 + Math.random() * 900)}`;
 
             const record: HISPatient = {
                 ...patientData,
-                id: `his_p_${Date.now()}`,
+                id: patientData.id || `his_p_${Date.now()}`,
                 institutionId: instId,
                 institution_id: instId,
                 fullName: patName,
                 name: patName,
                 patientNumber: patNo,
+                patient_number: patNo,
                 customPatientId: patNo,
+                custom_patient_id: patNo,
+                admissionNumber: patNo,
+                admission_number: patNo,
+                opNumber: patNo,
+                op_number: patNo,
                 status: 'active',
                 createdAt: new Date().toISOString(),
                 created_at: new Date().toISOString(),

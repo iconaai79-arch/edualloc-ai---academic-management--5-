@@ -1363,6 +1363,26 @@ export const apiService = {
                 delete item.parent_phone;
                 delete item.parentPhone;
             }
+
+            // HIS Patients module normalization
+            if (module === 'his_patients') {
+                if (typeof item.allergies === 'string' && item.allergies.trim()) {
+                    item.allergies = item.allergies.split(',').map((s: string) => s.trim()).filter(Boolean);
+                }
+                if (typeof item.chronic_conditions === 'string' && item.chronic_conditions.trim()) {
+                    item.chronic_conditions = item.chronic_conditions.split(',').map((s: string) => s.trim()).filter(Boolean);
+                }
+                const pName = item.full_name || item.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Registered Patient';
+                item.full_name = pName;
+                item.name = pName;
+                const opNo = item.admission_number || item.admissionNumber || item.custom_patient_id || item.customPatientId || item.patient_number || item.patientNumber || item.op_number || item.opNumber || item.id;
+                if (opNo) {
+                    item.admission_number = opNo;
+                    item.custom_patient_id = opNo;
+                    item.patient_number = opNo;
+                    item.op_number = opNo;
+                }
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {

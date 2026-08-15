@@ -48,9 +48,12 @@ function EditPatientModal({
     onClose: () => void;
     onSave: (updated: Patient) => Promise<void>;
 }) {
+    const existingOp = patient.admissionNumber || (patient as any).admission_number || (patient as any).customPatientId || (patient as any).custom_patient_id || (patient as any).patientNumber || (patient as any).patient_number || (patient as any).opNumber || (patient as any).op_number || '';
     const [formData, setFormData] = useState({
         ...patient,
-        admissionNumber: patient.admissionNumber || (patient as any).admission_number || '',
+        admissionNumber: existingOp,
+        customPatientId: existingOp,
+        patientNumber: existingOp,
         gradeLevel: patient.gradeLevel || (patient as any).grade_level || '',
         stream: patient.stream || ''
     });
@@ -60,7 +63,19 @@ function EditPatientModal({
         e.preventDefault();
         setIsSaving(true);
         try {
-            await onSave(formData);
+            const opVal = (formData.admissionNumber || '').trim();
+            const updatedRecord: Patient = {
+                ...formData,
+                admissionNumber: opVal,
+                admission_number: opVal,
+                customPatientId: opVal,
+                custom_patient_id: opVal,
+                patientNumber: opVal,
+                patient_number: opVal,
+                opNumber: opVal,
+                op_number: opVal
+            };
+            await onSave(updatedRecord);
             onClose();
         } catch (err) {
             console.error(err);
@@ -637,9 +652,23 @@ export function EduPulsePatientsList({
     }, [filtered, currentPage]);
 
     const handleSaveEdit = async (updated: Patient) => {
-        await apiService.saveModuleRecord('his_patients', { ...updated, institutionId });
+        const opVal = updated.admissionNumber || (updated as any).admission_number || (updated as any).opNumber || (updated as any).op_number || (updated as any).customPatientId || (updated as any).patientNumber || '';
+        const syncedRecord: Patient = {
+            ...updated,
+            institutionId,
+            institution_id: institutionId,
+            admissionNumber: opVal,
+            admission_number: opVal,
+            customPatientId: opVal,
+            custom_patient_id: opVal,
+            patientNumber: opVal,
+            patient_number: opVal,
+            opNumber: opVal,
+            op_number: opVal
+        };
+        await apiService.saveModuleRecord('his_patients', syncedRecord);
         onPatientUpdated();
-        setNotification(`${updated.fullName} record updated successfully.`);
+        setNotification(`${updated.fullName} (OP: ${opVal || 'N/A'}) record updated successfully.`);
         setTimeout(() => setNotification(''), 4000);
     };
 
@@ -796,10 +825,9 @@ export function EduPulsePatientsList({
                                         </div>
                                     </td>
 
-                                    {/* Adm No */}
                                     <td className="px-7 py-5">
                                         <span className="text-[10px] font-mono font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/30 px-3 py-1 rounded-full border border-indigo-200/50 dark:border-indigo-800/30">
-                                            {(p as any).customPatientId || (p as any).patientNumber || p.admissionNumber || (p as any).admission_number || '—'}
+                                            {p.admissionNumber || (p as any).admission_number || (p as any).customPatientId || (p as any).custom_patient_id || (p as any).patientNumber || (p as any).patient_number || (p as any).opNumber || (p as any).op_number || '—'}
                                         </span>
                                     </td>
 
