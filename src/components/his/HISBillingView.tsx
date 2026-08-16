@@ -187,6 +187,8 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [invoicePage, setInvoicePage] = useState(1);
+    const [invoicePageSize, setInvoicePageSize] = useState(10);
 
     // Billing number settings loaded from his_billing_settings (configured in HIS Config)
     const [billingSettings, setBillingSettings] = useState(() => {
@@ -573,6 +575,17 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
             return matchesSearch && matchesStatus;
         });
     }, [invoices, searchTerm, statusFilter]);
+
+    const totalInvoicePages = Math.ceil(filteredInvoices.length / invoicePageSize) || 1;
+    const paginatedInvoices = useMemo(() => {
+        const start = (invoicePage - 1) * invoicePageSize;
+        return filteredInvoices.slice(start, start + invoicePageSize);
+    }, [filteredInvoices, invoicePage, invoicePageSize]);
+
+    // Reset to page 1 whenever search, filter, or page size changes
+    useEffect(() => {
+        setInvoicePage(1);
+    }, [searchTerm, statusFilter, invoicePageSize]);
 
     // Financial Metrics
     const totalRevenue = useMemo(() => invoices.reduce((sum, inv) => sum + inv.totalAmount, 0), [invoices]);
@@ -1403,7 +1416,7 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredInvoices.map((inv) => (
+                                    {paginatedInvoices.map((inv) => (
                                         <tr key={inv.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
                                             <td className="p-5">
                                                 <span className="font-mono font-bold text-xs text-indigo-400">{inv.invoiceNumber}</span>
@@ -1497,6 +1510,100 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Rich Pagination Control Bar */}
+                        {filteredInvoices.length > 0 && (
+                            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-5 bg-slate-900/90 border-t border-white/10">
+                                <div className="flex items-center gap-3 text-xs text-slate-400 font-bold">
+                                    <span>Showing</span>
+                                    <span className="font-mono text-white font-black">
+                                        {(invoicePage - 1) * invoicePageSize + 1}
+                                    </span>
+                                    <span>to</span>
+                                    <span className="font-mono text-white font-black">
+                                        {Math.min(invoicePage * invoicePageSize, filteredInvoices.length)}
+                                    </span>
+                                    <span>of</span>
+                                    <span className="font-mono text-indigo-400 font-black">{filteredInvoices.length}</span>
+                                    <span>invoices</span>
+
+                                    <div className="hidden md:flex items-center gap-2 ml-4 pl-4 border-l border-white/10">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Per page:</span>
+                                        <select
+                                            value={invoicePageSize}
+                                            onChange={(e) => setInvoicePageSize(Number(e.target.value))}
+                                            className="bg-black/60 border border-white/10 rounded-xl px-2.5 py-1 text-xs text-white outline-none focus:border-indigo-500 font-mono font-bold"
+                                        >
+                                            <option value={5}>5</option>
+                                            <option value={10}>10</option>
+                                            <option value={20}>20</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => setInvoicePage(1)}
+                                        disabled={invoicePage <= 1}
+                                        title="First Page"
+                                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-black transition-all"
+                                    >
+                                        «
+                                    </button>
+                                    <button
+                                        onClick={() => setInvoicePage(prev => Math.max(1, prev - 1))}
+                                        disabled={invoicePage <= 1}
+                                        title="Previous Page"
+                                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-black transition-all"
+                                    >
+                                        ‹ Prev
+                                    </button>
+
+                                    <div className="flex items-center gap-1 px-1">
+                                        {Array.from({ length: totalInvoicePages }, (_, idx) => idx + 1)
+                                            .filter(p => p === 1 || p === totalInvoicePages || Math.abs(p - invoicePage) <= 1)
+                                            .map((p, idx, arr) => {
+                                                const prevP = arr[idx - 1];
+                                                const isEllipsis = prevP && p - prevP > 1;
+                                                return (
+                                                    <React.Fragment key={p}>
+                                                        {isEllipsis && <span className="px-1 text-slate-500 text-xs font-mono">...</span>}
+                                                        <button
+                                                            onClick={() => setInvoicePage(p)}
+                                                            className={`w-7 h-7 rounded-xl text-xs font-black transition-all ${
+                                                                invoicePage === p
+                                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                                                                    : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
+                                                            }`}
+                                                        >
+                                                            {p}
+                                                        </button>
+                                                    </React.Fragment>
+                                                );
+                                            })}
+                                    </div>
+
+                                    <button
+                                        onClick={() => setInvoicePage(prev => Math.min(totalInvoicePages, prev + 1))}
+                                        disabled={invoicePage >= totalInvoicePages}
+                                        title="Next Page"
+                                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-black transition-all"
+                                    >
+                                        Next ›
+                                    </button>
+                                    <button
+                                        onClick={() => setInvoicePage(totalInvoicePages)}
+                                        disabled={invoicePage >= totalInvoicePages}
+                                        title="Last Page"
+                                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-black transition-all"
+                                    >
+                                        »
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -2310,91 +2417,112 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
 
             {/* MODAL: GENERATE INVOICE */}
             {isGenerateModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-                    <div className="bg-slate-900 border border-white/10 rounded-[3rem] p-8 max-w-3xl w-full space-y-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
-                        <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-black/85 backdrop-blur-md animate-fade-in">
+                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-6 md:p-10 max-w-6xl w-full space-y-6 max-h-[92vh] overflow-y-auto custom-scrollbar shadow-2xl">
+                        <div className="flex justify-between items-center border-b border-white/10 pb-5">
                             <div>
-                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white">Generate Patient <span className="text-emerald-400">Invoice</span></h3>
-                                <p className="text-xs text-slate-400">Issue billing for consultations, medications, lab tests, and hospital admission</p>
+                                <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white">
+                                    Generate Patient <span className="text-emerald-400">Invoice</span>
+                                </h3>
+                                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                    Issue official medical billing for outpatient consultations, diagnostics, pharmacy prescriptions, and inpatient bed stays
+                                </p>
                             </div>
-                            <button onClick={() => setIsGenerateModalOpen(false)} className="p-2 text-slate-400 hover:text-white">
+                            <button 
+                                type="button"
+                                onClick={() => setIsGenerateModalOpen(false)} 
+                                className="p-2.5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-2xl transition-all cursor-pointer"
+                            >
                                 <XCircleIcon className="w-6 h-6" />
                             </button>
                         </div>
 
                         <form onSubmit={handleCreateInvoice} className="space-y-6">
-                            {/* Patient Selection */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Select Registered Patient</label>
+                            {/* Top Section: Patient Selection & Payer Mode */}
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white/[0.02] border border-white/10 p-6 rounded-3xl">
+                                {/* Patient Selection (5 Cols) */}
+                                <div className="lg:col-span-5 space-y-3">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        1. Select Registered Patient
+                                    </label>
                                     <select 
                                         value={selectedPatientId}
                                         onChange={(e) => setSelectedPatientId(e.target.value)}
-                                        className="w-full p-3.5 bg-black/40 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                                        className="w-full p-3.5 bg-black/50 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
                                     >
                                         <option value="">-- Walk-in / Direct Name Entry --</option>
                                         {patients.map(p => (
                                             <option key={p.id} value={p.id}>{p.fullName} ({p.shaNumber || 'No SHA'})</option>
                                         ))}
                                     </select>
+
+                                    {!selectedPatientId && (
+                                        <div className="pt-1">
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                                Walk-in Patient Full Name *
+                                            </label>
+                                            <input 
+                                                type="text"
+                                                value={manualPatientName}
+                                                onChange={(e) => setManualPatientName(e.target.value)}
+                                                placeholder="e.g. Samuel Otieno"
+                                                className="w-full p-3.5 bg-black/50 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-bold"
+                                                required={!selectedPatientId}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
-                                {!selectedPatientId && (
-                                    <div>
-                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Walk-in Patient Full Name</label>
-                                        <input 
-                                            type="text"
-                                            value={manualPatientName}
-                                            onChange={(e) => setManualPatientName(e.target.value)}
-                                            placeholder="e.g. Samuel Otieno"
-                                            className="w-full p-3.5 bg-black/40 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-                                            required={!selectedPatientId}
-                                        />
+
+                                {/* Payer & Settlement Mode (7 Cols) */}
+                                <div className="lg:col-span-7 space-y-3">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        2. Payer &amp; Settlement Mode
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-2.5">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setPayerType('Self-Pay')}
+                                            className={`py-3 px-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                payerType === 'Self-Pay' 
+                                                    ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-400' 
+                                                    : 'bg-black/40 text-slate-400 border border-white/10 hover:text-white'
+                                            }`}
+                                        >
+                                            💵 100% Self-Pay
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setPayerType('Split (Co-Pay + Insurance)')}
+                                            className={`py-3 px-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                payerType === 'Split (Co-Pay + Insurance)' 
+                                                    ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400' 
+                                                    : 'bg-black/40 text-slate-400 border border-white/10 hover:text-white'
+                                            }`}
+                                        >
+                                            ⚖️ Split (Co-Pay)
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setPayerType('Insurance')}
+                                            className={`py-3 px-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                payerType === 'Insurance' 
+                                                    ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20 ring-2 ring-rose-400' 
+                                                    : 'bg-black/40 text-slate-400 border border-white/10 hover:text-white'
+                                            }`}
+                                        >
+                                            🛡️ 100% Insurance
+                                        </button>
                                     </div>
-                                )}
-                            </div>
 
-                            {/* Payer Configuration */}
-                            <div className="p-5 bg-white/[0.02] border border-white/10 rounded-2xl space-y-4">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Payer & Settlement Mode</label>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                    <button 
-                                        type="button"
-                                        onClick={() => setPayerType('Self-Pay')}
-                                        className={`py-3 px-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                                            payerType === 'Self-Pay' ? 'bg-emerald-500 text-slate-950' : 'bg-black/40 text-slate-400 border border-white/10'
-                                        }`}
-                                    >
-                                        💵 100% Self-Pay
-                                    </button>
-                                    <button 
-                                        type="button"
-                                        onClick={() => setPayerType('Split (Co-Pay + Insurance)')}
-                                        className={`py-3 px-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                                            payerType === 'Split (Co-Pay + Insurance)' ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400' : 'bg-black/40 text-slate-400 border border-white/10'
-                                        }`}
-                                    >
-                                        ⚖️ Split (Co-Pay + Cover)
-                                    </button>
-                                    <button 
-                                        type="button"
-                                        onClick={() => setPayerType('Insurance')}
-                                        className={`py-3 px-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                                            payerType === 'Insurance' ? 'bg-rose-500 text-white' : 'bg-black/40 text-slate-400 border border-white/10'
-                                        }`}
-                                    >
-                                        🛡️ 100% Insurance Cover
-                                    </button>
-                                </div>
-
-                                {payerType !== 'Self-Pay' && (
-                                    <div className="space-y-4 pt-2">
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    {/* Insurance / SHA Details Row */}
+                                    {payerType !== 'Self-Pay' && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                                             <div>
-                                                <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Insurance Provider</label>
+                                                <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Insurer / SHA Scheme</label>
                                                 <select 
                                                     value={selectedInsurance}
                                                     onChange={(e) => setSelectedInsurance(e.target.value)}
-                                                    className="w-full p-3 bg-black/50 border border-white/10 rounded-xl text-xs text-white"
+                                                    className="w-full p-2.5 bg-black/60 border border-white/10 rounded-xl text-xs text-white font-bold"
                                                 >
                                                     {insuranceProviders.map((ins, i) => (
                                                         <option key={i} value={ins.name}>{ins.name}</option>
@@ -2402,13 +2530,13 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                                 </select>
                                             </div>
                                             <div>
-                                                <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Policy / Member SHA #</label>
+                                                <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Policy / Member #</label>
                                                 <input 
                                                     type="text"
                                                     value={policyNumber}
                                                     onChange={(e) => setPolicyNumber(e.target.value)}
                                                     placeholder="e.g. SHA-90812-B"
-                                                    className="w-full p-3 bg-black/50 border border-white/10 rounded-xl text-xs text-white"
+                                                    className="w-full p-2.5 bg-black/60 border border-white/10 rounded-xl text-xs text-white font-mono"
                                                     required
                                                 />
                                             </div>
@@ -2420,99 +2548,195 @@ export function HISBillingView({ institutionId }: { institutionId?: string }) {
                                                     onChange={(e) => setCopayAmount(e.target.value)}
                                                     placeholder="500"
                                                     min="0"
-                                                    className="w-full p-3 bg-black/50 border border-amber-500/50 rounded-xl text-xs text-amber-300 font-bold"
+                                                    className="w-full p-2.5 bg-black/60 border border-amber-500/40 rounded-xl text-xs text-amber-300 font-mono font-bold"
                                                 />
                                             </div>
                                         </div>
-
-                                        {/* Split calculation breakdown indicator */}
-                                        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex flex-wrap justify-between items-center text-[10px] font-black uppercase tracking-wider">
-                                            <div className="text-amber-300">
-                                                <span>Patient Responsibility (Co-Pay): </span>
-                                                <span className="text-sm font-bold text-white ml-1">KES {Number(copayAmount || 0).toLocaleString()}</span>
-                                            </div>
-                                            <div className="text-rose-300">
-                                                <span>Insurance Cover Claim: </span>
-                                                <span className="text-sm font-bold text-white ml-1">KES {Math.max(0, newInvoiceSubtotal - Number(copayAmount || 0)).toLocaleString()}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
 
-                            {/* Itemized Line Items */}
+                            {/* Itemized Line Items Table Section */}
                             <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Bill Line Items</label>
-                                    <button 
-                                        type="button" 
-                                        onClick={handleAddLineItem}
-                                        className="text-[10px] font-black text-indigo-400 hover:text-indigo-300 uppercase tracking-widest flex items-center gap-1"
-                                    >
-                                        <PlusIcon className="w-3.5 h-3.5" /> Add Service / Med
-                                    </button>
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                    <div>
+                                        <label className="block text-xs font-black text-white uppercase tracking-wider">
+                                            3. Bill Line Items ({lineItems.length} items)
+                                        </label>
+                                        <p className="text-[10px] text-slate-400">Add medical services, laboratory tests, drugs or procedures</p>
+                                    </div>
+                                    
+                                    {/* Preset Quick Add Buttons */}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setLineItems(prev => [...prev, { itemName: 'General Consultation', category: 'Consultation', quantity: 1, unitPrice: 1000 }])}
+                                            className="px-3 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                                        >
+                                            + Consultation
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setLineItems(prev => [...prev, { itemName: 'Complete Blood Count (CBC)', category: 'Diagnostics', quantity: 1, unitPrice: 1500 }])}
+                                            className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                                        >
+                                            + Lab Test
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setLineItems(prev => [...prev, { itemName: 'Amoxicillin 500mg (20 Caps)', category: 'Pharmacy', quantity: 1, unitPrice: 800 }])}
+                                            className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                                        >
+                                            + Pharmacy Med
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={handleAddLineItem}
+                                            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer"
+                                        >
+                                            <PlusIcon className="w-3.5 h-3.5" /> Add Blank Row
+                                        </button>
+                                    </div>
                                 </div>
 
-                                {lineItems.map((item, idx) => (
-                                    <div key={idx} className="flex flex-col sm:flex-row gap-3 items-center bg-black/40 p-3 rounded-2xl border border-white/5">
-                                        <input 
-                                            type="text"
-                                            value={item.itemName}
-                                            onChange={(e) => handleLineItemChange(idx, 'itemName', e.target.value)}
-                                            placeholder="Service / Medication Name"
-                                            className="flex-2 w-full p-2.5 bg-black/50 border border-white/10 rounded-xl text-xs text-white placeholder-slate-600"
-                                            required
-                                        />
-                                        <select 
-                                            value={item.category}
-                                            onChange={(e) => handleLineItemChange(idx, 'category', e.target.value)}
-                                            className="w-full sm:w-36 p-2.5 bg-black/50 border border-white/10 rounded-xl text-xs text-white"
-                                        >
-                                            <option value="Consultation">Consultation</option>
-                                            <option value="Diagnostics">Diagnostics/Lab</option>
-                                            <option value="Pharmacy">Pharmacy</option>
-                                            <option value="Inpatient">Inpatient Ward</option>
-                                            <option value="Dental">Dental</option>
-                                            <option value="Ophthalmology">Ophthalmology</option>
-                                        </select>
-                                        <input 
-                                            type="number"
-                                            value={item.quantity}
-                                            onChange={(e) => handleLineItemChange(idx, 'quantity', e.target.value)}
-                                            placeholder="QTY"
-                                            min="1"
-                                            className="w-full sm:w-20 p-2.5 bg-black/50 border border-white/10 rounded-xl text-xs text-white text-center"
-                                            required
-                                        />
-                                        <input 
-                                            type="number"
-                                            value={item.unitPrice}
-                                            onChange={(e) => handleLineItemChange(idx, 'unitPrice', e.target.value)}
-                                            placeholder="Price"
-                                            className="w-full sm:w-28 p-2.5 bg-black/50 border border-white/10 rounded-xl text-xs text-white"
-                                            required
-                                        />
-                                        {lineItems.length > 1 && (
-                                            <button type="button" onClick={() => handleRemoveLineItem(idx)} className="p-2 text-rose-400 hover:text-rose-300">
-                                                <XCircleIcon className="w-5 h-5" />
-                                            </button>
+                                {/* Expanded Line Items Table */}
+                                <div className="border border-white/10 rounded-2xl overflow-hidden bg-black/40">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse min-w-[760px]">
+                                            <thead>
+                                                <tr className="border-b border-white/10 bg-white/[0.04] text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                                    <th className="p-3.5 w-10 text-center">#</th>
+                                                    <th className="p-3.5 min-w-[260px]">Service / Medication / Procedure *</th>
+                                                    <th className="p-3.5 w-44">Department Category</th>
+                                                    <th className="p-3.5 w-24 text-center">Qty</th>
+                                                    <th className="p-3.5 w-36">Unit Price (KES)</th>
+                                                    <th className="p-3.5 w-36 text-right">Subtotal (KES)</th>
+                                                    <th className="p-3.5 w-12 text-center">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5">
+                                                {lineItems.map((item, idx) => {
+                                                    const rowSubtotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                                                    return (
+                                                        <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                                                            <td className="p-3 text-center text-slate-500 text-xs font-mono font-bold">
+                                                                {idx + 1}
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <input 
+                                                                    type="text"
+                                                                    value={item.itemName}
+                                                                    onChange={(e) => handleLineItemChange(idx, 'itemName', e.target.value)}
+                                                                    placeholder="e.g. General Consultation, Malaria Test, Amoxicillin"
+                                                                    className="w-full p-2.5 bg-black/60 border border-white/10 rounded-xl text-xs text-white placeholder-slate-600 font-bold focus:outline-none focus:border-indigo-500"
+                                                                    required
+                                                                />
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <select 
+                                                                    value={item.category}
+                                                                    onChange={(e) => handleLineItemChange(idx, 'category', e.target.value)}
+                                                                    className="w-full p-2.5 bg-black/60 border border-white/10 rounded-xl text-xs text-white font-medium focus:outline-none focus:border-indigo-500"
+                                                                >
+                                                                    <option value="Consultation">Consultation</option>
+                                                                    <option value="Diagnostics">Diagnostics/Lab</option>
+                                                                    <option value="Pharmacy">Pharmacy</option>
+                                                                    <option value="Inpatient">Inpatient Ward</option>
+                                                                    <option value="Dental">Dental</option>
+                                                                    <option value="Ophthalmology">Ophthalmology</option>
+                                                                    <option value="Nursing">Nursing &amp; Care</option>
+                                                                </select>
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <input 
+                                                                    type="number"
+                                                                    value={item.quantity}
+                                                                    onChange={(e) => handleLineItemChange(idx, 'quantity', e.target.value)}
+                                                                    placeholder="1"
+                                                                    min="1"
+                                                                    className="w-full p-2.5 bg-black/60 border border-white/10 rounded-xl text-xs text-white text-center font-mono font-bold focus:outline-none focus:border-indigo-500"
+                                                                    required
+                                                                />
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <input 
+                                                                    type="number"
+                                                                    value={item.unitPrice}
+                                                                    onChange={(e) => handleLineItemChange(idx, 'unitPrice', e.target.value)}
+                                                                    placeholder="0"
+                                                                    min="0"
+                                                                    className="w-full p-2.5 bg-black/60 border border-white/10 rounded-xl text-xs text-white font-mono font-bold focus:outline-none focus:border-indigo-500"
+                                                                    required
+                                                                />
+                                                            </td>
+                                                            <td className="p-3 text-right">
+                                                                <span className="font-mono font-black text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-500/20 px-3 py-1.5 rounded-lg inline-block">
+                                                                    KES {rowSubtotal.toLocaleString()}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-3 text-center">
+                                                                {lineItems.length > 1 ? (
+                                                                    <button 
+                                                                        type="button" 
+                                                                        onClick={() => handleRemoveLineItem(idx)} 
+                                                                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
+                                                                        title="Remove row"
+                                                                    >
+                                                                        <XCircleIcon className="w-5 h-5" />
+                                                                    </button>
+                                                                ) : (
+                                                                    <span className="text-slate-600 text-xs">-</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Total Summary Bar & Split Breakdown */}
+                            <div className="p-6 bg-gradient-to-r from-indigo-900/30 via-slate-900/60 to-emerald-900/30 border border-white/15 rounded-3xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-4 flex-wrap">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Invoice Amount</p>
+                                            <p className="text-3xl font-black text-white font-mono">KES {newInvoiceSubtotal.toLocaleString()}</p>
+                                        </div>
+
+                                        {payerType !== 'Self-Pay' && (
+                                            <div className="flex items-center gap-4 pl-4 border-l border-white/10">
+                                                <div>
+                                                    <p className="text-[9px] font-black text-amber-400 uppercase tracking-wider">Patient Co-Pay Due</p>
+                                                    <p className="text-lg font-black text-amber-300 font-mono">KES {Number(copayAmount || 0).toLocaleString()}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-rose-400 uppercase tracking-wider">Insurer Claim Amount</p>
+                                                    <p className="text-lg font-black text-rose-300 font-mono">KES {Math.max(0, newInvoiceSubtotal - Number(copayAmount || 0)).toLocaleString()}</p>
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
-                                ))}
-                            </div>
-
-                            {/* Total Summary */}
-                            <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex justify-between items-center">
-                                <div>
-                                    <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Total Invoice Amount</p>
-                                    <p className="text-2xl font-black text-white">KES {newInvoiceSubtotal.toLocaleString()}</p>
                                 </div>
-                                <button 
-                                    type="submit"
-                                    className="px-8 py-3.5 bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl hover:scale-105 transition-all shadow-lg shadow-emerald-500/20"
-                                >
-                                    Issue &amp; Save Invoice
-                                </button>
+
+                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setIsGenerateModalOpen(false)}
+                                        className="flex-1 md:flex-none px-6 py-4 bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs uppercase tracking-widest rounded-2xl transition-all cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        className="flex-1 md:flex-none px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl hover:scale-105 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                                    >
+                                        <CheckCircleIcon className="w-4 h-4 text-slate-950" />
+                                        <span>Issue &amp; Save Invoice</span>
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>
