@@ -2264,6 +2264,7 @@ export function DoctorDashboard({
                     patients={patients}
                     institutionId={institutionId}
                     userName={userName}
+                    defaultPatientId={activePatient?.id}
                 />
             )}
             {/* ── Inpatient Discharge Summary Modal ── */}
@@ -2273,6 +2274,7 @@ export function DoctorDashboard({
                     patients={patients}
                     institutionId={institutionId}
                     userName={userName}
+                    defaultPatientId={activePatient?.id}
                 />
             )}
 
@@ -2351,23 +2353,20 @@ function InpatientDischargeModal({ onClose, patients, institutionId, userName, d
     defaultPatientId?: string;
 }) {
     const todayStr = new Date().toISOString().split('T')[0];
-    const defaultAdmissionDate = new Date(Date.now() - 4 * 86400000).toISOString().split('T')[0];
-    const defaultReviewDate = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
+    const defaultAdm = new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0];
 
-    const admittedPatients = patients.filter(p => p.admissionNumber || p.status === 'Admitted' || p.status === 'Inpatient');
-    const displayPatients = admittedPatients.length > 0 ? admittedPatients : patients;
-
-    const [selectedPatientId, setSelectedPatientId] = useState(defaultPatientId || (displayPatients.length > 0 ? displayPatients[0].id : ''));
-    const [wardBed, setWardBed] = useState('Female Surgical Ward — Bed 04');
-    const [admissionDate, setAdmissionDate] = useState(defaultAdmissionDate);
+    const [selectedPatientId, setSelectedPatientId] = useState(defaultPatientId || (patients.length > 0 ? patients[0].id : ''));
+    const [patientSearch, setPatientSearch] = useState('');
+    const [admissionDate, setAdmissionDate] = useState(defaultAdm);
     const [dischargeDate, setDischargeDate] = useState(todayStr);
-    const [admissionDiagnosis, setAdmissionDiagnosis] = useState('Acute Suppurative Appendicitis');
-    const [finalDiagnosis, setFinalDiagnosis] = useState('Acute Suppurative Appendicitis — Post Laparoscopic Appendectomy');
-    const [proceduresPerformed, setProceduresPerformed] = useState('Laparoscopic Appendectomy under General Anesthesia (10/08/2026)');
-    const [hospitalCourse, setHospitalCourse] = useState('Patient was admitted with acute lower right quadrant abdominal pain. Uneventful emergency appendectomy performed. Post-op recovery smooth. Afebril, vitals stable, bowel sounds present, tolerating oral diet.');
-    const [takeHomeMedications, setTakeHomeMedications] = useState('1. Tab Augmentin 1g BD x 7 Days\n2. Tab Paracetamol 1g TDS PRN x 5 Days\n3. Tab Ibuprofen 400mg BD PRN pc x 5 Days');
+    const [wardNumber, setWardNumber] = useState('Ward 3B - Bed 14');
+    const [admissionDiagnosis, setAdmissionDiagnosis] = useState('Acute Appendicitis with Localized Peritonitis');
+    const [finalDiagnosis, setFinalDiagnosis] = useState('Post-Laparoscopic Appendectomy - Recovered');
+    const [proceduresPerformed, setProceduresPerformed] = useState('Emergency Diagnostic Laparoscopy + Laparoscopic Appendectomy');
+    const [hospitalCourse, setHospitalCourse] = useState('Patient was admitted with acute lower right quadrant pain. Successfully underwent laparoscopic appendectomy on Day 1. Post-op recovery was uneventful. Tolerating oral feeds well. Afebrile for 48 hours. Vitals stable on discharge.');
+    const [takeHomeMedications, setTakeHomeMedications] = useState('1. Tab Augmentin 1g BD x 5 Days\n2. Tab Paracetamol 1g TDS PRN (Pain)\n3. Tab Celecoxib 200mg OD x 3 Days');
     const [dischargeCondition, setDischargeCondition] = useState('Improved & Fit for Outpatient Discharge');
-    const [followUpInstructions, setFollowUpInstructions] = useState(`Review at Surgical Outpatient Clinic on ${defaultReviewDate} for wound inspection and suture removal.`);
+    const [followUpInstructions, setFollowUpInstructions] = useState('Review at Surgical Outpatient Clinic in 7 days for suture check and wound review.');
     const [medicalLicense, setMedicalLicense] = useState('MPDB/REG/94820');
     const [isSendingEmail, setIsSendingEmail] = useState(false);
     const [emailSent, setEmailSent] = useState(false);
@@ -2510,19 +2509,19 @@ function InpatientDischargeModal({ onClose, patients, institutionId, userName, d
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-900 border border-white/10 w-full max-w-3xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-white">
-                <div className="px-8 py-5 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl overflow-y-auto">
+            <div className="bg-slate-900 border border-white/10 w-full max-w-3xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-white my-auto flex flex-col max-h-[90vh]">
+                <div className="px-8 py-5 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white flex items-center justify-between shrink-0">
                     <div>
                         <h3 className="text-md font-black uppercase tracking-wider">📋 Inpatient Medical Discharge Summary</h3>
                         <p className="text-[10px] font-semibold opacity-90">Generate clinical discharge summary, take-home Rx, &amp; follow-up instructions</p>
                     </div>
-                    <button onClick={onClose} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                    <button onClick={onClose} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all cursor-pointer">
                         <XIcon className="w-5 h-5" />
                     </button>
                 </div>
 
-                <div className="p-8 space-y-4 max-h-[80vh] overflow-y-auto">
+                <div className="p-6 sm:p-8 space-y-4 overflow-y-auto flex-1 max-h-[calc(90vh-140px)] no-scrollbar">
                     <div>
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Select Admitted Inpatient *</label>
                         <select
@@ -2699,6 +2698,7 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
     const defaultResume = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0];
 
     const [selectedPatientId, setSelectedPatientId] = useState(defaultPatientId || (patients.length > 0 ? patients[0].id : ''));
+    const [patientSearch, setPatientSearch] = useState('');
     const [employerName, setEmployerName] = useState('');
     const [employerEmail, setEmployerEmail] = useState('');
     const [diagnosis, setDiagnosis] = useState('Acute Upper Respiratory Tract Infection');
@@ -2717,6 +2717,10 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
             setSelectedPatientId(defaultPatientId);
         }
     }, [defaultPatientId]);
+
+    const displayPatients = patientSearch.trim()
+        ? patients.filter(p => (p.fullName || '').toLowerCase().includes(patientSearch.toLowerCase()) || (p.admissionNumber || '').includes(patientSearch))
+        : patients;
 
     const patient = patients.find(p => p.id === selectedPatientId);
     const certNumber = `MED-OFF-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
@@ -2739,7 +2743,7 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
                     .section { margin-bottom: 25px; }
                     .field-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; }
                     .field-value { font-size: 14px; font-weight: 700; color: #0f172a; }
-                    .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; }
+                    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
                     .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 20px 0; }
                     .stamp-box { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; }
                     .stamp { border: 2px dashed #0284c7; color: #0284c7; padding: 15px 25px; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-size: 11px; text-align: center; transform: rotate(-3deg); }
@@ -2827,27 +2831,41 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-900 border border-white/10 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-white">
-                <div className="px-8 py-5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl overflow-y-auto">
+            <div className="bg-slate-900 border border-white/10 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-white my-auto flex flex-col max-h-[90vh]">
+                <div className="px-8 py-5 bg-gradient-to-r from-rose-600 via-pink-600 to-amber-600 text-white flex items-center justify-between shrink-0 shadow-lg">
                     <div>
                         <h3 className="text-md font-black uppercase tracking-wider">📄 Medical Sick Off / Permission Sheet</h3>
                         <p className="text-[10px] font-semibold opacity-90">Generate off-duty permission certificate with employer email &amp; print sign-off</p>
                     </div>
-                    <button onClick={onClose} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                    <button onClick={onClose} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all cursor-pointer">
                         <XIcon className="w-5 h-5" />
                     </button>
                 </div>
 
-                <div className="p-8 space-y-4 max-h-[80vh] overflow-y-auto">
+                <div className="p-6 sm:p-8 space-y-4 overflow-y-auto flex-1 max-h-[calc(90vh-140px)] no-scrollbar">
                     <div>
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Select Patient *</label>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Select Patient *</label>
+                            {patient && (
+                                <span className="text-[9px] font-bold text-emerald-400 uppercase">
+                                    ✓ Active: {patient.fullName} ({patient.gender || 'Adult'})
+                                </span>
+                            )}
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Filter patients by name or file number..."
+                            value={patientSearch}
+                            onChange={e => setPatientSearch(e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 focus:border-rose-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none mb-2 placeholder:text-slate-500"
+                        />
                         <select
                             value={selectedPatientId}
                             onChange={e => setSelectedPatientId(e.target.value)}
-                            className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-white outline-none uppercase"
+                            className="w-full bg-black/60 border border-white/10 focus:border-rose-500 rounded-xl p-3 text-xs font-bold text-white outline-none uppercase"
                         >
-                            {patients.map(p => (
+                            {displayPatients.map(p => (
                                 <option key={p.id} value={p.id} className="bg-slate-900 text-white">
                                     {p.fullName} (File: {p.admissionNumber || (p as any).admission_number || (p as any).customPatientId || p.id.substring(0, 8)})
                                 </option>
@@ -2855,7 +2873,7 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
                         </select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Employer / Institution Name</label>
                             <input
@@ -2863,7 +2881,7 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
                                 value={employerName}
                                 onChange={e => setEmployerName(e.target.value)}
                                 placeholder="e.g. Safaricom PLC, Ministry of Education"
-                                className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                                className="w-full bg-black/40 border border-white/10 focus:border-rose-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
                             />
                         </div>
                         <div>
@@ -2885,18 +2903,18 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
                             value={diagnosis}
                             onChange={e => setDiagnosis(e.target.value)}
                             placeholder="e.g. Acute Gastroenteritis, Post-Operative Recovery"
-                            className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                            className="w-full bg-black/40 border border-white/10 focus:border-rose-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
                         />
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Start Date</label>
                             <input
                                 type="date"
                                 value={startDate}
                                 onChange={e => setStartDate(e.target.value)}
-                                className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                                className="w-full bg-black/40 border border-white/10 focus:border-rose-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
                             />
                         </div>
                         <div>
@@ -2905,7 +2923,7 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
                                 type="date"
                                 value={endDate}
                                 onChange={e => setEndDate(e.target.value)}
-                                className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                                className="w-full bg-black/40 border border-white/10 focus:border-rose-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
                             />
                         </div>
                         <div>
@@ -2920,14 +2938,14 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Expected Resume Date</label>
                             <input
                                 type="date"
                                 value={resumeDate}
                                 onChange={e => setResumeDate(e.target.value)}
-                                className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                                className="w-full bg-black/40 border border-white/10 focus:border-rose-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
                             />
                         </div>
                         <div>
@@ -2936,7 +2954,7 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
                                 type="text"
                                 value={medicalLicense}
                                 onChange={e => setMedicalLicense(e.target.value)}
-                                className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                                className="w-full bg-black/40 border border-white/10 focus:border-rose-500 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
                             />
                         </div>
                     </div>
@@ -2947,26 +2965,26 @@ function SickOffPermissionModal({ onClose, patients, institutionId, userName, de
                             value={recommendation}
                             onChange={e => setRecommendation(e.target.value)}
                             rows={2}
-                            className="w-full bg-black/40 border border-white/10 focus:border-emerald-500 rounded-xl p-3 text-xs font-bold text-white outline-none resize-none"
+                            className="w-full bg-black/40 border border-white/10 focus:border-rose-500 rounded-xl p-3 text-xs font-bold text-white outline-none resize-none"
                         />
                     </div>
                 </div>
 
-                <div className="p-6 bg-black/40 border-t border-white/10 flex flex-wrap justify-between items-center gap-3">
-                    <button onClick={onClose} className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
+                <div className="p-6 bg-black/40 border-t border-white/10 flex flex-wrap justify-between items-center gap-3 shrink-0">
+                    <button onClick={onClose} className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer">
                         Close
                     </button>
                     <div className="flex gap-3">
                         <button
                             onClick={handleEmailEmployer}
                             disabled={isEmailing}
-                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2"
+                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 cursor-pointer"
                         >
                             {isEmailing ? '📧 Emailing HR...' : emailSent ? '✓ Emailed to HR' : '📧 Email Directly to Employer'}
                         </button>
                         <button
                             onClick={handlePrint}
-                            className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-2 italic"
+                            className="px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-2 italic cursor-pointer font-black"
                         >
                             <span>🖨️ Print Off-Duty Certificate</span>
                         </button>
