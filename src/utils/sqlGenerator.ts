@@ -212,6 +212,33 @@ CREATE TABLE IF NOT EXISTS law_agreements (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS coop_expenses (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'General Operating',
+    amount NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    recorded_by TEXT NOT NULL,
+    farmer_id TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS coop_income (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    company_name TEXT NOT NULL,
+    product_type TEXT NOT NULL DEFAULT 'milk',
+    quantity NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    unit TEXT NOT NULL DEFAULT 'kgs',
+    amount NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    recorded_by TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS school_registry (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -3157,6 +3184,8 @@ CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expens
         // Cooperative
         `CREATE INDEX IF NOT EXISTS idx_coop_farmers_inst ON coop_farmers(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_coop_collections_inst ON coop_collections(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_coop_expenses_inst ON coop_expenses(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_coop_income_inst ON coop_income(institution_id);`,
         // Retail & Restaurant
         `CREATE INDEX IF NOT EXISTS idx_retail_inv_inst ON retail_inventory(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_retail_sales_inst ON retail_sales(institution_id);`,

@@ -1843,8 +1843,25 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 setSaccoAccounts(cSaccoAcc || []);
                 setSaccoTransactions(cSaccoTx || []);
                 setCoopPayouts(cPayouts || []);
-                setCoopExpenses(cExps || []);
-                setCoopIncome(cInc || []);
+                setCoopExpenses((cExps || []).map((e: any) => ({
+                    ...e,
+                    institutionId: e.institutionId || e.institution_id,
+                    recordedBy: e.recordedBy || e.recorded_by,
+                    farmerId: e.farmerId || e.farmer_id,
+                    amount: Number(e.amount || 0),
+                    date: e.date || new Date().toISOString().split('T')[0]
+                })));
+                setCoopIncome((cInc || []).map((i: any) => ({
+                    ...i,
+                    institutionId: i.institutionId || i.institution_id,
+                    companyName: i.companyName || i.company_name,
+                    productType: i.productType || i.product_type,
+                    recordedBy: i.recordedBy || i.recorded_by,
+                    quantity: Number(i.quantity || 0),
+                    amount: Number(i.amount || 0),
+                    unit: i.unit || 'kgs',
+                    date: i.date || new Date().toISOString().split('T')[0]
+                })));
 
                 setLawClients(lClients || []);
                 setLawMatters(lMatters || []);

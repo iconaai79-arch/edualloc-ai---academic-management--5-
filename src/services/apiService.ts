@@ -1559,6 +1559,17 @@ export const apiService = {
                 if (item.lawyerNotes && !item.lawyer_notes) item.lawyer_notes = item.lawyerNotes;
                 if (item.signedUrl && !item.signed_url) item.signed_url = item.signedUrl;
             }
+
+            // Cooperative expenses and income normalization
+            if (module === 'coop_expenses') {
+                if (item.recordedBy && !item.recorded_by) item.recorded_by = item.recordedBy;
+                if (item.farmerId && !item.farmer_id) item.farmer_id = item.farmerId;
+            }
+            if (module === 'coop_income') {
+                if (item.companyName && !item.company_name) item.company_name = item.companyName;
+                if (item.productType && !item.product_type) item.product_type = item.productType;
+                if (item.recordedBy && !item.recorded_by) item.recorded_by = item.recordedBy;
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {
