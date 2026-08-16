@@ -1601,6 +1601,13 @@ export const apiService = {
                 if (item.countyId && !item.county_id) item.county_id = item.countyId;
                 if (item.locationName && !item.location_name) item.location_name = item.locationName;
             }
+            if (module === 'discipline_incidents') {
+                if (item.studentId && !item.student_id) item.student_id = item.studentId;
+                if (item.studentName && !item.student_name) item.student_name = item.studentName;
+                if (item.incidentType && !item.incident_type) item.incident_type = item.incidentType;
+                if (item.actionTaken && !item.action_taken) item.action_taken = item.actionTaken;
+                if (item.recordedBy && !item.recorded_by) item.recorded_by = item.recordedBy;
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {

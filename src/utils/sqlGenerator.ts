@@ -284,6 +284,23 @@ CREATE TABLE IF NOT EXISTS county_inventory (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS discipline_incidents (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT,
+    student_name TEXT,
+    type TEXT,
+    incident_type TEXT,
+    severity TEXT DEFAULT 'Medium',
+    description TEXT NOT NULL,
+    action_taken TEXT,
+    status TEXT DEFAULT 'pending',
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    recorded_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS school_registry (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -3253,7 +3270,11 @@ CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expens
         `CREATE INDEX IF NOT EXISTS idx_county_stores_county ON county_stores(county_id);`,
         `CREATE INDEX IF NOT EXISTS idx_county_inv_county ON county_inventory(county_id);`,
         `CREATE INDEX IF NOT EXISTS idx_county_inv_target ON county_inventory(target_institution_id);`,
-        `CREATE INDEX IF NOT EXISTS idx_county_inv_status ON county_inventory(status);`
+        `CREATE INDEX IF NOT EXISTS idx_county_inv_status ON county_inventory(status);`,
+        // Discipline Incidents
+        `CREATE INDEX IF NOT EXISTS idx_disc_incidents_inst ON discipline_incidents(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_disc_incidents_student ON discipline_incidents(student_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_disc_incidents_status ON discipline_incidents(status);`
     ];
 
     indexStatements.forEach(stmt => {

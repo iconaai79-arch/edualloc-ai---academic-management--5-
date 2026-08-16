@@ -1602,7 +1602,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 setSecurityAlerts(sec || []);
                 setRequisitions(reqRecords || []);
                 
-                setIncidents(disc || []);
+                setIncidents((disc || []).map((d: any) => ({
+                    ...d,
+                    institutionId: d.institutionId || d.institution_id,
+                    studentId: d.studentId || d.student_id,
+                    studentName: d.studentName || d.student_name,
+                    incidentType: d.incidentType || d.incident_type || d.type,
+                    actionTaken: d.actionTaken || d.action_taken,
+                    recordedBy: d.recordedBy || d.recorded_by,
+                    timestamp: d.timestamp || d.created_at || new Date().toISOString()
+                })));
                 setExpenses(fExps || []);
                 setFinancialGoals(fGoals || []);
                 setPayrollRecords(fPayroll || []);
