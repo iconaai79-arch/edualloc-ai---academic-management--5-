@@ -87,18 +87,36 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         setIsSavingTariffs(true);
         try {
             localStorage.setItem(`his_consultation_rates_${institutionId}`, JSON.stringify(consultationRates));
-            await apiService.saveModuleRecord('his_tariffs', {
+            
+            const tariffPayload = {
                 id: `consultation_rates_${institutionId}`,
                 institutionId,
                 institution_id: institutionId,
                 type: 'consultation_rates',
-                ...consultationRates,
+                name: 'Standard Consultation Fee Schedule',
+                category: 'Consultation',
+                cashConsultation: Number(consultationRates.cashConsultation) || 1000,
+                coverConsultation: Number(consultationRates.coverConsultation) || 1500,
+                emergencySurcharge: Number(consultationRates.emergencySurcharge) || 500,
+                revisitFee: Number(consultationRates.revisitFee) || 500,
+                cash_consultation: Number(consultationRates.cashConsultation) || 1000,
+                cover_consultation: Number(consultationRates.coverConsultation) || 1500,
+                emergency_surcharge: Number(consultationRates.emergencySurcharge) || 500,
+                revisit_fee: Number(consultationRates.revisitFee) || 500,
+                cashRate: Number(consultationRates.cashConsultation) || 1000,
+                coverRate: Number(consultationRates.coverConsultation) || 1500,
+                cash_rate: Number(consultationRates.cashConsultation) || 1000,
+                cover_rate: Number(consultationRates.coverConsultation) || 1500,
+                isActive: true,
+                is_active: true,
                 updatedAt: new Date().toISOString()
-            }).catch(() => null);
-            alert(`✓ Consultation fee schedule updated successfully!\n\n• Cash Consultation Fee: KES ${consultationRates.cashConsultation.toLocaleString()}\n• Cover / Insurance Consultation Fee: KES ${consultationRates.coverConsultation.toLocaleString()}`);
+            };
+
+            await apiService.saveModuleRecord('his_tariffs', tariffPayload);
+            alert(`✓ Consultation fee schedule updated successfully!\n\n• Cash Consultation Fee: KES ${(consultationRates.cashConsultation || 1000).toLocaleString()}\n• Cover / Insurance Consultation Fee: KES ${(consultationRates.coverConsultation || 1500).toLocaleString()}\n• Emergency Surcharge: KES ${(consultationRates.emergencySurcharge || 500).toLocaleString()}\n• Revisit / Follow-up Fee: KES ${(consultationRates.revisitFee || 500).toLocaleString()}`);
         } catch (e) {
             console.error('Failed to save consultation rates:', e);
-            alert('Failed to save consultation rates.');
+            alert('Failed to save consultation rates. Please check network connection.');
         } finally {
             setIsSavingTariffs(false);
         }
@@ -315,13 +333,26 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
     const loadTariffs = useCallback(async () => {
         if (!institutionId) return;
         try {
-            const rates = await apiService.fetchModuleRecords('his_consultation_rates', institutionId);
-            if (rates && rates.length > 0) {
-                setConsultationRates(rates[0]);
-            }
             const tariffs = await apiService.fetchModuleRecords('his_tariffs', institutionId);
             if (tariffs && tariffs.length > 0) {
-                setCustomTariffs(tariffs);
+                // Find custom consultation rates record if saved in his_tariffs
+                const savedRates = tariffs.find((t: any) => t.id?.includes('consultation_rates') || t.type === 'consultation_rates');
+                if (savedRates) {
+                    const parsed = {
+                        cashConsultation: Number(savedRates.cashConsultation ?? savedRates.cash_consultation ?? 1000),
+                        coverConsultation: Number(savedRates.coverConsultation ?? savedRates.cover_consultation ?? 1500),
+                        emergencySurcharge: Number(savedRates.emergencySurcharge ?? savedRates.emergency_surcharge ?? 500),
+                        revisitFee: Number(savedRates.revisitFee ?? savedRates.revisit_fee ?? 500)
+                    };
+                    setConsultationRates(parsed);
+                    localStorage.setItem(`his_consultation_rates_${institutionId}`, JSON.stringify(parsed));
+                }
+                
+                // Exclude consultation rate config row from general service tariffs list
+                const serviceTariffs = tariffs.filter((t: any) => t.type !== 'consultation_rates' && !t.id?.includes('consultation_rates'));
+                if (serviceTariffs.length > 0) {
+                    setCustomTariffs(serviceTariffs);
+                }
             } else {
                 // Default sample tariffs
                 setCustomTariffs([

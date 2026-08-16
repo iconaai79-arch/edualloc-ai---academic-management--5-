@@ -133,6 +133,7 @@ const MODULE_ALIASES: Record<string, string> = {
   'guest_feedback': 'feedback_submissions',
   'guest_feedbacks': 'feedback_submissions',
   'guestfeedback': 'feedback_submissions',
+  'his_consultation_rates': 'his_tariffs',
   'weighbridge_tickets': 'weighbridge_intake_tickets',
   'milling_weighbridge_tickets': 'weighbridge_intake_tickets',
   'milling_grain_suppliers': 'grain_suppliers',

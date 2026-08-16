@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS public.his_tariffs (
     emergency_cover_consultation NUMERIC(12,2),
     "emergencyCashConsultation" NUMERIC(12,2),
     "emergencyCoverConsultation" NUMERIC(12,2),
+    emergency_surcharge NUMERIC(12,2) DEFAULT 0,
+    "emergencySurcharge" NUMERIC(12,2) DEFAULT 0,
+    revisit_fee NUMERIC(12,2) DEFAULT 0,
+    "revisitFee" NUMERIC(12,2) DEFAULT 0,
     
     -- Flags & Configuration
     is_active BOOLEAN DEFAULT TRUE,
@@ -69,6 +73,10 @@ ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS cash_consultation NUMERI
 ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS cover_consultation NUMERIC(12,2);
 ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS "cashConsultation" NUMERIC(12,2);
 ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS "coverConsultation" NUMERIC(12,2);
+ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS emergency_surcharge NUMERIC(12,2) DEFAULT 0;
+ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS "emergencySurcharge" NUMERIC(12,2) DEFAULT 0;
+ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS revisit_fee NUMERIC(12,2) DEFAULT 0;
+ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS "revisitFee" NUMERIC(12,2) DEFAULT 0;
 ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS specialist_cash_consultation NUMERIC(12,2);
 ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS specialist_cover_consultation NUMERIC(12,2);
 ALTER TABLE public.his_tariffs ADD COLUMN IF NOT EXISTS "specialistCashConsultation" NUMERIC(12,2);
