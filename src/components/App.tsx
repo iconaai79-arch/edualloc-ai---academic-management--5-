@@ -1561,8 +1561,21 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                     receivedDate: ci.receivedDate || ci.received_date,
                     quantity: Number(ci.quantity || 0)
                 })));
-                setCountyInventoryCategories(ccats || []);
-                setCountyStores(cstores || []);
+                setCountyInventoryCategories((ccats || []).map((c: any) => ({
+                    ...c,
+                    countyId: c.countyId || c.county_id,
+                    createdAt: c.createdAt || c.created_at,
+                    updatedAt: c.updatedAt || c.updated_at
+                })));
+                setCountyStores((cstores || []).map((s: any) => ({
+                    ...s,
+                    countyId: s.countyId || s.county_id,
+                    locationName: s.locationName || s.location_name,
+                    latitude: s.latitude !== undefined ? Number(s.latitude) : undefined,
+                    longitude: s.longitude !== undefined ? Number(s.longitude) : undefined,
+                    createdAt: s.createdAt || s.created_at,
+                    updatedAt: s.updatedAt || s.updated_at
+                })));
                 setGeneratedTimetable(timetableRecords || []);
                 setExamTimetable(et || []);
                 setAssignments(asg || []);
