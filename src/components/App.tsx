@@ -1852,8 +1852,28 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 setLawTimeEntries(lTime || []);
                 setLawInvoices(lInvs || []);
                 setLawTrustTransactions(lTrust || []);
-                setLawAgreementTemplates(lTemplates || []);
-                setLawAgreements(lAgreements || []);
+                setLawAgreementTemplates((lTemplates || []).map((t: any) => ({
+                    ...t,
+                    institutionId: t.institutionId || t.institution_id,
+                    baseFee: t.baseFee !== undefined ? Number(t.baseFee) : (t.base_fee !== undefined ? Number(t.base_fee) : 0),
+                    createdAt: t.createdAt || t.created_at || new Date().toISOString()
+                })));
+                setLawAgreements((lAgreements || []).map((a: any) => ({
+                    ...a,
+                    institutionId: a.institutionId || a.institution_id,
+                    templateId: a.templateId || a.template_id,
+                    matterId: a.matterId || a.matter_id,
+                    clientId: a.clientId || a.client_id,
+                    partyDetails: a.partyDetails || a.party_details || {},
+                    finalContent: a.finalContent || a.final_content,
+                    paymentStatus: a.paymentStatus || a.payment_status || 'unpaid',
+                    reviewStatus: a.reviewStatus || a.review_status || 'draft',
+                    lawyerId: a.lawyerId || a.lawyer_id,
+                    lawyerNotes: a.lawyerNotes || a.lawyer_notes,
+                    signedUrl: a.signedUrl || a.signed_url,
+                    createdAt: a.createdAt || a.created_at || new Date().toISOString(),
+                    updatedAt: a.updatedAt || a.updated_at || new Date().toISOString()
+                })));
             }
 
             setIsGeneratingDemoData(false);

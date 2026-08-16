@@ -1541,6 +1541,24 @@ export const apiService = {
                 if (item.processedAt && !item.processed_at) item.processed_at = item.processedAt;
                 if (item.accountDetails && !item.account_details) item.account_details = item.accountDetails;
             }
+
+            // Law agreement templates and contracts normalization
+            if (module === 'law_agreement_templates') {
+                if (item.baseFee !== undefined && item.base_fee === undefined) item.base_fee = item.baseFee;
+                if (item.createdAt && !item.created_at) item.created_at = item.createdAt;
+            }
+            if (module === 'law_agreements') {
+                if (item.templateId && !item.template_id) item.template_id = item.templateId;
+                if (item.matterId && !item.matter_id) item.matter_id = item.matterId;
+                if (item.clientId && !item.client_id) item.client_id = item.clientId;
+                if (item.partyDetails && !item.party_details) item.party_details = item.partyDetails;
+                if (item.finalContent && !item.final_content) item.final_content = item.finalContent;
+                if (item.paymentStatus && !item.payment_status) item.payment_status = item.paymentStatus;
+                if (item.reviewStatus && !item.review_status) item.review_status = item.reviewStatus;
+                if (item.lawyerId && !item.lawyer_id) item.lawyer_id = item.lawyerId;
+                if (item.lawyerNotes && !item.lawyer_notes) item.lawyer_notes = item.lawyerNotes;
+                if (item.signedUrl && !item.signed_url) item.signed_url = item.signedUrl;
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {

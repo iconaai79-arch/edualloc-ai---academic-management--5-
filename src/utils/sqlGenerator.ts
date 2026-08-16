@@ -183,6 +183,35 @@ CREATE TABLE IF NOT EXISTS commission_withdrawal_requests (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS law_agreement_templates (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'General',
+    content TEXT NOT NULL,
+    base_fee NUMERIC(12, 2) DEFAULT 0.00,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS law_agreements (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    template_id TEXT,
+    matter_id TEXT,
+    client_id TEXT,
+    title TEXT NOT NULL,
+    party_details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    final_content TEXT,
+    payment_status TEXT DEFAULT 'unpaid',
+    review_status TEXT DEFAULT 'draft',
+    lawyer_id TEXT,
+    lawyer_notes TEXT,
+    signed_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS school_registry (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -3138,7 +3167,13 @@ CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expens
         `CREATE INDEX IF NOT EXISTS idx_event_pins_inst ON event_pins(institution_id);`,
         // Resellers
         `CREATE INDEX IF NOT EXISTS idx_cwr_reseller_id ON commission_withdrawal_requests(reseller_id);`,
-        `CREATE INDEX IF NOT EXISTS idx_cwr_status ON commission_withdrawal_requests(status);`
+        `CREATE INDEX IF NOT EXISTS idx_cwr_status ON commission_withdrawal_requests(status);`,
+        // Law Agreements
+        `CREATE INDEX IF NOT EXISTS idx_law_templates_inst ON law_agreement_templates(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_law_templates_cat ON law_agreement_templates(category);`,
+        `CREATE INDEX IF NOT EXISTS idx_law_agreements_inst ON law_agreements(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_law_agreements_tmpl ON law_agreements(template_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_law_agreements_status ON law_agreements(review_status);`
     ];
 
     indexStatements.forEach(stmt => {
