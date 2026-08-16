@@ -62,6 +62,10 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [showStkPromptModal, setShowStkPromptModal] = useState(false);
     const [showInpatientFolioModal, setShowInpatientFolioModal] = useState(false);
     const [showEmergencyOverrideModal, setShowEmergencyOverrideModal] = useState(false);
+    const [pendingPage, setPendingPage] = useState(1);
+    const [pendingPageSize, setPendingPageSize] = useState(8);
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historyPageSize, setHistoryPageSize] = useState(10);
 
     const handleDeleteDrug = async (drug: HISPharmacyInventory) => {
         if (!confirm(`Are you sure you want to delete "${drug.name}" from the pharmacy inventory?`)) return;
@@ -627,12 +631,20 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
         });
     }, [inventory, batches, searchTerm, stockFilter, now, in60Days]);
 
-    // Pharmacy queue: show prescriptions that are pending, finance-invoiced, or finance-cleared — not yet dispensed
+    // Pharmacy queue: show prescriptions that are pending, finance-invoiced, or finance-cleared — sorted latest to oldest
     const pendingPrescs = useMemo(() => {
         const queue = prescriptions.filter(p => {
             const st = (p.status || '').toLowerCase();
             return st === 'pending' || st === 'invoiced' || st === 'cleared';
         });
+
+        // Strict sorting: latest to oldest by creation / timestamp
+        queue.sort((a: any, b: any) => {
+            const timeA = new Date(a.createdAt || a.created_at || a.dispensedAt || a.dispensed_at || 0).getTime();
+            const timeB = new Date(b.createdAt || b.created_at || b.dispensedAt || b.dispensed_at || 0).getTime();
+            return timeB - timeA;
+        });
+
         if (!pendingSearchTerm.trim()) return queue;
         const term = pendingSearchTerm.toLowerCase();
         return queue.filter(p => 
@@ -643,9 +655,33 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             (p.items || []).some((i: any) => (i.drugName || '').toLowerCase().includes(term))
         );
     }, [prescriptions, pendingSearchTerm]);
-    // Dispensing logs: all dispensed prescriptions filtered by search
+
+    // Paginated pending queue
+    const paginatedPendingPrescs = useMemo(() => {
+        const start = (pendingPage - 1) * pendingPageSize;
+        return pendingPrescs.slice(start, start + pendingPageSize);
+    }, [pendingPrescs, pendingPage, pendingPageSize]);
+
+    const totalPendingPages = useMemo(() => {
+        return Math.max(1, Math.ceil(pendingPrescs.length / pendingPageSize));
+    }, [pendingPrescs, pendingPageSize]);
+
+    // Reset pending page when search term changes
+    useEffect(() => {
+        setPendingPage(1);
+    }, [pendingSearchTerm]);
+
+    // Dispensing logs: all dispensed prescriptions — sorted latest to oldest
     const historyPrescs = useMemo(() => {
         const dispensed = prescriptions.filter(p => (p.status || '').toLowerCase() === 'dispensed');
+
+        // Strict sorting: latest to oldest by dispensed date / creation
+        dispensed.sort((a: any, b: any) => {
+            const timeA = new Date(a.dispensedAt || a.dispensed_at || a.createdAt || a.created_at || 0).getTime();
+            const timeB = new Date(b.dispensedAt || b.dispensed_at || b.createdAt || b.created_at || 0).getTime();
+            return timeB - timeA;
+        });
+
         if (!logSearchTerm.trim()) return dispensed;
         const term = logSearchTerm.toLowerCase();
         return dispensed.filter(p => 
@@ -656,6 +692,21 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             (p.items || []).some((i: any) => (i.drugName || '').toLowerCase().includes(term))
         );
     }, [prescriptions, logSearchTerm]);
+
+    // Paginated dispensing logs
+    const paginatedHistoryPrescs = useMemo(() => {
+        const start = (historyPage - 1) * historyPageSize;
+        return historyPrescs.slice(start, start + historyPageSize);
+    }, [historyPrescs, historyPage, historyPageSize]);
+
+    const totalHistoryPages = useMemo(() => {
+        return Math.max(1, Math.ceil(historyPrescs.length / historyPageSize));
+    }, [historyPrescs, historyPageSize]);
+
+    // Reset history page when search term changes
+    useEffect(() => {
+        setHistoryPage(1);
+    }, [logSearchTerm]);
     const lowStockDrugs = inventory.filter(i => i.stockQuantity <= i.reorderLevel);
 
     return (
@@ -1045,7 +1096,7 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                         </div>
                         
                         <div className="divide-y divide-white/5">
-                            {pendingPrescs.map(p => (
+                            {paginatedPendingPrescs.map(p => (
                                 <div key={p.id} onClick={() => setSelectedPrescription(p)} className={`p-8 hover:bg-white/[0.02] cursor-pointer transition-all ${selectedPrescription?.id === p.id ? 'bg-indigo-500/10' : ''}`}>
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center gap-4">
@@ -1081,6 +1132,90 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                 </div>
                             )}
                         </div>
+
+                        {/* Pagination Bar for Pending Prescriptions */}
+                        {pendingPrescs.length > 0 && (
+                            <div className="p-6 border-t border-white/5 bg-white/[0.01] flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Showing <span className="text-white font-black">{(pendingPage - 1) * pendingPageSize + 1}</span> to <span className="text-white font-black">{Math.min(pendingPage * pendingPageSize, pendingPrescs.length)}</span> of <span className="text-emerald-400 font-black">{pendingPrescs.length}</span> orders
+                                    </span>
+                                    <div className="flex items-center gap-1.5 ml-2">
+                                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Per Page:</span>
+                                        <select
+                                            value={pendingPageSize}
+                                            onChange={e => {
+                                                setPendingPageSize(Number(e.target.value));
+                                                setPendingPage(1);
+                                            }}
+                                            className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[10px] font-bold text-white focus:border-emerald-500 outline-none"
+                                        >
+                                            <option value={5}>5</option>
+                                            <option value={8}>8</option>
+                                            <option value={15}>15</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => setPendingPage(1)}
+                                        disabled={pendingPage === 1}
+                                        className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-slate-300 text-[10px] font-black uppercase transition-all"
+                                        title="First Page"
+                                    >
+                                        « First
+                                    </button>
+                                    <button
+                                        onClick={() => setPendingPage(p => Math.max(1, p - 1))}
+                                        disabled={pendingPage === 1}
+                                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-slate-300 text-[10px] font-black uppercase transition-all"
+                                    >
+                                        ‹ Prev
+                                    </button>
+                                    
+                                    <div className="flex items-center gap-1 px-1">
+                                        {Array.from({ length: totalPendingPages }, (_, i) => i + 1)
+                                            .filter(page => page === 1 || page === totalPendingPages || Math.abs(page - pendingPage) <= 1)
+                                            .map((page, idx, arr) => (
+                                                <React.Fragment key={page}>
+                                                    {idx > 0 && arr[idx - 1] !== page - 1 && (
+                                                        <span className="text-slate-600 text-xs px-1">...</span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => setPendingPage(page)}
+                                                        className={`w-7 h-7 rounded-xl text-[10px] font-black transition-all ${
+                                                            pendingPage === page
+                                                                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                                                                : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        {page}
+                                                    </button>
+                                                </React.Fragment>
+                                            ))}
+                                    </div>
+
+                                    <button
+                                        onClick={() => setPendingPage(p => Math.min(totalPendingPages, p + 1))}
+                                        disabled={pendingPage === totalPendingPages}
+                                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-slate-300 text-[10px] font-black uppercase transition-all"
+                                    >
+                                        Next ›
+                                    </button>
+                                    <button
+                                        onClick={() => setPendingPage(totalPendingPages)}
+                                        disabled={pendingPage === totalPendingPages}
+                                        className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-slate-300 text-[10px] font-black uppercase transition-all"
+                                        title="Last Page"
+                                    >
+                                        Last »
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-8">
@@ -1327,7 +1462,7 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                             </td>
                                         </tr>
                                     ) : (
-                                        historyPrescs.map(p => {
+                                        paginatedHistoryPrescs.map(p => {
                                             const totalBill = (p.items || []).reduce((s: number, i: any) => s + (i.totalPrice || ((i.unitPrice || 0) * (i.quantity || 1)) || 0), 0);
                                             const dispDate = p.dispensedAt || p.dispensed_at || p.createdAt || p.created_at;
                                             return (
@@ -1421,6 +1556,89 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination Footer for Dispensing Registry Logs */}
+                        {historyPrescs.length > 0 && (
+                            <div className="p-6 border-t border-white/5 bg-white/[0.01] flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Showing <span className="text-white font-black">{(historyPage - 1) * historyPageSize + 1}</span> to <span className="text-white font-black">{Math.min(historyPage * historyPageSize, historyPrescs.length)}</span> of <span className="text-emerald-400 font-black">{historyPrescs.length}</span> records
+                                    </span>
+                                    <div className="flex items-center gap-1.5 ml-2">
+                                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Per Page:</span>
+                                        <select
+                                            value={historyPageSize}
+                                            onChange={e => {
+                                                setHistoryPageSize(Number(e.target.value));
+                                                setHistoryPage(1);
+                                            }}
+                                            className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[10px] font-bold text-white focus:border-emerald-500 outline-none"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={20}>20</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => setHistoryPage(1)}
+                                        disabled={historyPage === 1}
+                                        className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-slate-300 text-[10px] font-black uppercase transition-all"
+                                        title="First Page"
+                                    >
+                                        « First
+                                    </button>
+                                    <button
+                                        onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                                        disabled={historyPage === 1}
+                                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-slate-300 text-[10px] font-black uppercase transition-all"
+                                    >
+                                        ‹ Prev
+                                    </button>
+                                    
+                                    <div className="flex items-center gap-1 px-1">
+                                        {Array.from({ length: totalHistoryPages }, (_, i) => i + 1)
+                                            .filter(page => page === 1 || page === totalHistoryPages || Math.abs(page - historyPage) <= 1)
+                                            .map((page, idx, arr) => (
+                                                <React.Fragment key={page}>
+                                                    {idx > 0 && arr[idx - 1] !== page - 1 && (
+                                                        <span className="text-slate-600 text-xs px-1">...</span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => setHistoryPage(page)}
+                                                        className={`w-7 h-7 rounded-xl text-[10px] font-black transition-all ${
+                                                            historyPage === page
+                                                                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                                                                : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        {page}
+                                                    </button>
+                                                </React.Fragment>
+                                            ))}
+                                    </div>
+
+                                    <button
+                                        onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))}
+                                        disabled={historyPage === totalHistoryPages}
+                                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-slate-300 text-[10px] font-black uppercase transition-all"
+                                    >
+                                        Next ›
+                                    </button>
+                                    <button
+                                        onClick={() => setHistoryPage(totalHistoryPages)}
+                                        disabled={historyPage === totalHistoryPages}
+                                        className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-slate-300 text-[10px] font-black uppercase transition-all"
+                                        title="Last Page"
+                                    >
+                                        Last »
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
