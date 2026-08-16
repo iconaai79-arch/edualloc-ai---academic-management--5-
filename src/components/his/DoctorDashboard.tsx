@@ -112,10 +112,11 @@ function QuickLabOrderModal({ onClose, patients, institutionId, userName, defaul
     onClose: () => void; 
     patients: HISPatient[]; 
     institutionId?: string; 
-    userName?: string;
+    userName?: string; 
     defaultPatientId?: string;
 }) {
     const [selectedPatientId, setSelectedPatientId] = useState(defaultPatientId || (patients.length > 0 ? patients[0].id : ''));
+    const [patientSearchFilter, setPatientSearchFilter] = useState('');
     const [testType, setTestType] = useState('Full Blood Count (FBC)');
     const [priority, setPriority] = useState('Routine');
     const [fulfillment, setFulfillment] = useState<'in_house' | 'external_partner'>('in_house');
@@ -128,6 +129,14 @@ function QuickLabOrderModal({ onClose, patients, institutionId, userName, defaul
             setSelectedPatientId(defaultPatientId);
         }
     }, [defaultPatientId]);
+
+    const filteredModalPatients = patients.filter(p => 
+        !patientSearchFilter ||
+        p.fullName?.toLowerCase().includes(patientSearchFilter.toLowerCase()) ||
+        p.contact?.includes(patientSearchFilter) ||
+        p.admissionNumber?.toLowerCase().includes(patientSearchFilter.toLowerCase()) ||
+        p.id?.toLowerCase().includes(patientSearchFilter.toLowerCase())
+    );
 
     const handleCommit = async () => {
         if (!selectedPatientId) return alert('Please select a patient first.');
@@ -198,25 +207,39 @@ function QuickLabOrderModal({ onClose, patients, institutionId, userName, defaul
     };
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl">
-            <div className="bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden animate-zoom-in">
-                <div className="p-7 border-b border-white/10 bg-gradient-to-r from-blue-600 to-indigo-600 flex justify-between items-center">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+            <div className="bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden animate-zoom-in max-h-[90vh] flex flex-col my-auto">
+                <div className="p-6 border-b border-white/10 bg-gradient-to-r from-blue-600 to-indigo-600 flex justify-between items-center shrink-0">
                     <div>
-                        <h3 className="text-lg font-black text-white uppercase tracking-tighter italic">Quick <span className="text-blue-200">Diagnostic Order</span></h3>
-                        <p className="text-[9px] font-black text-blue-100 uppercase tracking-widest mt-0.5 opacity-80">Select patient &amp; generate lab requisition</p>
+                        <h3 className="text-lg font-black text-white uppercase tracking-tighter italic">Diagnostic <span className="text-blue-200">Requisition Order</span></h3>
+                        <p className="text-[9px] font-black text-blue-100 uppercase tracking-widest mt-0.5 opacity-80">Order laboratory investigation or imaging panel</p>
                     </div>
-                    <button onClick={onClose} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all"><XIcon className="w-4 h-4" /></button>
+                    <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all cursor-pointer"><XIcon className="w-4 h-4" /></button>
                 </div>
-                <div className="p-7 space-y-5">
+                <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-140px)]">
                     <div>
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Select Patient *</label>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Select / Search Patient *</label>
+                            {selectedPatientId && (
+                                <span className="text-[8px] font-bold text-emerald-400 uppercase">
+                                    ✓ Selected: {patients.find(p => p.id === selectedPatientId)?.fullName}
+                                </span>
+                            )}
+                        </div>
+                        <input
+                            type="text"
+                            value={patientSearchFilter}
+                            onChange={e => setPatientSearchFilter(e.target.value)}
+                            placeholder="🔍 Type patient name, phone, or SHA #..."
+                            className="w-full bg-black/40 border border-white/10 focus:border-blue-500 rounded-xl px-4 py-2.5 text-xs font-bold text-white placeholder-slate-500 outline-none mb-2"
+                        />
                         <select 
                             value={selectedPatientId} 
                             onChange={e => setSelectedPatientId(e.target.value)}
-                            className="w-full bg-black/40 border border-white/10 focus:border-blue-500 rounded-2xl px-5 py-3.5 text-xs font-bold text-white uppercase outline-none"
+                            className="w-full bg-black/40 border border-white/10 focus:border-blue-500 rounded-xl px-4 py-3 text-xs font-bold text-white uppercase outline-none"
                         >
-                            <option value="">— Choose Patient —</option>
-                            {patients.map(p => (
+                            <option value="">— Choose Patient ({filteredModalPatients.length} found) —</option>
+                            {filteredModalPatients.map(p => (
                                 <option key={p.id} value={p.id}>
                                     {p.fullName} ({p.admissionNumber || p.patientNumber || p.id?.substring(0, 8)})
                                 </option>
@@ -225,13 +248,13 @@ function QuickLabOrderModal({ onClose, patients, institutionId, userName, defaul
                     </div>
 
                     <div>
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Fulfillment Facility</label>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Fulfillment Facility</label>
                         <div className="grid grid-cols-2 gap-3">
                             <button
                                 type="button"
                                 onClick={() => setFulfillment('in_house')}
-                                className={`p-3 rounded-xl text-left border text-xs font-bold uppercase transition-all ${
-                                    fulfillment === 'in_house' ? 'bg-blue-600/30 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-slate-400'
+                                className={`p-3 rounded-xl text-left border text-xs font-bold uppercase transition-all cursor-pointer ${
+                                    fulfillment === 'in_house' ? 'bg-blue-600/30 border-blue-500 text-white shadow-md' : 'bg-white/5 border-white/10 text-slate-400'
                                 }`}
                             >
                                 🏥 In-House Lab
@@ -239,8 +262,8 @@ function QuickLabOrderModal({ onClose, patients, institutionId, userName, defaul
                             <button
                                 type="button"
                                 onClick={() => setFulfillment('external_partner')}
-                                className={`p-3 rounded-xl text-left border text-xs font-bold uppercase transition-all ${
-                                    fulfillment === 'external_partner' ? 'bg-indigo-600/30 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-400'
+                                className={`p-3 rounded-xl text-left border text-xs font-bold uppercase transition-all cursor-pointer ${
+                                    fulfillment === 'external_partner' ? 'bg-indigo-600/30 border-indigo-500 text-white shadow-md' : 'bg-white/5 border-white/10 text-slate-400'
                                 }`}
                             >
                                 🛡️ Partner Lab
@@ -450,7 +473,18 @@ export function DoctorDashboard({
     const [activeHistoryTab, setActiveHistoryTab] = useState<'encounters' | 'meds' | 'labs' | 'insurance'>('encounters');
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
 
+    const [universalPatientQuery, setUniversalPatientQuery] = useState('');
+    const [isUniversalSearchOpen, setIsUniversalSearchOpen] = useState(false);
+
     const activePatient: HISPatient | undefined = patients.find(p => p.id === activeConsultationId) || patients.find(p => !completedPatientIds.has(p.id)) || patients[0];
+
+    const matchedSearchPatients = universalPatientQuery.trim() ? patients.filter(p => 
+        p.fullName?.toLowerCase().includes(universalPatientQuery.toLowerCase()) || 
+        p.contact?.includes(universalPatientQuery) || 
+        p.admissionNumber?.toLowerCase().includes(universalPatientQuery.toLowerCase()) || 
+        p.id?.toLowerCase().includes(universalPatientQuery.toLowerCase()) || 
+        (p as any).customPatientId?.toLowerCase().includes(universalPatientQuery.toLowerCase())
+    ) : [];
 
     useEffect(() => {
         if (!activePatient?.id || !institutionId) return;
@@ -1029,6 +1063,86 @@ export function DoctorDashboard({
                         )}
                     </div>
                 </div>
+            </div>
+
+            {/* ── 🔍 UNIVERSAL PATIENT RECORD SEARCH & QUICK LOOKUP BAR ── */}
+            <div className="relative z-30">
+                <div className="relative">
+                    <input
+                        type="text"
+                        value={universalPatientQuery}
+                        onChange={(e) => {
+                            setUniversalPatientQuery(e.target.value);
+                            setIsUniversalSearchOpen(true);
+                        }}
+                        onFocus={() => setIsUniversalSearchOpen(true)}
+                        placeholder="🔍 Search patient record by Name, Phone, SHA / Admission #, or ID to instantly open profile..."
+                        className="w-full bg-slate-900/90 border-2 border-indigo-500/40 focus:border-indigo-400 rounded-2xl px-6 py-4 text-xs font-bold text-white placeholder-slate-400 outline-none shadow-xl transition-all"
+                    />
+                    {universalPatientQuery && (
+                        <button
+                            type="button"
+                            onClick={() => { setUniversalPatientQuery(''); setIsUniversalSearchOpen(false); }}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
+
+                {/* Auto-suggest search dropdown */}
+                {isUniversalSearchOpen && universalPatientQuery.trim() && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto">
+                        {matchedSearchPatients.length > 0 ? (
+                            matchedSearchPatients.map(pat => (
+                                <div
+                                    key={pat.id}
+                                    onClick={() => {
+                                        setActiveConsultationId(pat.id);
+                                        setSelectedSoapPatient(pat);
+                                        setUniversalPatientQuery('');
+                                        setIsUniversalSearchOpen(false);
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    className="p-4 border-b border-white/5 hover:bg-indigo-600/20 cursor-pointer flex items-center justify-between gap-4 transition-all"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-300 font-black flex items-center justify-center shrink-0">
+                                            {pat.fullName[0]}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-black text-white uppercase truncate">{pat.fullName}</p>
+                                            <p className="text-[10px] text-slate-400 truncate">
+                                                {pat.gender} • {pat.dob ? `${new Date().getFullYear() - new Date(pat.dob).getFullYear()} Yrs` : 'Adult'} • 📞 {pat.contact || 'No contact'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <span className="text-[9px] font-mono font-bold text-indigo-300 bg-white/5 px-2 py-1 rounded">
+                                            {pat.admissionNumber || (pat as any).customPatientId || 'SHA-01'}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleCallPatient(pat);
+                                                setUniversalPatientQuery('');
+                                                setIsUniversalSearchOpen(false);
+                                            }}
+                                            className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[9px] font-black uppercase tracking-wider rounded-xl italic transition-all cursor-pointer"
+                                        >
+                                            ⚡ Call &amp; Open
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="p-6 text-center text-slate-400 text-xs font-bold uppercase">
+                                No matching patient records found for "{universalPatientQuery}"
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* ── 🏥 ACTIVE IN-ROOM PATIENT COMMAND CENTER ── */}
