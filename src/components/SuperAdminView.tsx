@@ -840,7 +840,15 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const fetchWithdrawalRequests = useCallback(async () => {
         try {
             const data = await apiService.fetchModuleRecords<CommissionWithdrawalRequest>('commission_withdrawal_requests');
-            setWithdrawalRequests(data.sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()));
+            const normalized = (data || []).map(r => ({
+                ...r,
+                resellerId: r.resellerId || (r as any).reseller_id,
+                resellerName: r.resellerName || (r as any).reseller_name,
+                requestedAt: r.requestedAt || (r as any).requested_at || new Date().toISOString(),
+                processedAt: r.processedAt || (r as any).processed_at,
+                accountDetails: r.accountDetails || (r as any).account_details,
+            }));
+            setWithdrawalRequests(normalized.sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()));
         } catch (e) {
             console.error("Failed to fetch withdrawal requests:", e);
         }

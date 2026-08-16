@@ -168,6 +168,21 @@ CREATE TABLE IF NOT EXISTS institution_module_states (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(institution_id, module_id)
 );
+
+CREATE TABLE IF NOT EXISTS commission_withdrawal_requests (
+    id TEXT PRIMARY KEY,
+    reseller_id TEXT NOT NULL,
+    reseller_name TEXT NOT NULL,
+    amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    status TEXT NOT NULL DEFAULT 'pending',
+    requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    account_details TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS school_registry (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -3120,7 +3135,10 @@ CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expens
         // Logistics & Security
         `CREATE INDEX IF NOT EXISTS idx_vehicles_inst ON vehicles(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_visitors_inst ON visitors(institution_id);`,
-        `CREATE INDEX IF NOT EXISTS idx_event_pins_inst ON event_pins(institution_id);`
+        `CREATE INDEX IF NOT EXISTS idx_event_pins_inst ON event_pins(institution_id);`,
+        // Resellers
+        `CREATE INDEX IF NOT EXISTS idx_cwr_reseller_id ON commission_withdrawal_requests(reseller_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_cwr_status ON commission_withdrawal_requests(status);`
     ];
 
     indexStatements.forEach(stmt => {

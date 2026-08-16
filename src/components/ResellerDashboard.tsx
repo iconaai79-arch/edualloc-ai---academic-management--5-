@@ -89,7 +89,15 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 setAllUsers(usersInMyTenants);
 
                 const fetchedRequests = await apiService.fetchModuleRecords<CommissionWithdrawalRequest>('commission_withdrawal_requests');
-                setWithdrawalRequests(fetchedRequests.filter(r => r.resellerId === currentInstitution.id));
+                const normalized = (fetchedRequests || []).map(r => ({
+                    ...r,
+                    resellerId: r.resellerId || (r as any).reseller_id,
+                    resellerName: r.resellerName || (r as any).reseller_name,
+                    requestedAt: r.requestedAt || (r as any).requested_at,
+                    processedAt: r.processedAt || (r as any).processed_at,
+                    accountDetails: r.accountDetails || (r as any).account_details,
+                }));
+                setWithdrawalRequests(normalized.filter(r => r.resellerId === currentInstitution.id));
             } catch (error) {
                 console.error("Error loading reseller data:", error);
             } finally {

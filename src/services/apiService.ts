@@ -1532,6 +1532,15 @@ export const apiService = {
                     item.student_id = (item.is_anonymous || item.isAnonymous) ? 'anonymous_guest' : (item.guest_name || item.guestName || 'guest_visitor');
                 }
             }
+
+            // Commission withdrawal requests normalization
+            if (module === 'commission_withdrawal_requests') {
+                if (item.resellerId && !item.reseller_id) item.reseller_id = item.resellerId;
+                if (item.resellerName && !item.reseller_name) item.reseller_name = item.resellerName;
+                if (item.requestedAt && !item.requested_at) item.requested_at = item.requestedAt;
+                if (item.processedAt && !item.processed_at) item.processed_at = item.processedAt;
+                if (item.accountDetails && !item.account_details) item.account_details = item.accountDetails;
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {
