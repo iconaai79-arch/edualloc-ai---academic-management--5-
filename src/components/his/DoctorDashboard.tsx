@@ -417,6 +417,23 @@ export function DoctorDashboard({
         return new Set();
     });
 
+    // ── ⏳ HELD PATIENTS (Awaiting Lab / Radiology Results) ──
+    const [heldPatients, setHeldPatients] = useState<Record<string, { heldAt: string; reason: string; patient: HISPatient }>>(() => {
+        try {
+            const saved = localStorage.getItem(`his_held_patients_${institutionId}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {};
+    });
+
+    useEffect(() => {
+        try {
+            if (institutionId) {
+                localStorage.setItem(`his_held_patients_${institutionId}`, JSON.stringify(heldPatients));
+            }
+        } catch (e) {}
+    }, [heldPatients, institutionId]);
+
     const [completedSoapPatientIds, setCompletedSoapPatientIds] = useState<Set<string>>(new Set());
     const [isSoapModalOpen, setIsSoapModalOpen] = useState(false);
     const [selectedSoapPatient, setSelectedSoapPatient] = useState<HISPatient | null>(null);
@@ -559,6 +576,58 @@ export function DoctorDashboard({
                 updatedAt: new Date().toISOString()
             }).catch(() => null);
         }
+    };
+
+    // ── ⏸️ HOLD PATIENT (Awaiting Diagnostics) & CALL NEXT ──
+    const handleHoldActivePatient = async (customReason?: string) => {
+        if (!activePatient) return;
+        const reason = customReason || prompt("Reason for holding patient (e.g. Awaiting Lab: FBC, Awaiting X-Ray, Observation):", "Awaiting Diagnostic Lab Results") || "Awaiting Diagnostic Results";
+
+        const updatedHeld = {
+            ...heldPatients,
+            [activePatient.id]: {
+                heldAt: new Date().toISOString(),
+                reason,
+                patient: activePatient
+            }
+        };
+        setHeldPatients(updatedHeld);
+
+        if (institutionId) {
+            await apiService.saveModuleRecord('his_queue_calls', {
+                id: `call_${activePatient.id}`,
+                institutionId,
+                patientId: activePatient.id,
+                patientName: activePatient.fullName,
+                status: 'on_hold',
+                notes: reason,
+                roomNo,
+                doctorName: userName || 'Attending Physician',
+                updatedAt: new Date().toISOString()
+            }).catch(() => null);
+        }
+
+        // Call next waiting patient in line
+        const remainingWaiting = patients.filter(p => p.id !== activePatient.id && !completedPatientIds.has(p.id) && !updatedHeld[p.id]);
+        if (remainingWaiting.length > 0) {
+            const nextPat = remainingWaiting[0];
+            handleCallPatient(nextPat);
+        } else {
+            setActiveConsultationId(null);
+        }
+    };
+
+    const handleResumeHeldPatient = (patId: string) => {
+        const held = heldPatients[patId];
+        const pat = held?.patient || patients.find(p => p.id === patId);
+        if (!pat) return;
+
+        const nextHeld = { ...heldPatients };
+        delete nextHeld[patId];
+        setHeldPatients(nextHeld);
+
+        handleCallPatient(pat);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
@@ -937,12 +1006,13 @@ export function DoctorDashboard({
 
         const rawStatus = (entry.status || '').toLowerCase();
         const isCompleted = completedPatientIds.has(p.id) || rawStatus === 'completed' || rawStatus === 'discharged';
-        const isInConsult = !isCompleted && (
+        const isHeld = !isCompleted && (!!heldPatients[p.id] || rawStatus === 'on_hold' || rawStatus === 'held');
+        const isInConsult = !isCompleted && !isHeld && (
             (activeConsultationId && p.id === activeConsultationId) ||
             rawStatus === 'in-progress' || 
             rawStatus === 'in consultation'
         );
-        const isWaiting = !isCompleted && !isInConsult && (
+        const isWaiting = !isCompleted && !isHeld && !isInConsult && (
             rawStatus === 'arrived' || 
             rawStatus === 'waiting' ||
             rawStatus === 'triage'
@@ -950,6 +1020,8 @@ export function DoctorDashboard({
 
         const status = isCompleted 
             ? 'completed' 
+            : isHeld
+            ? 'on-hold'
             : isInConsult 
             ? 'in-consultation' 
             : isWaiting 
@@ -959,7 +1031,7 @@ export function DoctorDashboard({
         return {
             patient: p,
             queueNo: i + 1,
-            complaint: entry.reason || entry.complaint || 'Consultation Review',
+            complaint: isHeld ? `⏳ ${heldPatients[p.id]?.reason || 'Awaiting Diagnostic Results'}` : (entry.reason || entry.complaint || 'Consultation Review'),
             waitMins: entry.waitMins || ((i + 1) * 6),
             priority: entry.priority || (i === 0 ? 'urgent' : 'normal'),
             status,
@@ -968,6 +1040,7 @@ export function DoctorDashboard({
 
     const waitingCount = queueItems.filter(q => q.status === 'waiting').length;
     const inConsultCount = queueItems.filter(q => q.status === 'in-consultation').length;
+    const onHoldCount = queueItems.filter(q => q.status === 'on-hold').length;
     const scheduledCount = queueItems.filter(q => q.status === 'scheduled').length;
     const completedCount = queueItems.filter(q => q.status === 'completed').length;
     const totalTodayCount = queueItems.length;
@@ -975,6 +1048,7 @@ export function DoctorDashboard({
     const visibleQueueItems = queueItems.filter(q => {
         if (queueFilter === 'waiting') return q.status === 'waiting';
         if (queueFilter === 'in-consultation') return q.status === 'in-consultation';
+        if (queueFilter === 'on-hold') return q.status === 'on-hold';
         if (queueFilter === 'scheduled') return q.status === 'scheduled';
         if (queueFilter === 'completed') return q.status === 'completed';
         return !hideCompletedInQueue || q.status !== 'completed';
@@ -1001,6 +1075,8 @@ export function DoctorDashboard({
     const getStatusBadge = (s: string) =>
         s === 'in-consultation'
             ? { text: 'IN CONSULT', cls: 'bg-indigo-600 text-white font-black shadow-md shadow-indigo-600/30' }
+            : s === 'on-hold'
+            ? { text: '⏳ ON HOLD (RESULTS)', cls: 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/30 animate-pulse' }
             : s === 'completed'
             ? { text: 'CHECKED OUT', cls: 'bg-emerald-600 text-white font-black shadow-md' }
             : s === 'waiting'
@@ -1063,11 +1139,20 @@ export function DoctorDashboard({
                         </select>
                         <button
                             onClick={handleCallNextVoice}
-                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all italic cursor-pointer"
+                            className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all italic cursor-pointer"
                         >
                             <BellIcon className="w-4 h-4 text-slate-950" />
                             <span>Checkout &amp; Call Next</span>
                         </button>
+                        {activePatient && (
+                            <button
+                                onClick={() => handleHoldActivePatient()}
+                                title="Hold current patient while waiting for lab/radiology results and call next"
+                                className="flex items-center gap-2 px-5 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-black rounded-2xl text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-amber-950/40 transition-all cursor-pointer"
+                            >
+                                <span>⏸️ Hold &amp; Call Next</span>
+                            </button>
+                        )}
                         {completedPatientIds.size > 0 && (
                             <button
                                 onClick={() => {
@@ -1170,6 +1255,48 @@ export function DoctorDashboard({
                     </div>
                 )}
             </div>
+
+            {/* ── ⏳ HELD PATIENTS DOCK (Awaiting Lab / Imaging Results) ── */}
+            {Object.keys(heldPatients).length > 0 && (
+                <div className="bg-gradient-to-r from-amber-950/60 via-slate-900 to-indigo-950/60 border-2 border-amber-500/40 rounded-[2rem] p-5 shadow-2xl shadow-amber-950/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                            <span className="text-xl">⏳</span>
+                            <div>
+                                <h3 className="text-xs font-black uppercase tracking-widest text-amber-300">
+                                    Patients on Hold Awaiting Diagnostics / Results ({Object.keys(heldPatients).length})
+                                </h3>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                    Consultation paused until lab/radiology findings return
+                                </p>
+                            </div>
+                        </div>
+                        <span className="px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full text-[8px] font-black uppercase tracking-widest animate-pulse">
+                            Live Held Queue
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {Object.entries(heldPatients).map(([pId, held]) => (
+                            <div key={pId} className="p-3.5 bg-black/50 border border-white/10 hover:border-amber-500/50 rounded-2xl flex items-center justify-between gap-3 group transition-all">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-black text-white uppercase truncate">{held.patient.fullName}</p>
+                                    <p className="text-[10px] text-amber-300/90 font-bold truncate">🔬 {held.reason}</p>
+                                    <p className="text-[8px] text-slate-400 font-mono mt-0.5">
+                                        Held at {new Date(held.heldAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => handleResumeHeldPatient(pId)}
+                                    className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-xl text-[9px] font-black uppercase tracking-wider shrink-0 shadow-lg shadow-amber-500/20 cursor-pointer italic transition-all hover:scale-105"
+                                >
+                                    ▶️ Resume
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* ── 🏥 ACTIVE IN-ROOM PATIENT COMMAND CENTER ── */}
             {activePatient ? (
@@ -1311,7 +1438,7 @@ export function DoctorDashboard({
                             </span>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
                             {/* 1. SOAP Note */}
                             <button
                                 onClick={() => handleOpenSoapModal(activePatient)}
@@ -1348,16 +1475,25 @@ export function DoctorDashboard({
                                 <span className="text-center">E-Prescribe</span>
                             </button>
 
-                            {/* 5. Sick Off Permission */}
+                            {/* 5. Hold for Results */}
                             <button
-                                onClick={() => setShowSickOffModal(true)}
-                                className="p-3.5 bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/40 text-amber-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
+                                onClick={() => handleHoldActivePatient()}
+                                className="p-3.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
                             >
-                                <DocumentTextIcon className="w-5 h-5 text-amber-400" />
-                                <span className="text-center">📄 Sick Off Sheet</span>
+                                <span className="text-lg">⏸️</span>
+                                <span className="text-center">Hold for Results</span>
                             </button>
 
-                            {/* 6. Inpatient / Discharge */}
+                            {/* 6. Sick Off Permission */}
+                            <button
+                                onClick={() => setShowSickOffModal(true)}
+                                className="p-3.5 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
+                            >
+                                <DocumentTextIcon className="w-5 h-5 text-rose-400" />
+                                <span className="text-center">📄 Sick Off</span>
+                            </button>
+
+                            {/* 7. Inpatient / Discharge */}
                             <button
                                 onClick={() => setShowDischargeModal(true)}
                                 className="p-3.5 bg-violet-600/30 hover:bg-violet-600/50 border border-violet-500/40 text-violet-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
@@ -1366,7 +1502,7 @@ export function DoctorDashboard({
                                 <span className="text-center">Inpatient / DC</span>
                             </button>
 
-                            {/* 7. Complete & Call Next */}
+                            {/* 8. Complete & Call Next */}
                             <button
                                 onClick={handleCallNextVoice}
                                 className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-xl shadow-emerald-950/60 flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer italic"
@@ -1617,6 +1753,7 @@ export function DoctorDashboard({
                                     {[
                                         { id: 'all', label: 'All', count: totalTodayCount },
                                         { id: 'waiting', label: 'Waiting', count: waitingCount, badgeColor: 'bg-amber-500/20 text-amber-300' },
+                                        { id: 'on-hold', label: '⏳ On Hold', count: onHoldCount, badgeColor: 'bg-orange-500/20 text-orange-300' },
                                         { id: 'in-consultation', label: 'In Consult', count: inConsultCount, badgeColor: 'bg-indigo-500/20 text-indigo-300' },
                                         { id: 'scheduled', label: 'Scheduled', count: scheduledCount, badgeColor: 'bg-slate-500/20 text-slate-300' },
                                         { id: 'completed', label: 'Checked Out', count: completedCount, badgeColor: 'bg-emerald-500/20 text-emerald-300' }
@@ -1719,19 +1856,30 @@ export function DoctorDashboard({
                                                     {badge.text}
                                                 </span>
 
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleCallPatient(q.patient)}
-                                                    className="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
-                                                    title="Call patient name into room and open consultation"
-                                                >
-                                                    <span>⚡ Call</span>
-                                                </button>
+                                                {q.status === 'on-hold' ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleResumeHeldPatient(q.patient.id)}
+                                                        className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-xl text-[9px] font-black uppercase tracking-wider shadow-lg shadow-amber-500/20 flex items-center gap-1 italic transition-all hover:scale-105 cursor-pointer"
+                                                        title="Resume consultation for this patient"
+                                                    >
+                                                        <span>▶️ Resume</span>
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCallPatient(q.patient)}
+                                                        className="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                                                        title="Call patient name into room and open consultation"
+                                                    >
+                                                        <span>⚡ Call</span>
+                                                    </button>
+                                                )}
 
                                                 <button
                                                     type="button"
                                                     onClick={() => handleOpenSoapModal(q.patient)}
-                                                    className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 rounded-xl text-[9px] font-black uppercase tracking-wider shadow-md flex items-center gap-1 transition-all"
+                                                    className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 rounded-xl text-[9px] font-black uppercase tracking-wider shadow-md flex items-center gap-1 transition-all cursor-pointer"
                                                 >
                                                     <span>🩺 EMR Notes</span>
                                                 </button>
