@@ -1577,6 +1577,23 @@ export const apiService = {
                 if (item.reportedBy && !item.reported_by) item.reported_by = item.reportedBy;
                 if (item.reportedAt && !item.reported_at) item.reported_at = item.reportedAt;
             }
+
+            // County Inventory normalization
+            if (module === 'county_inventory') {
+                if (item.countyId && !item.county_id) item.county_id = item.countyId;
+                if (item.supplierName && !item.supplier_name) item.supplier_name = item.supplierName;
+                if (item.targetInstitutionId && !item.target_institution_id) item.target_institution_id = item.targetInstitutionId;
+                if (item.driverName && !item.driver_name) item.driver_name = item.driverName;
+                if (item.deliveryMethod && !item.delivery_method) item.delivery_method = item.deliveryMethod;
+                if (item.trackingNumber && !item.tracking_number) item.tracking_number = item.trackingNumber;
+                if (item.qrCode && !item.qr_code) item.qr_code = item.qrCode;
+                if (item.atHqDate && !item.at_hq_date) item.at_hq_date = item.atHqDate;
+                if (item.recipientSignature && !item.recipient_signature) item.recipient_signature = item.recipientSignature;
+                if (item.receivedBy && !item.received_by) item.received_by = item.receivedBy;
+                if (item.recipientName && !item.recipient_name) item.recipient_name = item.recipientName;
+                if (item.dispatchedDate && !item.dispatched_date) item.dispatched_date = item.dispatchedDate;
+                if (item.receivedDate && !item.received_date) item.received_date = item.receivedDate;
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {

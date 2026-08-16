@@ -1544,7 +1544,23 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 setContracts(con || []);
                 setStudentAttendances(att || []);
                 setInventory(item || []);
-                setCountyInventory(cinv || []);
+                setCountyInventory((cinv || []).map((ci: any) => ({
+                    ...ci,
+                    countyId: ci.countyId || ci.county_id,
+                    supplierName: ci.supplierName || ci.supplier_name,
+                    targetInstitutionId: ci.targetInstitutionId || ci.target_institution_id,
+                    driverName: ci.driverName || ci.driver_name,
+                    deliveryMethod: ci.deliveryMethod || ci.delivery_method || 'driver',
+                    trackingNumber: ci.trackingNumber || ci.tracking_number,
+                    qrCode: ci.qrCode || ci.qr_code,
+                    atHqDate: ci.atHqDate || ci.at_hq_date || new Date().toISOString(),
+                    recipientSignature: ci.recipientSignature || ci.recipient_signature,
+                    receivedBy: ci.receivedBy || ci.received_by,
+                    recipientName: ci.recipientName || ci.recipient_name,
+                    dispatchedDate: ci.dispatchedDate || ci.dispatched_date,
+                    receivedDate: ci.receivedDate || ci.received_date,
+                    quantity: Number(ci.quantity || 0)
+                })));
                 setCountyInventoryCategories(ccats || []);
                 setCountyStores(cstores || []);
                 setGeneratedTimetable(timetableRecords || []);

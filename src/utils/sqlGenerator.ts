@@ -239,6 +239,51 @@ CREATE TABLE IF NOT EXISTS coop_income (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS county_inventory_categories (
+    id TEXT PRIMARY KEY,
+    county_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS county_stores (
+    id TEXT PRIMARY KEY,
+    county_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    location_name TEXT,
+    latitude FLOAT,
+    longitude FLOAT,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS county_inventory (
+    id TEXT PRIMARY KEY,
+    county_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    category TEXT,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    unit TEXT DEFAULT 'Units',
+    supplier_name TEXT,
+    status TEXT DEFAULT 'at_hq',
+    target_institution_id TEXT,
+    driver_name TEXT,
+    delivery_method TEXT DEFAULT 'driver',
+    tracking_number TEXT,
+    qr_code TEXT,
+    at_hq_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    recipient_signature TEXT,
+    received_by TEXT,
+    recipient_name TEXT,
+    dispatched_date TIMESTAMP WITH TIME ZONE,
+    received_date TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS school_registry (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -3202,7 +3247,13 @@ CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expens
         `CREATE INDEX IF NOT EXISTS idx_law_templates_cat ON law_agreement_templates(category);`,
         `CREATE INDEX IF NOT EXISTS idx_law_agreements_inst ON law_agreements(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_law_agreements_tmpl ON law_agreements(template_id);`,
-        `CREATE INDEX IF NOT EXISTS idx_law_agreements_status ON law_agreements(review_status);`
+        `CREATE INDEX IF NOT EXISTS idx_law_agreements_status ON law_agreements(review_status);`,
+        // County Inventory
+        `CREATE INDEX IF NOT EXISTS idx_county_inv_cat_county ON county_inventory_categories(county_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_county_stores_county ON county_stores(county_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_county_inv_county ON county_inventory(county_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_county_inv_target ON county_inventory(target_institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_county_inv_status ON county_inventory(status);`
     ];
 
     indexStatements.forEach(stmt => {
