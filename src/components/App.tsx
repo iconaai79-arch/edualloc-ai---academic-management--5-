@@ -1860,7 +1860,22 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                     reportedBy: m.reportedBy || m.reported_by,
                     reportedAt: m.reportedAt || m.reported_at || new Date().toISOString()
                 })));
-                setTeacherCheckIns(fCheckIn || []);
+                setTeacherCheckIns((fCheckIn || []).map((tc: any) => ({
+                    ...tc,
+                    teacherId: tc.teacherId || tc.teacher_id,
+                    institutionId: tc.institutionId || tc.institution_id,
+                    checkInDate: tc.checkInDate || tc.check_in_date || (tc.created_at ? tc.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
+                    morningCheckInTime: tc.morningCheckInTime || tc.morning_check_in_time,
+                    morningCheckInStatus: tc.morningCheckInStatus || tc.morning_check_in_status || 'Pending',
+                    morningLocation: tc.morningLocation || tc.morning_location,
+                    morningNotes: tc.morningNotes || tc.morning_notes,
+                    afternoonCheckInTime: tc.afternoonCheckInTime || tc.afternoon_check_in_time,
+                    afternoonCheckInStatus: tc.afternoonCheckInStatus || tc.afternoon_check_in_status || 'Pending',
+                    afternoonLocation: tc.afternoonLocation || tc.afternoon_location,
+                    afternoonNotes: tc.afternoonNotes || tc.afternoon_notes,
+                    createdAt: tc.createdAt || tc.created_at,
+                    updatedAt: tc.updatedAt || tc.updated_at
+                })));
                 setVehicles(vhcls || []);
                 setTransportOnboarding(tonb || []);
                 setVehicleLogs(vlogs || []);

@@ -1608,6 +1608,18 @@ export const apiService = {
                 if (item.actionTaken && !item.action_taken) item.action_taken = item.actionTaken;
                 if (item.recordedBy && !item.recorded_by) item.recorded_by = item.recordedBy;
             }
+            if (module === 'teacher_check_ins' || module === 'teacher_checkins') {
+                if (item.teacherId && !item.teacher_id) item.teacher_id = item.teacherId;
+                if (item.checkInDate && !item.check_in_date) item.check_in_date = item.checkInDate;
+                if (item.morningCheckInTime && !item.morning_check_in_time) item.morning_check_in_time = item.morningCheckInTime;
+                if (item.morningCheckInStatus && !item.morning_check_in_status) item.morning_check_in_status = item.morningCheckInStatus;
+                if (item.morningLocation && !item.morning_location) item.morning_location = item.morningLocation;
+                if (item.morningNotes && !item.morning_notes) item.morning_notes = item.morningNotes;
+                if (item.afternoonCheckInTime && !item.afternoon_check_in_time) item.afternoon_check_in_time = item.afternoonCheckInTime;
+                if (item.afternoonCheckInStatus && !item.afternoon_check_in_status) item.afternoon_check_in_status = item.afternoonCheckInStatus;
+                if (item.afternoonLocation && !item.afternoon_location) item.afternoon_location = item.afternoonLocation;
+                if (item.afternoonNotes && !item.afternoon_notes) item.afternoon_notes = item.afternoonNotes;
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {
