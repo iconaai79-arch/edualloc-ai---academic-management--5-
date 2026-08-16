@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { User, PayrollRecord, LeaveRequest, Institution, LetterheadConfig } from '../../types';
 import { PayrollEngine } from './PayrollEngine';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
@@ -18,6 +18,13 @@ import {
     generateStatutoryDeductionsPdf,
     downloadBankAdvicePdf
 } from '../../services/pdfService';
+import { 
+    isHISInstitution, 
+    isHigherEdInstitution, 
+    isSchoolInstitution, 
+    isEduInstitution, 
+    formatRoleDisplayName 
+} from '../../utils/roleUtils';
 
 interface HRManagerProps {
     currentUser?: User;
@@ -64,7 +71,86 @@ export const HRManager: React.FC<HRManagerProps> = ({
     const activeTab = propActiveTab || localActiveTab;
     const setActiveTab = propSetActiveTab || setLocalActiveTab;
 
-    
+    // Dynamic Role Options based on Institution Type
+    const staffRoleOptions = useMemo(() => {
+        if (isHISInstitution(institution)) {
+            return [
+                { value: 'doctor', label: 'Doctor / Physician' },
+                { value: 'nurse', label: 'Nurse / Triage Officer' },
+                { value: 'receptionist', label: 'Receptionist / Front Desk' },
+                { value: 'pharmacist', label: 'Pharmacist' },
+                { value: 'lab_tech', label: 'Lab Technologist' },
+                { value: 'cashier', label: 'Finance / Cashier Officer' },
+                { value: 'hr_officer', label: 'HR Officer' },
+                { value: 'procurement_officer', label: 'Procurement Officer' },
+                { value: 'store', label: 'Storekeeper / Inventory' },
+                { value: 'security', label: 'Security Officer' },
+                { value: 'driver', label: 'Ambulance / Logistics Driver' },
+                { value: 'support_staff', label: 'Support Staff' },
+                { value: 'his_admin', label: 'Hospital Administrator' },
+                { value: 'admin', label: 'System Administrator' },
+            ];
+        }
+
+        if (isHigherEdInstitution(institution)) {
+            return [
+                { value: 'lecturer', label: 'Lecturer / Faculty Member' },
+                { value: 'teacher', label: 'Instructor / Tutor' },
+                { value: 'hod', label: 'Head of Department (HOD)' },
+                { value: 'dean', label: 'Dean of Faculty / School' },
+                { value: 'tto', label: 'Technical Training Officer (TTO)' },
+                { value: 'academics_officer', label: 'Academics Registrar / Officer' },
+                { value: 'class_supervisor', label: 'Class Supervisor / Advisor' },
+                { value: 'finance_officer', label: 'Finance Officer / Bursar' },
+                { value: 'finance', label: 'Finance Manager' },
+                { value: 'hr_officer', label: 'HR Officer' },
+                { value: 'procurement_officer', label: 'Procurement Officer' },
+                { value: 'librarian', label: 'Chief Librarian / Library Staff' },
+                { value: 'operation_manager', label: 'Operations Manager' },
+                { value: 'store', label: 'Storekeeper / Inventory' },
+                { value: 'security', label: 'Security Officer' },
+                { value: 'driver', label: 'Institutional Driver' },
+                { value: 'cateress', label: 'Cateress / Cafeteria Staff' },
+                { value: 'nurse', label: 'Campus Nurse / Health Officer' },
+                { value: 'support_staff', label: 'Support Staff' },
+                { value: 'admin', label: 'Institution Administrator' },
+            ];
+        }
+
+        // Education / School Institution (Default)
+        return [
+            { value: 'teacher', label: 'Teacher / Educator' },
+            { value: 'head_teacher', label: 'Principal / Head Teacher' },
+            { value: 'deputy', label: 'Deputy Principal' },
+            { value: 'dos', label: 'Director of Studies (DOS)' },
+            { value: 'hod', label: 'Head of Department (HOD)' },
+            { value: 'academics_officer', label: 'Academics Officer' },
+            { value: 'class_supervisor', label: 'Class Supervisor / Teacher' },
+            { value: 'finance_officer', label: 'Finance Officer / Bursar' },
+            { value: 'finance', label: 'Finance Manager / Accountant' },
+            { value: 'hr_officer', label: 'HR Officer' },
+            { value: 'procurement_officer', label: 'Procurement Officer' },
+            { value: 'librarian', label: 'Librarian' },
+            { value: 'boarding_master', label: 'Boarding Master / Matron' },
+            { value: 'nurse', label: 'School Nurse' },
+            { value: 'cateress', label: 'Cateress / School Chef' },
+            { value: 'store', label: 'Storekeeper / Inventory Officer' },
+            { value: 'driver', label: 'School Bus Driver' },
+            { value: 'transport_assistant', label: 'Transport Assistant' },
+            { value: 'security', label: 'Security Officer' },
+            { value: 'info_desk', label: 'Front Office / Receptionist' },
+            { value: 'event_manager', label: 'Events Coordinator' },
+            { value: 'support_staff', label: 'Support Staff / Groundsman' },
+            { value: 'admin', label: 'School Administrator' },
+        ];
+    }, [institution]);
+
+    const defaultInitialRole = useMemo(() => {
+        if (isHISInstitution(institution)) return 'doctor';
+        if (isHigherEdInstitution(institution)) return 'lecturer';
+        return 'teacher';
+    }, [institution]);
+
     // Onboarding & Edit Form States
     const [showOnboardModal, setShowOnboardModal] = useState(false);
     const [editingStaff, setEditingStaff] = useState<User | null>(null);
@@ -72,7 +158,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
         name: '',
         email: '',
         phoneNumber: '',
-        role: 'doctor',
+        role: defaultInitialRole,
         password: '',
         employmentDate: '',
         nationalId: '',
@@ -97,7 +183,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
             name: member.name || '',
             email: member.email || '',
             phoneNumber: member.phoneNumber || '',
-            role: member.role || 'doctor',
+            role: member.role || defaultInitialRole,
             password: '',
             employmentDate: m.employmentDate || (member as any).employmentDate || '',
             nationalId: m.nationalId || (member as any).nationalId || '',
@@ -178,7 +264,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
             setShowOnboardModal(false);
             setEditingStaff(null);
             setOnboardForm({
-                name: '', email: '', phoneNumber: '', role: 'teacher', password: '',
+                name: '', email: '', phoneNumber: '', role: defaultInitialRole, password: '',
                 employmentDate: '', nationalId: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0,
                 kraPin: '', nssfNo: '', shifNumber: '', bankName: 'Equity Bank', bankBranch: '', bankAccountNumber: ''
             });
@@ -371,7 +457,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                 onClick={() => {
                                     setEditingStaff(null);
                                     setOnboardForm({
-                                        name: '', email: '', phoneNumber: '', role: 'teacher', password: '',
+                                        name: '', email: '', phoneNumber: '', role: defaultInitialRole, password: '',
                                         employmentDate: '', nationalId: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0,
                                         kraPin: '', nssfNo: '', shifNumber: '', bankName: 'Equity Bank', bankBranch: '', bankAccountNumber: ''
                                     });
@@ -395,7 +481,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                         </div>
                                         <div>
                                             <h4 className="text-lg font-black text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors">{member.name}</h4>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{member.role} • {member.email || member.phoneNumber}</p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formatRoleDisplayName(member.role as any, institution)} • {member.email || member.phoneNumber}</p>
                                         </div>
                                         <div className="flex gap-2 pt-2">
                                             <button
@@ -836,17 +922,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                         onChange={e => setOnboardForm(prev => ({ ...prev, role: e.target.value }))}
                                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                                     >
-                                        <option value="doctor">Doctor / Physician</option>
-                                        <option value="nurse">Nurse / Triage Officer</option>
-                                        <option value="receptionist">Receptionist / Front Desk Officer</option>
-                                        <option value="cashier">Finance / Cashier Officer</option>
-                                        <option value="hr_officer">HR Officer</option>
-                                        <option value="pharmacist">Pharmacist</option>
-                                        <option value="lab_tech">Lab Technologist</option>
-                                        <option value="support_staff">Support Staff</option>
-                                        <option value="driver">Driver</option>
-                                        <option value="trainer">Trainer</option>
-                                        <option value="admin">Administrator</option>
+                                        {staffRoleOptions.map(opt => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>
