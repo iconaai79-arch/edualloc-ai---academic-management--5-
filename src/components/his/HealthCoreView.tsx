@@ -46,6 +46,7 @@ import { DoctorDashboard } from './DoctorDashboard';
 import { HISQueueManagerView } from './HISQueueManagerView';
 import { HISOverviewView } from './HISOverviewView';
 import { ReferenceLabPortalView } from './ReferenceLabPortalView';
+import { NursePortalView } from './NursePortalView';
 import { MCHMaternityCWCView } from './MCHMaternityCWCView';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
