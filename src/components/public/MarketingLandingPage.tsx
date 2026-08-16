@@ -28,6 +28,38 @@ import { apiService } from '../../services/apiService';
 import { CompanyDetails } from '../../types';
 import { MODULES, ModuleTutorial } from '../../constants';
 
+import { CheckIcon } from '../icons/CheckIcon';
+import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
+import { EnvelopeIcon } from '../icons/EnvelopeIcon';
+
+const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {
+    console.warn("Clipboard API write failed, using execCommand fallback", e);
+  }
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand("copy");
+    document.body.removeChild(textArea);
+    return successful;
+  } catch (err) {
+    console.error("Fallback copy failed", err);
+    return false;
+  }
+};
+
 interface ModuleProps {
   icon?: React.ReactNode;
   imageUrl?: string;
@@ -45,10 +77,13 @@ interface ModuleProps {
   tutorial?: any;
   onViewTutorial?: (mod: any) => void;
   onRegister?: () => void;
+  onShare?: (mod: ModuleProps) => void;
 }
 
 const ModuleCard: React.FC<ModuleProps> = (props) => {
-  const { icon, imageUrl, title, description, advantages, modId, onLaunchSimulator, tutorial, onViewTutorial, onRegister } = props;
+  const { icon, imageUrl, title, description, advantages, modId, onLaunchSimulator, tutorial, onViewTutorial, onRegister, onShare } = props;
+  const [justCopied, setJustCopied] = useState(false);
+
   return (
   <div className="module-card animate-in">
     <div className="module-image-container">
@@ -136,36 +171,41 @@ const ModuleCard: React.FC<ModuleProps> = (props) => {
           Direct Registration
         </button>
         <button 
+          type="button"
           title="Share solution"
-          className="p-3.5 bg-white/5 border border-white/10 text-slate-400 hover:text-indigo-400 hover:bg-white/10 rounded-2xl transition-all group relative"
+          className="p-3.5 bg-white/5 border border-white/10 text-slate-400 hover:text-indigo-400 hover:bg-white/10 active:scale-95 rounded-2xl transition-all group relative"
           onClick={async (e) => {
             e.stopPropagation();
+            if (onShare) {
+              onShare(props);
+              return;
+            }
             const shareUrl = `${window.location.origin}${window.location.pathname}?showcaseModId=${modId || title.toLowerCase().replace(/\s+/g, '_')}`;
-            const shareData = {
-              title: `${title} | EduAI OS`,
-              text: description,
-              url: shareUrl
-            };
+            await copyToClipboard(shareUrl);
+            setJustCopied(true);
+            setTimeout(() => setJustCopied(false), 2500);
 
-            // Use Native Share API if available (Modern/Premium)
             if (navigator.share) {
               try {
-                await navigator.share(shareData);
+                await navigator.share({
+                  title: `${title} | EduAI OS`,
+                  text: description,
+                  url: shareUrl
+                });
               } catch (err) {
-                console.log("Sharing failed or cancelled");
+                // Fallback to whatsapp
+                const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${title}: ${description} ${shareUrl}`)}`;
+                window.open(whatsappUrl, '_blank');
               }
             } else {
-              // Fallback: Copy to clipboard and offer social intents
-              navigator.clipboard.writeText(shareUrl);
-              alert(`${title} link copied to clipboard! Opening WhatsApp...`);
               const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${title}: ${description} ${shareUrl}`)}`;
               window.open(whatsappUrl, '_blank');
             }
           }}
         >
-          <ShareIcon className="w-4 h-4" />
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap uppercase tracking-widest">
-            Share Solution
+          {justCopied ? <CheckIcon className="w-4 h-4 text-emerald-400" /> : <ShareIcon className="w-4 h-4" />}
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap uppercase tracking-widest z-20">
+            {justCopied ? 'Link Copied!' : 'Share Solution'}
           </div>
         </button>
       </div>
@@ -193,6 +233,9 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTutorial, setActiveTutorial] = useState<any | null>(null);
   const [tutorialStep, setTutorialStep] = useState(0);
+  const [activeShareMod, setActiveShareMod] = useState<any | null>(null);
+  const [modalCopied, setModalCopied] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const handleResize = () => setCurrentWidth(window.innerWidth);
@@ -207,9 +250,30 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
       }
     };
     loadData();
+
+    // Check for deep-link showcaseModId parameter
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetModId = urlParams.get('showcaseModId');
+      if (targetModId) {
+        setSearchQuery(targetModId.replace(/_/g, ' '));
+        setTimeout(() => {
+          const el = document.getElementById('showcase');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 600);
+      }
+    } catch (e) {}
     
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const handleTriggerShare = (mod: any) => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}?showcaseModId=${mod.modId || mod.title.toLowerCase().replace(/\s+/g, '_')}`;
+    copyToClipboard(shareUrl);
+    setToastMessage(`✓ Link copied for ${mod.title}!`);
+    setTimeout(() => setToastMessage(null), 3000);
+    setActiveShareMod(mod);
+  };
 
   const getIcon = (id: string) => {
     switch (id) {
@@ -265,7 +329,8 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
         setActiveTutorial(mod);
         setTutorialStep(0);
     },
-    onRegister: () => onRegister?.(m.id)
+    onRegister: () => onRegister?.(m.id),
+    onShare: handleTriggerShare
   }));
 
   // Create modules from custom institutional config
@@ -277,7 +342,8 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
     advantages: item.category ? [item.category] : [],
     link: item.link,
     onLaunchSimulator: () => onLaunchSimulator?.('admin', item.id || 'edu'),
-    onRegister: () => onRegister?.(item.id || 'edu')
+    onRegister: () => onRegister?.(item.id || 'edu'),
+    onShare: handleTriggerShare
   }));
 
   // Merge them, prioritizing platformModules for the new auto-updating behavior
@@ -555,6 +621,166 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
                  </div>
               </div>
            </div>
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[120] bg-slate-900/90 backdrop-blur-xl border border-emerald-500/40 text-emerald-300 px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-xs uppercase tracking-wider animate-in">
+          <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <CheckIcon className="w-3.5 h-3.5" />
+          </div>
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Interactive Share Solution Modal */}
+      {activeShareMod && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-6 animate-in">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setActiveShareMod(null)}></div>
+          <div className="relative w-full max-w-md bg-[#0f172a] rounded-[2rem] border border-white/10 shadow-2xl p-6 md:p-8 z-10 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                  <ShareIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Share Solution</h3>
+                  <p className="text-[11px] text-slate-400">Invite teams or clients to explore this showcase</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setActiveShareMod(null)} 
+                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition-all"
+              >
+                <XIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Solution Summary */}
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 mb-5 flex items-start gap-3.5">
+              <div className="p-2.5 bg-indigo-500/10 rounded-xl text-indigo-400 shrink-0">
+                {activeShareMod.icon || <Zap className="w-5 h-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-black text-white truncate">{activeShareMod.title}</div>
+                <div className="text-[11px] text-slate-400 line-clamp-2 mt-0.5 leading-relaxed">{activeShareMod.description}</div>
+              </div>
+            </div>
+
+            {/* Direct URL Copy Field */}
+            <div className="mb-5">
+              <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Direct Link</label>
+              <div className="flex items-center gap-2 p-1.5 bg-black/40 border border-white/10 rounded-2xl">
+                <input 
+                  type="text" 
+                  readOnly 
+                  value={`${window.location.origin}${window.location.pathname}?showcaseModId=${activeShareMod.modId || activeShareMod.title.toLowerCase().replace(/\s+/g, '_')}`} 
+                  className="flex-1 bg-transparent border-none text-xs text-slate-300 px-3 outline-none select-all font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const url = `${window.location.origin}${window.location.pathname}?showcaseModId=${activeShareMod.modId || activeShareMod.title.toLowerCase().replace(/\s+/g, '_')}`;
+                    await copyToClipboard(url);
+                    setModalCopied(true);
+                    setToastMessage(`✓ Link copied for ${activeShareMod.title}!`);
+                    setTimeout(() => {
+                      setModalCopied(false);
+                      setToastMessage(null);
+                    }, 2500);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-all shrink-0 ${modalCopied ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                >
+                  {modalCopied ? <><CheckIcon className="w-3.5 h-3.5" /> Copied!</> : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            {/* 1-Click Social Share Grid */}
+            <div>
+              <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2.5">Share Instantly</label>
+              <div className="grid grid-cols-4 gap-2">
+                {/* WhatsApp */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `${window.location.origin}${window.location.pathname}?showcaseModId=${activeShareMod.modId || activeShareMod.title.toLowerCase().replace(/\s+/g, '_')}`;
+                    const text = `*${activeShareMod.title}* - EduAI OS Solution\n\n${activeShareMod.description}\n\nExplore here: ${url}`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/40 text-emerald-400 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-[10px] font-bold"
+                >
+                  <span className="text-sm">💬</span>
+                  <span>WhatsApp</span>
+                </button>
+
+                {/* Telegram */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `${window.location.origin}${window.location.pathname}?showcaseModId=${activeShareMod.modId || activeShareMod.title.toLowerCase().replace(/\s+/g, '_')}`;
+                    window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`${activeShareMod.title}: ${activeShareMod.description}`)}`, '_blank');
+                  }}
+                  className="p-2.5 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 hover:border-sky-500/40 text-sky-400 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-[10px] font-bold"
+                >
+                  <PaperAirplaneIcon className="w-4 h-4 -rotate-45" />
+                  <span>Telegram</span>
+                </button>
+
+                {/* Twitter / X */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `${window.location.origin}${window.location.pathname}?showcaseModId=${activeShareMod.modId || activeShareMod.title.toLowerCase().replace(/\s+/g, '_')}`;
+                    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out ${activeShareMod.title} on EduAI OS:`)}&url=${encodeURIComponent(url)}`, '_blank');
+                  }}
+                  className="p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-[10px] font-bold"
+                >
+                  <span className="text-sm font-black">𝕏</span>
+                  <span>Twitter</span>
+                </button>
+
+                {/* Email */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `${window.location.origin}${window.location.pathname}?showcaseModId=${activeShareMod.modId || activeShareMod.title.toLowerCase().replace(/\s+/g, '_')}`;
+                    const subject = `${activeShareMod.title} - EduAI OS Solution`;
+                    const body = `Hi,\n\nI recommend checking out ${activeShareMod.title} on EduAI OS:\n\n${activeShareMod.description}\n\nExplore the interactive demo here:\n${url}\n\nBest regards,`;
+                    window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                  }}
+                  className="p-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-500/40 text-indigo-300 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-[10px] font-bold"
+                >
+                  <EnvelopeIcon className="w-4 h-4" />
+                  <span>Email</span>
+                </button>
+              </div>
+
+              {/* Native Mobile / System Share button */}
+              {typeof navigator !== 'undefined' && !!(navigator as any).share && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const url = `${window.location.origin}${window.location.pathname}?showcaseModId=${activeShareMod.modId || activeShareMod.title.toLowerCase().replace(/\s+/g, '_')}`;
+                    try {
+                      await navigator.share({
+                        title: `${activeShareMod.title} | EduAI OS`,
+                        text: activeShareMod.description,
+                        url
+                      });
+                    } catch (e) {}
+                  }}
+                  className="w-full mt-3 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-white flex items-center justify-center gap-2 transition-all"
+                >
+                  <ShareIcon className="w-3.5 h-3.5" />
+                  <span>Open System Share Menu</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
