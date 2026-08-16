@@ -1620,6 +1620,30 @@ export const apiService = {
                 if (item.afternoonLocation && !item.afternoon_location) item.afternoon_location = item.afternoonLocation;
                 if (item.afternoonNotes && !item.afternoon_notes) item.afternoon_notes = item.afternoonNotes;
             }
+            if (module === 'airtel_transactions') {
+                if (item.institutionId && !item.institution_id) item.institution_id = item.institutionId;
+                if (item.receiptNo && !item.receipt_no) item.receipt_no = item.receiptNo;
+                if (item.phoneNumber && !item.phone_number) item.phone_number = item.phoneNumber;
+                if (item.accountReference && !item.account_reference) item.account_reference = item.accountReference;
+                if (item.transactionDate && !item.transaction_date) item.transaction_date = item.transactionDate;
+                if (item.rawPayload && !item.raw_payload) item.raw_payload = item.rawPayload;
+            }
+            if (module === 'intasend_transactions') {
+                if (item.institutionId && !item.institution_id) item.institution_id = item.institutionId;
+                if (item.trackingId && !item.tracking_id) item.tracking_id = item.trackingId;
+                if (item.phoneNumber && !item.phone_number) item.phone_number = item.phoneNumber;
+                if (item.accountReference && !item.account_reference) item.account_reference = item.accountReference;
+                if (item.transactionDate && !item.transaction_date) item.transaction_date = item.transactionDate;
+                if (item.rawPayload && !item.raw_payload) item.raw_payload = item.rawPayload;
+            }
+            if (module === 'ncba_transactions') {
+                if (item.institutionId && !item.institution_id) item.institution_id = item.institutionId;
+                if (item.referenceNo && !item.reference_no) item.reference_no = item.referenceNo;
+                if (item.accountNumber && !item.account_number) item.account_number = item.accountNumber;
+                if (item.customerName && !item.customer_name) item.customer_name = item.customerName;
+                if (item.transactionDate && !item.transaction_date) item.transaction_date = item.transactionDate;
+                if (item.rawPayload && !item.raw_payload) item.raw_payload = item.rawPayload;
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {

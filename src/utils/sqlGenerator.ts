@@ -3274,7 +3274,14 @@ CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expens
         // Discipline Incidents
         `CREATE INDEX IF NOT EXISTS idx_disc_incidents_inst ON discipline_incidents(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_disc_incidents_student ON discipline_incidents(student_id);`,
-        `CREATE INDEX IF NOT EXISTS idx_disc_incidents_status ON discipline_incidents(status);`
+        `CREATE INDEX IF NOT EXISTS idx_disc_incidents_status ON discipline_incidents(status);`,
+        // Payment Gateways
+        `CREATE INDEX IF NOT EXISTS idx_airtel_tx_inst ON airtel_transactions(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_airtel_tx_receipt ON airtel_transactions(receipt_no);`,
+        `CREATE INDEX IF NOT EXISTS idx_intasend_tx_inst ON intasend_transactions(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_intasend_tx_tracking ON intasend_transactions(tracking_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ncba_tx_inst ON ncba_transactions(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ncba_tx_ref ON ncba_transactions(reference_no);`
     ];
 
     indexStatements.forEach(stmt => {

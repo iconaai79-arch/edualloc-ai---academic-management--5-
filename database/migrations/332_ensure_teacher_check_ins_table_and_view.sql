@@ -67,7 +67,11 @@ CREATE POLICY "teacher_check_ins_all_access" ON public.teacher_check_ins
 
 GRANT ALL ON public.teacher_check_ins TO anon, authenticated, service_role;
 
--- 5. Standardize v_today_teacher_checkins view
+-- 5. Standardize v_today_teacher_checkins and v_teacher_checkins views
+-- Drop existing views first with CASCADE to prevent PostgreSQL error 42P16 (cannot change data type of view column from uuid to text)
+DROP VIEW IF EXISTS public.v_today_teacher_checkins CASCADE;
+DROP VIEW IF EXISTS public.v_teacher_checkins CASCADE;
+
 CREATE OR REPLACE VIEW public.v_today_teacher_checkins
 WITH (security_invoker = true) AS
 SELECT 
@@ -102,6 +106,40 @@ JOIN public.institutions i ON tc.institution_id = i.id
 WHERE tc.check_in_date = CURRENT_DATE;
 
 GRANT SELECT ON public.v_today_teacher_checkins TO anon, authenticated, service_role;
+
+CREATE OR REPLACE VIEW public.v_teacher_checkins
+WITH (security_invoker = true) AS
+SELECT 
+    tc.id,
+    tc.teacher_id,
+    tc.institution_id,
+    tc.check_in_date,
+    tc.morning_check_in_time,
+    tc.morning_check_in_status,
+    tc.morning_location,
+    tc.morning_notes,
+    tc.afternoon_check_in_time,
+    tc.afternoon_check_in_status,
+    tc.afternoon_location,
+    tc.afternoon_notes,
+    tc.created_at,
+    tc.updated_at,
+    u.name as teacher_name,
+    u.email as teacher_email,
+    i.name as institution_name,
+    CASE 
+        WHEN tc.morning_check_in_time IS NULL AND (tc.check_in_date < CURRENT_DATE OR CURRENT_TIME > '08:00:00') THEN true
+        ELSE false
+    END as morning_overdue,
+    CASE 
+        WHEN tc.afternoon_check_in_time IS NULL AND (tc.check_in_date < CURRENT_DATE OR CURRENT_TIME > '16:00:00') THEN true
+        ELSE false
+    END as afternoon_overdue
+FROM public.teacher_check_ins tc
+JOIN public.users u ON tc.teacher_id = u.id
+JOIN public.institutions i ON tc.institution_id = i.id;
+
+GRANT SELECT ON public.v_teacher_checkins TO anon, authenticated, service_role;
 
 -- Reload PostgREST schema cache
 NOTIFY pgrst, 'reload schema';

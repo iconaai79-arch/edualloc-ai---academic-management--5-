@@ -1,6 +1,9 @@
 -- Migration 264: Create Teacher Check-Ins View
 -- This view aggregates teacher check-ins with teacher name and email for any date range
 
+-- Drop existing view first to avoid column type mismatch errors (42P16)
+DROP VIEW IF EXISTS v_teacher_checkins CASCADE;
+
 CREATE OR REPLACE VIEW v_teacher_checkins 
 WITH (security_invoker = true) AS
 SELECT 

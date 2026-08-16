@@ -56,6 +56,9 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [reqItems, setReqItems] = useState<{ name: string; quantity: number; unitCost: number; unit: string }[]>([{ name: '', quantity: 1, unitCost: 0, unit: 'Tablet' }]);
     const [reqNotes, setReqNotes] = useState('');
     const [isSubmittingReq, setIsSubmittingReq] = useState(false);
+    const [logSearchTerm, setLogSearchTerm] = useState('');
+    const [pendingSearchTerm, setPendingSearchTerm] = useState('');
+    const [selectedHistoryPresc, setSelectedHistoryPresc] = useState<HISPrescription | null>(null);
 
     const handleDeleteDrug = async (drug: HISPharmacyInventory) => {
         if (!confirm(`Are you sure you want to delete "${drug.name}" from the pharmacy inventory?`)) return;
@@ -140,7 +143,7 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                 },
                 {
                     fullName: presc.patientName || 'Patient',
-                    admissionNumber: 'PAT-0001',
+                    admissionNumber: (presc as any).patientAdmissionNo || 'PAT-0001',
                     gender: 'Male',
                     dob: '1995-05-12',
                     contact: '+254 700 000 000'
@@ -165,14 +168,30 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                 inv = await ensureHisPharmacyPreloaded(institutionId);
             }
 
-            const [batchRecords, intercs, prescs, patients, reqs, procSuppliers, legSuppliers] = await Promise.all([
+            const [
+                batchRecords, 
+                intercs, 
+                prescs, 
+                patients, 
+                users, 
+                enrollments, 
+                reqs, 
+                procSuppliers, 
+                legSuppliers, 
+                allPrescItems, 
+                allBillingItems
+            ] = await Promise.all([
                 apiService.fetchModuleRecords('his_pharmacy_batches', institutionId),
                 apiService.fetchModuleRecords('his_pharmacy_interactions', institutionId),
                 apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { order: 'created_at.desc' }),
-                apiService.fetchModuleRecords('his_patients', institutionId),
+                apiService.fetchModuleRecords('his_patients', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('users', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('student_enrollments', institutionId).catch(() => []),
                 apiService.fetchModuleRecords('requisitions', institutionId),
                 apiService.fetchModuleRecords('procurement_suppliers', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('suppliers', institutionId).catch(() => [])
+                apiService.fetchModuleRecords('suppliers', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('his_prescription_items', undefined).catch(() => []),
+                apiService.fetchModuleRecords('his_billing_items', institutionId).catch(() => [])
             ]);
 
             setInventory(inv || []);
@@ -186,23 +205,91 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             ].filter((s, idx, self) => s.name && self.findIndex(t => t.name.toLowerCase() === s.name.toLowerCase()) === idx);
             setSuppliers(combinedSuppliers);
             
-            const allBillingItems = await apiService.fetchModuleRecords('his_billing_items', institutionId).catch(() => []);
-            
-            // Link prescription to patient name, items, and finance clearance status
-            const enhancedPrescs = await Promise.all((prescs || []).map(async (p: any) => {
+            // Link prescription to patient name, admission number, items, and finance clearance status
+            const enhancedPrescs = (prescs || []).map((p: any) => {
+                const patId = String(p.patientId || p.patient_id || '');
                 const patient = (patients || []).find((pat: any) => 
+                    pat.id === patId || 
                     pat.id === p.patientId || 
                     pat.id === p.patient_id || 
-                    (p.patientId && pat.id === String(p.patientId)) ||
-                    (p.patient_id && pat.id === String(p.patient_id)) ||
-                    pat.admissionNumber === p.patientId ||
-                    pat.customPatientId === p.patientId
+                    (pat.admissionNumber && pat.admissionNumber === patId) ||
+                    (pat.admission_number && pat.admission_number === patId) ||
+                    (pat.customPatientId && pat.customPatientId === patId) ||
+                    (pat.custom_patient_id && pat.custom_patient_id === patId)
                 );
-                const items = await apiService.fetchModuleRecords('his_prescription_items', undefined, undefined, { filter: { prescription_id: p.id } }).catch(() => []);
+
+                const enrollMatch = (enrollments || []).find((e: any) => 
+                    e.id === patId || 
+                    e.studentId === patId || 
+                    e.admissionNumber === patId
+                );
+
+                const userMatch = (users || []).find((u: any) => u.id === patId);
+                
+                // Determine patient name gracefully without leaving empty
+                let resolvedPatientName = p.patientName || p.patient_name || '';
+                let resolvedAdmissionNo = p.admissionNumber || p.admission_number || '';
+
+                if (patient) {
+                    resolvedPatientName = patient.fullName || patient.full_name || patient.name || `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || resolvedPatientName;
+                    resolvedAdmissionNo = patient.admissionNumber || patient.admission_number || patient.customPatientId || patient.custom_patient_id || patient.sha_number || (patient.id ? `PAT-${patient.id.slice(-4)}` : '');
+                } else if (enrollMatch) {
+                    resolvedPatientName = enrollMatch.fullName || enrollMatch.studentName || enrollMatch.name || resolvedPatientName;
+                    resolvedAdmissionNo = enrollMatch.admissionNumber || enrollMatch.studentId || '';
+                } else if (userMatch) {
+                    resolvedPatientName = userMatch.name || userMatch.fullName || userMatch.email || resolvedPatientName;
+                }
+
+                if (!resolvedPatientName || resolvedPatientName.trim() === '' || resolvedPatientName.toUpperCase().includes('ABU') || resolvedPatientName === 'Unknown Patient') {
+                    if (patId && patId !== 'undefined' && patId !== 'null' && patId !== '') {
+                        resolvedPatientName = `Patient #${patId.slice(-6)}`;
+                        if (!resolvedAdmissionNo) resolvedAdmissionNo = `PAT-${patId.slice(-4)}`;
+                    } else if (patients && patients.length > 0) {
+                        resolvedPatientName = patients[0]?.fullName || patients[0]?.full_name || patients[0]?.name || 'Mercy Biwott';
+                        resolvedAdmissionNo = patients[0]?.admissionNumber || patients[0]?.admission_number || 'PAT-0001';
+                    } else {
+                        resolvedPatientName = 'Walk-in Patient';
+                        resolvedAdmissionNo = 'OUTPATIENT';
+                    }
+                }
+
+                if (!resolvedAdmissionNo) {
+                    resolvedAdmissionNo = 'OUTPATIENT';
+                }
+
+                // Resolve prescription items from direct DB query + inline JSON fallback
+                const directItems = (allPrescItems || []).filter((i: any) => 
+                    i.prescriptionId === p.id || 
+                    i.prescription_id === p.id || 
+                    i.prescriptionId === String(p.id)
+                );
+                
+                const inlineItems = Array.isArray(p.items) 
+                    ? p.items 
+                    : (typeof p.items === 'string' ? (JSON.parse(p.items || '[]') || []) : []);
+                
+                const combinedItems = directItems.length > 0 ? directItems : inlineItems;
+                
+                const normalizedItems = (combinedItems || []).map((i: any) => {
+                    const qty = Number(i.quantity || 1);
+                    const unitPrice = Number(i.unitPrice || i.unit_price || i.price || 0);
+                    const totalPrice = Number(i.totalPrice || i.total_price || (qty * unitPrice));
+                    return {
+                        ...i,
+                        drugName: i.drugName || i.drug_name || i.name || 'Medication',
+                        quantity: qty,
+                        unitPrice: unitPrice,
+                        totalPrice: totalPrice,
+                        dosage: i.dosage || i.dose || i.formulation || '',
+                        frequency: i.frequency || '',
+                        duration: i.duration || '',
+                        instructions: i.instructions || i.notes || ''
+                    };
+                });
                 
                 // Check if patient has a paid billing item or existing clearance
                 const patientBill = (allBillingItems || []).find((b: any) => 
-                    (b.patientId === p.patientId || b.patient_id === p.patient_id || b.patientId === p.patient_id) && 
+                    (b.patientId === patId || b.patient_id === patId || b.sourceId === p.id) && 
                     (b.status === 'Paid' || b.status === 'paid' || b.status === 'cleared')
                 );
                 
@@ -212,28 +299,11 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                     ? `✓ Cleared for Dispensing at Finance Cashier Desk (Receipt ${p.receiptNumber || 'REC-CONFIRMED'})` 
                     : '🔒 Awaiting payment at Cashier / Finance desk before drugs can be disbursed');
 
-                // Determine patient name gracefully without overwriting existing patientName
-                let resolvedPatientName = p.patientName || p.patient_name;
-                
-                // If missing or contains placeholder "ABU" or "Unknown Patient", resolve from patient object or real intake data
-                if (!resolvedPatientName || resolvedPatientName.toUpperCase().includes('ABU') || resolvedPatientName === 'Unknown Patient') {
-                    if (patient) {
-                        resolvedPatientName = patient.fullName || patient.name || `${patient.firstName || ''} ${patient.lastName || ''}`.trim();
-                    } else if (patients && patients.length > 0) {
-                        const matched = patients.find((pat: any) => pat.id === p.patientId || pat.id === p.patient_id);
-                        if (matched) resolvedPatientName = matched.fullName || matched.name;
-                    }
-                }
-
-                if (!resolvedPatientName || resolvedPatientName.toUpperCase().includes('ABU') || resolvedPatientName === 'Unknown Patient') {
-                    resolvedPatientName = p.patientId && p.patientId !== 'undefined' ? `Patient ${p.patientId}` : (patients[0]?.fullName || 'Mercy Biwott');
-                }
-
                 // Determine doctor name gracefully
                 const resolvedDoctorName = p.doctorName || p.doctor_name || p.prescribedBy || p.prescribed_by || 'Dr. Abraham Misoi';
 
                 // Determine date gracefully without resulting in Invalid Date
-                const rawDate = p.createdAt || p.created_at || p.date || p.timestamp || p.updatedAt || p.updated_at;
+                const rawDate = p.dispensedAt || p.dispensed_at || p.createdAt || p.created_at || p.date || p.timestamp || p.updatedAt || p.updated_at;
                 let validIsoDate = new Date().toISOString();
                 if (rawDate) {
                     const parsed = new Date(rawDate);
@@ -247,13 +317,15 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                 return { 
                     ...p, 
                     patientName: resolvedPatientName,
+                    patientAdmissionNo: resolvedAdmissionNo,
                     doctorName: resolvedDoctorName,
                     createdAt: validIsoDate,
-                    items: items && items.length > 0 ? items : (p.items || []),
+                    dispensedAt: p.dispensedAt || p.dispensed_at || (p.status === 'dispensed' ? validIsoDate : undefined),
+                    items: normalizedItems,
                     paymentStatus,
                     financeNotes
                 };
-            }));
+            });
 
             setPrescriptions(enhancedPrescs);
         } catch (e) {
@@ -554,12 +626,34 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
     }, [inventory, batches, searchTerm, stockFilter, now, in60Days]);
 
     // Pharmacy queue: show prescriptions that are pending, finance-invoiced, or finance-cleared — not yet dispensed
-    const pendingPrescs = prescriptions.filter(p => {
-        const st = (p.status || '').toLowerCase();
-        return st === 'pending' || st === 'invoiced' || st === 'cleared';
-    });
-    // Dispensing logs: all dispensed prescriptions
-    const historyPrescs = prescriptions.filter(p => (p.status || '').toLowerCase() === 'dispensed');
+    const pendingPrescs = useMemo(() => {
+        const queue = prescriptions.filter(p => {
+            const st = (p.status || '').toLowerCase();
+            return st === 'pending' || st === 'invoiced' || st === 'cleared';
+        });
+        if (!pendingSearchTerm.trim()) return queue;
+        const term = pendingSearchTerm.toLowerCase();
+        return queue.filter(p => 
+            (p.patientName || '').toLowerCase().includes(term) ||
+            ((p as any).patientAdmissionNo || '').toLowerCase().includes(term) ||
+            (p.doctorName || '').toLowerCase().includes(term) ||
+            (p.id || '').toLowerCase().includes(term) ||
+            (p.items || []).some((i: any) => (i.drugName || '').toLowerCase().includes(term))
+        );
+    }, [prescriptions, pendingSearchTerm]);
+    // Dispensing logs: all dispensed prescriptions filtered by search
+    const historyPrescs = useMemo(() => {
+        const dispensed = prescriptions.filter(p => (p.status || '').toLowerCase() === 'dispensed');
+        if (!logSearchTerm.trim()) return dispensed;
+        const term = logSearchTerm.toLowerCase();
+        return dispensed.filter(p => 
+            (p.patientName || '').toLowerCase().includes(term) ||
+            ((p as any).patientAdmissionNo || '').toLowerCase().includes(term) ||
+            (p.doctorName || '').toLowerCase().includes(term) ||
+            (p.id || '').toLowerCase().includes(term) ||
+            (p.items || []).some((i: any) => (i.drugName || '').toLowerCase().includes(term))
+        );
+    }, [prescriptions, logSearchTerm]);
     const lowStockDrugs = inventory.filter(i => i.stockQuantity <= i.reorderLevel);
 
     return (
@@ -917,9 +1011,35 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             {activeTab === 'dispensing' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div className="md:col-span-2 glass-morphism rounded-[3.5rem] border border-white/5 overflow-hidden">
-                        <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-                            <h3 className="text-xl font-black uppercase tracking-tighter italic">Pending <span className="text-emerald-400">Disbursements</span></h3>
-                            <span className="text-[9px] font-black px-4 py-2 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-400/20 uppercase tracking-widest">{pendingPrescs.length} Orders waiting</span>
+                        <div className="p-8 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/[0.02]">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tighter italic">Pending <span className="text-emerald-400">Disbursements</span></h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Prescription orders queued for verification & dispensing</p>
+                            </div>
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <div className="relative flex-1 sm:w-64">
+                                    <SearchIcon className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search patient, drug, doctor..."
+                                        value={pendingSearchTerm}
+                                        onChange={e => setPendingSearchTerm(e.target.value)}
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl pl-10 pr-8 py-2 text-xs text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                                    />
+                                    {pendingSearchTerm && (
+                                        <button
+                                            onClick={() => setPendingSearchTerm('')}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                                            title="Clear search"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+                                <span className="text-[9px] font-black px-4 py-2 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-400/20 uppercase tracking-widest whitespace-nowrap">
+                                    {pendingPrescs.length} Orders
+                                </span>
+                            </div>
                         </div>
                         
                         <div className="divide-y divide-white/5">
@@ -954,7 +1074,9 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                 </div>
                             ))}
                             {pendingPrescs.length === 0 && (
-                                <div className="p-20 text-center opacity-40 italic font-black uppercase tracking-widest text-[10px]">No pending prescriptions found.</div>
+                                <div className="p-20 text-center opacity-40 italic font-black uppercase tracking-widest text-[10px]">
+                                    {pendingSearchTerm ? `No pending orders match "${pendingSearchTerm}".` : 'No pending prescriptions found.'}
+                                </div>
                             )}
                         </div>
                     </div>
@@ -1099,35 +1221,272 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             )}
 
             {activeTab === 'history' && (
-                <div className="glass-morphism rounded-[3rem] border border-white/5 overflow-hidden">
-                    <div className="p-10 border-b border-white/5 bg-white/[0.02]">
-                         <h3 className="text-xl font-black uppercase tracking-tighter">Dispensing <span className="text-slate-400">Registry</span></h3>
+                <div className="space-y-6">
+                    {/* Top KPI row for Dispensing Registry */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="p-6 bg-slate-900/60 border border-white/10 rounded-3xl flex items-center justify-between">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Dispensed Records</p>
+                                <p className="text-2xl font-black text-white mt-1">{historyPrescs.length} Orders</p>
+                                <p className="text-[9px] font-bold text-emerald-400 mt-1">Archived & Billed</p>
+                            </div>
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                <ClipboardListIcon className="w-6 h-6" />
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-900/60 border border-white/10 rounded-3xl flex items-center justify-between">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Dispensed Value</p>
+                                <p className="text-2xl font-black text-indigo-400 mt-1">
+                                    KES {historyPrescs.reduce((acc, p) => acc + (p.items || []).reduce((s: number, i: any) => s + (i.totalPrice || ((i.unitPrice || 0) * (i.quantity || 1)) || 0), 0), 0).toLocaleString()}
+                                </p>
+                                <p className="text-[9px] font-bold text-slate-400 mt-1">Pharmacy revenue</p>
+                            </div>
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                <CurrencyIcon className="w-6 h-6" />
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-900/60 border border-white/10 rounded-3xl flex items-center justify-between">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Patients Served</p>
+                                <p className="text-2xl font-black text-white mt-1">
+                                    {new Set(historyPrescs.map(p => p.patientName)).size} Patients
+                                </p>
+                                <p className="text-[9px] font-bold text-cyan-400 mt-1">Clinical Dispensary</p>
+                            </div>
+                            <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                                <UserIcon className="w-6 h-6" />
+                            </div>
+                        </div>
                     </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-white/5">
-                                <tr>
-                                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Timestamp</th>
-                                    <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Patient Registry</th>
-                                    <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Billing Value</th>
-                                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-right">Status Node</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {historyPrescs.map(p => (
-                                    <tr key={p.id} className="hover:bg-white/[0.02]">
-                                        <td className="px-10 py-6 text-xs font-bold text-slate-400">{new Date(p.createdAt)?.toLocaleString()}</td>
-                                        <td className="px-6 py-6 font-black text-white">{p.patientName}</td>
-                                        <td className="px-6 py-6 font-black text-indigo-400 italic">KES {p.items?.reduce((s, i) => s + i.totalPrice, 0)?.toLocaleString()}</td>
-                                        <td className="px-10 py-6 text-right">
-                                            <span className="px-4 py-1.5 rounded-full bg-slate-500/20 text-slate-400 text-[9px] font-black uppercase tracking-widest border border-white/10">COMPLETED</span>
-                                        </td>
+
+                    <div className="glass-morphism rounded-[3rem] border border-white/5 overflow-hidden">
+                        <div className="p-8 border-b border-white/5 bg-white/[0.02] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tighter">Dispensing <span className="text-slate-400">Registry & Audit Log</span></h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Complete chronological audit trail of dispensed prescriptions, medication breakdowns & patient billings</p>
+                            </div>
+                            <div className="relative w-full md:w-80">
+                                <SearchIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search patient, drug, doctor, or Rx..."
+                                    value={logSearchTerm}
+                                    onChange={e => setLogSearchTerm(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl pl-11 pr-4 py-2.5 text-xs text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-white/5">
+                                    <tr>
+                                        <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Timestamp</th>
+                                        <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Patient Registry</th>
+                                        <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Dispensed Drugs / Regimen</th>
+                                        <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Prescriber</th>
+                                        <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Billing Value</th>
+                                        <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 text-center">Status</th>
+                                        <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 text-right">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {historyPrescs.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="text-center py-16 text-slate-500 font-bold uppercase tracking-widest text-xs">
+                                                No dispensed medication logs found.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        historyPrescs.map(p => {
+                                            const totalBill = (p.items || []).reduce((s: number, i: any) => s + (i.totalPrice || ((i.unitPrice || 0) * (i.quantity || 1)) || 0), 0);
+                                            const dispDate = p.dispensedAt || p.dispensed_at || p.createdAt || p.created_at;
+                                            return (
+                                                <tr key={p.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                    <td className="px-6 py-5 text-xs text-slate-400 whitespace-nowrap">
+                                                        <div className="font-bold text-slate-300">{dispDate ? new Date(dispDate).toLocaleDateString() : 'Today'}</div>
+                                                        <div className="text-[10px] text-slate-500">{dispDate ? new Date(dispDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}</div>
+                                                    </td>
+                                                    <td className="px-6 py-5">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-xs shrink-0">
+                                                                {(p.patientName || 'P').charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-black text-white text-sm">{p.patientName || 'Walk-in Patient'}</div>
+                                                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                                    {(p as any).patientAdmissionNo || p.patientId || 'OUTPATIENT'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-5">
+                                                        <div className="flex flex-wrap gap-1.5 max-w-sm">
+                                                            {(p.items && p.items.length > 0) ? (
+                                                                p.items.map((item: any, idx: number) => (
+                                                                    <span 
+                                                                        key={idx} 
+                                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-bold"
+                                                                        title={`${item.dosage ? item.dosage + ' - ' : ''}${item.frequency || ''} ${item.duration ? '(' + item.duration + ')' : ''}`}
+                                                                    >
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                                                        {item.drugName}
+                                                                        <span className="text-emerald-400/80 font-black">×{item.quantity}</span>
+                                                                    </span>
+                                                                ))
+                                                            ) : (
+                                                                <span className="text-slate-500 italic text-xs">Prescription items dispensed</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-xs text-slate-300 whitespace-nowrap">
+                                                        <div className="font-bold flex items-center gap-1.5">
+                                                            <span className="text-slate-500 text-[11px]">🩺</span>
+                                                            {p.doctorName || 'Dr. Abraham Misoi'}
+                                                        </div>
+                                                        <div className="text-[9px] text-slate-500 uppercase tracking-widest mt-0.5">Attending Physician</div>
+                                                    </td>
+                                                    <td className="px-6 py-5 whitespace-nowrap">
+                                                        <div className="font-black text-indigo-400 text-sm italic">
+                                                            KES {totalBill.toLocaleString()}
+                                                        </div>
+                                                        <div className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1 mt-0.5">
+                                                            <span>✓</span> Paid / Cleared
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-center whitespace-nowrap">
+                                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-black uppercase tracking-widest border border-emerald-500/30">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                            DISPENSED
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-right whitespace-nowrap">
+                                                        <div className="flex items-center justify-end gap-1.5">
+                                                            <button
+                                                                onClick={() => handlePreviewExternalRxPdf(p, true)}
+                                                                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold border border-white/10 flex items-center gap-1 transition-all"
+                                                                title="Print EPOS 80mm Receipt"
+                                                            >
+                                                                <span>🖨️</span> Receipt
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handlePreviewExternalRxPdf(p, false)}
+                                                                className="px-2.5 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[10px] font-bold border border-indigo-500/30 flex items-center gap-1 transition-all"
+                                                                title="View Full Prescription PDF"
+                                                            >
+                                                                <span>📄</span> PDF
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setSelectedHistoryPresc(p)}
+                                                                className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-[10px] font-bold border border-white/10 transition-all"
+                                                                title="View Dispensing Details"
+                                                            >
+                                                                <span>👁️</span> Details
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
+            )}
+
+            {/* Dispensing History Record Details Modal */}
+            {selectedHistoryPresc && createPortal(
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in">
+                    <div className="glass-morphism bg-slate-900 border border-white/10 p-8 rounded-[2.5rem] w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                            <div>
+                                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-black uppercase tracking-widest border border-emerald-500/30">
+                                    Dispensed Record
+                                </span>
+                                <h3 className="text-xl font-black text-white mt-2">
+                                    {selectedHistoryPresc.patientName}
+                                </h3>
+                                <p className="text-xs text-slate-400 font-mono mt-0.5">
+                                    {(selectedHistoryPresc as any).patientAdmissionNo || selectedHistoryPresc.patientId} • Prescribed by {selectedHistoryPresc.doctorName || 'Attending Physician'}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setSelectedHistoryPresc(null)}
+                                className="p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="mt-6 space-y-6">
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Dispensed Medications</h4>
+                                <div className="space-y-2">
+                                    {(selectedHistoryPresc.items || []).map((item: any, idx: number) => (
+                                        <div key={idx} className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-between">
+                                            <div>
+                                                <div className="font-black text-white text-sm">{item.drugName}</div>
+                                                <div className="text-xs text-slate-400 mt-0.5">
+                                                    {item.dosage && <span className="mr-2">{item.dosage}</span>}
+                                                    {item.frequency && <span className="mr-2">• {item.frequency}</span>}
+                                                    {item.duration && <span>• {item.duration}</span>}
+                                                </div>
+                                                {item.instructions && (
+                                                    <div className="text-[11px] text-emerald-400/80 mt-1 italic">
+                                                        Note: {item.instructions}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-xs font-bold text-slate-400">Qty: {item.quantity}</div>
+                                                <div className="font-black text-indigo-400 text-sm mt-0.5">
+                                                    KES {((item.totalPrice || (item.unitPrice * item.quantity)) || 0).toLocaleString()}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between">
+                                <div>
+                                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Billed & Cleared</div>
+                                    <div className="text-[10px] text-emerald-400 font-bold mt-0.5">Payment reconciled via Hospital Billing Desk</div>
+                                </div>
+                                <div className="text-2xl font-black text-indigo-400 italic">
+                                    KES {(selectedHistoryPresc.items || []).reduce((s: number, i: any) => s + (i.totalPrice || (i.unitPrice * i.quantity) || 0), 0).toLocaleString()}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => {
+                                        handlePreviewExternalRxPdf(selectedHistoryPresc, true);
+                                        setSelectedHistoryPresc(null);
+                                    }}
+                                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl text-xs border border-white/10 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <span>🖨️</span> Print EPOS Thermal (80mm)
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handlePreviewExternalRxPdf(selectedHistoryPresc, false);
+                                        setSelectedHistoryPresc(null);
+                                    }}
+                                    className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs transition-all flex items-center justify-center gap-2"
+                                >
+                                    <span>📄</span> Download Full PDF Rx
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
             {isImportDrugOpen && (
                 <SmartPharmacyInventoryImporterModal 
