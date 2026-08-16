@@ -125,13 +125,18 @@ const PUBLIC_MODULES = [
   'payroll_records', 'building_floors', 'building_offices', 'building_visitor_logs', 'building_visitor_assets',
   'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'bank_transactions',
   'feedback_submissions', 'guest_feedback', 'guest_feedbacks',
-  'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices'
+  'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
+  'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders'
 ];
 
 const MODULE_ALIASES: Record<string, string> = {
   'guest_feedback': 'feedback_submissions',
   'guest_feedbacks': 'feedback_submissions',
-  'guestfeedback': 'feedback_submissions'
+  'guestfeedback': 'feedback_submissions',
+  'weighbridge_tickets': 'weighbridge_intake_tickets',
+  'milling_weighbridge_tickets': 'weighbridge_intake_tickets',
+  'milling_grain_suppliers': 'grain_suppliers',
+  'milling_sale_orders': 'grain_sale_orders'
 };
 
 const isTableWithoutInstitutionId = (module: string) => {
@@ -179,7 +184,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'his_prescriptions', 'his_prescription_items', 'his_pharmacy_inventory', 'his_pharmacy_batches', 'his_pharmacy_sales', 'his_pharmacy_ledger',
           'his_pharmacy_interactions', 'his_pharmacy_narcotics_ledger', 'his_pharmacy_adherence_alerts',
           'his_patient_id_config', 'his_medical_notes', 'his_clinical_events', 'document_collections', 'watchlist_records', 'leave_requests', 'financial_goals',
-          'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices'
+          'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
+          'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
