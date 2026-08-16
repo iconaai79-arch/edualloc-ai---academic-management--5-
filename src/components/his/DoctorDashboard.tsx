@@ -29,6 +29,32 @@ interface DoctorDashboardProps {
 const SPECIALTIES = ['General Medicine', 'Paediatrics', 'Gynaecology', 'Orthopaedics', 'Cardiology', 'Dermatology'];
 const COMPLAINT_TAGS = ['Fever', 'Headache', 'Chest Pain', 'Abdominal Pain', 'Cough', 'Fatigue', 'Injury', 'Follow-up'];
 
+export const getPatientAgeDisplay = (patient?: HISPatient | any): string => {
+    if (!patient) return 'Adult';
+    if (patient.age !== undefined && patient.age !== null && Number(patient.age) > 0) {
+        return `${patient.age} Yrs`;
+    }
+    if (patient.dob) {
+        const birthDate = new Date(patient.dob);
+        if (!isNaN(birthDate.getTime())) {
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            if (age >= 0) {
+                if (age === 0) {
+                    const months = (today.getFullYear() - birthDate.getFullYear()) * 12 + (today.getMonth() - birthDate.getMonth());
+                    return months > 0 ? `${months} Months` : 'Neonate (<1 Mo)';
+                }
+                return `${age} Yrs`;
+            }
+        }
+    }
+    return 'Adult';
+};
+
 function StatCard({ label, value, sub, bgClass, borderClass, textClass, icon }: {
     label: string; value: string | number; sub?: string;
     bgClass: string; borderClass: string; textClass: string; icon: React.ReactNode;
@@ -1113,7 +1139,7 @@ export function DoctorDashboard({
                                         <div className="min-w-0">
                                             <p className="text-xs font-black text-white uppercase truncate">{pat.fullName}</p>
                                             <p className="text-[10px] text-slate-400 truncate">
-                                                {pat.gender} • {pat.dob ? `${new Date().getFullYear() - new Date(pat.dob).getFullYear()} Yrs` : 'Adult'} • 📞 {pat.contact || 'No contact'}
+                                                🎂 Age: <strong className="text-indigo-300">{getPatientAgeDisplay(pat)}</strong> • {pat.gender} • 📞 {pat.contact || 'No contact'}
                                             </p>
                                         </div>
                                     </div>
@@ -1177,12 +1203,24 @@ export function DoctorDashboard({
                                     <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight truncate">
                                         {activePatient.fullName}
                                     </h2>
-                                    <span className="text-xs font-bold text-indigo-300 uppercase">
-                                        {activePatient.dob ? `${new Date().getFullYear() - new Date(activePatient.dob).getFullYear()} Yrs` : 'Adult'} • {activePatient.gender || 'Female'}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                                            <span>🎂 Age:</span>
+                                            <strong className="text-white text-sm">{getPatientAgeDisplay(activePatient)}</strong>
+                                        </span>
+                                        <span className="px-2.5 py-1 bg-white/10 text-slate-300 rounded-xl text-xs font-bold uppercase">
+                                            {activePatient.gender || 'Female'}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div className="flex items-center gap-3 text-xs text-slate-400 font-medium flex-wrap pt-0.5">
+                                    {activePatient.dob && (
+                                        <>
+                                            <span className="text-slate-300 font-mono">📅 DOB: <strong className="text-white">{activePatient.dob}</strong></span>
+                                            <span>•</span>
+                                        </>
+                                    )}
                                     <span>📞 {activePatient.contact || '0712 345 678'}</span>
                                     <span>•</span>
                                     <span className="font-mono text-indigo-300">🛡️ {activePatient.admissionNumber || activePatient.customPatientId || 'SHA-8849-K'}</span>
