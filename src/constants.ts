@@ -569,5 +569,22 @@ export const MODULES = [
         { title: "Rapid Response Dispatch", description: "Real-time dispatch matrix for mobile armed response units and client emergency alarms.", image: "/marketing/marketing_private_security.png" }
       ]
     }
+  },
+  {
+    id: 'milling',
+    title: "GrainPro Milling & Feeds OS",
+    description: "End-to-end ERP for commercial maize millers, roller/posho mills, and animal feeds compounding. Features dual-pass weighbridge gross/tare ticketing, moisture deduction, silo telemetry, roller mill yield analysis, piece-rate packaging payroll, and distributor POS.",
+    advantages: ["Dual-Pass Weighbridge Intake & GRN", "Roller Mill Yield & Sifted Extraction %", "Piece-Rate Packaging Labor Tracker", "Animal Feeds Formulation & POS"],
+    role: 'miller_admin',
+    category: 'Agriculture',
+    imageUrl: '/marketing/marketing_coop_1776367214566.png',
+    tutorial: {
+      overview: "Complete grain intake, milling extraction, flour packaging, and animal feed compounding operations.",
+      steps: [
+        { title: "Weighbridge Intake Console", description: "Automated Pass-1 tare out and Pass-2 gross weight intake with moisture shrinkage deductions.", image: "/marketing/marketing_coop_1776367214566.png" },
+        { title: "Milling Yield & Packaging", description: "Monitor roller mill extraction rate (Grade 1 & 2 sifted flour vs. bran) and piece-rate packaging wages.", image: "/marketing/marketing_retail_1776367249575.png" }
+      ]
+    }
   }
 ];
+

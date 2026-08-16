@@ -2559,6 +2559,7 @@ Please change it after login.`;
                                                          if (type === 'Restaurant') category = 'Restaurant & Cafe POS';
                                                          if (type === 'Logistics') category = 'Logistics';
                                                          if (type === 'Constituency') category = 'Constituency';
+                                                         if (type === 'Maize Miller' || type === 'Milling') category = 'Commercial Maize Miller';
                                                          setNewInstData({ ...newInstData, institutionType: type, category: category, businessSubType: category });
                                                      }}
                                                     className="form-select font-black text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30 bg-white dark:bg-slate-800"
@@ -2567,6 +2568,7 @@ Please change it after login.`;
                                                     <option value="HIS">Health Sector (HIS)</option>
                                                     <option value="Pharmacy">Pharmacy / Chemist</option>
                                                     <option value="Business">Business Ecosystem</option>
+                                                    <option value="Maize Miller">Maize Milling & Grain Processing</option>
                                                     <option value="Cooperative">Agriculture / Cooperative</option>
                                                     <option value="SACCO">Financial / SACCO</option>
                                                     <option value="Law Firm">Legal / Law Firm</option>
@@ -2625,6 +2627,22 @@ Please change it after login.`;
                                                         <option value="Dental">Dental Clinic</option>
                                                         <option value="Eye">Eye Care / Ophthalmology</option>
                                                         <option value="Ear">Ear, Nose & Throat (ENT)</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {(newInstData.institutionType === 'Maize Miller' || newInstData.institutionType === 'Milling') && (
+                                                <div className="animate-fade-in-up">
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Milling & Processing Scale</label>
+                                                    <select
+                                                        value={newInstData.category}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value, businessSubType: e.target.value })}
+                                                        className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
+                                                        required
+                                                    >
+                                                        <option value="Commercial Maize Miller">Commercial Maize Miller (Roller Mill / Sifted Grade 1 & 2)</option>
+                                                        <option value="Posho & Roller Mill">Posho & Roller Mill (Medium & Custom Milling)</option>
+                                                        <option value="Grain Aggregator & Feeds Manufacturer">Grain Aggregator & Feeds Manufacturer (Intake + Feeds)</option>
+                                                        <option value="Agro-Processing Cooperative">Agro-Processing Cooperative (Farmer Grain Intake)</option>
                                                     </select>
                                                 </div>
                                             )}
@@ -2694,6 +2712,7 @@ Please change it after login.`;
                                                         className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
                                                         required
                                                     >
+                                                        <option value="Maize Miller">Maize Miller & Grain Processing</option>
                                                         <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
                                                         <option value="Fuel Station">Fuel & Energy Station (Multi-Pump/IoT)</option>
                                                         <option value="Industrial Logistics">Industrial Logistics & Heavy Fleet</option>

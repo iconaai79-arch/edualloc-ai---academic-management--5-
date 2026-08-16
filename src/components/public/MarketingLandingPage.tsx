@@ -230,6 +230,8 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
       case 'community': return <Community className="w-8 h-8 text-purple-400" />;
       case 'alumni': return <Users className="w-8 h-8 text-indigo-400" />;
       case 'parent_portal': return <Users className="w-8 h-8 text-emerald-400" />;
+      case 'milling':
+      case 'maize_miller': return <Wrench className="w-8 h-8 text-amber-400" />;
       case 'private_security':
       case 'security':
       case 'private-security':

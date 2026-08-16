@@ -35,7 +35,8 @@ const PLATFORM_MODULES = [
   { id: 'restaurant_pos', name: 'Restaurant POS', category: 'Specialized', desc: 'Table ordering & kitchen display' },
   { id: 'church', name: 'Church & Ministry', category: 'Specialized', desc: 'Tithes, cell groups & attendance' },
   { id: 'car_showroom', name: 'Car Showroom & Sales', category: 'Specialized', desc: 'Car inventory & test drive bookings' },
-  { id: 'fuel_station', name: 'Fuel Station IoT', category: 'Specialized', desc: 'Pump readings & tank dip logs' }
+  { id: 'fuel_station', name: 'Fuel Station IoT', category: 'Specialized', desc: 'Pump readings & tank dip logs' },
+  { id: 'milling', name: 'Maize Milling & Feeds OS', category: 'Specialized', desc: 'Dual weighbridge, roller milling yield, packing & feeds' }
 ];
 
 export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution, onClose, onSave, defaultPrices, counties, initialTab = 'identity', onRefreshData, resellers }) => {
@@ -237,6 +238,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         if (type === 'Beauty College') cat = 'Beauty College';
                         if (type === 'Logistics') cat = 'Logistics';
                         if (type === 'Constituency') cat = 'Constituency';
+                        if (type === 'Maize Miller' || type === 'Milling') cat = 'Commercial Maize Miller';
                         setFormData({ ...formData, institutionType: type, category: cat });
                       }} 
                       className="form-select font-black text-indigo-600 border-indigo-100"
@@ -244,6 +246,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option value="Education">Education Sector</option>
                       <option value="HIS">Health Sector (HIS)</option>
                       <option value="Business">Business Ecosystem</option>
+                      <option value="Maize Miller">Maize Milling & Grain Processing</option>
                       <option value="Cooperative">Agriculture / Cooperative</option>
                       <option value="SACCO">Financial / SACCO</option>
                       <option value="Church">Religious / Church</option>
@@ -311,6 +314,22 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       </select>
                     </div>
                   )}
+                  {(formData.institutionType === 'Maize Miller' || formData.institutionType === 'Milling') && (
+                    <div className="animate-fade-in-up">
+                      <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Milling & Processing Scale</label>
+                      <select
+                        value={formData.category}
+                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                        className="form-select border-2 border-indigo-200 font-bold"
+                        required
+                      >
+                        <option value="Commercial Maize Miller">Commercial Maize Miller (Roller Mill / Sifted Grade 1 & 2)</option>
+                        <option value="Posho & Roller Mill">Posho & Roller Mill (Medium & Custom Milling)</option>
+                        <option value="Grain Aggregator & Feeds Manufacturer">Grain Aggregator & Feeds Manufacturer (Intake + Feeds)</option>
+                        <option value="Agro-Processing Cooperative">Agro-Processing Cooperative (Farmer Grain Intake)</option>
+                      </select>
+                    </div>
+                  )}
                   {formData.institutionType === 'Business' && (
                     <div className="animate-fade-in-up">
                       <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Business Niche / Category</label>
@@ -321,6 +340,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         required
                       >
                         <option value="">-- Select Category --</option>
+                        <option value="Maize Miller">Maize Miller & Grain Processing</option>
                         <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
                         <option value="Fuel Station">Fuel & Energy Station (Multi-Pump/IoT)</option>
                         <option value="Property Management">Property Management (Rent/Leases)</option>

@@ -150,7 +150,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 'pharmacy': { institutionType: 'Pharmacy', category: '', businessSubType: '' },
                 'fuel': { institutionType: 'Fuel Station', category: 'Fuel Station', businessSubType: 'Fuel Station' },
                 'civil': { institutionType: 'Construction', category: 'Construction', businessSubType: 'Construction' },
-                'events': { institutionType: 'Education', category: 'Sports & Athletics', businessSubType: 'Sports & Athletics' }
+                'events': { institutionType: 'Education', category: 'Sports & Athletics', businessSubType: 'Sports & Athletics' },
+                'milling': { institutionType: 'Maize Miller', category: 'Commercial Maize Miller', businessSubType: 'Commercial Maize Miller' },
+                'maize_miller': { institutionType: 'Maize Miller', category: 'Commercial Maize Miller', businessSubType: 'Commercial Maize Miller' }
             };
 
             const prefill = MODULE_REG_MAPPING[prefillModuleId];
@@ -806,6 +808,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     if (type === 'Driving School') cat = 'Driving School';
                                                     if (type === 'Restaurant') cat = 'Restaurant & Cafe POS';
                                                     if (type === 'IELTS Academy') cat = 'IELTS & Language Academy';
+                                                    if (type === 'Maize Miller' || type === 'Milling') cat = 'Commercial Maize Miller';
                                                     setRegData({ ...regData, institutionType: type as any, category: cat, businessSubType: cat });
                                                 }}
                                             >
@@ -815,6 +818,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="HIS">Health Sector (HIS)</option>
                                                 <option value="Pharmacy">Pharmacy / Chemist</option>
                                                 <option value="Business">Business Ecosystem</option>
+                                                <option value="Maize Miller">Maize Milling & Grain Processing</option>
                                                 <option value="Cooperative">Agriculture / Cooperative</option>
                                                 <option value="SACCO">Financial / SACCO</option>
                                                 <option value="Law Firm">Legal / Law Firm</option>
@@ -831,6 +835,23 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Restaurant">Restaurant & Cafe POS</option>
                                                 <option value="Constituency">Constituency (NG-CDF)</option>
                                             </select>
+
+                                            {(regData.institutionType === 'Maize Miller' || (regData.institutionType as any) === 'Milling') && (
+                                                <div className="mt-3 animate-fade-in">
+                                                    <label className={labelClasses}>Milling & Grain Processing Category</label>
+                                                    <select
+                                                        className={inputClasses}
+                                                        value={regData.category || 'Commercial Maize Miller'}
+                                                        onChange={e => setRegData({ ...regData, category: e.target.value, businessSubType: e.target.value })}
+                                                        required
+                                                    >
+                                                        <option value="Commercial Maize Miller">Commercial Maize Miller (Roller Mill / Sifted Grade 1 & 2)</option>
+                                                        <option value="Posho & Roller Mill">Posho & Roller Mill (Medium & Custom Milling)</option>
+                                                        <option value="Grain Aggregator & Feeds Manufacturer">Grain Aggregator & Feeds Manufacturer (Intake + Feeds)</option>
+                                                        <option value="Agro-Processing Cooperative">Agro-Processing Cooperative (Farmer Grain Intake)</option>
+                                                    </select>
+                                                </div>
+                                            )}
 
                                             {regData.institutionType === 'HIS' && (
                                                 <div className="mt-3 animate-fade-in">
@@ -954,6 +975,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         required
                                                     >
                                                         <option value="">-- Select Business Type --</option>
+                                                        <option value="Maize Miller">Maize Miller & Grain Processing</option>
                                                         <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
                                                         <option value="Property Management">Property Management (Rent/Leases)</option>
                                                         <option value="Retail Agency">Retail Agency (Commission Based)</option>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Institution, SchoolGallery, SchoolAd, User } from '../types';
 import { apiService } from '../services/apiService';
 import { useToast } from '../services/ToastContext';
+import { isMillingInstitution } from '../utils/roleUtils';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { PlusIcon } from './icons/PlusIcon';
@@ -18,6 +19,7 @@ interface SchoolShowcaseManagerProps {
 
 export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ school, onUpdate }) => {
     const { success } = useToast();
+    const isMilling = isMillingInstitution(school);
 
     const handleShareAd = async (platform: 'whatsapp' | 'twitter' | 'copy', ad: SchoolAd) => {
         const schoolName = school.name || 'our academy';
@@ -147,16 +149,20 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                         <GlobeAltIcon className="w-8 h-8" />
                     </div>
                     <div>
-                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Showcase Management</h3>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Control your academy's public digital presence</p>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
+                            {isMilling ? 'Milling Plant Digital Showcase' : 'Showcase Management'}
+                        </h3>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
+                            {isMilling ? 'Showcase plant crush capacity, flour brands, animal feeds & grain intake gate' : "Control your academy's public digital presence"}
+                        </p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
                     {[
-                        { id: 'content', label: 'Identity', icon: TagIcon },
-                        { id: 'gallery', label: 'Gallery', icon: ImageIcon },
-                        { id: 'ads', label: 'Ads', icon: SparklesIcon },
+                        { id: 'content', label: isMilling ? 'Plant Profile' : 'Identity', icon: TagIcon },
+                        { id: 'gallery', label: isMilling ? 'Facility Gallery' : 'Gallery', icon: ImageIcon },
+                        { id: 'ads', label: isMilling ? 'Intake & Offers' : 'Ads', icon: SparklesIcon },
                         { id: 'config', label: 'CPanel', icon: ArrowPathIcon }
                     ].map(tab => (
                         <button
@@ -177,19 +183,23 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                     <div className="max-w-4xl space-y-8 animate-fade-in">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Institutional Motto</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    {isMilling ? 'Brand Slogan & Product Motto' : 'Institutional Motto'}
+                                </label>
                                 <input 
                                     className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-6 py-4 text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors"
-                                    placeholder="e.g., Knowledge is Power"
+                                    placeholder={isMilling ? "e.g., Pure Sifted Maize Goodness & Premium Livestock Feeds" : "e.g., Knowledge is Power"}
                                     value={formData.motto}
                                     onChange={e => setFormData({ ...formData, motto: e.target.value })}
                                 />
                             </div>
                             <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Academy Vision</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    {isMilling ? 'Quality Policy & Milling Vision' : 'Academy Vision'}
+                                </label>
                                 <input 
                                     className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-6 py-4 text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors"
-                                    placeholder="Future-facing focus..."
+                                    placeholder={isMilling ? "Leading standard in fortified flour & high-yield feeds..." : "Future-facing focus..."}
                                     value={formData.vision}
                                     onChange={e => setFormData({ ...formData, vision: e.target.value })}
                                 />
@@ -197,22 +207,26 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                         </div>
 
                         <div className="space-y-4">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Academy Mission Statement</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                {isMilling ? 'Mission & Fortification Commitment (KEBS Fortified Grade 1 & 2)' : 'Academy Mission Statement'}
+                            </label>
                             <textarea 
                                 rows={3}
                                 className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-6 py-4 text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors resize-none"
-                                placeholder="State your core objectives..."
+                                placeholder={isMilling ? "To deliver aflatoxin-free, vitamin-enriched sifted maize flour and optimal animal feed formulations to our regional market." : "State your core objectives..."}
                                 value={formData.mission}
                                 onChange={e => setFormData({ ...formData, mission: e.target.value })}
                             />
                         </div>
 
                         <div className="space-y-4">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Institutional History & Heritage</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                {isMilling ? 'Plant Profile, Daily Crush Capacity (MT/Day), Silos & Technology' : 'Institutional History & Heritage'}
+                            </label>
                             <textarea 
                                 rows={6}
                                 className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] px-6 py-5 text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors"
-                                placeholder="Describe the journey of the school from foundation to date..."
+                                placeholder={isMilling ? "Describe the processing facility: roller mill capacity in metric tonnes/day, silo storage capacity (MT), weighbridge gross capacity, grain cleaning & destoning technology, and distribution fleet..." : "Describe the journey of the school from foundation to date..."}
                                 value={formData.history}
                                 onChange={e => setFormData({ ...formData, history: e.target.value })}
                             />
@@ -235,8 +249,12 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                     <div className="animate-fade-in space-y-10">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div>
-                                <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Institutional Gallery</h4>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Uploaded direct to cPanel showcasing event highlights</p>
+                                <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">
+                                    {isMilling ? 'Facility & Plant Gallery' : 'Institutional Gallery'}
+                                </h4>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                    {isMilling ? 'Showcase Grain Silos, Weighbridge Stations, Roller Mills, Packing Bay, and Delivery Fleet' : 'Uploaded direct to cPanel showcasing event highlights'}
+                                </p>
                             </div>
                             <label className="cursor-pointer">
                                 <input type="file" className="hidden" accept="image/*" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'gallery')} />
@@ -265,8 +283,12 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                             {gallery.length === 0 && (
                                 <div className="col-span-full py-20 bg-slate-50 dark:bg-slate-800/50 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-center">
                                     <ImageIcon className="w-12 h-12 text-slate-300 mb-4" />
-                                    <h5 className="text-slate-500 font-black uppercase text-xs tracking-widest">No Photos Released Yet</h5>
-                                    <p className="text-slate-400 text-[9px] font-bold mt-2">Start uploading school events to display on your storefront.</p>
+                                    <h5 className="text-slate-500 font-black uppercase text-xs tracking-widest">
+                                        {isMilling ? 'No Facility Photos Uploaded Yet' : 'No Photos Released Yet'}
+                                    </h5>
+                                    <p className="text-slate-400 text-[9px] font-bold mt-2">
+                                        {isMilling ? 'Upload photos of your weighbridge, grain silos, roller mill floor, packaging line, and branded flour bales.' : 'Start uploading school events to display on your storefront.'}
+                                    </p>
                                 </div>
                             )}
                         </div>
@@ -277,14 +299,18 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                     <div className="animate-fade-in space-y-10">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div>
-                                <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Website Advertisements</h4>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manage active recruitment and event banners</p>
+                                <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">
+                                    {isMilling ? 'Grain Buying Prices & Product Promotions' : 'Website Advertisements'}
+                                </h4>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                    {isMilling ? 'Publish live grain intake gate prices (KES/KG), farmer buying notices, and wholesale distributor offers' : 'Manage active recruitment and event banners'}
+                                </p>
                             </div>
                             <label className="cursor-pointer">
                                 <input type="file" className="hidden" accept="image/*" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'ads')} />
                                 <div className="px-8 py-4 bg-emerald-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg flex items-center gap-2 hover:bg-emerald-700 transition-colors">
                                     <PlusIcon className="w-4 h-4" />
-                                    Post Ad
+                                    Post Announcement
                                 </div>
                             </label>
                         </div>
@@ -295,7 +321,7 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                                     <div className="h-40 bg-slate-200 dark:bg-slate-700 overflow-hidden relative">
                                         <img loading="lazy" src={ad.imageUrl} className="w-full h-full object-cover" alt="Advertisement" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent flex items-end p-6">
-                                            <h5 className="text-white font-black uppercase text-xs tracking-tight">{ad.title || 'Institutional Event'}</h5>
+                                            <h5 className="text-white font-black uppercase text-xs tracking-tight">{ad.title || (isMilling ? 'Grain Intake Notice' : 'Institutional Event')}</h5>
                                         </div>
                                     </div>
                                     <div className="p-6 space-y-4">
@@ -343,7 +369,7 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                                                 onClick={() => handleDeleteRecord(ad.id, 'school_ads')}
                                                 className="w-full py-3 bg-red-100 dark:bg-red-500/10 text-red-500 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-red-200 transition-colors"
                                             >
-                                                Kill Advertisement
+                                                Delete Announcement
                                             </button>
                                         </div>
                                     </div>
@@ -352,8 +378,12 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                             {ads.length === 0 && (
                                 <div className="col-span-full py-20 bg-slate-50 dark:bg-slate-800/50 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-center">
                                     <SparklesIcon className="w-12 h-12 text-slate-300 mb-4" />
-                                    <h5 className="text-slate-500 font-black uppercase text-xs tracking-widest">No Active Advertising</h5>
-                                    <p className="text-slate-400 text-[9px] font-bold mt-2">Display admissions banners or holiday announcements here.</p>
+                                    <h5 className="text-slate-500 font-black uppercase text-xs tracking-widest">
+                                        {isMilling ? 'No Active Intake Notices' : 'No Active Advertising'}
+                                    </h5>
+                                    <p className="text-slate-400 text-[9px] font-bold mt-2">
+                                        {isMilling ? 'Publish current maize buying price (KES/90kg bag or KES/KG), bran distributor promos, or holiday delivery alerts.' : 'Display admissions banners or holiday announcements here.'}
+                                    </p>
                                 </div>
                             )}
                         </div>
