@@ -46,7 +46,7 @@ import { DoctorDashboard } from './DoctorDashboard';
 import { HISQueueManagerView } from './HISQueueManagerView';
 import { HISOverviewView } from './HISOverviewView';
 import { ReferenceLabPortalView } from './ReferenceLabPortalView';
-import { NursePortalView } from './NursePortalView';
+import { MCHMaternityCWCView } from './MCHMaternityCWCView';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
@@ -56,7 +56,7 @@ import { HRManager } from '../HR/HRManager';
 import { BiometricAttendanceDashboard } from '../HR/BiometricAttendanceDashboard';
 import { PayrollRecord, LeaveRequest, Institution } from '../../types';
 
-type HISModule = 'overview' | 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor' | 'queuing' | 'reflab' | 'nurse';
+type HISModule = 'overview' | 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy' | 'hr' | 'biometrics' | 'receptionist' | 'patients' | 'doctor' | 'queuing' | 'reflab' | 'nurse' | 'mch';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -809,6 +809,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <p className="hidden lg:block text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] px-3 mb-2 italic">Specialized Hubs</p>
                                 <div className="space-y-1">
                                     {[
+                                        { id: 'mch' as HISModule, label: 'MCH, Maternity & NBU', icon: HeartIcon },
                                         { id: 'reflab' as HISModule, label: 'Reference Lab Hub', icon: BeakerIcon },
                                         { id: 'dental' as HISModule, label: 'Dental Core', icon: ScissorsIcon },
                                         { id: 'eye' as HISModule, label: 'Ocular Hub', icon: EyeIcon },
@@ -1098,6 +1099,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                     onRegisterPatient={() => setIsRegisterModalOpen(true)}
                                 />
                             );
+                            case 'mch': return <MCHMaternityCWCView patients={patients} institutionId={institutionId} userName={userName} />;
                             case 'nurse': return <NursePortalView institutionId={institutionId} userName={userName} />;
                             case 'billing': return <HISBillingView institutionId={institutionId} />;
                             case 'hr': return (

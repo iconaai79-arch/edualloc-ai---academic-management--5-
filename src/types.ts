@@ -6299,3 +6299,149 @@ export interface GrainSaleOrder {
     createdAt?: string;
 }
 
+// ==========================================
+// MATERNAL, CHILD HEALTH (MCH), CWC & NBU
+// ==========================================
+
+export interface HISANCVisit {
+    visitNumber: number;
+    date: string;
+    gestationWeeks: number;
+    fundalHeightCm?: number;
+    presentation?: 'Vertex / Cephalic' | 'Breech' | 'Transverse' | 'Unstable';
+    fetalHeartRateBpm?: number;
+    bloodPressure: string; // e.g. 120/80
+    weightKg?: number;
+    urinalysisProtein?: 'Nil' | 'Trace' | '+' | '++' | '+++';
+    urinalysisGlucose?: 'Nil' | 'Trace' | '+' | '++';
+    ifasSupplied?: boolean; // Iron & Folic Acid
+    iptpDose?: 'IPTp 1' | 'IPTp 2' | 'IPTp 3' | 'None'; // Malaria in pregnancy SP
+    ttVaccineGiven?: boolean; // Tetanus Toxoid
+    dewormed?: boolean;
+    clinicalNotes?: string;
+    nextVisitDate?: string;
+    clinician?: string;
+}
+
+export interface HISANCRecord {
+    id: string;
+    institutionId: string;
+    motherId: string;
+    motherName: string;
+    lmp?: string; // Last Normal Menstrual Period
+    edd?: string; // Expected Date of Delivery
+    gravida: number;
+    parity: number;
+    gestationWeeks: number;
+    bloodGroup?: string;
+    rhesus?: string;
+    heightCm?: number;
+    highRiskFactors?: string[];
+    pmtctStatus: 'Negative' | 'Positive - On ART' | 'Untested' | 'Declined';
+    syphilisStatus: 'Negative' | 'Positive - Treated' | 'Untested';
+    hepatitisBStatus?: 'Negative' | 'Positive' | 'Untested';
+    ultrasoundSummary?: string;
+    visits: HISANCVisit[];
+    status: 'Active' | 'Delivered' | 'Transferred' | 'High_Risk';
+    enrolledBy?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface HISDeliveryRecord {
+    id: string;
+    institutionId: string;
+    motherId: string;
+    motherName: string;
+    babyId?: string;
+    babyName?: string;
+    deliveryDate: string;
+    deliveryTime?: string;
+    gestationWeeks?: number;
+    deliveryMode: 'Spontaneous Vertex (SVD)' | 'Emergency C-Section' | 'Elective C-Section' | 'Assisted Vacuum' | 'Breech Delivery';
+    episiotomyTear?: 'None' | 'Episiotomy' | '1st Degree Tear' | '2nd Degree Tear' | '3rd Degree Tear';
+    bloodLossMl: number;
+    oxytocinGiven: boolean;
+    placentaComplete: boolean;
+    babyGender: 'Male' | 'Female';
+    birthWeightKg: number;
+    apgar1Min: number;
+    apgar5Min: number;
+    resuscitationDone: boolean;
+    babyStatus: 'Healthy / In-Room with Mother' | 'Transferred to NBU' | 'Stillbirth';
+    deliveredBy?: string;
+    notes?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface HISImmunizationDose {
+    vaccineCode: string; // e.g. BCG, OPV_0, PENTA_1, ROTA_1, PCV_1, MR_1
+    vaccineName: string;
+    doseNumber: number;
+    ageMilestone: string; // 'Birth', '6 Weeks', '10 Weeks', '14 Weeks', '6 Months', '9 Months', '12 Months', '18 Months'
+    dateGiven: string;
+    batchNumber?: string;
+    expiryDate?: string;
+    site?: 'Right Forearm' | 'Left Thigh' | 'Right Thigh' | 'Oral';
+    administeredBy?: string;
+}
+
+export interface HISGrowthRecord {
+    date: string;
+    ageMonths: number;
+    weightKg: number;
+    heightCm?: number;
+    muacCm?: number; // Mid-Upper Arm Circumference
+    zScoreStatus?: 'Normal Growth' | 'Mild Stunting' | 'Moderate Acute Malnutrition (MAM)' | 'Severe Acute Malnutrition (SAM)';
+    feedingType?: 'Exclusive Breastfeeding' | 'Mixed Feeding' | 'Complementary Weaning';
+    vitAGiven?: boolean;
+    dewormed?: boolean;
+}
+
+export interface HISCWCRecord {
+    id: string;
+    institutionId: string;
+    childId: string;
+    childName: string;
+    motherId?: string;
+    motherName?: string;
+    dob: string;
+    gender: 'Male' | 'Female';
+    birthWeightKg?: number;
+    immunizations: HISImmunizationDose[];
+    growthRecords: HISGrowthRecord[];
+    developmentalMilestones?: { milestone: string; status: 'Achieved' | 'Pending' | 'Delayed'; ageAchieved?: string }[];
+    nextClinicDate?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface HISNBUAdmission {
+    id: string;
+    institutionId: string;
+    babyId: string;
+    babyName: string;
+    motherId?: string;
+    motherName?: string;
+    admissionDate: string;
+    admissionReason: string; // Prematurity, Low Birth Weight, Neonatal Sepsis, Jaundice / Hyperbilirubinemia, Birth Asphyxia
+    birthWeightKg: number;
+    currentWeightKg: number;
+    gestationWeeks?: number;
+    incubatorBay?: string;
+    phototherapyActive: boolean;
+    cpapOxygenActive: boolean;
+    feedingMode: 'EBM (Expressed Breast Milk)' | 'Nasogastric Tube' | 'Cup / Spoon' | 'Total Parenteral Nutrition (IV)';
+    apgar1Min?: number;
+    apgar5Min?: number;
+    dailyWeights: { date: string; weightKg: number; gainGrams?: number; temp?: number; feedMl?: number }[];
+    status: 'Admitted' | 'KMC' | 'Discharged' | 'Referred';
+    dischargeDate?: string;
+    dischargedBy?: string;
+    notes?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+
