@@ -1570,6 +1570,13 @@ export const apiService = {
                 if (item.productType && !item.product_type) item.product_type = item.productType;
                 if (item.recordedBy && !item.recorded_by) item.recorded_by = item.recordedBy;
             }
+
+            // Maintenance requests normalization
+            if (module === 'maintenance_requests') {
+                if (item.roomId && !item.room_id) item.room_id = item.roomId;
+                if (item.reportedBy && !item.reported_by) item.reported_by = item.reportedBy;
+                if (item.reportedAt && !item.reported_at) item.reported_at = item.reportedAt;
+            }
             
             // Convert empty strings to null for date, timestamp, numeric, and relation fields to prevent PostgreSQL syntax/constraint errors
             Object.keys(item).forEach(key => {

@@ -1815,7 +1815,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 setTimeOffRequests(tor || []);
                 setBulletinItems(fBulletin || []);
                 setDocumentCollections(fDocs || []);
-                setMaintenanceRequests(fMaint || []);
+                setMaintenanceRequests((fMaint || []).map((m: any) => ({
+                    ...m,
+                    institutionId: m.institutionId || m.institution_id,
+                    roomId: m.roomId || m.room_id,
+                    reportedBy: m.reportedBy || m.reported_by,
+                    reportedAt: m.reportedAt || m.reported_at || new Date().toISOString()
+                })));
                 setTeacherCheckIns(fCheckIn || []);
                 setVehicles(vhcls || []);
                 setTransportOnboarding(tonb || []);
