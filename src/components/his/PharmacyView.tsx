@@ -59,6 +59,9 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [logSearchTerm, setLogSearchTerm] = useState('');
     const [pendingSearchTerm, setPendingSearchTerm] = useState('');
     const [selectedHistoryPresc, setSelectedHistoryPresc] = useState<HISPrescription | null>(null);
+    const [showStkPromptModal, setShowStkPromptModal] = useState(false);
+    const [showInpatientFolioModal, setShowInpatientFolioModal] = useState(false);
+    const [showEmergencyOverrideModal, setShowEmergencyOverrideModal] = useState(false);
 
     const handleDeleteDrug = async (drug: HISPharmacyInventory) => {
         if (!confirm(`Are you sure you want to delete "${drug.name}" from the pharmacy inventory?`)) return;
@@ -118,7 +121,6 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [pdfPreviewUri, setPdfPreviewUri] = useState<string | null>(null);
     const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
-    const [showStkPromptModal, setShowStkPromptModal] = useState(false);
 
     const handlePreviewExternalRxPdf = async (presc: HISPrescription, isEposThermal = false) => {
         try {
@@ -1169,12 +1171,36 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                         return (
                                             <div className="space-y-3">
                                                 {!isCleared && (
-                                                    <button
-                                                        onClick={() => setShowStkPromptModal(true)}
-                                                        className="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2"
-                                                    >
-                                                        <span>📲 Prompt Patient Payment via M-Pesa STK / Bank</span>
-                                                    </button>
+                                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-2.5">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">⚡ Fast-Track Drug Clearance:</span>
+                                                            <span className="text-[8px] font-bold px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full">3 Options</span>
+                                                        </div>
+                                                        
+                                                        {/* Option 1: Pay Drugs Only at Counter */}
+                                                        <button
+                                                            onClick={() => setShowStkPromptModal(true)}
+                                                            className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-emerald-950/40 flex items-center justify-center gap-2"
+                                                        >
+                                                            <span>💳 Settle Drugs Only (M-Pesa / Bank / Cash POS)</span>
+                                                        </button>
+
+                                                        {/* Option 2: Bill to Ongoing Inpatient / Treatment Folio */}
+                                                        <button
+                                                            onClick={() => setShowInpatientFolioModal(true)}
+                                                            className="w-full py-2.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 font-black text-[9px] uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+                                                        >
+                                                            <span>📋 Bill to Active Admission / Ongoing Folio</span>
+                                                        </button>
+
+                                                        {/* Option 3: Emergency STAT Clinical Dispense */}
+                                                        <button
+                                                            onClick={() => setShowEmergencyOverrideModal(true)}
+                                                            className="w-full py-2 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 font-black text-[9px] uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+                                                        >
+                                                            <span>🚨 Emergency STAT Clinical Dispense Override</span>
+                                                        </button>
+                                                    </div>
                                                 )}
                                                 <button 
                                                     onClick={() => handleDispense(selectedPrescription)}
@@ -1186,7 +1212,7 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                                     }`}
                                                 >
                                                     {isCleared ? <CheckCircleIcon className="w-5 h-5" /> : <span className="text-sm">🔒</span>}
-                                                    {isCleared ? 'Dispense In-House Items' : '🔒 Locked — Awaiting Finance Payment'}
+                                                    {isCleared ? 'Dispense In-House Items' : '🔒 Locked — Awaiting Payment or Folio Billing'}
                                                 </button>
                                             </div>
                                         );
@@ -2172,7 +2198,7 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                     prescription={selectedPrescription}
                     onSuccessClearance={async (receiptNo, method) => {
                         setShowStkPromptModal(false);
-                        const note = `✓ Cleared via Pharmacist Payment Prompt (${method} | Receipt #${receiptNo})`;
+                        const note = `✓ Cleared via Pharmacy Counter POS (${method} | Receipt #${receiptNo})`;
                         
                         setPrescriptions(prev => prev.map(p => p.id === selectedPrescription.id ? {
                             ...p,
@@ -2189,15 +2215,128 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                         } : null);
 
                         if (institutionId) {
+                            // 1. Update prescription
                             await apiService.updateModuleRecord('his_prescriptions', selectedPrescription.id, {
                                 paymentStatus: 'cleared',
                                 financeNotes: note,
                                 receiptNumber: receiptNo,
                                 clearedByFinanceAt: new Date().toISOString()
                             }).catch(() => null);
+
+                            // 2. Mark corresponding billing items as Paid
+                            const billItemId = `bill_auto_${selectedPrescription.id}`;
+                            await apiService.updateModuleRecord('his_billing_items', billItemId, {
+                                status: 'Paid',
+                                paidAt: new Date().toISOString(),
+                                paymentMethod: method,
+                                receiptNumber: receiptNo
+                            }).catch(() => null);
+
+                            // 3. Record in his_payments
+                            const totalDrugCost = selectedPrescription.items?.filter(i => !i.isExternalPurchase).reduce((s, i) => s + (i.totalPrice || 0), 0) || 0;
+                            await apiService.saveModuleRecord('his_payments', {
+                                id: `pay_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                                institution_id: institutionId,
+                                patientId: selectedPrescription.patientId,
+                                patientName: selectedPrescription.patientName,
+                                amount: totalDrugCost,
+                                paymentMethod: method,
+                                transactionReference: receiptNo,
+                                category: 'Pharmacy Counter POS',
+                                notes: `Direct drug payment at pharmacy counter for Rx #${selectedPrescription.id}`,
+                                status: 'completed',
+                                created_at: new Date().toISOString()
+                            }).catch(() => null);
                         }
 
-                        alert(`✓ Payment Confirmed! Receipt #${receiptNo} generated.\n\nPrescription unlocked for instant dispensing!`);
+                        alert(`✓ Drug Payment Confirmed!\n\nReceipt #${receiptNo} generated.\nPrescription unlocked for instant dispensing while patient treatment continues!`);
+                    }}
+                />
+            )}
+
+            {/* ── Bill to Inpatient / Ongoing Folio Modal ── */}
+            {showInpatientFolioModal && selectedPrescription && (
+                <InpatientFolioModal
+                    onClose={() => setShowInpatientFolioModal(false)}
+                    prescription={selectedPrescription}
+                    onConfirm={async (folioNotes) => {
+                        setShowInpatientFolioModal(false);
+                        const note = `✓ Billed to Ongoing Patient Folio (${folioNotes || 'Collect at final discharge'})`;
+                        
+                        setPrescriptions(prev => prev.map(p => p.id === selectedPrescription.id ? {
+                            ...p,
+                            paymentStatus: 'cleared',
+                            financeNotes: note,
+                            receiptNumber: 'FOLIO-BILLED'
+                        } : p));
+
+                        setSelectedPrescription(prev => prev ? {
+                            ...prev,
+                            paymentStatus: 'cleared',
+                            financeNotes: note,
+                            receiptNumber: 'FOLIO-BILLED'
+                        } : null);
+
+                        if (institutionId) {
+                            await apiService.updateModuleRecord('his_prescriptions', selectedPrescription.id, {
+                                paymentStatus: 'cleared',
+                                financeNotes: note,
+                                receiptNumber: 'FOLIO-BILLED',
+                                clearedByFinanceAt: new Date().toISOString()
+                            }).catch(() => null);
+
+                            const totalDrugCost = selectedPrescription.items?.filter(i => !i.isExternalPurchase).reduce((s, i) => s + (i.totalPrice || 0), 0) || 0;
+                            await apiService.saveModuleRecord('his_financial_records', {
+                                id: `fin_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                                institutionId,
+                                patientId: selectedPrescription.patientId,
+                                type: 'inpatient_charge',
+                                category: 'Pharmacy (Ongoing Inpatient / Treatment)',
+                                amount: totalDrugCost,
+                                status: 'unpaid',
+                                notes: `Prescription #${selectedPrescription.id} billed to active patient folio: ${folioNotes}`,
+                                date: new Date().toISOString()
+                            }).catch(() => null);
+                        }
+
+                        alert(`✓ Prescribed drugs successfully charged to patient's ongoing treatment folio!\n\nDispensing unlocked immediately. Cost will be aggregated at final discharge.`);
+                    }}
+                />
+            )}
+
+            {/* ── Emergency STAT Clinical Override Modal ── */}
+            {showEmergencyOverrideModal && selectedPrescription && (
+                <EmergencyOverrideModal
+                    onClose={() => setShowEmergencyOverrideModal(false)}
+                    prescription={selectedPrescription}
+                    onConfirm={async (reason) => {
+                        setShowEmergencyOverrideModal(false);
+                        const note = `⚠️ Emergency STAT Dispense Override: ${reason} (Payment deferred to checkout)`;
+                        
+                        setPrescriptions(prev => prev.map(p => p.id === selectedPrescription.id ? {
+                            ...p,
+                            paymentStatus: 'cleared',
+                            financeNotes: note,
+                            receiptNumber: 'STAT-OVERRIDE'
+                        } : p));
+
+                        setSelectedPrescription(prev => prev ? {
+                            ...prev,
+                            paymentStatus: 'cleared',
+                            financeNotes: note,
+                            receiptNumber: 'STAT-OVERRIDE'
+                        } : null);
+
+                        if (institutionId) {
+                            await apiService.updateModuleRecord('his_prescriptions', selectedPrescription.id, {
+                                paymentStatus: 'cleared',
+                                financeNotes: note,
+                                receiptNumber: 'STAT-OVERRIDE',
+                                clearedByFinanceAt: new Date().toISOString()
+                            }).catch(() => null);
+                        }
+
+                        alert(`⚠️ STAT Emergency Override Logged!\n\nDispensing unlocked immediately for emergency patient care.`);
                     }}
                 />
             )}
@@ -2252,7 +2391,7 @@ function PharmacistPaymentPromptModal({
 
     const handleManualCashierClear = () => {
         const recipNo = `PHARM-CASH-${Math.floor(10000 + Math.random() * 90000)}`;
-        onSuccessClearance(recipNo, 'Direct Cash at Pharmacy Desk');
+        onSuccessClearance(recipNo, 'Direct Cash at Pharmacy Counter');
     };
 
     return createPortal(
@@ -2260,8 +2399,8 @@ function PharmacistPaymentPromptModal({
             <div className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden text-white animate-in zoom-in-95 duration-200">
                 <div className="px-8 py-5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-between">
                     <div>
-                        <h3 className="text-sm font-black uppercase tracking-wider">📲 Direct Patient Payment Prompt</h3>
-                        <p className="text-[10px] font-bold opacity-90">Send M-Pesa STK Push or Bank Transfer request to patient</p>
+                        <h3 className="text-sm font-black uppercase tracking-wider">💳 Pharmacy POS: Settle Drugs Only</h3>
+                        <p className="text-[10px] font-bold opacity-90">Collect instant payment for prescribed medications without closing the visit</p>
                     </div>
                     <button onClick={onClose} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl">
                         ✕
@@ -2273,9 +2412,10 @@ function PharmacistPaymentPromptModal({
                         <div>
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Patient Name</p>
                             <p className="text-sm font-black text-white uppercase">{prescription.patientName}</p>
+                            <p className="text-[9px] font-bold text-indigo-400 mt-0.5">Rx #{prescription.id.substring(0, 10)}</p>
                         </div>
                         <div className="text-right">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Drug Bill</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pharmacy Drug Total</p>
                             <p className="text-xl font-black text-emerald-400">KES {totalAmount.toLocaleString()}</p>
                         </div>
                     </div>
@@ -2283,7 +2423,7 @@ function PharmacistPaymentPromptModal({
                     {!pushSent ? (
                         <div className="space-y-4">
                             <div>
-                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Select Payment Method Channel *</label>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Select Payment Channel *</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     <button
                                         type="button"
@@ -2310,7 +2450,7 @@ function PharmacistPaymentPromptModal({
                                             selectedChannel === 'cash' ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-black/40 border-white/10 text-slate-400'
                                         }`}
                                     >
-                                        💵 Cash Desk
+                                        💵 Cash Counter
                                     </button>
                                 </div>
                             </div>
@@ -2349,8 +2489,8 @@ function PharmacistPaymentPromptModal({
 
                             {selectedChannel === 'cash' && (
                                 <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
-                                    <p className="text-xs font-bold text-amber-300">💵 Record Cash Received at Pharmacy Desk</p>
-                                    <p className="text-[10px] text-slate-400 mt-1">Clears payment immediately and issues a pharmacy cash receipt code.</p>
+                                    <p className="text-xs font-bold text-amber-300">💵 Record Cash Received at Pharmacy Counter</p>
+                                    <p className="text-[10px] text-slate-400 mt-1">Clears payment immediately, generates an itemized pharmacy receipt, and unlocks dispensing.</p>
                                 </div>
                             )}
 
@@ -2391,6 +2531,181 @@ function PharmacistPaymentPromptModal({
                             </button>
                         </div>
                     )}
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+}
+
+function InpatientFolioModal({
+    onClose,
+    prescription,
+    onConfirm
+}: {
+    onClose: () => void;
+    prescription: HISPrescription;
+    onConfirm: (notes: string) => void;
+}) {
+    const totalAmount = prescription.items?.filter(i => !i.isExternalPurchase).reduce((s, i) => s + (i.totalPrice || 0), 0) || 0;
+    const [wardRoom, setWardRoom] = useState('Inpatient General Ward / Room 102');
+    const [notes, setNotes] = useState('Active Inpatient / Treatment Folio — Settle at Discharge');
+
+    return createPortal(
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[99999] p-4">
+            <div className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden text-white animate-in zoom-in-95 duration-200">
+                <div className="px-8 py-5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-black uppercase tracking-wider">📋 Bill to Ongoing Patient Folio</h3>
+                        <p className="text-[10px] font-bold opacity-90">Defer drug charges to patient's master checkout invoice upon discharge</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl">
+                        ✕
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-5">
+                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex justify-between items-center">
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Patient / Admission</p>
+                            <p className="text-sm font-black text-white uppercase">{prescription.patientName}</p>
+                            <p className="text-[9px] font-bold text-indigo-400 mt-0.5">{prescription.patientAdmissionNo || 'ACTIVE INPATIENT'}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cost Added to Folio</p>
+                            <p className="text-xl font-black text-indigo-400">KES {totalAmount.toLocaleString()}</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1.5 block">Ward / Treatment Station</label>
+                            <input
+                                type="text"
+                                value={wardRoom}
+                                onChange={e => setWardRoom(e.target.value)}
+                                className="w-full bg-black/40 border border-indigo-500/40 focus:border-indigo-500 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1.5 block">Folio Billing Authorization Notes</label>
+                            <textarea
+                                value={notes}
+                                onChange={e => setNotes(e.target.value)}
+                                rows={2}
+                                className="w-full bg-black/40 border border-white/10 focus:border-indigo-500 rounded-xl p-3 text-xs font-bold text-white outline-none resize-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-[10px] text-indigo-200 font-bold space-y-1">
+                        <p>✓ Prescribed medications will be disbursed immediately.</p>
+                        <p>✓ Charges will appear on the final discharge invoice alongside bed, doctor, and lab fees.</p>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="w-1/3 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onConfirm(`${wardRoom}: ${notes}`)}
+                            className="w-2/3 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all shadow-lg shadow-indigo-950/50"
+                        >
+                            ✓ Authorize Folio Charge &amp; Dispense
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+}
+
+function EmergencyOverrideModal({
+    onClose,
+    prescription,
+    onConfirm
+}: {
+    onClose: () => void;
+    prescription: HISPrescription;
+    onConfirm: (reason: string) => void;
+}) {
+    const [reason, setReason] = useState('STAT Emergency Stabilization Medication — Physician Ordered');
+    const commonReasons = [
+        'STAT Emergency Stabilization Medication — Physician Ordered',
+        'Critical Inpatient Acute Resuscitation / ICU Administration',
+        'Urgent Outpatient Acute Pain/Asthma Relief — Payment Deferred'
+    ];
+
+    return createPortal(
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[99999] p-4">
+            <div className="bg-slate-900 border border-rose-500/30 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden text-white animate-in zoom-in-95 duration-200">
+                <div className="px-8 py-5 bg-gradient-to-r from-rose-600 to-red-600 text-white flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-black uppercase tracking-wider">🚨 STAT Emergency Clinical Dispense</h3>
+                        <p className="text-[10px] font-bold opacity-90">Authorize immediate drug release for emergency life safety</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl">
+                        ✕
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-5">
+                    <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-center gap-3">
+                        <span className="text-2xl">⚠️</span>
+                        <div>
+                            <p className="text-xs font-black text-rose-300 uppercase">Emergency Clinical Safety Exemption</p>
+                            <p className="text-[10px] text-slate-300 mt-0.5">Dispenses life-saving drugs immediately. An audit record will be logged with attending clinician credentials.</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <label className="text-[9px] font-black text-rose-400 uppercase tracking-widest block">Select or Enter Clinical Justification *</label>
+                        <div className="space-y-2">
+                            {commonReasons.map((r, idx) => (
+                                <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => setReason(r)}
+                                    className={`w-full text-left p-3 rounded-xl border text-[10px] font-bold transition-all ${
+                                        reason === r ? 'bg-rose-500/20 border-rose-500 text-rose-200' : 'bg-black/30 border-white/10 text-slate-400 hover:bg-white/5'
+                                    }`}
+                                >
+                                    {r}
+                                </button>
+                            ))}
+                        </div>
+                        <textarea
+                            value={reason}
+                            onChange={e => setReason(e.target.value)}
+                            rows={2}
+                            placeholder="Custom emergency override justification..."
+                            className="w-full bg-black/40 border border-white/10 focus:border-rose-500 rounded-xl p-3 text-xs font-bold text-white outline-none resize-none"
+                        />
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="w-1/3 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onConfirm(reason)}
+                            className="w-2/3 py-3.5 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all shadow-lg shadow-rose-950/50"
+                        >
+                            🚨 Authorize Emergency Release
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>,
