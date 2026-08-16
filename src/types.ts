@@ -525,7 +525,7 @@ export interface Institution {
     email: string;
     phoneNumber: string;
     address?: string;
-    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Beauty College' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency' | 'Restaurant' | 'IELTS Academy';
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Beauty College' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency' | 'Restaurant' | 'IELTS Academy' | 'Maize Miller' | 'Milling';
     category?: string;
     parentInstitutionId?: string;
     createdAt?: string;
@@ -6115,3 +6115,187 @@ export const isSuperAdminUser = (u: any): boolean => {
     if (n.includes('super admin') || n.includes('superadmin') || n === 'super admin') return true;
     return false;
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIZE MILLING & GRAIN PROCESSING SYSTEM TYPES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface WeighbridgeIntakeTicket {
+    id: string;
+    ticketNumber: string; // e.g. WB-2026-001
+    institutionId: string;
+    supplierId: string;
+    supplierName: string;
+    supplierPhone?: string;
+    supplierType: 'Farmer' | 'Aggregator' | 'Trader' | 'Cooperative';
+    truckRegistration: string;
+    driverName: string;
+    driverPhone?: string;
+    grainType: 'White Maize' | 'Yellow Maize' | 'Wheat' | 'Sorghum' | 'Millet' | 'Soybean';
+    grade: 'Grade 1' | 'Grade 2' | 'Grade 3' | 'Undergrade';
+    grossWeightKg: number; // 2nd pass: loaded truck
+    tareWeightKg: number;  // 1st pass: empty truck
+    bagCount: number;
+    bagTareKg: number;     // e.g. 0.1kg per gunny bag
+    moistureContentPct: number; // standard e.g. 13.5%
+    moistureShrinkageKg: number; // deduction if moisture > 13.5%
+    foreignMatterPct?: number;
+    aflatoxinPpb?: number;
+    netWeightKg: number; // Gross - Tare - BagTare - MoistureShrinkage
+    buyingPricePerKg: number; // KES / KG
+    totalAmountGross: number;
+    offloadingFee: number;
+    bagFee: number;
+    loanDeduction: number;
+    netPayableAmount: number;
+    targetSiloId?: string;
+    status: 'Weighed_First_Pass' | 'Weighed_Second_Pass' | 'Unloaded' | 'Approved' | 'Paid' | 'Rejected';
+    paymentStatus: 'Pending' | 'Partially_Paid' | 'Paid';
+    paymentMethod?: 'M-Pesa B2C' | 'Bank Transfer' | 'Cash' | 'Cheque';
+    paymentReference?: string;
+    operatorName?: string;
+    intakeDate: string;
+    firstPassTime?: string;
+    secondPassTime?: string;
+    notes?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface GrainSupplier {
+    id: string;
+    institutionId: string;
+    name: string;
+    phoneNumber: string;
+    idNumber?: string;
+    supplierType: 'Farmer' | 'Aggregator' | 'Trader' | 'Cooperative';
+    location?: string;
+    bankName?: string;
+    bankAccount?: string;
+    mpesaNumber?: string;
+    totalDeliveriesKg: number;
+    totalAmountEarned: number;
+    totalAmountPaid: number;
+    outstandingBalance: number;
+    contractedAcres?: number;
+    advanceBalance?: number;
+    status: 'Active' | 'Suspended' | 'Blacklisted';
+    createdAt?: string;
+}
+
+export interface MillingSilo {
+    id: string;
+    institutionId: string;
+    code: string; // e.g. SILO-01
+    name: string;
+    type: 'Silo' | 'Flat Warehouse' | 'Bunker' | 'Holding Bin';
+    capacityKg: number; // max capacity in KG
+    currentStockKg: number; // current tonnage in KG
+    grainType: string;
+    avgMoisturePct: number;
+    lastFumigationDate?: string;
+    nextFumigationDue?: string;
+    temperatureCelsius?: number;
+    status: 'Active' | 'Under Fumigation' | 'Cleaning' | 'Full' | 'Empty';
+}
+
+export interface MillingBatchRun {
+    id: string;
+    batchNumber: string; // e.g. MLL-2026-089
+    institutionId: string;
+    sourceSiloId: string;
+    sourceSiloName: string;
+    operatorName: string;
+    startTime: string;
+    endTime?: string;
+    rawMaizeInputKg: number; // Raw Grain fed into hopper
+    
+    // Outputs & Yields
+    grade1FlourKg: number;       // Sifted Maize Meal
+    grade2FlourKg: number;       // Household / Standard Flour
+    maizeBranKg: number;         // Animal feed byproduct
+    maizeGermKg: number;         // Germ byproduct
+    pollardKg: number;           // Fine bran / pollard
+    millingLossKg: number;       // Dust / Moisture Loss
+    
+    // Percentages calculated
+    grade1YieldPct: number;
+    grade2YieldPct: number;
+    byproductsYieldPct: number;
+    lossPct: number;
+    
+    fortificationDosingGrams?: number; // KEBS Vitamin/Mineral Premix
+    powerUnitsKwh?: number;
+    laborCostKES?: number;
+    status: 'Running' | 'Completed' | 'Quarantined';
+    qualityApprovedBy?: string;
+    notes?: string;
+    createdAt?: string;
+}
+
+export interface FlourPackagingShift {
+    id: string;
+    shiftCode: string; // e.g. PKG-2026-045
+    institutionId: string;
+    batchId?: string;
+    date: string;
+    leadWorkerName: string;
+    teamMembers: string[]; // names of packers
+    packageSize: '1kg' | '2kg' | '5kg' | '10kg' | '24x2kg Bale' | '12x2kg Bundle' | '50kg Bag';
+    flourType: 'Grade 1 Sifted' | 'Grade 2 Fortified' | 'Whole Meal';
+    totalUnitsPacked: number;
+    totalWeightKg: number;
+    ratePerUnitKES: number; // Piece-rate e.g. KES 15 per bale
+    totalLaborCostKES: number;
+    packagingBagsUsed: number;
+    packagingBagsDamaged: number;
+    outerBalesUsed: number;
+    lotBatchCode: string;
+    expiryDate: string;
+    status: 'Active' | 'Completed' | 'Pushed_To_Payroll';
+    createdAt?: string;
+}
+
+export interface AnimalFeedBatch {
+    id: string;
+    batchCode: string; // e.g. FEED-2026-012
+    institutionId: string;
+    feedType: 'Dairy Meal 16%' | 'Dairy Meal Premium 18%' | 'Layers Mash' | 'Broiler Starter' | 'Pig Grower' | 'Kienyeji Mash';
+    rawBranUsedKg: number;
+    rawGermUsedKg: number;
+    pollardUsedKg: number;
+    additivesUsedKg: number; // Limestone, Salt, Molasses, Premix
+    totalFeedOutputKg: number;
+    bagSizeKg: 50 | 70;
+    bagsProduced: number;
+    costPerBagKES: number;
+    sellingPricePerBagKES: number;
+    producedDate: string;
+    status: 'Formulated' | 'Bagged' | 'In_Stock';
+    createdAt?: string;
+}
+
+export interface GrainSaleOrder {
+    id: string;
+    orderNumber: string;
+    institutionId: string;
+    customerName: string;
+    customerPhone: string;
+    customerType: 'Supermarket' | 'Wholesaler' | 'Retailer' | 'Walk-in' | 'Institution';
+    itemCategory: 'Flour' | 'Animal Feeds' | 'Raw Grain';
+    productName: string;
+    unitSize: string;
+    quantity: number;
+    unitPrice: number;
+    totalAmount: number;
+    vatAmount?: number;
+    paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Credit';
+    paymentStatus: 'Paid' | 'Pending' | 'Overdue';
+    dueDate?: string;
+    invoiceDate: string;
+    deliveryLocation?: string;
+    dispatchedBy?: string;
+    notes?: string;
+    createdAt?: string;
+}
+

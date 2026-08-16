@@ -71,6 +71,7 @@ const StudentEnrollmentManager = lazy(() => import('./common/StudentEnrollmentMa
 const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 const CdfManager = lazy(() => import('./CdfManager').then(m => ({ default: m.CdfManager })));
 const EduAiHub = lazy(() => import('./common/EduAiHub').then(m => ({ default: m.EduAiHub })));
+const GrainMillerManager = lazy(() => import('./milling/GrainMillerManager').then(m => ({ default: m.GrainMillerManager })));
 
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
@@ -136,7 +137,7 @@ const RetailReportsDashboard = lazy(() => import('./retail/RetailReportsDashboar
 const CarShowroomReportsDashboard = lazy(() => import('./automotive/CarShowroomReportsDashboard').then(m => ({ default: m.CarShowroomReportsDashboard })));
 const ExternalModuleView = lazy(() => import('./ExternalModuleView').then(m => ({ default: m.ExternalModuleView })));
 const FuelStationDashboard = lazy(() => import('./FuelStationDashboard').then(m => ({ default: m.FuelStationDashboard })));
-import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution } from '../utils/roleUtils';
+import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isMillingInstitution } from '../utils/roleUtils';
 
 export interface AdminViewProps {
     currentUser?: User;
@@ -486,7 +487,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote' | 'remedials'>('console_hub');
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
@@ -682,6 +683,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         return cat === 'Fuel Station' || subType === 'Fuel Station' || institutionType === 'Fuel Station';
     }, [props.currentInstitution, institutionType]);
 
+    const isMilling = useMemo(() => {
+        return isMillingInstitution(props.currentInstitution);
+    }, [props.currentInstitution]);
+
     const isSchool = useMemo(() => {
         return isSchoolInstitution(props.currentInstitution);
     }, [props.currentInstitution]);
@@ -752,6 +757,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 setActiveTab('auto_marketplace');
             } else if (isFuelStation) {
                 setActiveTab('fuel_station');
+            } else if (isMilling || role === 'miller_admin' || role === 'weighbridge_operator') {
+                setActiveTab('milling');
             } else if (isEdu || isSchool) {
                 setActiveTab(role === 'head_teacher' ? 'dashboard' : 'timetable');
                 setActiveScope('console_hub');
@@ -848,6 +855,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'eduvote', label: 'EduVote AI', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
             { id: 'fiscal_guard', label: 'FiscalGuard AI', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
             { id: 'ai_hub', label: 'AI Hub ✨', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
+            { id: 'milling', label: 'Maize Milling', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
         ];
 
 
@@ -916,6 +924,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> }
             );
             return bcTabs;
+        }
+
+        if (isMilling) {
+            return [
+                { id: 'milling', label: 'Milling & Weighbridge', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
+                { id: 'users', label: 'Millers & Staff', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'comms', label: 'Communication', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+                { id: 'reports', label: 'Milling Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            ];
         }
 
         if (isCoop) {
@@ -1079,6 +1097,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
             if (tab.id === 'auto_marketplace') return isAutoMarket;
             if (tab.id === 'fuel_station') return isFuelStation;
+            if (tab.id === 'milling') return isMilling;
             if (tab.id === 'fiscal_guard') return isModuleActive('fiscal_guard');
 
             if (tab.id === 'ai_hub') {
@@ -3441,6 +3460,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         retailStores={retailStores}
                         institution={props.currentInstitution!}
                         companyDetails={props.companyDetails}
+                    />
+                )}
+
+                {(activeTab === 'milling' || (isMilling && activeTab === 'dashboard')) && (
+                    <GrainMillerManager
+                        currentUser={props.currentUser}
+                        currentInstitution={props.currentInstitution!}
+                        onDataChange={props.onRefreshData}
                     />
                 )}
 

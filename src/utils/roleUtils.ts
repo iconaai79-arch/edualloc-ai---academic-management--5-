@@ -32,8 +32,8 @@ export function getAdminRoleForInstitution(institution: Partial<Institution>): R
     // Driving School — admin role is Director
     if (type === 'Driving School' || subType.includes('driving school') || (institution.category || '').toLowerCase() === 'driving school') return 'director';
 
-    // Restaurant — admin role is restaurant_admin
-    if (type === 'Restaurant' || subType.includes('restaurant') || subType.includes('eatery') || subType.includes('cafe') || (institution.category || '').toLowerCase() === 'restaurant') return 'restaurant_admin';
+    // Grain Milling & Processing
+    if (isMillingInstitution(institution)) return 'miller_admin' as any;
 
     // Default for Schools
     return 'head_teacher';
@@ -132,9 +132,9 @@ export function getRolesForInstitution(institution: Institution | null | undefin
         return ['director', 'admin', 'driving_instructor', 'staff', 'student', 'security', 'driver', 'procurement_officer'];
     }
 
-    // Restaurant / Cafe / POS
-    if (isRestaurantInstitution(institution)) {
-        return ['restaurant_admin', 'chef', 'waiter', 'cashier', 'finance', 'staff', 'security', 'driver', 'store', 'procurement_officer'];
+    // Grain Milling & Processing
+    if (isMillingInstitution(institution)) {
+        return ['miller_admin', 'weighbridge_operator', 'miller_technician', 'quality_officer', 'packer', 'feed_operator', 'grain_buyer', 'finance', 'finance_officer', 'store', 'security', 'driver'] as any[];
     }
 
     return ['admin', 'managing_director', 'hr_officer', 'finance_officer', 'procurement_officer', 'staff', 'security', 'driver', 'store', 'customer'] as any[];
@@ -209,16 +209,22 @@ export function isDSInstitution(institution: Partial<Institution> | null | undef
 }
 
 /**
- * Centralized logic to determine if an institution is a Restaurant / Cafe.
+ * Centralized logic to determine if an institution is a Grain / Maize Miller.
  */
-export function isRestaurantInstitution(institution: Partial<Institution> | null | undefined): boolean {
+export function isMillingInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
     const subType = institution.businessSubType?.toLowerCase() || '';
-    const hasModule = institution.moduleStates?.some(m => (m.moduleId === 'restaurant_pos' || m.moduleId === 'restaurant') && (m.status === 'active' || m.status === 'trial'));
-    return type === 'restaurant' || subType.includes('restaurant') || subType.includes('eatery') || subType.includes('cafe') || category === 'restaurant' || !!hasModule;
+    const name = (institution.name || '').toLowerCase();
+    const hasModule = institution.moduleStates?.some(m => (m.moduleId === 'milling' || m.moduleId === 'grain_milling') && (m.status === 'active' || m.status === 'trial'));
+    
+    return type === 'maize miller' || type === 'milling' || type === 'grain processing' ||
+           category.includes('miller') || category.includes('milling') || category.includes('grain') ||
+           subType.includes('milling') || subType.includes('miller') || subType.includes('posho') || subType.includes('grain') ||
+           name.includes('miller') || name.includes('millers') || name.includes('milling') || name.includes('grain') || name.includes('flour') || !!hasModule;
 }
+
 
 /**
  * Logic to properly display role names to the user.
@@ -229,6 +235,19 @@ export function formatRoleDisplayName(role: Role, institution?: Institution | nu
 
     const type = institution?.institutionType;
     const subType = institution?.businessSubType?.toLowerCase() || '';
+
+    // Milling context
+    if (isMillingInstitution(institution)) {
+        switch (role as string) {
+            case 'miller_admin': return 'Plant General Manager';
+            case 'weighbridge_operator': return 'Weighbridge & Scale Officer';
+            case 'miller_technician': return 'Chief Miller / Operator';
+            case 'quality_officer': return 'QA & Lab Specialist';
+            case 'packer': return 'Packaging Supervisor';
+            case 'feed_operator': return 'Animal Feeds Formulator';
+            case 'grain_buyer': return 'Grain Procurement Officer';
+        }
+    }
 
     // Car Wash context
     if (subType.includes('car wash') || subType.includes('car service')) {
