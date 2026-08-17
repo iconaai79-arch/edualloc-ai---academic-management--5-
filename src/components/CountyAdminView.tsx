@@ -374,22 +374,25 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const handleCategorySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            if (editingCategory) {
-                await onUpdateInventoryCategory?.(editingCategory.id, {
-                    ...categoryForm,
-                    countyId: myCounty.id
-                });
-                onLogAction?.(`Updated inventory category: ${categoryForm.name}`);
-            } else {
-                await onAddInventoryCategory?.({
-                    ...categoryForm,
-                    countyId: myCounty.id
-                });
-                onLogAction?.(`Created inventory category: ${categoryForm.name}`);
-            }
+            const catSnapshot = { ...categoryForm };
+            const editCatSnapshot = editingCategory;
             setShowCategoryModal(false);
             setEditingCategory(null);
             setCategoryForm({ name: '', description: '' });
+
+            if (editCatSnapshot) {
+                await onUpdateInventoryCategory?.(editCatSnapshot.id, {
+                    ...catSnapshot,
+                    countyId: myCounty.id
+                });
+                onLogAction?.(`Updated inventory category: ${catSnapshot.name}`);
+            } else {
+                await onAddInventoryCategory?.({
+                    ...catSnapshot,
+                    countyId: myCounty.id
+                });
+                onLogAction?.(`Created inventory category: ${catSnapshot.name}`);
+            }
         } catch (error) {
             console.error("Category submit error:", error);
         }
@@ -398,22 +401,25 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const handleStoreSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            if (editingStore) {
-                await onUpdateStore?.(editingStore.id, {
-                    ...storeForm,
-                    countyId: myCounty.id
-                });
-                onLogAction?.(`Updated store location: ${storeForm.name}`);
-            } else {
-                await onAddStore?.({
-                    ...storeForm,
-                    countyId: myCounty.id
-                });
-                onLogAction?.(`Added store location: ${storeForm.name}`);
-            }
+            const storeSnapshot = { ...storeForm };
+            const editStoreSnapshot = editingStore;
             setShowStoreModal(false);
             setEditingStore(null);
             setStoreForm({ name: '', locationName: '', latitude: 0, longitude: 0, description: '' });
+
+            if (editStoreSnapshot) {
+                await onUpdateStore?.(editStoreSnapshot.id, {
+                    ...storeSnapshot,
+                    countyId: myCounty.id
+                });
+                onLogAction?.(`Updated store location: ${storeSnapshot.name}`);
+            } else {
+                await onAddStore?.({
+                    ...storeSnapshot,
+                    countyId: myCounty.id
+                });
+                onLogAction?.(`Added store location: ${storeSnapshot.name}`);
+            }
         } catch (error) {
             console.error("Store submit error:", error);
         }
@@ -422,30 +428,35 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const handleInventorySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            if (editingInventory) {
-                await onUpdateInventoryItem?.(editingInventory.id, {
-                    ...inventoryForm,
-                    countyId: myCounty?.id,
-                    county_id: myCounty?.id
-                });
-                onLogAction?.(`Updated inventory item: ${inventoryForm.name}`);
-            } else {
-                await onAddInventoryItem?.({ 
-                    ...inventoryForm, 
-                    countyId: myCounty?.id, 
-                    county_id: myCounty?.id,
-                    status: 'at_hq',
-                    recordedAt: new Date().toISOString(),
-                    at_hq_date: new Date().toISOString()
-                });
-                onLogAction?.(`Logged HQ receipt: ${inventoryForm.name}`);
-            }
+            const formSnapshot = { ...inventoryForm };
+            const editingSnapshot = editingInventory;
+
+            // Instant close & reset for immediate UI feedback
             setShowInventoryModal(false);
             setEditingInventory(null);
             setInventoryForm({
                 name: '', category: '', quantity: 1, unit: 'Units', supplierName: '',
                 targetInstitutionId: '', deliveryMethod: 'driver', driverName: '', trackingNumber: ''
             });
+
+            if (editingSnapshot) {
+                await onUpdateInventoryItem?.(editingSnapshot.id, {
+                    ...formSnapshot,
+                    countyId: myCounty?.id,
+                    county_id: myCounty?.id
+                });
+                onLogAction?.(`Updated inventory item: ${formSnapshot.name}`);
+            } else {
+                await onAddInventoryItem?.({ 
+                    ...formSnapshot, 
+                    countyId: myCounty?.id, 
+                    county_id: myCounty?.id,
+                    status: 'at_hq',
+                    recordedAt: new Date().toISOString(),
+                    at_hq_date: new Date().toISOString()
+                });
+                onLogAction?.(`Logged HQ receipt: ${formSnapshot.name}`);
+            }
         } catch (error: any) {
             console.error("Inventory error:", error);
             alert("Failed to save inventory item: " + (error?.message || 'Unknown error'));
@@ -460,6 +471,128 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         if (window.confirm(`Dispatch ${item.name} to ${institutions.find(i => i.id === item.targetInstitutionId)?.name}?`)) {
             await onUpdateInventoryItem?.(item.id, { ...item, status: 'in_transit', dispatchedAt: new Date().toISOString() });
             onLogAction?.(`Dispatched item: ${item.name}`);
+        }
+    };
+
+    const handleLoadSampleInventory = async () => {
+        if (!window.confirm("Load realistic sample county inventory records (Categories, Stores, and Dispatched Items)?")) return;
+        try {
+            const countyId = myCounty?.id || 'county_01';
+            const firstInstId = institutions?.[0]?.id || '';
+
+            // 1. Categories
+            const sampleCats = [
+                { id: `cat_edu_${Date.now()}_1`, name: 'Educational Learning Materials', description: 'CBC textbooks, science lab kits, and revision guides', countyId },
+                { id: `cat_ict_${Date.now()}_2`, name: 'ICT & Digital Devices', description: 'Student tablets, laptops, and projectors', countyId },
+                { id: `cat_ecde_${Date.now()}_3`, name: 'ECDE & Daycare Nutrition', description: 'Fortified porridge flour, milk cartons, and feeding supplies', countyId },
+                { id: `cat_med_${Date.now()}_4`, name: 'Hospital & Medical Supplies', description: 'First aid kits, examination gloves, and clinical gear', countyId },
+                { id: `cat_agri_${Date.now()}_5`, name: 'Agricultural Inputs & Seeds', description: 'Certified hybrid seeds, fertilizers, and sprays', countyId },
+                { id: `cat_voc_${Date.now()}_6`, name: 'Vocational & TVET Toolsets', description: 'Carpentry, electrical wiring, and welding sets', countyId }
+            ];
+            for (const cat of sampleCats) {
+                if (!myCategories.some(c => c.name.toLowerCase() === cat.name.toLowerCase())) {
+                    await onAddInventoryCategory?.(cat);
+                }
+            }
+
+            // 2. Stores
+            const sampleStores = [
+                { id: `store_hq_${Date.now()}_1`, name: 'Central County HQ Warehouse', locationName: 'County HQ, Block B', latitude: -1.286389, longitude: 36.817223, description: 'Central receiving hub', countyId },
+                { id: `store_depot_${Date.now()}_2`, name: 'Sub-County East Distribution Depot', locationName: 'East Education Complex', latitude: -1.2921, longitude: 36.8850, description: 'Eastern zonal dispatch store', countyId }
+            ];
+            for (const store of sampleStores) {
+                if (!myStores.some(s => s.name.toLowerCase() === store.name.toLowerCase())) {
+                    await onAddStore?.(store);
+                }
+            }
+
+            // 3. Items
+            const sampleItems = [
+                {
+                    id: `inv_sample_${Date.now()}_1`,
+                    name: 'CBC Grade 8 Integrated Science Textbooks',
+                    category: 'Educational Learning Materials',
+                    quantity: 2500,
+                    unit: 'Copies',
+                    supplierName: 'Kenya Literature Bureau (KLB)',
+                    status: 'at_hq' as const,
+                    targetInstitutionId: firstInstId,
+                    deliveryMethod: 'driver' as const,
+                    driverName: '',
+                    trackingNumber: '',
+                    countyId
+                },
+                {
+                    id: `inv_sample_${Date.now()}_2`,
+                    name: 'Student Digital Learning Tablets (10-inch Touch)',
+                    category: 'ICT & Digital Devices',
+                    quantity: 350,
+                    unit: 'Units',
+                    supplierName: 'Moi University Digital Labs',
+                    status: 'in_transit' as const,
+                    targetInstitutionId: firstInstId,
+                    deliveryMethod: 'driver' as const,
+                    driverName: 'Kipchumba Korir (KBX 419P)',
+                    trackingNumber: 'TRK-MOI-9921',
+                    dispatchedAt: new Date(Date.now() - 86400000).toISOString(),
+                    countyId
+                },
+                {
+                    id: `inv_sample_${Date.now()}_3`,
+                    name: 'ECDE Fortified Porridge Flour (25kg Sacks)',
+                    category: 'ECDE & Daycare Nutrition',
+                    quantity: 600,
+                    unit: 'Bags',
+                    supplierName: 'National Cereals & Produce Board (NCPB)',
+                    status: 'at_hq' as const,
+                    targetInstitutionId: firstInstId,
+                    deliveryMethod: 'driver' as const,
+                    driverName: '',
+                    trackingNumber: '',
+                    countyId
+                },
+                {
+                    id: `inv_sample_${Date.now()}_4`,
+                    name: 'Primary Healthcare First Aid & PPE Master Kits',
+                    category: 'Hospital & Medical Supplies',
+                    quantity: 1200,
+                    unit: 'Kits',
+                    supplierName: 'KEMSA Medical Logistics',
+                    status: 'received' as const,
+                    targetInstitutionId: firstInstId,
+                    deliveryMethod: 'parcel' as const,
+                    driverName: 'G4S Courier Express',
+                    trackingNumber: 'G4S-KEMSA-77812',
+                    recipientName: 'Sister Faith Wambui (Head Nurse)',
+                    dispatchedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+                    receivedDate: new Date(Date.now() - 86400000 * 3).toISOString(),
+                    countyId
+                },
+                {
+                    id: `inv_sample_${Date.now()}_5`,
+                    name: 'Certified Hybrid Maize Seeds (DK 777 - 10kg)',
+                    category: 'Agricultural Inputs & Seeds',
+                    quantity: 850,
+                    unit: 'Bags',
+                    supplierName: 'Kenya Seed Company Ltd',
+                    status: 'at_hq' as const,
+                    targetInstitutionId: firstInstId,
+                    deliveryMethod: 'driver' as const,
+                    driverName: '',
+                    trackingNumber: '',
+                    countyId
+                }
+            ];
+
+            for (const item of sampleItems) {
+                await onAddInventoryItem?.(item);
+            }
+
+            onLogAction?.('Loaded sample county inventory and supply chain records');
+            alert('Sample county inventory loaded successfully!');
+        } catch (err: any) {
+            console.error('Failed to load sample inventory:', err);
+            alert('Failed to load sample inventory: ' + (err?.message || 'Unknown error'));
         }
     };
 
@@ -1034,6 +1167,13 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                             <div className="flex gap-3">
                                 {inventorySubTab === 'items' && (
                                     <>
+                                        <button
+                                            onClick={handleLoadSampleInventory}
+                                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 transition-colors flex items-center gap-2"
+                                            title="Populate sample educational, medical, agricultural, and vocational supplies"
+                                        >
+                                            <SparklesIcon className="w-5 h-5 text-emerald-200" /> Load Sample Data
+                                        </button>
                                         <button
                                             onClick={() => setShowInventoryImportModal(true)}
                                             className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 transition-colors flex items-center gap-2"

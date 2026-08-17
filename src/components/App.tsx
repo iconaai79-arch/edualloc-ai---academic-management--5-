@@ -6483,7 +6483,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                                 };
                                                 setCountyInventory(prev => [newItem, ...prev.filter(i => i.id !== id)]);
                                                 await apiService.saveModuleRecord('county_inventory', newItem);
-                                                await loadData(false, true);
+                                                loadData(false, true).catch(e => console.warn("Background loadData err:", e));
                                                 success?.(`Logged inventory receipt: ${newItem.name}`);
                                             } catch (err: any) {
                                                 console.error("Failed to add county inventory item:", err);
@@ -6513,7 +6513,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                                 };
                                                 setCountyInventory(prev => prev.map(i => i.id === id ? { ...i, ...updatedItem } : i));
                                                 await apiService.saveModuleRecord('county_inventory', updatedItem);
-                                                await loadData(false, true);
+                                                loadData(false, true).catch(e => console.warn("Background loadData err:", e));
                                                 success?.(`Updated inventory item: ${updatedItem.name || ''}`);
                                             } catch (err: any) {
                                                 console.error("Failed to update county inventory item:", err);
@@ -6525,7 +6525,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             try {
                                                 setCountyInventory(prev => prev.filter(i => i.id !== id));
                                                 await apiService.deleteModuleRecord('county_inventory', id);
-                                                await loadData(false, true);
+                                                loadData(false, true).catch(e => console.warn("Background loadData err:", e));
                                                 success?.("Inventory item deleted.");
                                             } catch (err: any) {
                                                 console.error("Failed to delete county inventory item:", err);
@@ -6540,7 +6540,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                                 const newCat = { ...data, id, county_id: effectiveCountyId, countyId: effectiveCountyId };
                                                 setCountyInventoryCategories(prev => [newCat, ...prev.filter(c => c.id !== id)]);
                                                 await apiService.saveModuleRecord('county_inventory_categories', newCat);
-                                                await loadData(false, true);
+                                                loadData(false, true).catch(e => console.warn("Background loadData err:", e));
                                                 success?.(`Created category: ${newCat.name}`);
                                             } catch (err: any) {
                                                 console.error("Failed to add category:", err);
@@ -6554,7 +6554,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                                 const updatedCat = { ...data, id, county_id: effectiveCountyId, countyId: effectiveCountyId };
                                                 setCountyInventoryCategories(prev => prev.map(c => c.id === id ? { ...c, ...updatedCat } : c));
                                                 await apiService.saveModuleRecord('county_inventory_categories', updatedCat);
-                                                await loadData(false, true);
+                                                loadData(false, true).catch(e => console.warn("Background loadData err:", e));
                                                 success?.(`Updated category: ${updatedCat.name}`);
                                             } catch (err: any) {
                                                 console.error("Failed to update category:", err);
@@ -6566,7 +6566,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             try {
                                                 setCountyInventoryCategories(prev => prev.filter(c => c.id !== id));
                                                 await apiService.deleteModuleRecord('county_inventory_categories', id);
-                                                await loadData(false, true);
+                                                loadData(false, true).catch(e => console.warn("Background loadData err:", e));
                                                 success?.("Category deleted.");
                                             } catch (err: any) {
                                                 console.error("Failed to delete category:", err);
@@ -6582,7 +6582,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                                 const newStore = { ...data, id, county_id: effectiveCountyId, countyId: effectiveCountyId };
                                                 setCountyStores(prev => [newStore, ...prev.filter(s => s.id !== id)]);
                                                 await apiService.saveModuleRecord('county_stores', newStore);
-                                                await loadData(false, true);
+                                                loadData(false, true).catch(e => console.warn("Background loadData err:", e));
                                                 success?.(`Added store location: ${newStore.name}`);
                                             } catch (err: any) {
                                                 console.error("Failed to add store:", err);
@@ -6596,7 +6596,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                                 const updatedStore = { ...data, id, county_id: effectiveCountyId, countyId: effectiveCountyId };
                                                 setCountyStores(prev => prev.map(s => s.id === id ? { ...s, ...updatedStore } : s));
                                                 await apiService.saveModuleRecord('county_stores', updatedStore);
-                                                await loadData(false, true);
+                                                loadData(false, true).catch(e => console.warn("Background loadData err:", e));
                                                 success?.(`Updated store location: ${updatedStore.name}`);
                                             } catch (err: any) {
                                                 console.error("Failed to update store:", err);
@@ -6608,7 +6608,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             try {
                                                 setCountyStores(prev => prev.filter(s => s.id !== id));
                                                 await apiService.deleteModuleRecord('county_stores', id);
-                                                await loadData(false, true);
+                                                loadData(false, true).catch(e => console.warn("Background loadData err:", e));
                                                 success?.("Store location deleted.");
                                             } catch (err: any) {
                                                 console.error("Failed to delete store:", err);
