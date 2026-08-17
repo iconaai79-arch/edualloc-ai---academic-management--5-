@@ -1186,14 +1186,474 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                 <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
                                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-6">County Settings</h3>
                                     <div className="space-y-4">
-                                        <p className="text-sm text-slate-500">Manage your county's administrative configuration.</p>
+                                        <p className="text-sm text-slate-500">Manage your county's administrative configuration, branding, and regional services.</p>
                                     </div>
                                 </div>
                             </div>
                         )}
+                    </main>
 
-                {/* ... modals and other sections will be added back from chunks */}
-            </main>
+            {/* Staff Modal */}
+            {showStaffModal && (
+                <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                    {editingStaff ? 'Edit Staff Member' : 'Register County Staff'}
+                                </h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">
+                                    {myCounty.name} Administration
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { setShowStaffModal(false); setEditingStaff(null); }}
+                                className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <CloseIcon className="w-5 h-5 text-slate-600" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleStaffSubmit} className="p-8 space-y-5">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Full Name
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={staffForm.name}
+                                    onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
+                                    placeholder="e.g. Jane Mwangi"
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-bold text-sm outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Official Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={staffForm.email}
+                                        onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                                        placeholder="jane@county.gov.ke"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Phone Number
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        required
+                                        value={staffForm.phoneNumber}
+                                        onChange={e => setStaffForm({ ...staffForm, phoneNumber: e.target.value })}
+                                        placeholder="+254700000000"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Staff / Employee ID
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={staffForm.staffId}
+                                        onChange={e => setStaffForm({ ...staffForm, staffId: e.target.value })}
+                                        placeholder="e.g. CTY/EDU/042"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        County Role
+                                    </label>
+                                    <select
+                                        value={staffForm.role}
+                                        onChange={e => setStaffForm({ ...staffForm, role: e.target.value as Role })}
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-bold text-sm outline-none bg-white"
+                                    >
+                                        <option value="county_staff">County Staff Officer</option>
+                                        <option value="county_admin">County Administrator</option>
+                                        <option value="county_director">County Director</option>
+                                        <option value="county_co">Chief Officer (CO)</option>
+                                        <option value="county_cec">CECM Executive</option>
+                                        <option value="county_secretary">County Secretary</option>
+                                        <option value="county_store_keeper">County Store Keeper</option>
+                                        <option value="county_driver">County Driver</option>
+                                        <option value="county_teacher">County Education Officer</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowStaffModal(false); setEditingStaff(null); }}
+                                    className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors"
+                                >
+                                    {editingStaff ? 'Save Changes' : 'Create Staff Account'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Inventory Modal */}
+            {showInventoryModal && (
+                <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                    {editingInventory ? 'Edit Inventory Item' : 'Add Central Inventory'}
+                                </h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">
+                                    HQ Stock Management · {myCounty.name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { setShowInventoryModal(false); setEditingInventory(null); }}
+                                className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <CloseIcon className="w-5 h-5 text-slate-600" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleInventorySubmit} className="p-8 space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Item Name / Description
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={inventoryForm.name}
+                                    onChange={e => setInventoryForm({ ...inventoryForm, name: e.target.value })}
+                                    placeholder="e.g. Textbooks (Grade 7 CBC), Desks, Medical Supplies"
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-bold text-sm outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Category
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={inventoryForm.category}
+                                        onChange={e => setInventoryForm({ ...inventoryForm, category: e.target.value })}
+                                        placeholder="e.g. Education"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Quantity
+                                    </label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="1"
+                                        value={inventoryForm.quantity}
+                                        onChange={e => setInventoryForm({ ...inventoryForm, quantity: Number(e.target.value) })}
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Unit
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={inventoryForm.unit}
+                                        onChange={e => setInventoryForm({ ...inventoryForm, unit: e.target.value })}
+                                        placeholder="Boxes / Pcs"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Supplier Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={inventoryForm.supplierName}
+                                        onChange={e => setInventoryForm({ ...inventoryForm, supplierName: e.target.value })}
+                                        placeholder="Supplier / Manufacturer"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Target Facility (Optional)
+                                    </label>
+                                    <select
+                                        value={inventoryForm.targetInstitutionId}
+                                        onChange={e => setInventoryForm({ ...inventoryForm, targetInstitutionId: e.target.value })}
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                    >
+                                        <option value="">-- Central Store (Hold at HQ) --</option>
+                                        {myInstitutions.map(inst => (
+                                            <option key={inst.id} value={inst.id}>{inst.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowInventoryModal(false); setEditingInventory(null); }}
+                                    className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors"
+                                >
+                                    {editingInventory ? 'Save Changes' : 'Add Inventory Item'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Fund Modal */}
+            {showFundModal && (
+                <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                    {editingFund ? 'Edit Bursary Fund' : 'New Bursary Fund'}
+                                </h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">
+                                    Financial Aid Allocation · {myCounty.name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { setShowFundModal(false); setEditingFund(null); }}
+                                className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <CloseIcon className="w-5 h-5 text-slate-600" />
+                            </button>
+                        </div>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (editingFund) {
+                                await onUpdateBursaryFund?.(editingFund.id, fundForm);
+                            } else {
+                                await onAddBursaryFund?.({ ...fundForm, countyId: myCounty.id, disbursedAmount: 0 });
+                            }
+                            setShowFundModal(false);
+                            setEditingFund(null);
+                        }} className="p-8 space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Fund Name
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={fundForm.name}
+                                    onChange={e => setFundForm({ ...fundForm, name: e.target.value })}
+                                    placeholder="e.g. County Executive Bursary 2026/27"
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Budget (KES)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="0"
+                                        value={fundForm.totalBudget}
+                                        onChange={e => setFundForm({ ...fundForm, totalBudget: Number(e.target.value) })}
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Fiscal Year
+                                    </label>
+                                    <input
+                                        type="number"
+                                        required
+                                        value={fundForm.year}
+                                        onChange={e => setFundForm({ ...fundForm, year: Number(e.target.value) })}
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Description / Guidelines
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={fundForm.description}
+                                    onChange={e => setFundForm({ ...fundForm, description: e.target.value })}
+                                    placeholder="Eligibility criteria, target beneficiaries..."
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none resize-none"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowFundModal(false); setEditingFund(null); }}
+                                    className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors"
+                                >
+                                    {editingFund ? 'Save Changes' : 'Create Fund'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Register Institution / Facility Modal */}
+            {showRegisterModal && (
+                <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                    Register Facility / Institution
+                                </h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">
+                                    Enroll new facility under {myCounty.name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowRegisterModal(false)}
+                                className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <CloseIcon className="w-5 h-5 text-slate-600" />
+                            </button>
+                        </div>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const formEl = e.currentTarget;
+                            const fd = new FormData(formEl);
+                            const newInst = {
+                                name: fd.get('name') as string,
+                                email: fd.get('email') as string,
+                                phoneNumber: fd.get('phoneNumber') as string,
+                                institutionType: fd.get('institutionType') as any,
+                                category: fd.get('category') as string,
+                                countyId: myCounty.id,
+                                status: 'active'
+                            };
+                            await onAddInstitution?.(newInst);
+                            setShowRegisterModal(false);
+                        }} className="p-8 space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Institution / Facility Name
+                                </label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    required
+                                    placeholder="e.g. County Central Hospital or St. Jude Academy"
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Sector Type
+                                    </label>
+                                    <select
+                                        name="institutionType"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                    >
+                                        <option value="Education">Education Sector (School/College)</option>
+                                        <option value="HIS">Health Sector (Hospital/Clinic)</option>
+                                        <option value="Cooperative">Agriculture / Cooperative</option>
+                                        <option value="Business">County Business / Enterprise</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Category / Level
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="category"
+                                        placeholder="e.g. Primary School, Level 4 Hospital"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Official Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        required
+                                        placeholder="admin@facility.co.ke"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Phone Number
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        name="phoneNumber"
+                                        required
+                                        placeholder="+254700000000"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowRegisterModal(false)}
+                                    className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors"
+                                >
+                                    Register Facility
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {perspectiveInstitution && (
                 <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
