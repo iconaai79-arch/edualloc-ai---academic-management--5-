@@ -82,6 +82,63 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
         };
     });
 
+    // ── MCH & Maternity Tariff Rates State ─────────────────────────────────
+    const [mchRates, setMchRates] = useState(() => {
+        try {
+            const saved = localStorage.getItem(`his_mch_rates_${institutionId}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {
+            ancFirstBookingCash: 800,
+            ancFirstBookingCover: 1200,
+            ancFollowupCash: 500,
+            ancFollowupCover: 800,
+            cwcImmunizationCash: 300,
+            cwcImmunizationCover: 500,
+            pncMotherBabyCash: 600,
+            pncMotherBabyCover: 1000,
+            svdDeliveryCash: 15000,
+            svdDeliveryCover: 25000,
+            csectionDeliveryCash: 45000,
+            csectionDeliveryCover: 70000,
+            nbuIncubatorDailyCash: 2500,
+            nbuIncubatorDailyCover: 4500,
+            nbuPhototherapyDailyCash: 1800,
+            nbuPhototherapyDailyCover: 3000,
+        };
+    });
+
+    const [isSavingMchTariffs, setIsSavingMchTariffs] = useState(false);
+
+    const handleSaveMchRates = async () => {
+        if (!institutionId) return;
+        setIsSavingMchTariffs(true);
+        try {
+            localStorage.setItem(`his_mch_rates_${institutionId}`, JSON.stringify(mchRates));
+
+            const mchPayload = {
+                id: `mch_rates_${institutionId}`,
+                institutionId,
+                institution_id: institutionId,
+                type: 'mch_tariff_schedule',
+                name: 'MCH & Maternity Comprehensive Fee Schedule',
+                category: 'MCH & Maternity',
+                metadata: mchRates,
+                isActive: true,
+                is_active: true,
+                updatedAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('his_tariffs', mchPayload);
+            alert(`✓ MCH & Maternity tariff schedule saved successfully!\n\n• ANC 1st Booking: KES ${(mchRates.ancFirstBookingCash || 800).toLocaleString()} (Cash) / KES ${(mchRates.ancFirstBookingCover || 1200).toLocaleString()} (Cover)\n• ANC Routine Follow-up: KES ${(mchRates.ancFollowupCash || 500).toLocaleString()} (Cash) / KES ${(mchRates.ancFollowupCover || 800).toLocaleString()} (Cover)\n• CWC & KEPI Immunization: KES ${(mchRates.cwcImmunizationCash || 300).toLocaleString()} (Cash) / KES ${(mchRates.cwcImmunizationCover || 500).toLocaleString()} (Cover)\n• PNC Mother & Baby: KES ${(mchRates.pncMotherBabyCash || 600).toLocaleString()} (Cash)\n• Normal SVD Delivery: KES ${(mchRates.svdDeliveryCash || 15000).toLocaleString()} (Cash) / KES ${(mchRates.svdDeliveryCover || 25000).toLocaleString()} (Cover)\n• C-Section Delivery: KES ${(mchRates.csectionDeliveryCash || 45000).toLocaleString()} (Cash) / KES ${(mchRates.csectionDeliveryCover || 70000).toLocaleString()} (Cover)\n• NBU Incubator / Day: KES ${(mchRates.nbuIncubatorDailyCash || 2500).toLocaleString()} (Cash)`);
+        } catch (e) {
+            console.error('Failed to save MCH rates:', e);
+            alert('Failed to save MCH rates. Please check network connection.');
+        } finally {
+            setIsSavingMchTariffs(false);
+        }
+    };
+
     const handleSaveConsultationRates = async () => {
         if (!institutionId) return;
         setIsSavingTariffs(true);
@@ -129,7 +186,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
     const [isSavingTariffs, setIsSavingTariffs] = useState(false);
     const [newTariff, setNewTariff] = useState({
         name: '',
-        category: 'Laboratory',
+        category: 'MCH & Maternity',
         code: '',
         cashRate: 0,
         coverRate: 0,
@@ -347,15 +404,37 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                     setConsultationRates(parsed);
                     localStorage.setItem(`his_consultation_rates_${institutionId}`, JSON.stringify(parsed));
                 }
+
+                // Find custom MCH rates record if saved in his_tariffs
+                const savedMch = tariffs.find((t: any) => t.id?.includes('mch_rates') || t.type === 'mch_tariff_schedule');
+                if (savedMch && savedMch.metadata) {
+                    setMchRates((prev: any) => ({ ...prev, ...savedMch.metadata }));
+                    localStorage.setItem(`his_mch_rates_${institutionId}`, JSON.stringify({ ...mchRates, ...savedMch.metadata }));
+                }
                 
-                // Exclude consultation rate config row from general service tariffs list
-                const serviceTariffs = tariffs.filter((t: any) => t.type !== 'consultation_rates' && !t.id?.includes('consultation_rates'));
+                // Exclude consultation rate & MCH summary config rows from general service tariffs list
+                const serviceTariffs = tariffs.filter((t: any) => 
+                    t.type !== 'consultation_rates' && 
+                    !t.id?.includes('consultation_rates') &&
+                    t.type !== 'mch_tariff_schedule' &&
+                    !t.id?.includes('mch_rates')
+                );
                 if (serviceTariffs.length > 0) {
                     setCustomTariffs(serviceTariffs);
                 }
             } else {
-                // Default sample tariffs
+                // Default sample tariffs with MCH and clinical services
                 setCustomTariffs([
+                    { id: 'tar_mch_1', name: 'ANC Initial Profile & 1st Booking (MOH 405)', category: 'MCH & Maternity', code: 'MCH-ANC-01', cashRate: 800, coverRate: 1200, isCoverable: true, isActive: true },
+                    { id: 'tar_mch_2', name: 'ANC Routine Longitudinal Follow-up', category: 'MCH & Maternity', code: 'MCH-ANC-02', cashRate: 500, coverRate: 800, isCoverable: true, isActive: true },
+                    { id: 'tar_mch_3', name: 'Obstetric Ultrasound Scan (ANC Dating/Anomaly)', category: 'MCH & Maternity', code: 'MCH-ANC-03', cashRate: 1500, coverRate: 2500, isCoverable: true, isActive: true },
+                    { id: 'tar_mch_4', name: 'Child Welfare Clinic & KEPI Immunization (CWC)', category: 'MCH & Maternity', code: 'MCH-CWC-01', cashRate: 300, coverRate: 500, isCoverable: true, isActive: true },
+                    { id: 'tar_mch_5', name: 'Postnatal Care Mother & Baby Dyad (PNC 48h/2wk/6wk)', category: 'MCH & Maternity', code: 'MCH-PNC-01', cashRate: 600, coverRate: 1000, isCoverable: true, isActive: true },
+                    { id: 'tar_mch_6', name: 'Normal Spontaneous Vaginal Delivery (SVD Package)', category: 'MCH & Maternity', code: 'MCH-DEL-01', cashRate: 15000, coverRate: 25000, isCoverable: true, isActive: true },
+                    { id: 'tar_mch_7', name: 'Caesarean Section Delivery Package (C-Section)', category: 'MCH & Maternity', code: 'MCH-DEL-02', cashRate: 45000, coverRate: 70000, isCoverable: true, isActive: true },
+                    { id: 'tar_mch_8', name: 'Newborn Incubator Bay Care / Day (NBU)', category: 'MCH & Maternity', code: 'MCH-NBU-01', cashRate: 2500, coverRate: 4500, isCoverable: true, isActive: true },
+                    { id: 'tar_mch_9', name: 'Phototherapy Bay Care / Day (Neonatal Jaundice)', category: 'MCH & Maternity', code: 'MCH-NBU-02', cashRate: 1800, coverRate: 3000, isCoverable: true, isActive: true },
+                    { id: 'tar_mch_10', name: 'Postnatal Family Planning Insertion (IUCD / Implant)', category: 'MCH & Maternity', code: 'MCH-FP-01', cashRate: 1200, coverRate: 2000, isCoverable: true, isActive: true },
                     { id: 'tar_1', name: 'Chest X-Ray (PA View)', category: 'Radiology', code: 'RAD-001', cashRate: 1500, coverRate: 2000, isCoverable: true, isActive: true },
                     { id: 'tar_2', name: 'Abdominal Ultrasound', category: 'Radiology', code: 'RAD-002', cashRate: 2500, coverRate: 3200, isCoverable: true, isActive: true },
                     { id: 'tar_3', name: 'Full Blood Count (FBC)', category: 'Laboratory', code: 'LAB-001', cashRate: 800, coverRate: 1200, isCoverable: true, isActive: true },
@@ -1548,6 +1627,267 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                             </div>
                         </div>
 
+                        {/* ── 🤰 Maternal & Child Health (MCH) & Maternity Tariff Schedule ── */}
+                        <div className="bg-white dark:bg-slate-900/50 p-10 rounded-[3.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-8 relative overflow-hidden">
+                            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-100 dark:border-white/5 pb-6">
+                                <div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-2xl">🤰</span>
+                                        <h3 className="text-xl font-black uppercase tracking-tight italic text-slate-900 dark:text-white">
+                                            MCH &amp; Maternity <span className="text-pink-600">Visit Tariff Rates</span>
+                                        </h3>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+                                        Configure differentiated tariff rates for ANC Visits (MOH 405), CWC Immunization, PNC, Delivery Packages &amp; NBU Bays
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleSaveMchRates}
+                                    disabled={isSavingMchTariffs}
+                                    className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-pink-600/20 disabled:opacity-50 cursor-pointer italic"
+                                >
+                                    {isSavingMchTariffs ? 'Saving MCH Schedule...' : '✓ Save MCH Tariff Schedule'}
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {/* 1. ANC 1st Booking */}
+                                <div className="p-6 bg-pink-50/50 dark:bg-pink-950/20 rounded-3xl border border-pink-200/60 dark:border-pink-900/30 space-y-3">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-pink-600 dark:text-pink-400 bg-pink-100/60 dark:bg-pink-900/40 px-3 py-1 rounded-full border border-pink-200 dark:border-pink-800">
+                                        🤰 ANC Visit 1 (Booking)
+                                    </span>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">ANC 1st Profile &amp; Booking</p>
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cash</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.ancFirstBookingCash}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, ancFirstBookingCash: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-pink-500"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cover</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.ancFirstBookingCover}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, ancFirstBookingCover: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-pink-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">MOH 405 booklet &amp; profile lab panel</p>
+                                </div>
+
+                                {/* 2. ANC Follow-up Visits */}
+                                <div className="p-6 bg-pink-50/50 dark:bg-pink-950/20 rounded-3xl border border-pink-200/60 dark:border-pink-900/30 space-y-3">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-pink-600 dark:text-pink-400 bg-pink-100/60 dark:bg-pink-900/40 px-3 py-1 rounded-full border border-pink-200 dark:border-pink-800">
+                                        🤰 ANC Visits 2–8 (Follow-up)
+                                    </span>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">Routine ANC Follow-up</p>
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cash</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.ancFollowupCash}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, ancFollowupCash: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-pink-500"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cover</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.ancFollowupCover}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, ancFollowupCover: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-pink-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Longitudinal obstetric visit review</p>
+                                </div>
+
+                                {/* 3. CWC & KEPI Immunization */}
+                                <div className="p-6 bg-purple-50/50 dark:bg-purple-950/20 rounded-3xl border border-purple-200/60 dark:border-purple-900/30 space-y-3">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-purple-600 dark:text-purple-400 bg-purple-100/60 dark:bg-purple-900/40 px-3 py-1 rounded-full border border-purple-200 dark:border-purple-800">
+                                        🍼 CWC &amp; KEPI Vaccine
+                                    </span>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">Child Welfare &amp; Vaccine Admin</p>
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cash</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.cwcImmunizationCash}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, cwcImmunizationCash: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-purple-500"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cover</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.cwcImmunizationCover}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, cwcImmunizationCover: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-purple-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Growth monitoring &amp; KEPI administration</p>
+                                </div>
+
+                                {/* 4. PNC Mother & Baby */}
+                                <div className="p-6 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-3xl border border-indigo-200/60 dark:border-indigo-900/30 space-y-3">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-100/60 dark:bg-indigo-900/40 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800">
+                                        🌺 PNC Dyad Visit
+                                    </span>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">Postnatal Care Dyad (48h/2w/6w)</p>
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cash</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.pncMotherBabyCash}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, pncMotherBabyCash: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cover</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.pncMotherBabyCover}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, pncMotherBabyCover: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Mother recovery &amp; newborn screening</p>
+                                </div>
+                            </div>
+
+                            {/* Delivery & Newborn Packages Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4 border-t border-slate-100 dark:border-white/5">
+                                {/* Normal Delivery */}
+                                <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200/60 dark:border-white/5 space-y-3">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-900">
+                                        🏥 Normal Delivery (SVD)
+                                    </span>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">SVD Delivery Package</p>
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cash</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.svdDeliveryCash}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, svdDeliveryCash: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cover</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.svdDeliveryCover}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, svdDeliveryCover: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Labor suite, nursing &amp; 24hr stay</p>
+                                </div>
+
+                                {/* C-Section */}
+                                <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200/60 dark:border-white/5 space-y-3">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 px-3 py-1 rounded-full border border-violet-100 dark:border-violet-900">
+                                        🏥 Caesarean Section (C-Section)
+                                    </span>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">C-Section Surgical Package</p>
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cash</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.csectionDeliveryCash}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, csectionDeliveryCash: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-violet-500"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cover</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.csectionDeliveryCover}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, csectionDeliveryCover: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-violet-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Theater, anaesthesia &amp; 3-day recovery</p>
+                                </div>
+
+                                {/* NBU Incubator */}
+                                <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200/60 dark:border-white/5 space-y-3">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-1 rounded-full border border-amber-100 dark:border-amber-900">
+                                        👶 NBU Incubator Bay / Day
+                                    </span>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">Incubator Daily Nursing</p>
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cash</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.nbuIncubatorDailyCash}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, nbuIncubatorDailyCash: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cover</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.nbuIncubatorDailyCover}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, nbuIncubatorDailyCover: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Preterm warmth &amp; 24/7 neonatal monitoring</p>
+                                </div>
+
+                                {/* NBU Phototherapy */}
+                                <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200/60 dark:border-white/5 space-y-3">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-3 py-1 rounded-full border border-sky-100 dark:border-sky-900">
+                                        👶 Phototherapy Bay / Day
+                                    </span>
+                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">Neonatal Jaundice Care</p>
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cash</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.nbuPhototherapyDailyCash}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, nbuPhototherapyDailyCash: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-sky-500"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400 uppercase">Cover</span>
+                                            <input
+                                                type="number"
+                                                value={mchRates.nbuPhototherapyDailyCover}
+                                                onChange={e => setMchRates((r: any) => ({ ...r, nbuPhototherapyDailyCover: Number(e.target.value) }))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-3 py-2 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-sky-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Blue light phototherapy &amp; bilirubin checks</p>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* ── Custom Services & Procedures Tariff Schedule ── */}
                         <div className="bg-white dark:bg-slate-900/50 p-10 rounded-[3.5rem] border border-slate-200 dark:border-white/5 shadow-xl space-y-8">
                             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -1556,13 +1896,13 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         Custom Services <span className="text-indigo-600">&amp; Procedures Tariff Schedule</span>
                                     </h3>
                                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
-                                        Configure custom prices for X-Ray, Laboratory tests, Procedures, Bed charges &amp; Dental/Eye services
+                                        Configure custom prices for MCH Packages, Laboratory tests, Radiology, Procedures, Bed charges &amp; Dental/Eye services
                                     </p>
                                 </div>
                                 <button
                                     onClick={() => {
                                         setEditingTariff(null);
-                                        setNewTariff({ name: '', category: 'Laboratory', code: '', cashRate: 0, coverRate: 0, isActive: true });
+                                        setNewTariff({ name: '', category: 'MCH & Maternity', code: '', cashRate: 0, coverRate: 0, isActive: true });
                                         setIsAddTariffOpen(true);
                                     }}
                                     className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-indigo-600/20"
@@ -1573,7 +1913,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
 
                             {/* Category Filter */}
                             <div className="flex bg-slate-100 dark:bg-white/5 p-1.5 rounded-2xl overflow-x-auto no-scrollbar gap-1.5">
-                                {['All', 'Laboratory', 'Radiology', 'Procedure', 'Inpatient', 'Dental', 'Ophthalmology', 'General'].map(cat => (
+                                {['All', 'MCH & Maternity', 'Laboratory', 'Radiology', 'Procedure', 'Inpatient', 'Dental', 'Ophthalmology', 'General'].map(cat => (
                                     <button
                                         key={cat}
                                         onClick={() => setTariffCategory(cat)}
@@ -1583,7 +1923,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                                         }`}
                                     >
-                                        {cat}
+                                        {cat === 'MCH & Maternity' ? '🤰 MCH & Maternity' : cat}
                                     </button>
                                 ))}
                             </div>
@@ -2464,6 +2804,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         onChange={e => setNewTariff(f => ({ ...f, category: e.target.value }))}
                                         className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                                     >
+                                        <option value="MCH & Maternity">🤰 MCH &amp; Maternity</option>
                                         <option value="Laboratory">Laboratory</option>
                                         <option value="Radiology">Radiology / Imaging</option>
                                         <option value="Procedure">Clinical Procedure</option>
