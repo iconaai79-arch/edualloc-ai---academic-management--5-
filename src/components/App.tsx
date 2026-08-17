@@ -1449,10 +1449,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                     ]) : Promise.resolve([]),
                     // County Batch
                     isCounty ? Promise.all([
-                        apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', effectiveInstIdFinal, cntId).catch(() => []),
+                        apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', undefined, cntId).catch(() => []),
                         apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []),
                         apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []),
-                        apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', effectiveInstIdFinal, cntId).catch(() => []),
+                        apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', undefined, cntId).catch(() => []),
                         apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []),
                     ]) : Promise.resolve([]),
                     // Business Batch
