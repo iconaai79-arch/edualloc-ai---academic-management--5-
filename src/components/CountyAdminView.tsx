@@ -192,7 +192,13 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
 
 
 
-    const myCounty = useMemo(() => counties.find(c => c.id === currentUser.countyId) || counties[0], [counties, currentUser]);
+    const myCounty = useMemo(() => counties.find(c => 
+        c.id === currentUser?.countyId || 
+        c.id === currentUser?.institutionId || 
+        c.code === currentUser?.countyId || 
+        c.code === currentUser?.institutionId || 
+        (c.name && currentUser?.institutionId && c.name.toLowerCase() === currentUser.institutionId.toLowerCase())
+    ) || counties[0], [counties, currentUser]);
     const myInstitutions = useMemo(() => institutions.filter(inst => inst.countyId === myCounty?.id), [institutions, myCounty]);
     const myStaff = useMemo(() => users.filter(u => u.countyId === myCounty?.id && u.role.startsWith('county_')), [users, myCounty]);
     const myInventory = useMemo(() => inventoryItems.filter(item => item.countyId === myCounty?.id), [inventoryItems, myCounty]);

@@ -3366,22 +3366,34 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 return false;
             });
 
+            const targetCounty = (counties || []).find(c => c.id === institutionId || c.code === institutionId || (c.name && cleanId(c.name) === normTargetId));
             let targetInst = institutions.find(i => i.id === institutionId || (normTargetId && cleanId(i.id) === normTargetId));
             
             if (!targetInst) {
-                const regEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId || (normTargetId && (cleanId(s.id) === normTargetId || cleanId(s.institutionId) === normTargetId)));
-                const parentInst = branchRecord ? institutions.find(i => i.id === branchRecord.institution_id || (cleanId(branchRecord.institution_id) && cleanId(i.id) === cleanId(branchRecord.institution_id))) : null;
-                
-                targetInst = {
-                    id: institutionId,
-                    name: regEntry?.name || (branchRecord?.name ? `${parentInst?.name || 'Group'} (${branchRecord.name})` : `Branch ${institutionId.slice(-6)}`),
-                    institutionType: regEntry?.institutionType || parentInst?.institutionType || 'Education',
-                    parentInstitutionId: branchRecord?.institution_id || (regEntry as any)?.parentInstitutionId,
-                    isBranch: true,
-                    status: 'active'
-                } as any;
+                if (targetCounty) {
+                    targetInst = {
+                        id: targetCounty.id,
+                        name: targetCounty.name,
+                        institutionType: 'County',
+                        category: 'County Government',
+                        status: targetCounty.status || 'active',
+                        countyId: targetCounty.id
+                    } as any;
+                } else {
+                    const regEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId || (normTargetId && (cleanId(s.id) === normTargetId || cleanId(s.institutionId) === normTargetId)));
+                    const parentInst = branchRecord ? institutions.find(i => i.id === branchRecord.institution_id || (cleanId(branchRecord.institution_id) && cleanId(i.id) === cleanId(branchRecord.institution_id))) : null;
+                    
+                    targetInst = {
+                        id: institutionId,
+                        name: regEntry?.name || (branchRecord?.name ? `${parentInst?.name || 'Group'} (${branchRecord.name})` : `Branch ${institutionId.slice(-6)}`),
+                        institutionType: regEntry?.institutionType || parentInst?.institutionType || 'Education',
+                        parentInstitutionId: branchRecord?.institution_id || (regEntry as any)?.parentInstitutionId,
+                        isBranch: true,
+                        status: 'active'
+                    } as any;
 
-                setInstitutions(prev => [...prev.filter(i => i.id !== institutionId), targetInst!]);
+                    setInstitutions(prev => [...prev.filter(i => i.id !== institutionId), targetInst!]);
+                }
             }
 
             const parentInstId = (targetInst as any)?.parentInstitutionId || 
@@ -3396,9 +3408,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
                 const uInst = u.institutionId || u.institution_id;
                 const uBranch = u.branchId || u.branch_id || u.metadata?.branchId || u.metadata?.branch_id;
+                const uCounty = u.countyId || u.county_id;
                 
-                if (uInst === institutionId || uBranch === institutionId) return true;
-                if (normTargetId && (cleanId(uInst) === normTargetId || cleanId(uBranch) === normTargetId)) return true;
+                if (uInst === institutionId || uBranch === institutionId || uCounty === institutionId) return true;
+                if (normTargetId && (cleanId(uInst) === normTargetId || cleanId(uBranch) === normTargetId || cleanId(uCounty) === normTargetId)) return true;
+
+                if (targetCounty && (uCounty === targetCounty.id || uInst === targetCounty.id || uCounty === targetCounty.code || uInst === targetCounty.code)) return true;
 
                 if (parentInstId) {
                     const normParentInstId = cleanId(parentInstId);
@@ -3457,24 +3472,29 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 console.warn(`No users found for institution ${institutionId}. Creating temporary admin session.`);
                 const registryEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId || (normTargetId && (cleanId(s.id) === normTargetId || cleanId(s.institutionId) === normTargetId)));
                 const isPM = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
+                const isCountyTarget = !!targetCounty || initialRole === 'county_admin' || (targetInst?.institutionType === 'County');
+                
                 const fallbackRole = (targetInst?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') 
                     ? 'reseller' 
-                    : isPM 
-                        ? 'property_admin' 
-                        : (initialRole && initialRole !== 'super_admin') ? initialRole : 'admin';
+                    : isCountyTarget
+                        ? 'county_admin'
+                        : isPM 
+                            ? 'property_admin' 
+                            : (initialRole && initialRole !== 'super_admin') ? initialRole : 'admin';
 
-                const cleanName = targetInst?.name || registryEntry?.name || 'Academic Institution';
+                const cleanName = targetCounty?.name || targetInst?.name || registryEntry?.name || 'Academic Institution';
                 const isActualBranch = (branches || []).some((b: any) => b.id === institutionId);
                 admin = {
                     id: `temp_admin_${institutionId.replace(/\s+/g, '_')}_${Date.now()}`,
-                    institutionId: institutionId,
+                    institutionId: targetCounty ? targetCounty.id : institutionId,
+                    countyId: targetCounty ? targetCounty.id : undefined,
                     branchId: isActualBranch ? institutionId : undefined,
                     role: fallbackRole as Role,
-                    email: `admin@${institutionId.replace('demo_', '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'school'}.eduai.io`,
-                    name: `${cleanName} Admin`,
-                    phoneNumber: '+254700000000',
+                    email: targetCounty?.email || `admin@${institutionId.replace('demo_', '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'school'}.eduai.io`,
+                    name: targetCounty?.adminName || `${cleanName} Admin`,
+                    phoneNumber: targetCounty?.phoneNumber || '+254700000000',
                     password: 'password123',
-                    expertise: []
+                    expertise: targetCounty ? ['County Administration'] : []
                 };
                 
                 // Track this internal admin locally
@@ -3491,17 +3511,22 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 // For Property Management institutions, always use property_admin so routing
                 // lands on PropertyManagementView rather than LandlordPortalView
                 const isPMInstitution = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
+                const isCountyTarget = !!targetCounty || initialRole === 'county_admin' || (targetInst?.institutionType === 'County') || (admin.role === 'county_admin' || admin.role?.startsWith('county_'));
+
                 const resolvedRole = (initialRole && initialRole !== 'super_admin')
                     ? initialRole
-                    : isPMInstitution && (admin.role === 'landlord' || admin.role === 'admin')
-                        ? 'property_admin'
-                        : admin.role === 'super_admin' ? 'admin' : admin.role;
+                    : isCountyTarget
+                        ? 'county_admin'
+                        : isPMInstitution && (admin.role === 'landlord' || admin.role === 'admin')
+                            ? 'property_admin'
+                            : admin.role === 'super_admin' ? 'admin' : admin.role;
 
                 const isBranchInst = (branches || []).some((b: any) => b.id === institutionId || b.id === `br_${institutionId}` || b.linked_institution_id === institutionId);
 
                 const impersonatedUser = {
                     ...admin,
-                    institutionId: institutionId,
+                    institutionId: targetCounty ? targetCounty.id : institutionId,
+                    countyId: targetCounty ? targetCounty.id : admin.countyId || (isCountyTarget ? institutionId : undefined),
                     branchId: isBranchInst ? institutionId : undefined,
                     role: resolvedRole as Role,
                     isImpersonated: true
@@ -3516,7 +3541,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             }
             setIsTransitioning(false);
         }, 300);
-    }, [users, institutions, schoolRegistry, currentUser, originalSuperAdminSession, toastError, branches]);
+    }, [users, institutions, counties, schoolRegistry, currentUser, originalSuperAdminSession, toastError, branches]);
     
 
 

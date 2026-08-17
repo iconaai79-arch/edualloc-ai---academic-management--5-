@@ -3003,6 +3003,7 @@ Please change it after login.`;
                         {institutionsSubTab === 'counties' && (
                             <CountyManager
                                 counties={counties}
+                                institutions={institutions}
                                 onAddCounty={(data) => {
                                     if (onAddCounty) {
                                         onAddCounty(data);
@@ -3016,6 +3017,11 @@ Please change it after login.`;
                                 onDeleteCounty={(id) => {
                                     if (onDeleteCounty) {
                                         onDeleteCounty(id);
+                                    }
+                                }}
+                                onLoginAsAdmin={(countyId, role) => {
+                                    if (onLoginAsAdmin) {
+                                        onLoginAsAdmin(countyId, role || 'county_admin');
                                     }
                                 }}
                             />
