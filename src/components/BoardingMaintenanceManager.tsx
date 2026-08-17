@@ -392,7 +392,7 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
                                 <div className="w-full space-y-6 pt-10 border-t border-white/10 text-left">
                                     <div className="flex items-center justify-between">
                                         <span className="text-[9px] font-black opacity-40 uppercase tracking-widest">Authorized By</span>
-                                        <span className="text-[10px] font-black uppercase">{currentUser.name.split(' ')[0]}</span>
+                                        <span className="text-[10px] font-black uppercase">{(currentUser?.name || 'User').split(' ')[0]}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span className="text-[9px] font-black opacity-40 uppercase tracking-widest">Encryption</span>

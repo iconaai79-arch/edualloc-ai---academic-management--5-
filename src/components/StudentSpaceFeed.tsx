@@ -297,7 +297,7 @@ export const StudentSpaceFeed: React.FC<StudentSpaceFeedProps> = ({ user, users,
                 {/* Profile Card */}
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm text-center">
                     <div className="w-16 h-16 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mx-auto text-xl font-black text-indigo-600 uppercase">
-                        {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        {(user?.name || 'User').split(' ').map(n => n[0]).join('').slice(0, 2)}
                     </div>
                     <h4 className="font-black text-slate-800 dark:text-slate-200 mt-4 uppercase tracking-tight">{user.name}</h4>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{user.role}</p>

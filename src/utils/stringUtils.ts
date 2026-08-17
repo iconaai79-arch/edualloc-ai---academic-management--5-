@@ -1,10 +1,14 @@
-export const getInitials = (name: string) => {
-    return name
-        .split(' ')
+export const getInitials = (name?: string | null): string => {
+    if (!name || typeof name !== 'string') return 'U';
+    const clean = name.trim();
+    if (!clean) return 'U';
+    return clean
+        .split(/\s+/)
         .map(n => n[0])
+        .filter(Boolean)
         .join('')
         .substring(0, 2)
-        .toUpperCase();
+        .toUpperCase() || 'U';
 };
 
 /**

@@ -332,7 +332,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                         <h2 className="text-4xl font-black text-slate-800 tracking-tighter italic capitalize">
                             {activeTab}
                         </h2>
-                        <p className="text-slate-400 font-medium">Welcome back, {currentUser.name.split(' ')[0]}!</p>
+                        <p className="text-slate-400 font-medium">Welcome back, {(currentUser?.name || 'User').split(' ')[0]}!</p>
                     </div>
                     <div className="flex items-center gap-4">
                         <NotificationBell

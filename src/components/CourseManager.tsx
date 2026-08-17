@@ -37,13 +37,17 @@ type CourseMappingField = 'name' | 'code' | 'departmentName' | 'academicLevelNam
 const ALL_COURSE_MAPPING_FIELDS: CourseMappingField[] = ['name', 'code', 'departmentName', 'academicLevelName'];
 const REQUIRED_COURSE_MAPPING_FIELDS: CourseMappingField[] = ['name', 'code', 'departmentName', 'academicLevelName'];
 
-const getInitials = (name: string) => {
-    return name
-        .split(' ')
+const getInitials = (name?: string | null): string => {
+    if (!name || typeof name !== 'string') return 'U';
+    const clean = name.trim();
+    if (!clean) return 'U';
+    return clean
+        .split(/\s+/)
         .map(word => word[0])
+        .filter(Boolean)
         .join('')
         .toUpperCase()
-        .slice(0, 2);
+        .slice(0, 2) || 'U';
 };
 
 const SmartCourseImporterModal: React.FC<{

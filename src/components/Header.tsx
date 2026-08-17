@@ -265,7 +265,7 @@ export const Header: React.FC<HeaderProps> = ({
                                     )}
                                 </div>
                                 <div className="hidden md:block text-left">
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate max-w-[100px]">{currentUser.name.split(' ')[0]}</span>
+                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate max-w-[100px]">{(currentUser.name || 'User').split(' ')[0]}</span>
                                 </div>
                                 <ChevronDownIcon className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isMenuOpen ? 'rotate-180' : ''}`} />
                             </button>

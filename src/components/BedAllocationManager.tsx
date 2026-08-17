@@ -361,7 +361,7 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
                         <div key={allocation.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl shadow-slate-100/50 dark:shadow-none border border-slate-50 dark:border-slate-700 group hover:-translate-y-2 transition-all">
                             <div className="flex justify-between items-start mb-6">
                                 <div className="w-14 h-14 bg-slate-50 dark:bg-slate-900 rounded-3xl flex items-center justify-center font-black text-indigo-600">
-                                    {allocation.studentName.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                    {(allocation.studentName || 'Student').split(' ').map(n => n[0]).join('').substring(0, 2)}
                                 </div>
                                 <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${allocation.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
                                     }`}>

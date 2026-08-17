@@ -1388,7 +1388,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     ) : (
                                         payouts.map(p => (
                                             <tr key={p.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50">
-                                                <td className="p-4 font-mono text-xs font-black text-purple-650">#{p.id.split('_')[1] || p.id}</td>
+                                                <td className="p-4 font-mono text-xs font-black text-purple-650">#{p.id ? p.id.split('_')[1] || p.id : 'N/A'}</td>
                                                 <td className="p-4 text-xs font-black text-slate-900 dark:text-white uppercase">{p.teacherName}</td>
                                                 <td className="p-4 text-xs font-black text-indigo-650 font-mono">KES {p.totalAmount.toLocaleString()}</td>
                                                 <td className="p-4">

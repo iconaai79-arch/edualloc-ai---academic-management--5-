@@ -233,8 +233,8 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
 
                                                             <div className="mt-1 pt-0.5 border-t border-black/10 flex flex-col gap-0">
                                                                 <p className="text-[9px] font-medium text-slate-700 truncate flex items-center gap-1">
-                                                                    <span className="w-3.5 h-3.5 bg-slate-200 rounded-full flex items-center justify-center text-[7px] font-bold text-slate-600">{getInitials(lecturer.name)}</span>
-                                                                    {lecturer.name.split(' ').pop()}
+                                                                    <span className="w-3.5 h-3.5 bg-slate-200 rounded-full flex items-center justify-center text-[7px] font-bold text-slate-600">{getInitials(lecturer?.name || '')}</span>
+                                                                    {(lecturer?.name || 'Lecturer').split(' ').pop()}
                                                                 </p>
                                                                 {renderCellActions && renderCellActions(entry)}
                                                                 {renderCellFooter && renderCellFooter(entry)}
