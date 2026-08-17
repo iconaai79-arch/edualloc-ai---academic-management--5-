@@ -13,7 +13,9 @@ import {
     LayoutDashboard, School, Users, Package, Settings, Wallet, LogOut, Plus, 
     Search, Filter, FileDown, Eye, Edit, Trash2, Download, Bell, Calendar, 
     Briefcase, Shield, BarChart3, GraduationCap, Building2, CheckCircle2, 
-    AlertCircle, Info, ArrowRight, MoreVertical, X as XIcon 
+    AlertCircle, Info, ArrowRight, MoreVertical, X as XIcon,
+    Upload, Image as ImageIcon, FileText, Palette, Globe, Building, Save, Award,
+    PenTool, Check, Sparkles, Printer, Copy, CheckCheck, RefreshCw
 } from 'lucide-react';
 
 import { 
@@ -190,7 +192,32 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         name: '', year: new Date().getFullYear(), totalBudget: 0, description: ''
     });
 
+    const [settingsSubTab, setSettingsSubTab] = useState<'branding' | 'executive' | 'contact' | 'preview'>('branding');
+    const [uploadingField, setUploadingField] = useState<string | null>(null);
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
+    const [settingsSavedToast, setSettingsSavedToast] = useState(false);
 
+    const [countySettingsForm, setCountySettingsForm] = useState({
+        name: '',
+        code: '',
+        email: '',
+        phoneNumber: '',
+        adminName: '',
+        governorName: '',
+        deputyGovernorName: '',
+        headquarters: '',
+        address: '',
+        postalCode: '',
+        motto: '',
+        website: '',
+        primaryColor: '#4f46e5',
+        secondaryColor: '#0f172a',
+        logoUrl: '',
+        letterheadUrl: '',
+        sealUrl: '',
+        stampUrl: '',
+        signatureUrl: ''
+    });
 
     const myCounty = useMemo(() => counties.find(c => 
         c.id === currentUser?.countyId || 
@@ -199,6 +226,68 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         c.code === currentUser?.institutionId || 
         (c.name && currentUser?.institutionId && c.name.toLowerCase() === currentUser.institutionId.toLowerCase())
     ) || counties[0], [counties, currentUser]);
+
+    useEffect(() => {
+        if (myCounty) {
+            setCountySettingsForm({
+                name: myCounty.name || '',
+                code: myCounty.code || '',
+                email: myCounty.email || '',
+                phoneNumber: myCounty.phoneNumber || '',
+                adminName: myCounty.adminName || '',
+                governorName: myCounty.governorName || '',
+                deputyGovernorName: myCounty.deputyGovernorName || '',
+                headquarters: myCounty.headquarters || '',
+                address: myCounty.address || '',
+                postalCode: myCounty.postalCode || '',
+                motto: myCounty.motto || '',
+                website: myCounty.website || '',
+                primaryColor: myCounty.primaryColor || '#4f46e5',
+                secondaryColor: myCounty.secondaryColor || '#0f172a',
+                logoUrl: myCounty.logoUrl || '',
+                letterheadUrl: myCounty.letterheadUrl || '',
+                sealUrl: myCounty.sealUrl || '',
+                stampUrl: myCounty.stampUrl || '',
+                signatureUrl: myCounty.signatureUrl || ''
+            });
+        }
+    }, [myCounty]);
+
+    const handleBrandingFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'logoUrl' | 'letterheadUrl' | 'sealUrl' | 'stampUrl' | 'signatureUrl') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploadingField(fieldName);
+        try {
+            const path = `county-branding/${myCounty?.id || 'general'}/${fieldName}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+            const uploadedUrl = await apiService.uploadFile(file, 'eduai', path);
+            if (uploadedUrl) {
+                setCountySettingsForm(prev => ({ ...prev, [fieldName]: uploadedUrl }));
+            }
+        } catch (err) {
+            console.error(`Failed to upload ${fieldName}:`, err);
+            alert("Upload failed. Please try again.");
+        } finally {
+            setUploadingField(null);
+        }
+    };
+
+    const handleSaveCountySettings = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!myCounty?.id) return;
+        setIsSavingSettings(true);
+        try {
+            await onUpdateCounty?.(myCounty.id, countySettingsForm);
+            onLogAction?.(`Updated county branding and configuration for ${countySettingsForm.name}`);
+            setSettingsSavedToast(true);
+            setTimeout(() => setSettingsSavedToast(false), 4000);
+        } catch (err: any) {
+            console.error("Failed to save county settings:", err);
+            alert("Failed to save settings: " + (err.message || 'Unknown error'));
+        } finally {
+            setIsSavingSettings(false);
+        }
+    };
     const myInstitutions = useMemo(() => institutions.filter(inst => inst.countyId === myCounty?.id), [institutions, myCounty]);
     const myStaff = useMemo(() => users.filter(u => u.countyId === myCounty?.id && u.role.startsWith('county_')), [users, myCounty]);
     const myInventory = useMemo(() => inventoryItems.filter(item => item.countyId === myCounty?.id), [inventoryItems, myCounty]);
@@ -1182,13 +1271,747 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                             </div>
                         )}
                         {activeTab === 'settings' && (
-                            <div className="space-y-6 animate-fade-in-up">
-                                <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
-                                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-6">County Settings</h3>
-                                    <div className="space-y-4">
-                                        <p className="text-sm text-slate-500">Manage your county's administrative configuration, branding, and regional services.</p>
+                            <div className="space-y-8 animate-fade-in-up">
+                                {/* Settings Header & Save Action Bar */}
+                                <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                    <div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100 shadow-sm">
+                                                <Palette className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">
+                                                        County Branding & Settings
+                                                    </h2>
+                                                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700">
+                                                        Code: {countySettingsForm.code || myCounty.code || 'CTY'}
+                                                    </span>
+                                                </div>
+                                                <p className="text-slate-500 text-sm font-medium mt-0.5">
+                                                    Configure official letterheads, logos, digital seals, and color themes for {countySettingsForm.name || myCounty.name}.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 w-full md:w-auto">
+                                        {settingsSavedToast && (
+                                            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-bold animate-in fade-in zoom-in-95">
+                                                <CheckCheck className="w-4 h-4 text-emerald-600" />
+                                                Saved Successfully!
+                                            </div>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSaveCountySettings()}
+                                            disabled={isSavingSettings}
+                                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 transition-all flex items-center gap-2"
+                                        >
+                                            {isSavingSettings ? (
+                                                <>
+                                                    <RefreshCw className="w-4 h-4 animate-spin" /> Saving...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save className="w-4 h-4" /> Save All Changes
+                                                </>
+                                            )}
+                                        </button>
                                     </div>
                                 </div>
+
+                                {/* Settings Sub-Navigation */}
+                                <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+                                    <button
+                                        onClick={() => setSettingsSubTab('branding')}
+                                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                            settingsSubTab === 'branding'
+                                                ? 'bg-slate-900 text-white shadow-md'
+                                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                        }`}
+                                    >
+                                        <Palette className="w-4 h-4" /> Branding & Letterhead
+                                    </button>
+                                    <button
+                                        onClick={() => setSettingsSubTab('executive')}
+                                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                            settingsSubTab === 'executive'
+                                                ? 'bg-slate-900 text-white shadow-md'
+                                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                        }`}
+                                    >
+                                        <Award className="w-4 h-4" /> Executive & Signatories
+                                    </button>
+                                    <button
+                                        onClick={() => setSettingsSubTab('contact')}
+                                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                            settingsSubTab === 'contact'
+                                                ? 'bg-slate-900 text-white shadow-md'
+                                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                        }`}
+                                    >
+                                        <Building className="w-4 h-4" /> Contact & Location
+                                    </button>
+                                    <button
+                                        onClick={() => setSettingsSubTab('preview')}
+                                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                            settingsSubTab === 'preview'
+                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                                                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
+                                        }`}
+                                    >
+                                        <FileText className="w-4 h-4" /> Live Document Preview
+                                    </button>
+                                </div>
+
+                                {/* TAB 1: BRANDING & LETTERHEAD */}
+                                {settingsSubTab === 'branding' && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        {/* County Official Logo Card */}
+                                        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-6">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Official County Logo</h3>
+                                                    <p className="text-xs text-slate-500 font-medium mt-0.5">Primary crest or emblem used across portals and avatars.</p>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2.5 py-1 rounded-lg">PNG / SVG</span>
+                                            </div>
+
+                                            <div className="flex flex-col sm:flex-row items-center gap-6 p-6 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                                <div className="w-28 h-28 rounded-2xl bg-white shadow-sm border border-slate-200 flex items-center justify-center overflow-hidden p-2 relative group">
+                                                    {countySettingsForm.logoUrl ? (
+                                                        <img src={countySettingsForm.logoUrl} alt="County Logo" className="w-full h-full object-contain" />
+                                                    ) : (
+                                                        <BuildingOfficeIcon className="w-12 h-12 text-slate-300" />
+                                                    )}
+                                                    {uploadingField === 'logoUrl' && (
+                                                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center">
+                                                            <RefreshCw className="w-6 h-6 text-white animate-spin" />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex-1 space-y-3 w-full">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <label className="cursor-pointer px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-2 shadow-sm">
+                                                            <Upload className="w-4 h-4" />
+                                                            {uploadingField === 'logoUrl' ? 'Uploading...' : 'Upload Logo'}
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                onChange={e => handleBrandingFileUpload(e, 'logoUrl')}
+                                                                className="hidden"
+                                                            />
+                                                        </label>
+                                                        {countySettingsForm.logoUrl && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setCountySettingsForm(prev => ({ ...prev, logoUrl: '' }))}
+                                                                className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition-colors"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Direct Image URL</label>
+                                                        <input
+                                                            type="text"
+                                                            value={countySettingsForm.logoUrl}
+                                                            onChange={e => setCountySettingsForm({ ...countySettingsForm, logoUrl: e.target.value })}
+                                                            placeholder="https://.../county-logo.png"
+                                                            className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:border-indigo-600 outline-none bg-white"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Official Coat of Arms / Seal Card */}
+                                        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-6">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Official Seal / Coat of Arms</h3>
+                                                    <p className="text-xs text-slate-500 font-medium mt-0.5">Used for legal decrees, bursary certificates, and watermarks.</p>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2.5 py-1 rounded-lg">High-Res</span>
+                                            </div>
+
+                                            <div className="flex flex-col sm:flex-row items-center gap-6 p-6 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                                <div className="w-28 h-28 rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center overflow-hidden p-2 relative">
+                                                    {countySettingsForm.sealUrl ? (
+                                                        <img src={countySettingsForm.sealUrl} alt="County Seal" className="w-full h-full object-contain" />
+                                                    ) : (
+                                                        <ShieldIcon className="w-12 h-12 text-slate-300" />
+                                                    )}
+                                                    {uploadingField === 'sealUrl' && (
+                                                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center">
+                                                            <RefreshCw className="w-6 h-6 text-white animate-spin" />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex-1 space-y-3 w-full">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <label className="cursor-pointer px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-2 shadow-sm">
+                                                            <Upload className="w-4 h-4" />
+                                                            {uploadingField === 'sealUrl' ? 'Uploading...' : 'Upload Seal'}
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                onChange={e => handleBrandingFileUpload(e, 'sealUrl')}
+                                                                className="hidden"
+                                                            />
+                                                        </label>
+                                                        {countySettingsForm.sealUrl && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setCountySettingsForm(prev => ({ ...prev, sealUrl: '' }))}
+                                                                className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition-colors"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Direct Seal URL</label>
+                                                        <input
+                                                            type="text"
+                                                            value={countySettingsForm.sealUrl}
+                                                            onChange={e => setCountySettingsForm({ ...countySettingsForm, sealUrl: e.target.value })}
+                                                            placeholder="https://.../county-seal.png"
+                                                            className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:border-indigo-600 outline-none bg-white"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Letterhead Header Banner (Full Width) */}
+                                        <div className="lg:col-span-2 bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-6">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                <div>
+                                                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">County Letterhead Header Image / Banner</h3>
+                                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                                        Banner graphic placed at the top of A4 circulars, bursary awards, statements, and procurement memos.
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="cursor-pointer px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-2 shadow-sm">
+                                                        <Upload className="w-4 h-4" />
+                                                        {uploadingField === 'letterheadUrl' ? 'Uploading Banner...' : 'Upload Header Banner'}
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            onChange={e => handleBrandingFileUpload(e, 'letterheadUrl')}
+                                                            className="hidden"
+                                                        />
+                                                    </label>
+                                                    {countySettingsForm.letterheadUrl && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCountySettingsForm(prev => ({ ...prev, letterheadUrl: '' }))}
+                                                            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition-colors"
+                                                        >
+                                                            Remove Banner
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="p-4 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                                <div className="w-full h-40 rounded-2xl bg-white shadow-sm border border-slate-200 overflow-hidden relative flex items-center justify-center">
+                                                    {countySettingsForm.letterheadUrl ? (
+                                                        <img
+                                                            src={countySettingsForm.letterheadUrl}
+                                                            alt="Letterhead Banner"
+                                                            className="w-full h-full object-contain"
+                                                        />
+                                                    ) : (
+                                                        <div className="text-center p-6 text-slate-400 space-y-2">
+                                                            <FileText className="w-10 h-10 mx-auto text-slate-300" />
+                                                            <div className="text-xs font-black uppercase tracking-wider">No Custom Letterhead Banner Configured</div>
+                                                            <p className="text-[11px] text-slate-400 max-w-md mx-auto">
+                                                                Recommended dimensions: 2480 x 380px. If left blank, standard county crest header typography will be generated automatically.
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {uploadingField === 'letterheadUrl' && (
+                                                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center">
+                                                            <RefreshCw className="w-8 h-8 text-white animate-spin" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="mt-3">
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Direct Banner Image URL</label>
+                                                    <input
+                                                        type="text"
+                                                        value={countySettingsForm.letterheadUrl}
+                                                        onChange={e => setCountySettingsForm({ ...countySettingsForm, letterheadUrl: e.target.value })}
+                                                        placeholder="https://.../county-letterhead-banner.png"
+                                                        className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:border-indigo-600 outline-none bg-white"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Color Themes & Palettes */}
+                                        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-6">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Brand Color Palette</h3>
+                                                <p className="text-xs text-slate-500 font-medium mt-0.5">Colors applied across county dashboard cards, badges, and banners.</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                        Primary Brand Color
+                                                    </label>
+                                                    <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-2xl border border-slate-200">
+                                                        <input
+                                                            type="color"
+                                                            value={countySettingsForm.primaryColor}
+                                                            onChange={e => setCountySettingsForm({ ...countySettingsForm, primaryColor: e.target.value })}
+                                                            className="w-10 h-10 rounded-xl cursor-pointer border-0 bg-transparent"
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            value={countySettingsForm.primaryColor}
+                                                            onChange={e => setCountySettingsForm({ ...countySettingsForm, primaryColor: e.target.value })}
+                                                            className="flex-1 px-3 py-1.5 text-xs font-mono font-bold uppercase rounded-lg border border-slate-200 bg-white"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                        Secondary Accent Color
+                                                    </label>
+                                                    <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-2xl border border-slate-200">
+                                                        <input
+                                                            type="color"
+                                                            value={countySettingsForm.secondaryColor}
+                                                            onChange={e => setCountySettingsForm({ ...countySettingsForm, secondaryColor: e.target.value })}
+                                                            className="w-10 h-10 rounded-xl cursor-pointer border-0 bg-transparent"
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            value={countySettingsForm.secondaryColor}
+                                                            onChange={e => setCountySettingsForm({ ...countySettingsForm, secondaryColor: e.target.value })}
+                                                            className="flex-1 px-3 py-1.5 text-xs font-mono font-bold uppercase rounded-lg border border-slate-200 bg-white"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Regional Government Palette Presets</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {[
+                                                        { name: 'Nairobi Green', primary: '#059669', sec: '#064e3b' },
+                                                        { name: 'Royal Indigo', primary: '#4f46e5', sec: '#1e1b4b' },
+                                                        { name: 'Mombasa Ocean', primary: '#0284c7', sec: '#0c4a6e' },
+                                                        { name: 'Gold / Amber', primary: '#d97706', sec: '#78350f' },
+                                                        { name: 'Crimson Flag', primary: '#dc2626', sec: '#7f1d1d' },
+                                                        { name: 'Executive Slate', primary: '#334155', sec: '#0f172a' }
+                                                    ].map(preset => (
+                                                        <button
+                                                            key={preset.name}
+                                                            type="button"
+                                                            onClick={() => setCountySettingsForm(prev => ({ ...prev, primaryColor: preset.primary, secondaryColor: preset.sec }))}
+                                                            className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 text-[11px] font-bold flex items-center gap-1.5 bg-slate-50 transition-colors"
+                                                        >
+                                                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: preset.primary }} />
+                                                            {preset.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Motto & Official Website */}
+                                        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-6">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Motto & Official Web Portal</h3>
+                                                <p className="text-xs text-slate-500 font-medium mt-0.5">Displayed on official documents and header bars.</p>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                        County Motto / Slogan
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={countySettingsForm.motto}
+                                                        onChange={e => setCountySettingsForm({ ...countySettingsForm, motto: e.target.value })}
+                                                        placeholder="e.g. City of Peace and Prosperity"
+                                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                        Official County Website
+                                                    </label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="url"
+                                                            value={countySettingsForm.website}
+                                                            onChange={e => setCountySettingsForm({ ...countySettingsForm, website: e.target.value })}
+                                                            placeholder="https://county.go.ke"
+                                                            className="flex-1 px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                        />
+                                                        {countySettingsForm.website && (
+                                                            <a
+                                                                href={countySettingsForm.website}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="p-3 bg-slate-100 hover:bg-slate-200 rounded-2xl text-slate-700 transition-colors"
+                                                            >
+                                                                <Globe className="w-5 h-5" />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* TAB 2: EXECUTIVE & SIGNATORIES */}
+                                {settingsSubTab === 'executive' && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        {/* Executive Leadership Details */}
+                                        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-6">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Executive Leadership</h3>
+                                                <p className="text-xs text-slate-500 font-medium mt-0.5">Key officials listed on circulars and reports.</p>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                        Governor's Full Name & Title
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={countySettingsForm.governorName}
+                                                        onChange={e => setCountySettingsForm({ ...countySettingsForm, governorName: e.target.value })}
+                                                        placeholder="H.E. The Governor"
+                                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                        Deputy Governor
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={countySettingsForm.deputyGovernorName}
+                                                        onChange={e => setCountySettingsForm({ ...countySettingsForm, deputyGovernorName: e.target.value })}
+                                                        placeholder="H.E. The Deputy Governor"
+                                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                        County Secretary / Head of Public Service
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={countySettingsForm.adminName}
+                                                        onChange={e => setCountySettingsForm({ ...countySettingsForm, adminName: e.target.value })}
+                                                        placeholder="County Secretary / Chief Executive"
+                                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Digital Stamp & Signature Uploaders */}
+                                        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-6">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Official Stamp & Signature</h3>
+                                                <p className="text-xs text-slate-500 font-medium mt-0.5">Digital assets stamped on authorized bursary award letters.</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                {/* Official Stamp */}
+                                                <div className="p-5 bg-slate-50 rounded-3xl border border-dashed border-slate-200 text-center space-y-3">
+                                                    <div className="w-24 h-24 mx-auto rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center p-2 overflow-hidden relative">
+                                                        {countySettingsForm.stampUrl ? (
+                                                            <img src={countySettingsForm.stampUrl} alt="County Stamp" className="w-full h-full object-contain" />
+                                                        ) : (
+                                                            <Award className="w-10 h-10 text-slate-300" />
+                                                        )}
+                                                        {uploadingField === 'stampUrl' && (
+                                                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center">
+                                                                <RefreshCw className="w-6 h-6 text-white animate-spin" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <label className="cursor-pointer inline-flex px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-colors items-center gap-1.5">
+                                                        <Upload className="w-3.5 h-3.5" /> Upload Stamp
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            onChange={e => handleBrandingFileUpload(e, 'stampUrl')}
+                                                            className="hidden"
+                                                        />
+                                                    </label>
+                                                </div>
+
+                                                {/* Authorized Signature */}
+                                                <div className="p-5 bg-slate-50 rounded-3xl border border-dashed border-slate-200 text-center space-y-3">
+                                                    <div className="w-full h-24 rounded-2xl bg-white shadow-sm border border-slate-200 flex items-center justify-center p-2 overflow-hidden relative">
+                                                        {countySettingsForm.signatureUrl ? (
+                                                            <img src={countySettingsForm.signatureUrl} alt="Signature" className="w-full h-full object-contain" />
+                                                        ) : (
+                                                            <PenTool className="w-8 h-8 text-slate-300" />
+                                                        )}
+                                                        {uploadingField === 'signatureUrl' && (
+                                                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center">
+                                                                <RefreshCw className="w-6 h-6 text-white animate-spin" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <label className="cursor-pointer inline-flex px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-colors items-center gap-1.5">
+                                                        <Upload className="w-3.5 h-3.5" /> Upload Signature
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            onChange={e => handleBrandingFileUpload(e, 'signatureUrl')}
+                                                            className="hidden"
+                                                        />
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* TAB 3: CONTACT & LOCATION */}
+                                {settingsSubTab === 'contact' && (
+                                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-6 max-w-4xl">
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">County Contact & Location</h3>
+                                            <p className="text-xs text-slate-500 font-medium mt-0.5">Official postal, telephone, and headquarters physical location.</p>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                    County Name
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={countySettingsForm.name}
+                                                    onChange={e => setCountySettingsForm({ ...countySettingsForm, name: e.target.value })}
+                                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                    County Code / ID No.
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={countySettingsForm.code}
+                                                    onChange={e => setCountySettingsForm({ ...countySettingsForm, code: e.target.value })}
+                                                    placeholder="047"
+                                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                    Official Email
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    value={countySettingsForm.email}
+                                                    onChange={e => setCountySettingsForm({ ...countySettingsForm, email: e.target.value })}
+                                                    placeholder="info@county.go.ke"
+                                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                    Phone / Switchboard Number
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    value={countySettingsForm.phoneNumber}
+                                                    onChange={e => setCountySettingsForm({ ...countySettingsForm, phoneNumber: e.target.value })}
+                                                    placeholder="+254 20 0000000"
+                                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                    County Headquarters / Governor's Office Building
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={countySettingsForm.headquarters}
+                                                    onChange={e => setCountySettingsForm({ ...countySettingsForm, headquarters: e.target.value })}
+                                                    placeholder="e.g. City Hall Annex / County HQ"
+                                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                    Physical Address / Street
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={countySettingsForm.address}
+                                                    onChange={e => setCountySettingsForm({ ...countySettingsForm, address: e.target.value })}
+                                                    placeholder="e.g. Mama Ngina Street, CBD"
+                                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                />
+                                            </div>
+
+                                            <div className="sm:col-span-2">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                                    Postal Address & Postal Code
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={countySettingsForm.postalCode}
+                                                    onChange={e => setCountySettingsForm({ ...countySettingsForm, postalCode: e.target.value })}
+                                                    placeholder="e.g. P.O. Box 30075 - 00100, Nairobi"
+                                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* TAB 4: LIVE DOCUMENT & LETTERHEAD PREVIEWER */}
+                                {settingsSubTab === 'preview' && (
+                                    <div className="space-y-6">
+                                        <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Official Letterhead Simulator</h3>
+                                                <p className="text-xs text-slate-500 font-medium">Real-time preview of how official county letters, memos, and awards will render.</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => window.print()}
+                                                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-2"
+                                            >
+                                                <Printer className="w-4 h-4" /> Print Sample A4
+                                            </button>
+                                        </div>
+
+                                        {/* A4 Sheet Mockup */}
+                                        <div className="max-w-3xl mx-auto bg-white p-12 rounded-[2rem] shadow-2xl border border-slate-200 font-serif text-slate-900 space-y-8 min-h-[900px] relative">
+                                            {/* Top Banner or Crest Header */}
+                                            {countySettingsForm.letterheadUrl ? (
+                                                <div className="w-full h-32 overflow-hidden rounded-xl">
+                                                    <img src={countySettingsForm.letterheadUrl} alt="Letterhead" className="w-full h-full object-contain" />
+                                                </div>
+                                            ) : (
+                                                <div className="text-center border-b-2 border-slate-900 pb-6 space-y-2">
+                                                    <div className="flex items-center justify-center gap-4">
+                                                        {countySettingsForm.sealUrl && (
+                                                            <img src={countySettingsForm.sealUrl} alt="Seal" className="w-16 h-16 object-contain" />
+                                                        )}
+                                                        {countySettingsForm.logoUrl && !countySettingsForm.sealUrl && (
+                                                            <img src={countySettingsForm.logoUrl} alt="Logo" className="w-16 h-16 object-contain" />
+                                                        )}
+                                                        <div>
+                                                            <h1 className="text-2xl font-black uppercase tracking-wider text-slate-900">
+                                                                {countySettingsForm.name || myCounty.name || 'COUNTY GOVERNMENT'}
+                                                            </h1>
+                                                            <p className="text-xs uppercase tracking-widest font-sans font-bold text-slate-600">
+                                                                OFFICE OF THE COUNTY EXECUTIVE · DEPARTMENT OF EDUCATION & PUBLIC SERVICE
+                                                            </p>
+                                                            {countySettingsForm.motto && (
+                                                                <p className="text-xs italic text-slate-500 font-sans mt-0.5">"{countySettingsForm.motto}"</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="text-[10px] font-sans text-slate-500 flex flex-wrap justify-center gap-x-4 gap-y-1 pt-2 border-t border-slate-200 mt-2">
+                                                        {countySettingsForm.headquarters && <span><strong>HQ:</strong> {countySettingsForm.headquarters}</span>}
+                                                        {countySettingsForm.postalCode && <span><strong>Postal:</strong> {countySettingsForm.postalCode}</span>}
+                                                        {countySettingsForm.email && <span><strong>Email:</strong> {countySettingsForm.email}</span>}
+                                                        {countySettingsForm.phoneNumber && <span><strong>Tel:</strong> {countySettingsForm.phoneNumber}</span>}
+                                                        {countySettingsForm.website && <span><strong>Web:</strong> {countySettingsForm.website}</span>}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Reference Number and Date */}
+                                            <div className="flex justify-between items-center text-xs font-sans font-bold text-slate-700">
+                                                <div>
+                                                    <span>Ref: </span>
+                                                    <span className="font-mono">CTY/{countySettingsForm.code || '047'}/BURSARY/{new Date().getFullYear()}/0094</span>
+                                                </div>
+                                                <div>
+                                                    <span>Date: </span>
+                                                    <span>{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Recipient & Subject */}
+                                            <div className="font-sans space-y-2">
+                                                <div className="text-xs font-bold uppercase text-slate-700">
+                                                    TO: ALL WARD EDUCATION COMMITTEES & SUB-COUNTY DIRECTORS
+                                                </div>
+                                                <div className="text-sm font-black uppercase text-slate-900 border-b border-slate-300 pb-1">
+                                                    SUBJECT: OFFICIAL DISBURSEMENT NOTIFICATION — COUNTY BURSARY & SCHOLARSHIP FUND
+                                                </div>
+                                            </div>
+
+                                            {/* Body */}
+                                            <div className="space-y-4 text-sm leading-relaxed text-slate-700 font-sans">
+                                                <p>
+                                                    The County Government of <strong>{countySettingsForm.name || myCounty.name}</strong> hereby notifies all educational institutions, schools, and bursary applicants that the fiscal vetting process for the academic cycle has been duly finalized.
+                                                </p>
+                                                <p>
+                                                    All approved allocations will be dispatched directly to the mapped schools and institutions. Administrators may verify student allocations on the unified County Portal.
+                                                </p>
+                                            </div>
+
+                                            {/* Signatory & Stamp Block */}
+                                            <div className="pt-12 flex justify-between items-end">
+                                                <div className="font-sans space-y-1">
+                                                    {countySettingsForm.signatureUrl && (
+                                                        <div className="w-36 h-14 mb-1">
+                                                            <img src={countySettingsForm.signatureUrl} alt="Signature" className="w-full h-full object-contain object-left" />
+                                                        </div>
+                                                    )}
+                                                    <div className="text-xs font-black uppercase text-slate-900">
+                                                        {countySettingsForm.adminName || countySettingsForm.governorName || 'Authorized Signatory'}
+                                                    </div>
+                                                    <div className="text-[10px] font-bold text-slate-500 uppercase">
+                                                        County Secretary & Head of Public Service
+                                                    </div>
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">
+                                                        {countySettingsForm.name || myCounty.name}
+                                                    </div>
+                                                </div>
+
+                                                {countySettingsForm.stampUrl && (
+                                                    <div className="w-28 h-28 opacity-85 rotate-[-6deg]">
+                                                        <img src={countySettingsForm.stampUrl} alt="Stamp" className="w-full h-full object-contain" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </main>

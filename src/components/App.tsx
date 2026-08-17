@@ -4438,15 +4438,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
     const handleUpdateCounty = useCallback(async (id: string, data: Partial<County>) => {
         try {
             const existing = counties.find(c => c.id === id);
-            if (existing) {
-                await apiService.saveModuleRecord('counties', { ...existing, ...data });
-                await loadData();
-            }
-        } catch (error) {
+            const updated = { ...(existing || {}), ...data, id };
+            await apiService.saveModuleRecord('counties', updated);
+            await loadData(false, true);
+            success("County settings and branding updated successfully.");
+        } catch (error: any) {
             console.error("Failed to update county:", error);
-            toastError("Failed to update county.");
+            toastError("Failed to update county: " + (error?.message || 'Unknown error'));
         }
-    }, [counties, loadData, toastError]);
+    }, [counties, loadData, success, toastError]);
 
     const handleAddCoopAgrovetInventory = useCallback(async (data: any) => {
         try {
@@ -4595,7 +4595,6 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         await loadData();
         success(`Bulk Import Complete!\n\nSuccessfully registered: ${successCount} \nFailed: ${failCount}`);
     }, [loadData, companyDetails, success]);
-
 
     const commonLoginProps = {
         users, institutions, courses, academicLevels, logoUrl: activeBranding.logoUrl || companyDetails.logoUrl, applicationTitle: activeBranding.displayName || companyDetails.applicationTitle, registrationProgress: null, registrationMessage: "",
