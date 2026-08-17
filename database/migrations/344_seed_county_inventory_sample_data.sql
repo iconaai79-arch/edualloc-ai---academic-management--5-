@@ -1,7 +1,53 @@
--- Migration 344: Seed sample county inventory, categories, and physical stores
--- Description: Ensures missing columns (e.g. updated_at, created_at) exist and seeds realistic Kenyan county educational, medical, agricultural, and vocational inventory records.
+-- Migration 344: Create and Seed County Inventory, Categories, and Physical Stores
+-- Description: Creates tables if missing, standardizes columns, seeds realistic Kenyan county sample records, and reloads PostgREST schema cache.
 
--- 1. Ensure all columns exist across county inventory tables (to support pre-existing schemas)
+-- 1. Create tables if they do not already exist
+CREATE TABLE IF NOT EXISTS public.county_inventory_categories (
+    id TEXT PRIMARY KEY,
+    county_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.county_stores (
+    id TEXT PRIMARY KEY,
+    county_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    location_name TEXT,
+    latitude FLOAT,
+    longitude FLOAT,
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.county_inventory (
+    id TEXT PRIMARY KEY,
+    county_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    category TEXT,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    unit TEXT DEFAULT 'Units',
+    supplier_name TEXT,
+    status TEXT DEFAULT 'at_hq',
+    target_institution_id TEXT,
+    driver_name TEXT,
+    delivery_method TEXT DEFAULT 'driver',
+    tracking_number TEXT,
+    qr_code TEXT,
+    at_hq_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    recipient_signature TEXT,
+    received_by TEXT,
+    recipient_name TEXT,
+    dispatched_date TIMESTAMPTZ,
+    received_date TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Ensure all columns exist across county inventory tables (in case tables existed previously with partial columns)
 ALTER TABLE public.county_inventory_categories ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE public.county_inventory_categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE public.county_inventory_categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
@@ -32,12 +78,42 @@ ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS received_date TIMES
 ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 
+-- 3. Ensure TEXT ID types if previously created as UUID
+DO $$ 
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'county_inventory_categories' AND column_name = 'id' AND data_type = 'uuid'
+    ) THEN
+        ALTER TABLE public.county_inventory_categories ALTER COLUMN id TYPE TEXT USING id::TEXT;
+        ALTER TABLE public.county_inventory_categories ALTER COLUMN county_id TYPE TEXT USING county_id::TEXT;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'county_stores' AND column_name = 'id' AND data_type = 'uuid'
+    ) THEN
+        ALTER TABLE public.county_stores ALTER COLUMN id TYPE TEXT USING id::TEXT;
+        ALTER TABLE public.county_stores ALTER COLUMN county_id TYPE TEXT USING county_id::TEXT;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'county_inventory' AND column_name = 'id' AND data_type = 'uuid'
+    ) THEN
+        ALTER TABLE public.county_inventory ALTER COLUMN id TYPE TEXT USING id::TEXT;
+        ALTER TABLE public.county_inventory ALTER COLUMN county_id TYPE TEXT USING county_id::TEXT;
+        ALTER TABLE public.county_inventory ALTER COLUMN target_institution_id TYPE TEXT USING target_institution_id::TEXT;
+    END IF;
+END $$;
+
+-- 4. Seed Categories, Stores, and Distributed Items
 DO $$
 DECLARE
     target_county_id TEXT;
     target_inst_id TEXT;
 BEGIN
-    -- 2. Resolve county_id (from existing counties or fallback)
+    -- Resolve county_id (from existing counties or fallback)
     SELECT id INTO target_county_id FROM public.counties LIMIT 1;
     IF target_county_id IS NULL THEN
         target_county_id := 'county_nandi_029';
@@ -46,13 +122,13 @@ BEGIN
         ON CONFLICT (id) DO NOTHING;
     END IF;
 
-    -- 3. Resolve institution_id for dispatches (from existing institutions or fallback)
+    -- Resolve institution_id for dispatches (from existing institutions or fallback)
     SELECT id INTO target_inst_id FROM public.institutions LIMIT 1;
     IF target_inst_id IS NULL THEN
         target_inst_id := 'inst_sample_school_01';
     END IF;
 
-    -- 4. Seed Inventory Categories
+    -- Seed Inventory Categories
     INSERT INTO public.county_inventory_categories (id, county_id, name, description, created_at, updated_at)
     VALUES
         ('cat_edu_cbc_01', target_county_id, 'Educational Learning Materials', 'CBC textbooks, science lab reagents, revision past papers, and charts', NOW(), NOW()),
@@ -66,7 +142,7 @@ BEGIN
         description = EXCLUDED.description,
         updated_at = NOW();
 
-    -- 5. Seed County Physical Stores / Depots
+    -- Seed County Physical Stores / Depots
     INSERT INTO public.county_stores (id, county_id, name, location_name, latitude, longitude, description, created_at, updated_at)
     VALUES
         ('store_hq_central', target_county_id, 'Central County HQ Warehouse', 'County Headquarters, Block B', -1.286389, 36.817223, 'Main county logistics receiving and consolidation hub', NOW(), NOW()),
@@ -80,7 +156,7 @@ BEGIN
         description = EXCLUDED.description,
         updated_at = NOW();
 
-    -- 6. Seed County Inventory Items
+    -- Seed County Inventory Items
     INSERT INTO public.county_inventory (
         id, county_id, name, category, quantity, unit, supplier_name,
         status, target_institution_id, driver_name, delivery_method, tracking_number,
@@ -153,7 +229,15 @@ BEGIN
 
 END $$;
 
--- 7. Enable RLS and Permissive Policies
+-- 5. Indexes
+CREATE INDEX IF NOT EXISTS idx_county_inv_cat_county ON public.county_inventory_categories(county_id);
+CREATE INDEX IF NOT EXISTS idx_county_stores_county ON public.county_stores(county_id);
+CREATE INDEX IF NOT EXISTS idx_county_inv_county ON public.county_inventory(county_id);
+CREATE INDEX IF NOT EXISTS idx_county_inv_target ON public.county_inventory(target_institution_id);
+CREATE INDEX IF NOT EXISTS idx_county_inv_status ON public.county_inventory(status);
+CREATE INDEX IF NOT EXISTS idx_county_inv_category ON public.county_inventory(category);
+
+-- 6. Enable RLS & Permissive Policies
 ALTER TABLE public.county_inventory_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.county_stores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.county_inventory ENABLE ROW LEVEL SECURITY;
@@ -167,10 +251,10 @@ CREATE POLICY "county_stores_all_access" ON public.county_stores FOR ALL USING (
 DROP POLICY IF EXISTS "county_inventory_all_access" ON public.county_inventory;
 CREATE POLICY "county_inventory_all_access" ON public.county_inventory FOR ALL USING (true) WITH CHECK (true);
 
--- 8. Permissions
+-- 7. Permissions
 GRANT ALL ON public.county_inventory_categories TO anon, authenticated, service_role;
 GRANT ALL ON public.county_stores TO anon, authenticated, service_role;
 GRANT ALL ON public.county_inventory TO anon, authenticated, service_role;
 
--- 9. Reload schema cache
+-- 8. Reload schema cache
 NOTIFY pgrst, 'reload schema';
