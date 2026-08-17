@@ -43,10 +43,20 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'reconciled' | 'unreconciled' | 'pending'>('all');
     const [isReconciling, setIsReconciling] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
     
     // Manual reconciliation modal states
     const [selectedTransactionForReconcile, setSelectedTransactionForReconcile] = useState<BankTransaction | null>(null);
     const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+
+    const handleManualFetch = async () => {
+        setIsFetching(true);
+        try {
+            await Promise.resolve(onFetchFeeds());
+        } finally {
+            setTimeout(() => setIsFetching(false), 800);
+        }
+    };
 
     const filteredTransactions = useMemo(() => {
         const getDetails = (t: BankTransaction) => {
@@ -251,10 +261,11 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 </div>
                 <div className="flex items-center gap-3">
                     <button 
-                        onClick={onFetchFeeds}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
+                        onClick={handleManualFetch}
+                        disabled={isFetching}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-all active:scale-95 shadow-sm disabled:opacity-50"
                     >
-                        <RefreshCw className={`w-4 h-4 text-indigo-600 ${isReconciling ? 'animate-spin' : ''}`} /> Fetch New Feeds
+                        <RefreshCw className={`w-4 h-4 text-indigo-600 ${isFetching || isReconciling ? 'animate-spin' : ''}`} /> {isFetching ? 'Fetching...' : 'Fetch New Feeds'}
                     </button>
                     <button 
                         onClick={handleAutoReconcile}
@@ -416,7 +427,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                         })}
                         {filteredTransactions.length === 0 && (
                             <tr>
-                                <td colSpan={5} className="px-8 py-20 text-center">
+                                <td colSpan={10} className="px-8 py-20 text-center">
                                     <div className="flex flex-col items-center gap-3">
                                         <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-3xl">
                                             <Banknote className="w-12 h-12 text-slate-200" />

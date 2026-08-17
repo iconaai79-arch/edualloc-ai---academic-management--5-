@@ -295,10 +295,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             } else if (orderParam) {
                 q = q.order(orderParam, { ascending: true });
+            } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions'].includes(moduleName)) {
+                q = q.order('created_at', { ascending: false });
             }
             
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
-                ['school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments'].includes(moduleName)
+                ['school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments'].includes(moduleName)
                     ? 100000
                     : 1000
             );

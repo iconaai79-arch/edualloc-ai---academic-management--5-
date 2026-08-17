@@ -1476,7 +1476,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                     ]) : Promise.resolve([]),
                     // System Batch
                     Promise.all([
-                        apiService.fetchModuleRecords<BankTransaction>('bank_transactions', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<BankTransaction>('bank_transactions', effectiveInstIdFinal, undefined, { order: 'created_at.desc', limit: 100000 }).catch(() => []),
                         apiService.fetchModuleRecords<Supplier>('suppliers', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<StockTransaction>('stock_transactions', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstIdFinal).catch(() => []),
@@ -1494,11 +1494,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                         apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstIdFinal).catch(() => []),
                         currentUser.role === 'super_admin' ? apiService.fetchDemoRequests().catch(() => []) : Promise.resolve([]),
-                        apiService.fetchModuleRecords<any>('integration_logs').catch(() => []),
+                        apiService.fetchModuleRecords<any>('integration_logs', undefined, undefined, { order: 'created_at.desc', limit: 100000 }).catch(() => []),
                         apiService.fetchModuleRecords<BuildingFloor>('building_floors', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<BuildingOffice>('building_offices').catch(() => []),
                         apiService.fetchModuleRecords<BuildingVisitorLog>('building_visitor_logs', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<BuildingVisitorAsset>('building_visitor_assets').catch(() => []),
+                        apiService.fetchTransactions(effectiveInstIdFinal, { limit: 100000, order: 'created_at.desc' }).catch(() => []),
                     ])
                 ]) as any[];
                 
@@ -1518,7 +1519,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 let bOffices: any[] = [];
                 let bVLogs: any[] = [];
                 let bVAssets: any[] = [];
-                if (systemResults) [csBank, sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, fExps, fGoals, fPayroll, demoLeads, rawPayloads, bFloors, bOffices, bVLogs, bVAssets] = systemResults;
+                let rawGatewayTxns: any[] = [];
+                if (systemResults) [csBank, sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, fExps, fGoals, fPayroll, demoLeads, rawPayloads, bFloors, bOffices, bVLogs, bVAssets, rawGatewayTxns] = systemResults;
 
                 console.log("[Data Refresh] Optimized Batches Resolved");
 
@@ -1621,18 +1623,49 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 setCarAppraisals(csAppr || []);
                 setCarInvoices(cInvs || []);
                 setCarPayments(cPay || []);
-                // Filter and normalize raw integration payloads
+                // Filter and normalize raw integration payloads & gateway transactions
                 const currentInst = insts?.find(i => i.id === effectiveInstIdFinal);
+                
+                // 1. Normalize all gateway transactions (Mpesa, NCBA, Airtel, IntaSend)
+                const normalizedGatewayTxns = (rawGatewayTxns || []).map((t: any) => {
+                    const rawStatus = (t.status || '').toLowerCase();
+                    const isReconciled = rawStatus === 'completed' || rawStatus === 'reconciled' || rawStatus === 'success';
+                    const isPending = rawStatus === 'pending';
+                    const payload = t.payload || t.metadata || {};
+                    const ref = t.transactionId || t.transaction_id || t.referenceId || t.reference_no || t.reference || t.receiptNumber || t.receipt_number || t.id;
+                    const phone = t.phoneNumber || t.phone_number || t.customer_mobile_number || payload.customerMobileNumber || payload.phoneNumber || '';
+                    const name = t.payerName || t.payer_name || t.customer_name || t.sender_name || 'Customer Deposit';
+                    const rawProvider = String(t.provider || t.bankName || 'M-Pesa').toUpperCase();
+                    const bankName = rawProvider.includes('KCB') ? 'KCB' : (rawProvider.includes('COOP') ? 'Co-op Bank' : (rawProvider.includes('NCBA') ? 'NCBA' : (rawProvider.includes('AIRTEL') ? 'Airtel Money' : (rawProvider.includes('INTASEND') ? 'IntaSend' : 'M-Pesa'))));
+                    
+                    return {
+                        id: t.id || ref,
+                        institutionId: t.institutionId || t.institution_id || effectiveInstIdFinal,
+                        amount: Number(t.amount) || 0,
+                        transactionDate: t.transactionDate || t.transaction_date || t.timestamp || t.created_at || new Date().toISOString(),
+                        reference: String(ref || '').trim(),
+                        senderName: name,
+                        bankName: bankName,
+                        status: isReconciled ? 'reconciled' : (isPending ? 'pending' : 'unreconciled'),
+                        linkedInvoiceId: t.linkedInvoiceId || t.linked_invoice_id || payload.invoiceId || payload.invoice_id || null,
+                        createdAt: t.created_at || t.timestamp || new Date().toISOString(),
+                        payload: {
+                            ...payload,
+                            customerMobileNumber: phone,
+                            customerName: name,
+                            customerReference: t.customer_reference || t.account_number || payload.customerReference || payload.accountReference || payload.businessKey || '',
+                            narration: t.narration || t.description || payload.narration || payload.description || `Payment via ${bankName}`
+                        },
+                        _source: 'gateway_transactions'
+                    } as any;
+                });
+
+                // 2. Normalize raw webhook integration logs
                 const normalizedPayloads = (rawPayloads || [])
                   .filter(p => {
                       if (!p || !p.payload) return false;
-                      const provider = p.provider;
-                      const status = (p.status || '').toLowerCase();
-                      if (!['kcb_ipn', 'kcb_stk_callback', 'coop', 'coop_b2b', 'kcb'].includes(provider) || !['received', 'pending'].includes(status)) return false;
-
-                      // Tenancy filter: Match this payload to the active institution
                       const payload = p.payload;
-                      const creditAcc = payload.creditAccountIdentifier || payload.institutionId || payload.institution_id || payload.requestPayload?.primaryData?.creditAccountIdentifier;
+                      const creditAcc = payload.creditAccountIdentifier || payload.institutionId || payload.institution_id || payload.requestPayload?.primaryData?.creditAccountIdentifier || payload.metadata?.institutionId || payload.metadata?.institution_id;
                       const shortCode = payload.organizationShortCode || payload.shortCode || payload.short_code || payload.paybill || payload.tillNumber || payload.requestPayload?.primaryData?.organizationShortCode || payload.requestPayload?.primaryData?.shortCode || payload.requestPayload?.primaryData?.tillNumber;
 
                       // 1. Direct ID/Code check
@@ -1640,7 +1673,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                           return true;
                       }
 
-                      // 2. Shortcode/Till check using current institution configs
+                      // 2. Match reference with showroom invoices
+                      const refStr = String(payload.customerReference || payload.accountReference || payload.billReferenceNumber || payload.businessKey || payload.transactionReference || '').toUpperCase();
+                      if (refStr && (cInvs || []).some((inv: any) => {
+                          const invNum = String(inv.invoiceNumber || '').toUpperCase();
+                          const regNum = String(inv.registrationNumber || '').toUpperCase();
+                          return (invNum && refStr.includes(invNum)) || (regNum && refStr.includes(regNum));
+                      })) {
+                          return true;
+                      }
+
+                      // 3. Shortcode/Till check using current institution configs
                       if (currentInst) {
                           const mpesaPaybill = currentInst.mpesaConfig?.paybillNumber || currentInst.mpesa_config?.paybillNumber || currentInst.mpesa_config?.paybill_number;
                           const kcbSC = currentInst.kcbConfig?.shortCode || currentInst.kcb_config?.shortCode || currentInst.kcb_config?.short_code;
@@ -1656,6 +1699,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                           }
                       }
                       
+                      // 4. Super Admin view (if no specific tenant filter or matches SYSTEM)
+                      if (currentUser.role === 'super_admin' && (!effectiveInstIdFinal || creditAcc === 'SYSTEM' || !creditAcc)) {
+                          return true;
+                      }
+
                       return false;
                   })
                   .map(p => {
@@ -1825,7 +1873,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                           transactionDate: date,
                           reference: payloadReceiptRef,
                           senderName: sender,
-                          bankName: p.provider === 'coop' ? 'Co-op Bank' : 'KCB',
+                          bankName: p.provider === 'coop' ? 'Co-op Bank' : (p.provider === 'ncba' ? 'NCBA' : (p.provider?.includes('kcb') ? 'KCB' : 'M-Pesa')),
                           status: 'unreconciled',
                           linkedInvoiceId: payload.invoice_id || payload.invoiceId || payload.linked_invoice_id || null,
                           createdAt: p.created_at,
@@ -1835,14 +1883,31 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                   });
 
                 const mergedBankTransactions = [...(csBank || [])];
-                const seenTxnIds = new Set(mergedBankTransactions.map(t => t.id || t.reference));
+                const seenTxnIds = new Set(mergedBankTransactions.map(t => t.id || t.reference).filter(Boolean));
                 
+                // Merge Gateway Transactions
+                normalizedGatewayTxns.forEach(gTxn => {
+                    if ((gTxn.id && !seenTxnIds.has(gTxn.id)) && (!gTxn.reference || !seenTxnIds.has(gTxn.reference))) {
+                        mergedBankTransactions.push(gTxn);
+                        if (gTxn.id) seenTxnIds.add(gTxn.id);
+                        if (gTxn.reference) seenTxnIds.add(gTxn.reference);
+                    }
+                });
+
+                // Merge Integration Logs
                 normalizedPayloads.forEach(pTxn => {
-                    if (!seenTxnIds.has(pTxn.id) && !seenTxnIds.has(pTxn.reference)) {
+                    if ((pTxn.id && !seenTxnIds.has(pTxn.id)) && (!pTxn.reference || !seenTxnIds.has(pTxn.reference))) {
                         mergedBankTransactions.push(pTxn);
-                        seenTxnIds.add(pTxn.id);
+                        if (pTxn.id) seenTxnIds.add(pTxn.id);
                         if (pTxn.reference) seenTxnIds.add(pTxn.reference);
                     }
+                });
+
+                // Chronological sort: newest first
+                mergedBankTransactions.sort((a, b) => {
+                    const timeA = new Date(a.transactionDate || a.createdAt || 0).getTime();
+                    const timeB = new Date(b.transactionDate || b.createdAt || 0).getTime();
+                    return timeB - timeA;
                 });
 
                 setCarBankTransactions(mergedBankTransactions);
@@ -5099,19 +5164,44 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             if (transaction) {
                 try {
                     const instId = activeInstitution?.id || currentUser?.institutionId;
+                    const ref = (transaction as any).reference || (transaction as any).transactionId || '';
+                    const bankMethod = transaction.bankName || 'Bank Transfer';
                     await apiService.saveCarPayment({
                         id: `pay_${Date.now()}`,
                         invoiceId: invoiceId,
                         amount: transaction.amount,
-                        paymentMethod: 'Bank Transfer',
-                        transactionReference: (transaction as any).reference || (transaction as any).transactionId || '',
+                        paymentMethod: bankMethod,
+                        transactionReference: ref,
                         paymentDate: (transaction as any).transactionDate || new Date().toISOString(),
                         institutionId: instId || ''
                     });
 
-                    await apiService.updateModuleRecord('bank_transactions', transactionId, {
-                        status: 'reconciled'
-                    } as any);
+                    // Upsert status to bank_transactions
+                    await apiService.saveModuleRecord('bank_transactions', {
+                        id: transaction.id,
+                        institution_id: instId || transaction.institutionId || '',
+                        amount: transaction.amount,
+                        transaction_date: transaction.transactionDate || new Date().toISOString(),
+                        reference: ref,
+                        sender_name: transaction.senderName || 'External Deposit',
+                        bank_name: transaction.bankName || 'Bank',
+                        status: 'reconciled',
+                        linked_invoice_id: invoiceId,
+                        reconciled_at: new Date().toISOString(),
+                        reconciled_by: currentUser?.name || currentUser?.email || 'System'
+                    } as any).catch(() => {});
+
+                    // Also mark in mpesa_transactions if applicable
+                    await apiService.updateModuleRecord('mpesa_transactions', transactionId, {
+                        status: 'completed',
+                        metadata: {
+                            ...(transaction.payload?.metadata || {}),
+                            invoiceId: invoiceId,
+                            reconciled: true,
+                            reconciled_at: new Date().toISOString(),
+                            reconciled_by: currentUser?.name || currentUser?.email || 'System'
+                        }
+                    } as any).catch(() => {});
 
                     await loadData();
                 } catch (err) {
