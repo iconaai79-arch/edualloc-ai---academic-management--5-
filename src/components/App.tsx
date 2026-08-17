@@ -1454,6 +1454,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                         apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []),
                         apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', undefined, cntId).catch(() => []),
                         apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []),
+                        apiService.fetchModuleRecords<StudentAttendance>('student_attendances').catch(() => []),
+                        apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins').catch(() => []),
                     ]) : Promise.resolve([]),
                     // Business Batch
                     isBusiness || isAcademic ? Promise.all([
@@ -1534,7 +1536,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 // Destructure Results
                 if (finResults) [inv, ext, vh, fs, fp, fb] = finResults;
                 if (isAcademic && acadResults) [sar, enr, abs, con, att, timetableRecords, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, lo, obs, fCheckIn, disc] = acadResults;
-                if (isCounty && countyResults) [cinv, ccats, cstores, bApps, bFunds] = countyResults;
+                if (isCounty && countyResults) {
+                    const [cinvData, ccatsData, cstoresData, bAppsData, bFundsData, cAttData, cCheckInData] = countyResults;
+                    cinv = cinvData;
+                    ccats = ccatsData;
+                    cstores = cstoresData;
+                    bApps = bAppsData;
+                    bFunds = bFundsData;
+                    if (cAttData && cAttData.length > 0) setStudentAttendances(cAttData);
+                    if (cCheckInData && cCheckInData.length > 0) setTeacherCheckIns(cCheckInData);
+                }
                 if (businessResults) [item, retExp, rStores, rInv, cafe, cOrders, rSales, cwJobs, fMaint] = businessResults;
                 if (isCoop && coopResults) [cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = coopResults;
                 if (isLaw && legalResults) [lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements] = legalResults;
@@ -5711,6 +5722,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         stores: countyStores,
         bursaryApplications,
         bursaryFunds,
+        studentAttendances,
+        teacherCheckIns,
         onLogAction: handleLogAction,
         activityLogLimit,
         setActivityLogLimit,
@@ -5718,7 +5731,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         setReceiptLimit,
         transactionLimit,
         setTransactionLimit
-    }), [currentUser, counties, institutions, users, onUpdateInstitution, activeLetterheadConfig, activeBranding, activeFooterImageUrl, countyInventory, countyInventoryCategories, countyStores, bursaryApplications, bursaryFunds, activityLogLimit, receiptLimit, transactionLimit]);
+    }), [currentUser, counties, institutions, users, onUpdateInstitution, activeLetterheadConfig, activeBranding, activeFooterImageUrl, countyInventory, countyInventoryCategories, countyStores, bursaryApplications, bursaryFunds, studentAttendances, teacherCheckIns, activityLogLimit, receiptLimit, transactionLimit]);
 
     const hrOfficerProps = useMemo<Partial<HROfficerProps>>(() => ({
         currentUser: currentUser || undefined,
