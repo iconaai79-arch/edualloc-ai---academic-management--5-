@@ -353,30 +353,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
                 const appSecret = String(kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
-                
-                if (appKey && appSecret && 
-                    !appKey.toLowerCase().includes('test') && !appKey.toLowerCase().includes('demo') &&
-                    !appSecret.toLowerCase().includes('test') && !appSecret.toLowerCase().includes('demo')) {
-                    isProduction = true;
-                }
+                const webhookSecret = String(kcbConfig.webhookSecret || kcbConfig.webhook_secret || kcbConfig.webhookToken || '').trim();
+                const requireWebhookAuth = kcbConfig.requireWebhookAuth === true || kcbConfig.require_webhook_auth === true;
 
-                if (isProduction) {
-                    const authHeader = req.headers.authorization || '';
-                    const expectedAuthHeader = `Basic ${Buffer.from(`${appKey}:${appSecret}`).toString('base64')}`;
-                    if (authHeader !== expectedAuthHeader) {
-                        console.warn(`[KCB STK Callback] Basic Auth mismatch. Header received did not match expected app credentials. Allowing to proceed...`);
+                // Only enforce/check webhook auth if an institution has specifically configured a webhook token or secret
+                if (webhookSecret && requireWebhookAuth) {
+                    const rawAuthHeader = (req.headers.authorization || req.headers['x-api-key'] || req.headers['x-webhook-token'] || req.query.secret || '') as string;
+                    const bearerToken = rawAuthHeader.startsWith('Bearer ') ? rawAuthHeader.substring(7).trim() : rawAuthHeader;
+                    const expectedBasic = appKey && appSecret ? `Basic ${Buffer.from(`${appKey}:${appSecret}`).toString('base64')}` : '';
+
+                    const isMatch = rawAuthHeader === webhookSecret || 
+                                    bearerToken === webhookSecret || 
+                                    (expectedBasic && rawAuthHeader === expectedBasic) ||
+                                    req.query.secret === webhookSecret;
+
+                    if (!isMatch) {
+                        console.warn(`[KCB STK Callback] Webhook authentication token mismatch. Received header did not match configured webhook secret.`);
                         await supabase.from('integration_logs').insert({
                             provider: 'kcb_stk_callback_auth_warn',
                             payload: {
-                                warning: 'Webhook auth header mismatch (Basic Auth failed), but payload processing allowed.',
-                                receivedHeader: authHeader ? '***' : '(none)',
+                                warning: 'Configured webhook secret did not match incoming webhook request, but payload processing allowed.',
+                                receivedHeader: rawAuthHeader ? '***' : '(none)',
                                 checkoutRequestId
                             },
                             status: 'warning',
                             created_at: new Date().toISOString()
                         });
-                        // Note: KCB rarely sends Basic base64(appKey:appSecret) in STK Push callbacks.
-                        // We intentionally do NOT return 401 Unauthorized to ensure transactions complete.
                     }
                 }
             }
