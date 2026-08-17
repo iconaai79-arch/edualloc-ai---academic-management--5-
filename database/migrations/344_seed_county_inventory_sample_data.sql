@@ -1,27 +1,58 @@
 -- Migration 344: Seed sample county inventory, categories, and physical stores
--- Description: Seeds realistic Kenyan county educational, medical, agricultural, and vocational inventory records.
+-- Description: Ensures missing columns (e.g. updated_at, created_at) exist and seeds realistic Kenyan county educational, medical, agricultural, and vocational inventory records.
+
+-- 1. Ensure all columns exist across county inventory tables (to support pre-existing schemas)
+ALTER TABLE public.county_inventory_categories ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE public.county_inventory_categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.county_inventory_categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE public.county_stores ADD COLUMN IF NOT EXISTS location_name TEXT;
+ALTER TABLE public.county_stores ADD COLUMN IF NOT EXISTS latitude FLOAT;
+ALTER TABLE public.county_stores ADD COLUMN IF NOT EXISTS longitude FLOAT;
+ALTER TABLE public.county_stores ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE public.county_stores ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.county_stores ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 0;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS unit TEXT DEFAULT 'Units';
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS supplier_name TEXT;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'at_hq';
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS target_institution_id TEXT;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS driver_name TEXT;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS delivery_method TEXT DEFAULT 'driver';
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS tracking_number TEXT;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS qr_code TEXT;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS at_hq_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS recipient_signature TEXT;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS received_by TEXT;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS recipient_name TEXT;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS dispatched_date TIMESTAMPTZ;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS received_date TIMESTAMPTZ;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.county_inventory ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 
 DO $$
 DECLARE
     target_county_id TEXT;
     target_inst_id TEXT;
 BEGIN
-    -- 1. Resolve county_id (from existing counties or fallback)
+    -- 2. Resolve county_id (from existing counties or fallback)
     SELECT id INTO target_county_id FROM public.counties LIMIT 1;
     IF target_county_id IS NULL THEN
-        target_county_id := 'county_nairobi_047';
+        target_county_id := 'county_nandi_029';
         INSERT INTO public.counties (id, name, code, created_at)
-        VALUES (target_county_id, 'Nairobi City County', '047', NOW())
+        VALUES (target_county_id, 'Nandi County', '029', NOW())
         ON CONFLICT (id) DO NOTHING;
     END IF;
 
-    -- 2. Resolve institution_id for dispatches (from existing institutions or fallback)
+    -- 3. Resolve institution_id for dispatches (from existing institutions or fallback)
     SELECT id INTO target_inst_id FROM public.institutions LIMIT 1;
     IF target_inst_id IS NULL THEN
         target_inst_id := 'inst_sample_school_01';
     END IF;
 
-    -- 3. Seed Inventory Categories
+    -- 4. Seed Inventory Categories
     INSERT INTO public.county_inventory_categories (id, county_id, name, description, created_at, updated_at)
     VALUES
         ('cat_edu_cbc_01', target_county_id, 'Educational Learning Materials', 'CBC textbooks, science lab reagents, revision past papers, and charts', NOW(), NOW()),
@@ -35,7 +66,7 @@ BEGIN
         description = EXCLUDED.description,
         updated_at = NOW();
 
-    -- 4. Seed County Physical Stores / Depots
+    -- 5. Seed County Physical Stores / Depots
     INSERT INTO public.county_stores (id, county_id, name, location_name, latitude, longitude, description, created_at, updated_at)
     VALUES
         ('store_hq_central', target_county_id, 'Central County HQ Warehouse', 'County Headquarters, Block B', -1.286389, 36.817223, 'Main county logistics receiving and consolidation hub', NOW(), NOW()),
@@ -49,7 +80,7 @@ BEGIN
         description = EXCLUDED.description,
         updated_at = NOW();
 
-    -- 5. Seed County Inventory Items
+    -- 6. Seed County Inventory Items
     INSERT INTO public.county_inventory (
         id, county_id, name, category, quantity, unit, supplier_name,
         status, target_institution_id, driver_name, delivery_method, tracking_number,
@@ -122,5 +153,24 @@ BEGIN
 
 END $$;
 
--- Reload schema cache
+-- 7. Enable RLS and Permissive Policies
+ALTER TABLE public.county_inventory_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.county_stores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.county_inventory ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "county_inventory_categories_all_access" ON public.county_inventory_categories;
+CREATE POLICY "county_inventory_categories_all_access" ON public.county_inventory_categories FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "county_stores_all_access" ON public.county_stores;
+CREATE POLICY "county_stores_all_access" ON public.county_stores FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "county_inventory_all_access" ON public.county_inventory;
+CREATE POLICY "county_inventory_all_access" ON public.county_inventory FOR ALL USING (true) WITH CHECK (true);
+
+-- 8. Permissions
+GRANT ALL ON public.county_inventory_categories TO anon, authenticated, service_role;
+GRANT ALL ON public.county_stores TO anon, authenticated, service_role;
+GRANT ALL ON public.county_inventory TO anon, authenticated, service_role;
+
+-- 9. Reload schema cache
 NOTIFY pgrst, 'reload schema';
