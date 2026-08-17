@@ -15,7 +15,7 @@ import {
     Briefcase, Shield, BarChart3, GraduationCap, Building2, CheckCircle2, 
     AlertCircle, Info, ArrowRight, MoreVertical, X as XIcon,
     Upload, Image as ImageIcon, FileText, Palette, Globe, Building, Save, Award,
-    PenTool, Check, Sparkles, Printer, Copy, CheckCheck, RefreshCw
+    PenTool, Check, Sparkles, Printer, Copy, CheckCheck, RefreshCw, Megaphone, Radio, Send
 } from 'lucide-react';
 
 import { 
@@ -32,6 +32,7 @@ import { SmartInventoryImporterModal } from './SmartInventoryImporterModal';
 import { DisciplineManager } from './Academics/DisciplineManager';
 import { AcademicReportsHub } from './Academics/AcademicReportsHub';
 import { ActivityLogView } from './ActivityLogView';
+import { CommunicationsManager } from './CommunicationsManager';
 import { apiService } from '../services/apiService';
 
 interface CountyAdminViewProps {
@@ -136,6 +137,15 @@ interface CountyAdminViewProps {
     setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
     transactionLimit?: number;
     setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
+    onSendSms?: (recipient: string | string[], message: string, config?: any, units?: number, institutionId?: string) => Promise<{ success: boolean; message: string }>;
+    smsBalance?: number;
+    smsConfig?: any;
+    mpesaConfig?: any;
+    onRefreshData?: () => Promise<void> | void;
+    departments?: Department[];
+    courses?: any[];
+    companyDetails?: any;
+    transactions?: MpesaTransaction[];
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
@@ -150,7 +160,9 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         onAddStockTransaction, stockTransactions = [], bursaryApplications = [], bursaryFunds = [], 
         onUpdateBursaryApplication, onAddBursaryFund, onUpdateBursaryFund, 
         onDeleteBursaryFund, activityLog = [], onLogAction, incidents = [], onAddIncident, books = [],
-        assessments = [], assessmentMarks = []
+        assessments = [], assessmentMarks = [],
+        onSendSms, smsBalance, smsConfig, mpesaConfig, onRefreshData, departments = [],
+        courses = [], companyDetails, transactions = []
     } = props;
 
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -293,6 +305,15 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         (u.countyId === myCounty?.id || (u as any).county_id === myCounty?.id || u.institutionId === myCounty?.id) && 
         (u.role?.startsWith('county_') || u.role === 'county_admin' || u.role === 'county_staff')
     ), [users, myCounty]);
+    const countyBroadcasterUsers = useMemo(() => {
+        const facilityIds = new Set(myInstitutions.map(i => i.id));
+        return (users || []).filter(u => 
+            u.countyId === myCounty?.id || 
+            (u as any).county_id === myCounty?.id || 
+            u.institutionId === myCounty?.id || 
+            facilityIds.has(u.institutionId || '')
+        );
+    }, [users, myCounty, myInstitutions]);
     const myInventory = useMemo(() => inventoryItems.filter(item => item.countyId === myCounty?.id || (item as any).county_id === myCounty?.id), [inventoryItems, myCounty]);
     const myCategories = useMemo(() => (inventoryCategories || []).filter(cat => !cat.countyId || cat.countyId === myCounty?.id || (cat as any).county_id === myCounty?.id), [inventoryCategories, myCounty]);
     const myStores = useMemo(() => (stores || []).filter(s => !s.countyId || s.countyId === myCounty?.id || (s as any).county_id === myCounty?.id), [stores, myCounty]);
@@ -536,6 +557,19 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                             {bursaryApplications.filter(a => a.status === 'pending').length}
                         </span>
                     </button>
+                    {currentUser.role !== 'county_store_keeper' && (
+                        <button
+                            onClick={() => setActiveTab('broadcaster')}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'broadcaster'
+                                ? 'text-white shadow-lg shadow-black/20 font-bold'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                                }`}
+                            style={{ backgroundColor: activeTab === 'broadcaster' ? 'var(--brand-primary, #4f46e5)' : undefined }}
+                        >
+                            <Megaphone className="w-5 h-5" />
+                            Broadcaster
+                        </button>
+                    )}
                     {currentUser.role !== 'county_store_keeper' && (
                         <button
                             onClick={() => setActiveTab('settings')}
@@ -2375,6 +2409,56 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        )}
+                        {activeTab === 'broadcaster' && (
+                            <div className="space-y-6 animate-fade-in-up">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                                    <div>
+                                        <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-3">
+                                            <Megaphone className="w-8 h-8 text-indigo-600" />
+                                            County Broadcaster & SMS Hub
+                                        </h2>
+                                        <p className="text-slate-500 font-medium">
+                                            Broadcast official circulars, emergency announcements, and SMS alerts to county staff, school administrators, and citizens.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center gap-2.5">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                            <span className="text-xs font-bold text-slate-600">SMS Balance:</span>
+                                            <span className="text-sm font-black text-indigo-700">
+                                                {(smsBalance ?? myCounty?.smsBalance ?? (myCounty as any)?.sms_balance ?? companyDetails?.smsBalance ?? 0).toLocaleString()} Units
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-sm overflow-hidden">
+                                    <CommunicationsManager
+                                        users={countyBroadcasterUsers}
+                                        departments={departments || []}
+                                        courses={courses || []}
+                                        institutions={myInstitutions}
+                                        currentUser={currentUser}
+                                        smsBalance={smsBalance ?? myCounty?.smsBalance ?? (myCounty as any)?.sms_balance ?? companyDetails?.smsBalance ?? 0}
+                                        currentInstitution={{
+                                            ...myCounty,
+                                            id: myCounty.id,
+                                            name: myCounty.name,
+                                            institutionType: 'County',
+                                            smsConfig: smsConfig || (myCounty as any)?.smsConfig || (myCounty as any)?.sms_config || companyDetails?.smsConfig,
+                                            smsBalance: smsBalance ?? myCounty?.smsBalance ?? (myCounty as any)?.sms_balance ?? companyDetails?.smsBalance ?? 0,
+                                            mpesaConfig: mpesaConfig || (myCounty as any)?.mpesaConfig || (myCounty as any)?.mpesa_config || companyDetails?.mpesaConfig
+                                        } as any}
+                                        mpesaConfig={mpesaConfig || (myCounty as any)?.mpesaConfig || (myCounty as any)?.mpesa_config || companyDetails?.mpesaConfig}
+                                        smsConfig={smsConfig || (myCounty as any)?.smsConfig || (myCounty as any)?.sms_config || companyDetails?.smsConfig}
+                                        onSendSms={onSendSms || (async (r: any, m: any, c?: any, u?: number, i?: string) => apiService.sendSms(r, m, c, u, i || myCounty?.id))}
+                                        onRefreshData={onRefreshData}
+                                        companyDetails={companyDetails || myCounty}
+                                        transactions={transactions || []}
+                                    />
+                                </div>
                             </div>
                         )}
                     </main>

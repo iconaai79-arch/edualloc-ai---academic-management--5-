@@ -6619,7 +6619,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                         onAddStockTransaction: async (data: any) => { await apiService.saveModuleRecord('county_stock_transactions', { ...data, id: `ctx_${Date.now()}` }); loadData(); },
                                         bursaryApplications,
                                         bursaryFunds,
-                                        onAddBursaryFund: async (data: any) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id: `fund_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); },
+                                        onAddBursaryFund: async (data: any) => { 
+                                            await apiService.saveModuleRecord('county_bursary_funds', { ...data, id: `fund_${Date.now()}`, createdAt: new Date().toISOString() }); 
+                                            loadData(); 
+                                        },
                                         onUpdateBursaryApplication: async (id: string, data: any) => { const app = bursaryApplications.find(a => a.id === id); if (app) { await apiService.saveModuleRecord('bursary_applications', { ...app, ...data, updatedAt: new Date().toISOString() }); loadData(); } },
                                         onLogAction: handleLogAction,
                                         activityLogLimit,
@@ -6627,7 +6630,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                         receiptLimit,
                                         setReceiptLimit,
                                         transactionLimit,
-                                        setTransactionLimit
+                                        setTransactionLimit,
+                                        onSendSms: async (r: any, m: any, c?: any, u?: number, i?: string) => apiService.sendSms(r, m, c, u, i || activeCounty?.id),
+                                        smsBalance: activeCounty?.smsBalance ?? (activeCounty as any)?.sms_balance ?? companyDetails?.smsBalance ?? 0,
+                                        smsConfig: activeCounty?.smsConfig || (activeCounty as any)?.sms_config || companyDetails?.smsConfig,
+                                        mpesaConfig: activeCounty?.mpesaConfig || (activeCounty as any)?.mpesa_config || companyDetails?.mpesaConfig,
+                                        onRefreshData: async () => { await loadData(false, true); },
+                                        departments: departments || [],
+                                        courses: courses || [],
+                                        companyDetails: companyDetails || activeCounty,
+                                        transactions: transactions || []
                                     } as any}
                                     />
                                 ) : (activeRole === 'constituency_admin' || activeRole?.startsWith('constituency_')) ? (
