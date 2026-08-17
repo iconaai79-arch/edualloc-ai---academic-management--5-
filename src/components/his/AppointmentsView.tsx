@@ -71,10 +71,73 @@ export function AppointmentsView({ activeRole, userName, institutionId, demoAppo
         fetchAppointments();
     }, [institutionId]);
 
+    const [departmentFilter, setDepartmentFilter] = useState<'all' | 'mch' | 'cwc' | 'opd' | 'dental' | 'optical'>('all');
+
+    const mchCount = appointments.filter(a => 
+        (a.specialty || '').toLowerCase().includes('mch') || 
+        (a.specialty || '').toLowerCase().includes('maternity') || 
+        (a.type || '').toLowerCase().includes('anc') ||
+        (a.type || '').toLowerCase().includes('pnc') ||
+        (a.type || '').toLowerCase().includes('postnatal') ||
+        (a.type || '').toLowerCase().includes('pmtct') ||
+        a.mchClinicType === 'ANC' || a.mchClinicType === 'PNC'
+    ).length;
+
+    const cwcCount = appointments.filter(a => 
+        (a.specialty || '').toLowerCase().includes('cwc') || 
+        (a.specialty || '').toLowerCase().includes('child') || 
+        (a.specialty || '').toLowerCase().includes('newborn') || 
+        (a.type || '').toLowerCase().includes('kepi') ||
+        (a.type || '').toLowerCase().includes('immunization') ||
+        (a.type || '').toLowerCase().includes('cwc') ||
+        (a.type || '').toLowerCase().includes('nbu') ||
+        a.mchClinicType === 'CWC' || a.mchClinicType === 'NBU'
+    ).length;
+
+    const dentalCount = appointments.filter(a => (a.specialty || '').toLowerCase().includes('dental')).length;
+    const opticalCount = appointments.filter(a => (a.specialty || '').toLowerCase().includes('eye') || (a.specialty || '').toLowerCase().includes('ophthalmology')).length;
+    const opdCount = appointments.filter(a => (a.specialty || '').toLowerCase().includes('general') || (a.specialty || '').toLowerCase().includes('opd') || !a.specialty).length;
+
     const filteredAppointments = appointments.filter(app => {
-        const matchesSearch = app.reason?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                             app.patientId?.toLowerCase().includes(searchTerm.toLowerCase());
-        return matchesSearch;
+        const s = searchTerm.toLowerCase();
+        const matchesSearch = !searchTerm ||
+            (app.patientName || '').toLowerCase().includes(s) ||
+            (app.reason || '').toLowerCase().includes(s) || 
+            (app.patientId || '').toLowerCase().includes(s) ||
+            (app.specialty || '').toLowerCase().includes(s) ||
+            (app.type || '').toLowerCase().includes(s);
+
+        if (!matchesSearch) return false;
+
+        if (departmentFilter === 'mch') {
+            return (app.specialty || '').toLowerCase().includes('mch') || 
+                   (app.specialty || '').toLowerCase().includes('maternity') || 
+                   (app.type || '').toLowerCase().includes('anc') ||
+                   (app.type || '').toLowerCase().includes('postnatal') ||
+                   (app.type || '').toLowerCase().includes('pnc') ||
+                   (app.type || '').toLowerCase().includes('pmtct') ||
+                   app.mchClinicType === 'ANC' || app.mchClinicType === 'PNC';
+        }
+        if (departmentFilter === 'cwc') {
+            return (app.specialty || '').toLowerCase().includes('cwc') || 
+                   (app.specialty || '').toLowerCase().includes('child') || 
+                   (app.specialty || '').toLowerCase().includes('newborn') || 
+                   (app.type || '').toLowerCase().includes('kepi') ||
+                   (app.type || '').toLowerCase().includes('immunization') ||
+                   (app.type || '').toLowerCase().includes('cwc') ||
+                   (app.type || '').toLowerCase().includes('nbu') ||
+                   app.mchClinicType === 'CWC' || app.mchClinicType === 'NBU';
+        }
+        if (departmentFilter === 'dental') {
+            return (app.specialty || '').toLowerCase().includes('dental');
+        }
+        if (departmentFilter === 'optical') {
+            return (app.specialty || '').toLowerCase().includes('eye') || (app.specialty || '').toLowerCase().includes('ophthalmology');
+        }
+        if (departmentFilter === 'opd') {
+            return (app.specialty || '').toLowerCase().includes('general') || (app.specialty || '').toLowerCase().includes('opd') || !app.specialty;
+        }
+        return true;
     });
 
     const handleReschedule = (app: HISAppointment) => {
@@ -152,7 +215,7 @@ export function AppointmentsView({ activeRole, userName, institutionId, demoAppo
     };
 
     return (
-        <div className="space-y-10">
+        <div className="space-y-8">
             {notification.show && (
                 <div className="fixed top-24 right-8 z-[100] bg-indigo-600 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-bounce-in ring-4 ring-indigo-400/30">
                     <BellIcon className="w-6 h-6" />
@@ -163,14 +226,14 @@ export function AppointmentsView({ activeRole, userName, institutionId, demoAppo
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-6">
                 <div>
                     <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">
-                        {isEdu ? 'Student Visit Scheduler' : 'Master Visit Registry'}
+                        {isEdu ? 'Student Visit Scheduler' : 'Master Visit & Clinic Appointment Registry'}
                     </h3>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
                         {isDoctor
                             ? `Practitioner: ${userName}`
                             : isEdu
                                 ? `Teachers can book wellness visits on behalf of students`
-                                : 'Global Patient Scheduling Control'
+                                : 'Comprehensive OPD, Maternal & Child Health (MCH/ANC/CWC), Dental & Specialized Clinic Booking'
                         }
                     </p>
                 </div>
@@ -186,9 +249,9 @@ export function AppointmentsView({ activeRole, userName, institutionId, demoAppo
                     {!isDoctor ? (
                         <button 
                             onClick={() => setIsAddAppointmentOpen(true)}
-                            className="bg-indigo-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-600/20"
+                            className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-600/20 cursor-pointer italic"
                         >
-                            <PlusIcon className="w-4 h-4" /> Add Visit
+                            <PlusIcon className="w-4 h-4" /> Schedule Visit / MCH
                         </button>
                     ) : (
                         <div className="px-6 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-2">
@@ -199,6 +262,35 @@ export function AppointmentsView({ activeRole, userName, institutionId, demoAppo
                 </div>
             </div>
 
+            {/* Department Filter Pills */}
+            {!isEdu && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar flex-wrap">
+                    {[
+                        { id: 'all', label: 'All Clinics', count: appointments.length },
+                        { id: 'mch', label: '🤰 MCH / ANC & Maternity', count: mchCount, badgeClass: 'bg-pink-500/20 text-pink-300' },
+                        { id: 'cwc', label: '🍼 CWC & Immunization', count: cwcCount, badgeClass: 'bg-purple-500/20 text-purple-300' },
+                        { id: 'opd', label: '🩺 General OPD', count: opdCount },
+                        { id: 'dental', label: '🦷 Dental Hub', count: dentalCount },
+                        { id: 'optical', label: '👁️ Eye Clinic', count: opticalCount },
+                    ].map(f => (
+                        <button
+                            key={f.id}
+                            onClick={() => setDepartmentFilter(f.id as any)}
+                            className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                departmentFilter === f.id
+                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 scale-105'
+                                    : 'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 text-slate-400 hover:text-slate-200'
+                            }`}
+                        >
+                            <span>{f.label}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black ${f.badgeClass || 'bg-black/20 text-white'}`}>
+                                {f.count}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <div className="lg:col-span-3 space-y-6">
                     <div className="bg-white dark:bg-slate-900/50 rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-xl overflow-hidden">
@@ -207,7 +299,7 @@ export function AppointmentsView({ activeRole, userName, institutionId, demoAppo
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
                                     <tr>
-                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient Details</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient &amp; Clinic Details</th>
                                         <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Provider</th>
                                         <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Timing</th>
                                         <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
@@ -215,144 +307,188 @@ export function AppointmentsView({ activeRole, userName, institutionId, demoAppo
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                    {filteredAppointments.map((app) => (
-                                        <tr key={app.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
-                                            <td className="px-8 py-6">
-                                                <div>
-                                                    <p className="text-sm font-black italic tracking-tight">{app.patientName}</p>
-                                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight mt-0.5">{app.type}</p>
-                                                    {(app as any).referredByTeacher && (
-                                                        <p className="text-[9px] text-indigo-500 font-black uppercase tracking-wider mt-1 italic bg-indigo-50/50 dark:bg-indigo-950/20 px-2 py-0.5 rounded border border-indigo-100/30 dark:border-indigo-900/30 inline-block">
-                                                            Ref: {(app as any).referredByTeacher}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-6">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                                                        <UsersIcon className="w-4 h-4" />
-                                                    </div>
+                                    {filteredAppointments.map((app) => {
+                                        const isMch = (app.specialty || '').toLowerCase().includes('mch') || (app.specialty || '').toLowerCase().includes('maternity') || (app.type || '').toLowerCase().includes('anc') || app.mchClinicType === 'ANC';
+                                        const isCwc = (app.specialty || '').toLowerCase().includes('cwc') || (app.type || '').toLowerCase().includes('immunization') || app.mchClinicType === 'CWC';
+
+                                        return (
+                                            <tr key={app.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                                                <td className="px-8 py-6">
                                                     <div>
-                                                        <p className="text-xs font-black italic">{app.doctorName}</p>
-                                                        <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{app.specialty}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-sm font-black italic tracking-tight">{app.patientName}</p>
+                                                            {isMch && (
+                                                                <span className="px-2 py-0.5 bg-pink-500/20 text-pink-300 border border-pink-500/30 rounded-full text-[8px] font-black uppercase tracking-widest">
+                                                                    🤰 MCH / ANC
+                                                                </span>
+                                                            )}
+                                                            {isCwc && (
+                                                                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full text-[8px] font-black uppercase tracking-widest">
+                                                                    🍼 KEPI CWC
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight mt-0.5">{app.type}</p>
+                                                        {app.gestationWeeks && (
+                                                            <p className="text-[9px] text-pink-400 font-black uppercase tracking-wider mt-0.5">
+                                                                Gestation: {app.gestationWeeks} Wks {app.gravidaPara ? `• ${app.gravidaPara}` : ''} {app.eddDate ? `• EDD: ${app.eddDate}` : ''}
+                                                            </p>
+                                                        )}
+                                                        {app.targetVaccine && (
+                                                            <p className="text-[9px] text-purple-400 font-black uppercase tracking-wider mt-0.5">
+                                                                Vaccine: {app.targetVaccine}
+                                                            </p>
+                                                        )}
+                                                        {(app as any).referredByTeacher && (
+                                                            <p className="text-[9px] text-indigo-500 font-black uppercase tracking-wider mt-1 italic bg-indigo-50/50 dark:bg-indigo-950/20 px-2 py-0.5 rounded border border-indigo-100/30 dark:border-indigo-900/30 inline-block">
+                                                                Ref: {(app as any).referredByTeacher}
+                                                            </p>
+                                                        )}
                                                     </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-6 text-[10px] font-black uppercase tracking-widest">
-                                                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 mb-1">
-                                                    <CalendarDaysIcon className="w-3.5 h-3.5" /> {app.date}
-                                                </div>
-                                                <div className="flex items-center gap-2 text-slate-500">
-                                                    <ClockIcon className="w-3.5 h-3.5" /> {app.time}
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-6">
-                                                <div className={`px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-tighter ${(statusStyles as any)[app.status] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
-                                                {app.status}
-                                            </div>
-                                            </td>
-                                            <td className="px-8 py-6 text-right space-x-2">
-                                                {app.status === 'Scheduled' && (
-                                                    <button
-                                                        onClick={() => handleMarkArrived(app)}
-                                                        className="p-2 px-3 text-emerald-500 hover:bg-emerald-500 hover:text-white bg-emerald-500/10 border border-emerald-500/20 rounded-xl transition-all text-[8px] font-black uppercase tracking-widest mr-1"
-                                                        title="Mark as Arrived"
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isMch ? 'bg-pink-500/10 text-pink-400' : isCwc ? 'bg-purple-500/10 text-purple-400' : 'bg-indigo-500/10 text-indigo-400'}`}>
+                                                            {isMch ? <span className="text-sm">🤰</span> : isCwc ? <span className="text-sm">🍼</span> : <UsersIcon className="w-4 h-4" />}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-black italic">{app.doctorName}</p>
+                                                            <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{app.specialty}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6 text-[10px] font-black uppercase tracking-widest">
+                                                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 mb-1">
+                                                        <CalendarDaysIcon className="w-3.5 h-3.5" /> {app.date}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-slate-500">
+                                                        <ClockIcon className="w-3.5 h-3.5" /> {app.time}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className={`px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-tighter ${(statusStyles as any)[app.status] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
+                                                        {app.status}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6 text-right space-x-2">
+                                                    {app.status === 'Scheduled' && (
+                                                        <button
+                                                            onClick={() => handleMarkArrived(app)}
+                                                            className="p-2 px-3 text-emerald-500 hover:bg-emerald-500 hover:text-white bg-emerald-500/10 border border-emerald-500/20 rounded-xl transition-all text-[8px] font-black uppercase tracking-widest mr-1 cursor-pointer"
+                                                            title="Mark as Arrived"
+                                                        >
+                                                            ✓ Arrived
+                                                        </button>
+                                                    )}
+                                                    <button 
+                                                        onClick={() => handleReschedule(app)}
+                                                        className="p-2.5 text-slate-400 hover:text-indigo-600 bg-slate-100 dark:bg-white/5 rounded-xl transition-all cursor-pointer"
+                                                        title="Reschedule"
                                                     >
-                                                        ✓ Arrived
+                                                        <ArrowPathIcon className="w-4 h-4" />
                                                     </button>
-                                                )}
-                                                <button 
-                                                    onClick={() => handleReschedule(app)}
-                                                    className="p-2.5 text-slate-400 hover:text-indigo-600 bg-slate-100 dark:bg-white/5 rounded-xl transition-all"
-                                                    title="Reschedule"
-                                                >
-                                                    <ArrowPathIcon className="w-4 h-4" />
-                                                </button>
-                                                <button className="p-2.5 text-slate-400 hover:text-indigo-600 bg-slate-100 dark:bg-white/5 rounded-xl transition-all">
-                                                    <ChevronRightIcon className="w-4 h-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                    <button className="p-2.5 text-slate-400 hover:text-indigo-600 bg-slate-100 dark:bg-white/5 rounded-xl transition-all cursor-pointer">
+                                                        <ChevronRightIcon className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
 
                         {/* Mobile Card View */}
                         <div className="lg:hidden divide-y divide-slate-100 dark:divide-white/5">
-                            {filteredAppointments.map(app => (
-                                <div key={app.id} className="p-6">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-indigo-600/10 rounded-2xl flex items-center justify-center text-indigo-600">
-                                                <UsersIcon className="w-6 h-6" />
+                            {filteredAppointments.map(app => {
+                                const isMch = (app.specialty || '').toLowerCase().includes('mch') || (app.specialty || '').toLowerCase().includes('maternity') || (app.type || '').toLowerCase().includes('anc') || app.mchClinicType === 'ANC';
+                                const isCwc = (app.specialty || '').toLowerCase().includes('cwc') || (app.type || '').toLowerCase().includes('immunization') || app.mchClinicType === 'CWC';
+
+                                return (
+                                    <div key={app.id} className="p-6">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isMch ? 'bg-pink-500/10 text-pink-400' : isCwc ? 'bg-purple-500/10 text-purple-400' : 'bg-indigo-600/10 text-indigo-600'}`}>
+                                                    {isMch ? <span className="text-xl">🤰</span> : isCwc ? <span className="text-xl">🍼</span> : <UsersIcon className="w-6 h-6" />}
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-black uppercase italic">{app.patientName}</h4>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{app.type}</p>
+                                                    {app.gestationWeeks && (
+                                                        <p className="text-[8px] text-pink-400 font-bold uppercase mt-0.5">
+                                                            Gestation: {app.gestationWeeks} Wks {app.gravidaPara ? `• ${app.gravidaPara}` : ''}
+                                                        </p>
+                                                    )}
+                                                    {app.targetVaccine && (
+                                                        <p className="text-[8px] text-purple-400 font-bold uppercase mt-0.5">
+                                                            Vaccine: {app.targetVaccine}
+                                                        </p>
+                                                    )}
+                                                    {(app as any).referredByTeacher && (
+                                                        <p className="text-[8px] text-indigo-500 font-black uppercase tracking-wider mt-1 italic">
+                                                            Ref: {(app as any).referredByTeacher}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h4 className="text-sm font-black uppercase italic">{app.patientName}</h4>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{app.type}</p>
-                                                {(app as any).referredByTeacher && (
-                                                    <p className="text-[8px] text-indigo-500 font-black uppercase tracking-wider mt-1 italic">
-                                                        Ref: {(app as any).referredByTeacher}
-                                                    </p>
-                                                )}
+                                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border italic ${(statusStyles as any)[app.status] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>{app.status}</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 mt-6">
+                                            <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Provider</p>
+                                                <p className="text-[10px] font-black italic">{app.doctorName}</p>
+                                                <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-tight mt-1">{app.specialty}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Schedule</p>
+                                                <p className="text-[10px] font-black">{app.date}</p>
+                                                <p className="text-[8px] font-bold text-slate-500 mt-1">{app.time}</p>
                                             </div>
                                         </div>
-                                        <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border italic ${(statusStyles as any)[app.status] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>{app.status}</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4 mt-6">
-                                        <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Provider</p>
-                                            <p className="text-[10px] font-black italic">{app.doctorName}</p>
-                                            <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-tight mt-1">{app.specialty}</p>
-                                        </div>
-                                        <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Schedule</p>
-                                            <p className="text-[10px] font-black">{app.date}</p>
-                                            <p className="text-[8px] font-bold text-slate-500 mt-1">{app.time}</p>
+                                        <div className="mt-4 flex gap-2">
+                                            <button onClick={() => handleReschedule(app)} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest italic cursor-pointer">Reschedule</button>
+                                            <button className="p-3 bg-slate-100 dark:bg-white/5 text-slate-400 rounded-xl"><ChevronRightIcon className="w-4 h-4" /></button>
                                         </div>
                                     </div>
-                                    <div className="mt-4 flex gap-2">
-                                        <button onClick={() => handleReschedule(app)} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest italic">Reschedule</button>
-                                        <button className="p-3 bg-slate-100 dark:bg-white/5 text-slate-400 rounded-xl"><ChevronRightIcon className="w-4 h-4" /></button>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
 
                 <div className="space-y-8">
-                    <div className="bg-white dark:bg-slate-900/50 p-10 rounded-[3rem] border border-slate-200 dark:border-white/5 shadow-xl">
-                        <p className="text-slate-400 font-black uppercase tracking-[0.3em] text-[10px] mb-8 italic underline underline-offset-4 decoration-2 decoration-indigo-500">Active Practitioners</p>
-                        <div className="space-y-6">
+                    <div className="bg-white dark:bg-slate-900/50 p-8 rounded-[3rem] border border-slate-200 dark:border-white/5 shadow-xl">
+                        <p className="text-slate-400 font-black uppercase tracking-[0.3em] text-[10px] mb-6 italic underline underline-offset-4 decoration-2 decoration-indigo-500">Active Clinic Practitioners</p>
+                        <div className="space-y-5">
                             {[
-                                { name: 'Dr. Sarah Smith', status: 'On Shift', specialty: 'General', color: 'text-emerald-400' },
-                                { name: 'Dr. Mike Omondi', status: 'Busy', specialty: 'Optical', color: 'text-rose-400' },
-                                { name: 'Dr. Jane Doe', status: 'Checked Out', specialty: 'Dental', color: 'text-slate-500' },
-                                { name: 'Nurse Joy', status: 'On Shift', specialty: 'Triage', color: 'text-emerald-400' }
+                                { name: 'Dr. Sarah Smith', status: 'On Shift', specialty: 'General OPD', color: 'text-emerald-400' },
+                                { name: 'Nurse Midwife Faith', status: 'On Shift', specialty: 'MCH / ANC Hub', color: 'text-pink-400' },
+                                { name: 'Sr. Grace Wambui', status: 'On Shift', specialty: 'CWC & KEPI Immunization', color: 'text-purple-400' },
+                                { name: 'Dr. Mike Omondi', status: 'Busy', specialty: 'Eye / Optical', color: 'text-amber-400' },
+                                { name: 'Dr. Jane Doe', status: 'Checked Out', specialty: 'Dental Hub', color: 'text-slate-500' },
+                                { name: 'Nurse Joy', status: 'On Shift', specialty: 'Emergency Triage', color: 'text-emerald-400' }
                             ].map((doc, i) => (
                                 <div key={i} className="flex justify-between items-center group cursor-pointer">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-2.5 h-2.5 rounded-full bg-current animate-pulse text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]" style={{ color: doc.color === 'text-emerald-400' ? '#34d399' : (doc.color === 'text-rose-400' ? '#fb7185' : '#64748b') }}></div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-current animate-pulse text-emerald-400" style={{ color: doc.color === 'text-emerald-400' ? '#34d399' : (doc.color === 'text-pink-400' ? '#f472b6' : doc.color === 'text-purple-400' ? '#c084fc' : doc.color === 'text-amber-400' ? '#fbbf24' : '#64748b') }}></div>
                                         <div>
                                             <p className="text-xs font-black italic">{doc.name}</p>
                                             <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{doc.specialty}</p>
                                         </div>
                                     </div>
-                                    <span className={`text-[8px] font-black uppercase tracking-widest ${doc.color} italic underline underline-offset-4`}>{doc.status}</span>
+                                    <span className={`text-[8px] font-black uppercase tracking-widest ${doc.color} italic`}>{doc.status}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    <div className="p-10 rounded-[3rem] bg-gradient-to-br from-indigo-600 to-violet-700 shadow-2xl text-white relative overflow-hidden group">
+                    <div className="p-8 rounded-[3rem] bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 shadow-2xl text-white relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16 blur-2xl group-hover:scale-125 transition-transform duration-700"></div>
-                        <DocumentTextIcon className="w-10 h-10 mb-6 opacity-40 group-hover:rotate-12 transition-transform" />
-                        <h4 className="text-xl font-black mb-2 relative z-10 italic">Signal Queue</h4>
-                        <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest relative z-10">Real-time Wait Metrics</p>
-                        <p className="text-4xl font-black mt-4 relative z-10 italic underline decoration-white/20">~15 <span className="text-xs font-bold text-indigo-200">mins</span></p>
-                        <button className="mt-8 w-full py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white/20 transition-all italic underline underline-offset-4 decoration-2">Broadcast Signal</button>
+                        <DocumentTextIcon className="w-10 h-10 mb-4 opacity-40 group-hover:rotate-12 transition-transform" />
+                        <h4 className="text-xl font-black mb-1 relative z-10 italic">Clinic Flow &amp; MCH Queue</h4>
+                        <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest relative z-10">MOH 405 &amp; OPD Wait Metrics</p>
+                        <p className="text-3xl font-black mt-3 relative z-10 italic underline decoration-white/20">~12 <span className="text-xs font-bold text-indigo-200">mins avg wait</span></p>
+                        <button className="mt-6 w-full py-3.5 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white/20 transition-all italic underline underline-offset-4 decoration-2 cursor-pointer">Broadcast Clinic Signal</button>
                     </div>
                 </div>
             </div>

@@ -3614,6 +3614,13 @@ export interface HISAppointment {
     patientName?: string;
     doctorName?: string;
     specialty?: string;
+    // MCH & Maternity helpers
+    mchClinicType?: 'ANC' | 'CWC' | 'PNC' | 'NBU' | 'FP' | 'Other';
+    gestationWeeks?: number;
+    targetVaccine?: string;
+    gravidaPara?: string;
+    mchNotes?: string;
+    eddDate?: string;
 }
 
 export interface HISStaffAttendance {

@@ -76,6 +76,13 @@ export function AddAppointmentModal({
         paymentMethod: 'Cash',
         insuranceProvider: '',
         insurancePolicyNumber: '',
+        // MCH fields
+        mchClinicType: 'ANC' as 'ANC' | 'CWC' | 'PNC' | 'NBU' | 'FP' | 'Other',
+        gestationWeeks: 20,
+        targetVaccine: 'Penta 1 + Rota 1 (6 Wks)',
+        gravidaPara: 'G1 P0+0',
+        eddDate: '',
+        mchNotes: '',
     });
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -193,6 +200,12 @@ export function AddAppointmentModal({
                 paymentMethod: 'Cash',
                 insuranceProvider: '',
                 insurancePolicyNumber: '',
+                mchClinicType: 'ANC',
+                gestationWeeks: 20,
+                targetVaccine: 'Penta 1 + Rota 1 (6 Wks)',
+                gravidaPara: 'G1 P0+0',
+                eddDate: '',
+                mchNotes: '',
             });
             setSearchQuery('');
         } catch (error) {
@@ -333,11 +346,25 @@ export function AddAppointmentModal({
                         </div>
                         <div className="space-y-3">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <SparklesIcon className="w-3 h-3 text-indigo-500" /> {isEdu ? 'Health Area' : 'Specialty'}
+                                <SparklesIcon className="w-3 h-3 text-indigo-500" /> {isEdu ? 'Health Area' : 'Specialty / Department'}
                             </label>
                             <select
                                 value={formData.specialty}
-                                onChange={e => setFormData(prev => ({ ...prev, specialty: e.target.value }))}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        specialty: val,
+                                        doctorName: val.includes('MCH') || val.includes('Maternity') || val.includes('CWC')
+                                            ? 'Nurse Midwife Faith / Clinical Officer'
+                                            : prev.doctorName,
+                                        type: val.includes('MCH')
+                                            ? 'Antenatal Care (ANC Visit 1 - 8 / MOH 405)'
+                                            : val.includes('CWC')
+                                            ? 'Child Welfare & Immunization (KEPI CWC)'
+                                            : prev.type
+                                    }));
+                                }}
                                 className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all dark:text-white appearance-none"
                             >
                                 {isEdu ? (
@@ -353,6 +380,10 @@ export function AddAppointmentModal({
                                 ) : (
                                     <>
                                         <option value="General Medicine">General OPD</option>
+                                        <option value="MCH / ANC & Maternity Hub">🤰 MCH / ANC &amp; Maternity Hub</option>
+                                        <option value="Child Welfare Clinic (CWC & Immunization)">🍼 Child Welfare (CWC &amp; KEPI)</option>
+                                        <option value="Postnatal Care (PNC) & Family Planning">🌺 Postnatal (PNC) &amp; Family Planning</option>
+                                        <option value="Newborn Unit (NBU / KMC)">👶 Newborn Unit (NBU / KMC)</option>
                                         <option value="Dental">Dental Hub</option>
                                         <option value="Ophthalmology">Eye / Ocular</option>
                                         <option value="Diagnostics">Lab / Imaging</option>
@@ -463,6 +494,12 @@ export function AddAppointmentModal({
                             ) : (
                                 <>
                                     <option value="Initial Consultation">Initial Consultation</option>
+                                    <option value="Antenatal Care (ANC Visit 1 - 8 / MOH 405)">🤰 Antenatal Care (ANC Visit / MOH 405)</option>
+                                    <option value="Child Welfare & Immunization (KEPI CWC)">🍼 Child Welfare &amp; Immunization (KEPI CWC)</option>
+                                    <option value="Postnatal Care (PNC 48h / 2wk / 6wk)">🌺 Postnatal Care (PNC 48h / 2wk / 6wk)</option>
+                                    <option value="Newborn Unit (NBU / Incubator / KMC)">👶 Newborn Unit (NBU / KMC Follow-up)</option>
+                                    <option value="PMTCT / High-Risk Antenatal Care">🧬 PMTCT / High-Risk Antenatal</option>
+                                    <option value="Family Planning & Reproductive Health">🌸 Family Planning &amp; Reproductive Health</option>
                                     <option value="Follow-up Visit">Follow-up Visit</option>
                                     <option value="Specialist Review">Specialist Review</option>
                                     <option value="Emergency Triage">Emergency / Triage</option>
@@ -471,6 +508,142 @@ export function AddAppointmentModal({
                             )}
                         </select>
                     </div>
+
+                    {/* ── 🤰 MCH / ANC / CWC Dynamic Parameters Card ── */}
+                    {!isEdu && (formData.specialty.includes('MCH') || formData.specialty.includes('Maternity') || formData.specialty.includes('CWC') || formData.specialty.includes('Newborn') || formData.type.includes('ANC') || formData.type.includes('Child Welfare') || formData.type.includes('Postnatal') || formData.type.includes('Newborn') || formData.type.includes('PMTCT')) && (
+                        <div className="p-5 bg-gradient-to-br from-pink-950/40 via-purple-950/30 to-indigo-950/40 border-2 border-pink-500/40 rounded-3xl space-y-4 shadow-xl">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xl">🤰</span>
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-pink-300">
+                                        MCH Clinical Scheduling Parameters
+                                    </h4>
+                                </div>
+                                <span className="px-2.5 py-0.5 bg-pink-500/20 text-pink-300 border border-pink-500/30 rounded-full text-[8px] font-black uppercase tracking-widest">
+                                    MOH 405 / KEPI
+                                </span>
+                            </div>
+
+                            {/* MCH Sub-clinic Selector Pills */}
+                            <div className="grid grid-cols-4 gap-2">
+                                {[
+                                    { id: 'ANC', label: '🤰 ANC (Antenatal)' },
+                                    { id: 'CWC', label: '🍼 CWC (Child)' },
+                                    { id: 'PNC', label: '🌺 PNC (Postnatal)' },
+                                    { id: 'NBU', label: '👶 NBU (Newborn)' },
+                                ].map(t => (
+                                    <button
+                                        key={t.id}
+                                        type="button"
+                                        onClick={() => setFormData(p => ({ ...p, mchClinicType: t.id as any }))}
+                                        className={`py-2 px-1 text-center rounded-xl text-[8px] font-black uppercase tracking-wider transition-all ${
+                                            formData.mchClinicType === t.id
+                                                ? 'bg-pink-600 text-white shadow-md shadow-pink-600/30'
+                                                : 'bg-white/5 text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        {t.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Dynamic Fields by MCH Sub-clinic */}
+                            {formData.mchClinicType === 'ANC' && (
+                                <div className="grid grid-cols-3 gap-3 pt-1">
+                                    <div>
+                                        <label className="text-[8px] font-black text-pink-300 uppercase tracking-widest block mb-1">Gestation (Weeks)</label>
+                                        <input
+                                            type="number"
+                                            min="4"
+                                            max="42"
+                                            value={formData.gestationWeeks}
+                                            onChange={e => setFormData(p => ({ ...p, gestationWeeks: Number(e.target.value) }))}
+                                            className="w-full bg-black/40 border border-pink-500/30 focus:border-pink-400 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-black text-pink-300 uppercase tracking-widest block mb-1">Gravida / Parity</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. G2 P1+0"
+                                            value={formData.gravidaPara}
+                                            onChange={e => setFormData(p => ({ ...p, gravidaPara: e.target.value }))}
+                                            className="w-full bg-black/40 border border-pink-500/30 focus:border-pink-400 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-black text-pink-300 uppercase tracking-widest block mb-1">Expected Delivery (EDD)</label>
+                                        <input
+                                            type="date"
+                                            value={formData.eddDate}
+                                            onChange={e => setFormData(p => ({ ...p, eddDate: e.target.value }))}
+                                            className="w-full bg-black/40 border border-pink-500/30 focus:border-pink-400 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {formData.mchClinicType === 'CWC' && (
+                                <div className="space-y-2 pt-1">
+                                    <label className="text-[8px] font-black text-pink-300 uppercase tracking-widest block">Target KEPI Immunization Dose / Schedule</label>
+                                    <select
+                                        value={formData.targetVaccine}
+                                        onChange={e => setFormData(p => ({ ...p, targetVaccine: e.target.value }))}
+                                        className="w-full bg-black/50 border border-pink-500/30 focus:border-pink-400 rounded-xl p-2.5 text-xs font-bold text-pink-200 outline-none"
+                                    >
+                                        <option value="BCG + OPV 0 (At Birth)">BCG + Oral Polio (OPV 0) — At Birth</option>
+                                        <option value="OPV 1 + Penta 1 + Rota 1 + PCV 1 (6 Weeks)">OPV 1 + Penta 1 + Rota 1 + PCV 1 (6 Weeks)</option>
+                                        <option value="OPV 2 + Penta 2 + Rota 2 + PCV 2 (10 Weeks)">OPV 2 + Penta 2 + Rota 2 + PCV 2 (10 Weeks)</option>
+                                        <option value="OPV 3 + Penta 3 + IPV + PCV 3 (14 Weeks)">OPV 3 + Penta 3 + IPV + PCV 3 (14 Weeks)</option>
+                                        <option value="Vitamin A + Growth Monitoring (6 Months)">Vitamin A 100,000 IU + Growth Monitoring (6 Mos)</option>
+                                        <option value="Measles-Rubella 1 + Yellow Fever (9 Months)">Measles-Rubella 1 (MR 1) + Yellow Fever (9 Mos)</option>
+                                        <option value="Measles-Rubella 2 + Vitamin A (18 Months)">Measles-Rubella 2 (MR 2) + Deworming (18 Mos)</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {formData.mchClinicType === 'NBU' && (
+                                <div className="grid grid-cols-2 gap-3 pt-1">
+                                    <div>
+                                        <label className="text-[8px] font-black text-pink-300 uppercase tracking-widest block mb-1">NBU Care Area</label>
+                                        <select
+                                            value={formData.targetVaccine}
+                                            onChange={e => setFormData(p => ({ ...p, targetVaccine: e.target.value }))}
+                                            className="w-full bg-black/50 border border-pink-500/30 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                                        >
+                                            <option value="Incubator Bay 01">Incubator Bay 01 (Preterm Care)</option>
+                                            <option value="Phototherapy Unit (Jaundice)">Phototherapy Unit (Neonatal Jaundice)</option>
+                                            <option value="Kangaroo Mother Care (KMC)">Kangaroo Mother Care (KMC Bay)</option>
+                                            <option value="Neonatal Resuscitation Review">Neonatal Resuscitation Review</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-black text-pink-300 uppercase tracking-widest block mb-1">Birth Weight / Current (Grams)</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. 1850g (Gain +35g/day)"
+                                            value={formData.mchNotes}
+                                            onChange={e => setFormData(p => ({ ...p, mchNotes: e.target.value }))}
+                                            className="w-full bg-black/40 border border-pink-500/30 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {formData.mchClinicType === 'PNC' && (
+                                <div className="space-y-2 pt-1">
+                                    <label className="text-[8px] font-black text-pink-300 uppercase tracking-widest block">Postnatal Milestone / Family Planning Method</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. PNC 6-Week Mother & Baby Dyad Check, Progestin-only Implant"
+                                        value={formData.mchNotes}
+                                        onChange={e => setFormData(p => ({ ...p, mchNotes: e.target.value }))}
+                                        className="w-full bg-black/40 border border-pink-500/30 rounded-xl p-2.5 text-xs font-bold text-white outline-none"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* ── Notes / Reason ── */}
                     <div className="space-y-3">
