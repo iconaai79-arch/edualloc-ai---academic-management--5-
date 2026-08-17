@@ -698,10 +698,29 @@ export const App: React.FC = () => {
                 (normUserInstId && cleanId(i.id) === normUserInstId)
             ));
             if (found) return mergeModules(found);
+
+            const foundCounty = (counties || []).find(c => c && (
+                c.id === currentUser.institutionId || 
+                c.id === currentUser.countyId ||
+                c.code === currentUser.institutionId ||
+                c.code === currentUser.countyId ||
+                (normUserInstId && cleanId(c.id) === normUserInstId) ||
+                (c.name && currentUser.institutionId && cleanId(c.name) === normUserInstId)
+            ));
+            if (foundCounty) {
+                return mergeModules({
+                    id: foundCounty.id,
+                    name: foundCounty.name,
+                    institutionType: 'County',
+                    category: 'County Government',
+                    status: foundCounty.status || 'active',
+                    countyId: foundCounty.id
+                } as any);
+            }
         }
 
         return null;
-    }, [currentUser, institutions, schoolRegistry, activeStoreTenantId, institutionModuleStates, constituencies]);
+    }, [currentUser, institutions, counties, schoolRegistry, activeStoreTenantId, institutionModuleStates, constituencies]);
 
     const activeRole = useMemo<Role | null>(() => {
         if (impersonatedRole) return impersonatedRole;
@@ -730,8 +749,10 @@ export const App: React.FC = () => {
     const activeCounty = useMemo(() => {
         if (!currentUser || !Array.isArray(counties)) return null;
 
-        // Match by current user's institutionId (if it's a county ID)
-        const directMatch = getCountyById(currentUser.institutionId);
+        // Match by current user's countyId or institutionId
+        const directMatch = getCountyById(currentUser.countyId) || 
+                            getCountyById(currentUser.institutionId) ||
+                            counties.find(c => c.id === currentUser.countyId || c.id === currentUser.institutionId || c.code === currentUser.countyId || c.code === currentUser.institutionId || (c.name && currentUser.institutionId && c.name.toLowerCase() === currentUser.institutionId.toLowerCase()));
         if (directMatch) return directMatch;
 
         // Alternative check: find user's institution and check its countyId
