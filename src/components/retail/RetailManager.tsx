@@ -60,6 +60,8 @@ export interface RetailNavItem {
     color?: string;
 }
 
+export type ThemePreset = 'cosmic' | 'emerald' | 'sapphire' | 'amber';
+
 interface RetailManagerProps {
     institutionId: string;
     currentUser: User;
@@ -140,8 +142,25 @@ export function RetailManager(props: RetailManagerProps) {
             return false;
         }
     });
+
+    // Attractive Theme State with local storage
+    const [theme, setTheme] = useState<ThemePreset>(() => {
+        try {
+            return (localStorage.getItem('eduai_retail_theme') as ThemePreset) || 'cosmic';
+        } catch (e) {
+            return 'cosmic';
+        }
+    });
+
     const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
     const [searchQuery, setSearchQuery] = useState<string>('');
+
+    const handleSetTheme = (newTheme: ThemePreset) => {
+        setTheme(newTheme);
+        try {
+            localStorage.setItem('eduai_retail_theme', newTheme);
+        } catch (e) {}
+    };
 
     const activeView = (activeTab as any) || internalActiveView;
     const setActiveView = (view: any) => {
@@ -223,6 +242,69 @@ export function RetailManager(props: RetailManagerProps) {
     // Counts for status badges
     const lowStockCount = useMemo(() => inventory.filter(i => (i.quantity || 0) <= (i.reorderPoint || 5)).length, [inventory]);
     const pendingReqCount = useMemo(() => requisitions.filter(r => r.status === 'pending').length, [requisitions]);
+
+    // Theme dynamic style configurations
+    const themeStyles = useMemo(() => {
+        switch (theme) {
+            case 'emerald':
+                return {
+                    sidebarBg: 'bg-gradient-to-b from-slate-950 via-slate-900 to-teal-950/90 border-emerald-500/25',
+                    headerGradient: 'from-emerald-500 via-teal-600 to-cyan-500',
+                    headerShadow: 'shadow-emerald-500/25',
+                    activeItemBg: 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-lg shadow-emerald-500/30 ring-1 ring-white/20',
+                    accentGlow: 'bg-emerald-400',
+                    categoryText: 'text-emerald-300 dark:text-emerald-400',
+                    categoryBadge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                    tagColor: 'text-emerald-400',
+                    drawerHeaderBg: 'bg-teal-950/80 border-emerald-900/40',
+                    dockGlow: 'from-emerald-500 via-teal-600 to-cyan-500 shadow-emerald-500/40',
+                    posBtnGradient: 'from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500',
+                };
+            case 'sapphire':
+                return {
+                    sidebarBg: 'bg-gradient-to-b from-slate-950 via-slate-900 to-blue-950/90 border-cyan-500/25',
+                    headerGradient: 'from-blue-500 via-indigo-600 to-cyan-500',
+                    headerShadow: 'shadow-blue-500/25',
+                    activeItemBg: 'bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 text-white shadow-lg shadow-blue-500/30 ring-1 ring-white/20',
+                    accentGlow: 'bg-cyan-400',
+                    categoryText: 'text-cyan-300 dark:text-cyan-400',
+                    categoryBadge: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+                    tagColor: 'text-cyan-400',
+                    drawerHeaderBg: 'bg-blue-950/80 border-cyan-900/40',
+                    dockGlow: 'from-blue-500 via-indigo-600 to-cyan-500 shadow-blue-500/40',
+                    posBtnGradient: 'from-blue-600 via-indigo-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500',
+                };
+            case 'amber':
+                return {
+                    sidebarBg: 'bg-gradient-to-b from-slate-950 via-slate-900 to-rose-950/90 border-amber-500/25',
+                    headerGradient: 'from-amber-400 via-orange-500 to-rose-600',
+                    headerShadow: 'shadow-orange-500/25',
+                    activeItemBg: 'bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 text-white shadow-lg shadow-amber-500/30 ring-1 ring-white/20',
+                    accentGlow: 'bg-amber-400',
+                    categoryText: 'text-amber-300 dark:text-amber-400',
+                    categoryBadge: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+                    tagColor: 'text-amber-400',
+                    drawerHeaderBg: 'bg-rose-950/80 border-amber-900/40',
+                    dockGlow: 'from-amber-400 via-orange-500 to-rose-600 shadow-orange-500/40',
+                    posBtnGradient: 'from-amber-600 via-orange-600 to-rose-600 hover:from-amber-500 hover:to-rose-500',
+                };
+            case 'cosmic':
+            default:
+                return {
+                    sidebarBg: 'bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950/90 border-indigo-500/25',
+                    headerGradient: 'from-indigo-600 via-purple-600 to-pink-500',
+                    headerShadow: 'shadow-indigo-500/25',
+                    activeItemBg: 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-lg shadow-indigo-500/30 ring-1 ring-white/20',
+                    accentGlow: 'bg-pink-400',
+                    categoryText: 'text-indigo-300 dark:text-indigo-400',
+                    categoryBadge: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+                    tagColor: 'text-indigo-400',
+                    drawerHeaderBg: 'bg-indigo-950/80 border-indigo-900/40',
+                    dockGlow: 'from-indigo-600 via-purple-600 to-pink-500 shadow-indigo-500/40',
+                    posBtnGradient: 'from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500',
+                };
+        }
+    }, [theme]);
 
     // Build comprehensive navigation items list
     const navItems: RetailNavItem[] = useMemo(() => {
@@ -317,11 +399,11 @@ export function RetailManager(props: RetailManagerProps) {
                 MOBILE STICKY TOP HEADER BAR (Shown on < lg screens)
             ══════════════════════════════════════════════════════════════════════ */}
             {!hideNavigation && (
-                <div className="lg:hidden sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 px-4 py-3 flex items-center justify-between shadow-sm transition-all -mx-4 sm:-mx-6 mb-4">
+                <div className="lg:hidden sticky top-0 z-40 bg-slate-950/85 backdrop-blur-xl border-b border-slate-800/80 px-4 py-3 flex items-center justify-between shadow-lg transition-all -mx-4 sm:-mx-6 mb-4 text-white">
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setIsMobileDrawerOpen(true)}
-                            className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-slate-700 hover:text-indigo-600 transition-all active:scale-95 flex items-center justify-center shadow-inner"
+                            className="p-2.5 rounded-2xl bg-white/10 text-white hover:bg-white/20 transition-all active:scale-95 flex items-center justify-center shadow-inner"
                             aria-label="Open Navigation Menu"
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -330,12 +412,12 @@ export function RetailManager(props: RetailManagerProps) {
                         </button>
                         <div>
                             <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <h1 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white truncate max-w-[170px]">
+                                <span className={`w-2 h-2 rounded-full ${themeStyles.accentGlow} animate-pulse`}></span>
+                                <h1 className="text-xs font-black uppercase tracking-wider text-white truncate max-w-[160px]">
                                     {currentInstitution?.name || 'Retail Agency'}
                                 </h1>
                             </div>
-                            <p className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                            <p className={`text-[10px] font-extrabold uppercase tracking-widest ${themeStyles.tagColor}`}>
                                 {activeItem?.label || 'Overview'}
                             </p>
                         </div>
@@ -344,7 +426,7 @@ export function RetailManager(props: RetailManagerProps) {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setActiveView('pos')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+                            className={`flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r ${themeStyles.posBtnGradient} text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md active:scale-95 transition-all`}
                         >
                             <Smartphone className="w-3.5 h-3.5" />
                             <span>POS</span>
@@ -365,23 +447,24 @@ export function RetailManager(props: RetailManagerProps) {
                 <div className="fixed inset-0 z-50 lg:hidden animate-fade-in">
                     {/* Backdrop */}
                     <div 
-                        className="fixed inset-0 bg-slate-950/70 backdrop-blur-md transition-opacity"
+                        className="fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity"
                         onClick={() => setIsMobileDrawerOpen(false)}
                     />
 
                     {/* Drawer Content */}
-                    <div className="fixed inset-y-0 left-0 max-w-[85%] w-80 bg-white dark:bg-slate-900 shadow-2xl border-r border-slate-200 dark:border-slate-800 flex flex-col z-10 animate-slide-in-left">
+                    <div className={`fixed inset-y-0 left-0 max-w-[85%] w-80 ${themeStyles.sidebarBg} shadow-2xl border-r flex flex-col z-10 animate-slide-in-left text-white`}>
+                        
                         {/* Drawer Header */}
-                        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+                        <div className={`p-5 border-b border-white/10 flex items-center justify-between ${themeStyles.drawerHeaderBg}`}>
                             <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-gradient-to-tr from-indigo-600 to-violet-600 text-white rounded-2xl shadow-md">
+                                <div className={`p-2.5 bg-gradient-to-tr ${themeStyles.headerGradient} text-white rounded-2xl shadow-lg ${themeStyles.headerShadow}`}>
                                     <Store className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h3 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight truncate max-w-[160px]">
+                                    <h3 className="font-black text-sm text-white uppercase tracking-tight truncate max-w-[150px]">
                                         {currentInstitution?.name || 'Retail Portal'}
                                     </h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                    <p className={`text-[10px] font-bold uppercase tracking-widest ${themeStyles.tagColor}`}>
                                         Commerce Gateway
                                     </p>
                                 </div>
@@ -389,14 +472,41 @@ export function RetailManager(props: RetailManagerProps) {
 
                             <button
                                 onClick={() => setIsMobileDrawerOpen(false)}
-                                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
                             >
                                 <XIcon className="w-5 h-5" />
                             </button>
                         </div>
 
+                        {/* Theme Preset Switcher in Drawer */}
+                        <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between bg-black/20">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Theme Color</span>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={() => handleSetTheme('cosmic')}
+                                    title="Cosmic Amethyst"
+                                    className={`w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-600 to-pink-500 transition-all ${theme === 'cosmic' ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
+                                />
+                                <button
+                                    onClick={() => handleSetTheme('emerald')}
+                                    title="Cyber Emerald"
+                                    className={`w-5 h-5 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-500 transition-all ${theme === 'emerald' ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
+                                />
+                                <button
+                                    onClick={() => handleSetTheme('sapphire')}
+                                    title="Ocean Sapphire"
+                                    className={`w-5 h-5 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-400 transition-all ${theme === 'sapphire' ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
+                                />
+                                <button
+                                    onClick={() => handleSetTheme('amber')}
+                                    title="Sunset Amber"
+                                    className={`w-5 h-5 rounded-full bg-gradient-to-tr from-amber-500 to-rose-600 transition-all ${theme === 'amber' ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
+                                />
+                            </div>
+                        </div>
+
                         {/* Search in Drawer */}
-                        <div className="p-4 border-b border-slate-100 dark:border-slate-800/80">
+                        <div className="p-4 border-b border-white/10">
                             <div className="relative">
                                 <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                                 <input
@@ -404,12 +514,12 @@ export function RetailManager(props: RetailManagerProps) {
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder="Search modules..."
-                                    className="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                    className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/15 rounded-xl text-xs font-semibold text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-white/30"
                                 />
                                 {searchQuery && (
                                     <button 
                                         onClick={() => setSearchQuery('')}
-                                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                        className="absolute right-3 top-2.5 text-slate-400 hover:text-white"
                                     >
                                         <XIcon className="w-3.5 h-3.5" />
                                     </button>
@@ -421,7 +531,7 @@ export function RetailManager(props: RetailManagerProps) {
                         <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
                             {Object.entries(groupedNavItems).map(([catKey, items]) => (
                                 <div key={catKey} className="space-y-1.5">
-                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 px-3">
+                                    <p className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 ${themeStyles.categoryText}`}>
                                         {categoryLabels[catKey] || catKey}
                                     </p>
                                     <div className="space-y-1">
@@ -433,22 +543,22 @@ export function RetailManager(props: RetailManagerProps) {
                                                     onClick={() => setActiveView(item.id)}
                                                     className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-all ${
                                                         isActive 
-                                                            ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/20 font-black' 
-                                                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 font-bold'
+                                                            ? themeStyles.activeItemBg
+                                                            : 'text-slate-300 hover:bg-white/10 hover:text-white font-bold'
                                                     }`}
                                                 >
                                                     <div className="flex items-center gap-3 min-w-0">
                                                         <div className={`p-2 rounded-xl shrink-0 ${
                                                             isActive 
                                                                 ? 'bg-white/20 text-white' 
-                                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                                                : 'bg-white/5 text-slate-400'
                                                         }`}>
                                                             <item.icon className="w-4 h-4" />
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <p className="text-xs uppercase tracking-tight truncate">{item.label}</p>
+                                                            <p className="text-xs uppercase tracking-tight truncate font-extrabold">{item.label}</p>
                                                             {item.description && (
-                                                                <p className={`text-[10px] truncate ${isActive ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                                                <p className={`text-[10px] truncate ${isActive ? 'text-white/80' : 'text-slate-400'}`}>
                                                                     {item.description}
                                                                 </p>
                                                             )}
@@ -458,8 +568,8 @@ export function RetailManager(props: RetailManagerProps) {
                                                     {item.badge && (
                                                         <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ml-2 shrink-0 ${
                                                             isActive 
-                                                                ? 'bg-white text-indigo-700' 
-                                                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                                                ? 'bg-white text-slate-900 shadow-sm' 
+                                                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                                                         }`}>
                                                             {item.badge}
                                                         </span>
@@ -473,16 +583,16 @@ export function RetailManager(props: RetailManagerProps) {
                         </div>
 
                         {/* Drawer Footer User Profile */}
-                        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                        <div className="p-4 border-t border-white/10 bg-black/30">
                             <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-2xl bg-indigo-600 text-white font-black flex items-center justify-center text-xs shadow-md">
+                                <div className={`w-9 h-9 rounded-2xl bg-gradient-to-tr ${themeStyles.headerGradient} text-white font-black flex items-center justify-center text-xs shadow-md`}>
                                     {(currentUser?.name || 'A')[0].toUpperCase()}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white truncate">
+                                    <p className="text-xs font-black uppercase tracking-tight text-white truncate">
                                         {currentUser?.name || 'Agent'}
                                     </p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">
+                                    <p className={`text-[10px] font-bold uppercase tracking-widest truncate ${themeStyles.tagColor}`}>
                                         {currentUser?.role || 'Staff'}
                                     </p>
                                 </div>
@@ -502,39 +612,42 @@ export function RetailManager(props: RetailManagerProps) {
                 ────────────────────────────────────────────────────────────── */}
                 {!hideNavigation && (
                     <aside 
-                        className={`hidden lg:flex flex-col shrink-0 sticky top-24 transition-all duration-300 ease-in-out bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800/80 rounded-[2.5rem] shadow-xl shadow-slate-100/50 dark:shadow-none overflow-hidden ${
+                        className={`hidden lg:flex flex-col shrink-0 sticky top-24 transition-all duration-300 ease-in-out ${themeStyles.sidebarBg} backdrop-blur-2xl border rounded-[2.5rem] shadow-2xl overflow-hidden text-white ${
                             isSidebarCollapsed ? 'w-20' : 'w-72 xl:w-80'
                         }`}
                         style={{ maxHeight: 'calc(100vh - 7rem)' }}
                     >
+                        {/* Ambient Glow Aura */}
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-white/10 to-transparent rounded-full blur-2xl pointer-events-none -mr-20 -mt-20" />
+
                         {/* Sidebar Header with Agency Identity & Collapse Toggle */}
-                        <div className="p-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between bg-slate-50/40 dark:bg-slate-800/40">
+                        <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/20 relative z-10">
                             {!isSidebarCollapsed ? (
                                 <div className="flex items-center gap-3.5 min-w-0">
-                                    <div className="p-3 bg-gradient-to-tr from-indigo-600 via-indigo-700 to-violet-600 text-white rounded-2xl shadow-lg shadow-indigo-500/20 shrink-0">
+                                    <div className={`p-3 bg-gradient-to-tr ${themeStyles.headerGradient} text-white rounded-2xl shadow-lg ${themeStyles.headerShadow} shrink-0`}>
                                         <Store className="w-5 h-5" />
                                     </div>
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-1.5">
-                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                            <h2 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight truncate">
+                                            <span className={`w-2 h-2 rounded-full ${themeStyles.accentGlow} animate-pulse`}></span>
+                                            <h2 className="font-black text-sm text-white uppercase tracking-tight truncate">
                                                 {currentInstitution?.name || 'Retail Agency'}
                                             </h2>
                                         </div>
-                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400 mt-0.5">
+                                        <p className={`text-[10px] font-black uppercase tracking-[0.2em] mt-0.5 ${themeStyles.tagColor}`}>
                                             Terminal & Catalog
                                         </p>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="mx-auto p-2.5 bg-gradient-to-tr from-indigo-600 to-violet-600 text-white rounded-2xl shadow-md">
+                                <div className={`mx-auto p-2.5 bg-gradient-to-tr ${themeStyles.headerGradient} text-white rounded-2xl shadow-md`}>
                                     <Store className="w-5 h-5" />
                                 </div>
                             )}
 
                             <button
                                 onClick={toggleSidebar}
-                                className={`p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-all ${
+                                className={`p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all ${
                                     isSidebarCollapsed ? 'hidden' : 'block'
                                 }`}
                                 title="Collapse Sidebar"
@@ -543,9 +656,41 @@ export function RetailManager(props: RetailManagerProps) {
                             </button>
                         </div>
 
+                        {/* Theme Preset Selector Bar (Desktop) */}
+                        {!isSidebarCollapsed && (
+                            <div className="px-5 py-2.5 border-b border-white/10 flex items-center justify-between bg-black/10">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                                    <SparklesIcon className="w-3 h-3 text-amber-400" />
+                                    Theme Palette
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => handleSetTheme('cosmic')}
+                                        title="Cosmic Amethyst"
+                                        className={`w-4 h-4 rounded-full bg-gradient-to-tr from-indigo-600 to-pink-500 transition-all ${theme === 'cosmic' ? 'ring-2 ring-white scale-125' : 'opacity-60 hover:opacity-100'}`}
+                                    />
+                                    <button
+                                        onClick={() => handleSetTheme('emerald')}
+                                        title="Cyber Emerald"
+                                        className={`w-4 h-4 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-500 transition-all ${theme === 'emerald' ? 'ring-2 ring-white scale-125' : 'opacity-60 hover:opacity-100'}`}
+                                    />
+                                    <button
+                                        onClick={() => handleSetTheme('sapphire')}
+                                        title="Ocean Sapphire"
+                                        className={`w-4 h-4 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-400 transition-all ${theme === 'sapphire' ? 'ring-2 ring-white scale-125' : 'opacity-60 hover:opacity-100'}`}
+                                    />
+                                    <button
+                                        onClick={() => handleSetTheme('amber')}
+                                        title="Sunset Amber"
+                                        className={`w-4 h-4 rounded-full bg-gradient-to-tr from-amber-500 to-rose-600 transition-all ${theme === 'amber' ? 'ring-2 ring-white scale-125' : 'opacity-60 hover:opacity-100'}`}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         {/* Search Input when Expanded */}
                         {!isSidebarCollapsed && (
-                            <div className="px-5 pt-4 pb-2">
+                            <div className="px-5 pt-3 pb-2">
                                 <div className="relative">
                                     <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-3" />
                                     <input
@@ -553,12 +698,12 @@ export function RetailManager(props: RetailManagerProps) {
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Jump to module..."
-                                        className="w-full pl-9 pr-8 py-2 bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-700/50 rounded-xl text-[11px] font-semibold text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                                        className="w-full pl-9 pr-8 py-2 bg-white/10 border border-white/15 rounded-xl text-[11px] font-semibold text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-white/30"
                                     />
                                     {searchQuery && (
                                         <button 
                                             onClick={() => setSearchQuery('')}
-                                            className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                            className="absolute right-3 top-2.5 text-slate-400 hover:text-white"
                                         >
                                             <XIcon className="w-3 h-3" />
                                         </button>
@@ -569,10 +714,10 @@ export function RetailManager(props: RetailManagerProps) {
 
                         {/* Expand Button when collapsed */}
                         {isSidebarCollapsed && (
-                            <div className="p-3 text-center border-b border-slate-100 dark:border-slate-800/80">
+                            <div className="p-3 text-center border-b border-white/10">
                                 <button
                                     onClick={toggleSidebar}
-                                    className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-all mx-auto block"
+                                    className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all mx-auto block"
                                     title="Expand Sidebar"
                                 >
                                     <ChevronRightIcon className="w-4 h-4" />
@@ -581,15 +726,15 @@ export function RetailManager(props: RetailManagerProps) {
                         )}
 
                         {/* Categorized Scrollable Nav Items */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar relative z-10">
                             {Object.entries(groupedNavItems).map(([catKey, items]) => (
                                 <div key={catKey} className="space-y-1.5">
                                     {!isSidebarCollapsed && (
                                         <div className="flex items-center justify-between px-3">
-                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                                            <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${themeStyles.categoryText}`}>
                                                 {categoryLabels[catKey] || catKey}
                                             </p>
-                                            <span className="text-[9px] font-black text-slate-300 dark:text-slate-600">
+                                            <span className="text-[9px] font-black text-white/30">
                                                 {items.length}
                                             </span>
                                         </div>
@@ -606,27 +751,27 @@ export function RetailManager(props: RetailManagerProps) {
                                                         isSidebarCollapsed ? 'justify-center p-3' : 'justify-between px-3.5 py-2.5'
                                                     } rounded-2xl transition-all duration-200 ${
                                                         isActive
-                                                            ? 'bg-gradient-to-r from-indigo-600 via-indigo-600 to-violet-600 text-white font-black shadow-md shadow-indigo-500/25 scale-[1.02]'
-                                                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold'
+                                                            ? themeStyles.activeItemBg
+                                                            : 'text-slate-300 hover:bg-white/10 hover:text-white font-bold'
                                                     }`}
                                                 >
                                                     <div className="flex items-center gap-3 min-w-0">
                                                         <div className={`p-2 rounded-xl transition-all ${
                                                             isActive
                                                                 ? 'bg-white/20 text-white shadow-sm'
-                                                                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 group-hover:bg-indigo-50 dark:group-hover:bg-slate-700 group-hover:text-indigo-600'
+                                                                : 'bg-white/5 text-slate-400 group-hover:bg-white/15 group-hover:text-white'
                                                         }`}>
                                                             <item.icon className="w-4 h-4" />
                                                         </div>
                                                         
                                                         {!isSidebarCollapsed && (
                                                             <div className="text-left min-w-0">
-                                                                <p className="text-xs uppercase tracking-tight truncate leading-tight">
+                                                                <p className="text-xs uppercase tracking-tight truncate leading-tight font-extrabold">
                                                                     {item.label}
                                                                 </p>
                                                                 {item.description && (
                                                                     <p className={`text-[9px] truncate font-medium mt-0.5 ${
-                                                                        isActive ? 'text-indigo-100' : 'text-slate-400 dark:text-slate-400'
+                                                                        isActive ? 'text-white/80' : 'text-slate-400'
                                                                     }`}>
                                                                         {item.description}
                                                                     </p>
@@ -638,8 +783,8 @@ export function RetailManager(props: RetailManagerProps) {
                                                     {!isSidebarCollapsed && item.badge && (
                                                         <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ml-2 shrink-0 ${
                                                             isActive
-                                                                ? 'bg-white text-indigo-700 shadow-sm'
-                                                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                                                ? 'bg-white text-slate-900 shadow-sm'
+                                                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                                                         }`}>
                                                             {item.badge}
                                                         </span>
@@ -659,10 +804,10 @@ export function RetailManager(props: RetailManagerProps) {
 
                         {/* Quick POS Launch Footer Card (Desktop) */}
                         {!isSidebarCollapsed ? (
-                            <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-800/60 space-y-3">
+                            <div className="p-4 border-t border-white/10 bg-black/30 space-y-3 relative z-10">
                                 <button
                                     onClick={() => setActiveView('pos')}
-                                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all group"
+                                    className={`w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r ${themeStyles.posBtnGradient} text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all group border border-white/20`}
                                 >
                                     <Smartphone className="w-4 h-4 transition-transform group-hover:scale-110" />
                                     <span>Launch POS Terminal</span>
@@ -670,19 +815,19 @@ export function RetailManager(props: RetailManagerProps) {
                                 
                                 <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 px-1">
                                     <span className="flex items-center gap-1.5">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${themeStyles.accentGlow}`}></span>
                                         {currentUser?.name?.split(' ')[0] || 'Agent'}
                                     </span>
-                                    <span className="uppercase tracking-widest text-indigo-600 dark:text-indigo-400 font-extrabold">
+                                    <span className={`uppercase tracking-widest font-extrabold ${themeStyles.tagColor}`}>
                                         {currentUser?.role || 'Staff'}
                                     </span>
                                 </div>
                             </div>
                         ) : (
-                            <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 text-center">
+                            <div className="p-3 border-t border-white/10 text-center relative z-10">
                                 <button
                                     onClick={() => setActiveView('pos')}
-                                    className="p-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl shadow-md mx-auto block hover:scale-105 active:scale-95 transition-all"
+                                    className={`p-3 bg-gradient-to-r ${themeStyles.posBtnGradient} text-white rounded-2xl shadow-md mx-auto block hover:scale-105 active:scale-95 transition-all border border-white/20`}
                                     title="Launch POS Terminal"
                                 >
                                     <Smartphone className="w-4 h-4" />
@@ -700,7 +845,7 @@ export function RetailManager(props: RetailManagerProps) {
                     {/* View Header Bar (Breadcrumb & Quick Actions) */}
                     <div className="hidden lg:flex items-center justify-between pb-6 mb-6 border-b border-slate-200/80 dark:border-slate-800/80">
                         <div className="flex items-center gap-3">
-                            <div className={`p-3 rounded-2xl bg-gradient-to-tr ${activeItem?.color || 'from-indigo-600 to-violet-600'} text-white shadow-lg`}>
+                            <div className={`p-3 rounded-2xl bg-gradient-to-tr ${themeStyles.headerGradient} text-white shadow-lg ${themeStyles.headerShadow}`}>
                                 <activeItem.icon className="w-6 h-6" />
                             </div>
                             <div>
@@ -716,7 +861,7 @@ export function RetailManager(props: RetailManagerProps) {
                         <div className="flex items-center gap-3">
                             <button
                                 onClick={() => setActiveView('pos')}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95"
+                                className={`flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r ${themeStyles.posBtnGradient} text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 border border-white/20`}
                             >
                                 <Smartphone className="w-4 h-4" />
                                 <span>Quick POS Terminal</span>
@@ -971,21 +1116,21 @@ export function RetailManager(props: RetailManagerProps) {
             ══════════════════════════════════════════════════════════════════════ */}
             {!hideNavigation && (
                 <nav className="fixed bottom-4 left-4 right-4 z-40 lg:hidden">
-                    <div className="bg-slate-950/90 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-800/80 rounded-[2.2rem] shadow-2xl p-2 flex items-center justify-around">
+                    <div className="bg-slate-950/95 backdrop-blur-2xl border border-slate-800/80 rounded-[2.2rem] shadow-2xl p-2 flex items-center justify-around text-white">
                         
                         {/* 1. Dashboard / Overview */}
                         <button
                             onClick={() => setActiveView('dashboard')}
                             className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all relative ${
                                 activeView === 'dashboard'
-                                    ? 'text-indigo-400 scale-110 font-black'
-                                    : 'text-slate-400 hover:text-slate-200'
+                                    ? `${themeStyles.tagColor} scale-110 font-black`
+                                    : 'text-slate-400 hover:text-white'
                             }`}
                         >
                             <LayoutDashboard className="w-5 h-5" />
                             <span className="text-[8px] font-extrabold uppercase tracking-tight">Overview</span>
                             {activeView === 'dashboard' && (
-                                <span className="absolute -bottom-1 w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
+                                <span className={`absolute -bottom-1 w-1.5 h-1.5 ${themeStyles.accentGlow} rounded-full animate-bounce`} />
                             )}
                         </button>
 
@@ -994,22 +1139,22 @@ export function RetailManager(props: RetailManagerProps) {
                             onClick={() => setActiveView('inventory')}
                             className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all relative ${
                                 activeView === 'inventory'
-                                    ? 'text-indigo-400 scale-110 font-black'
-                                    : 'text-slate-400 hover:text-slate-200'
+                                    ? `${themeStyles.tagColor} scale-110 font-black`
+                                    : 'text-slate-400 hover:text-white'
                             }`}
                         >
                             <Package className="w-5 h-5" />
                             <span className="text-[8px] font-extrabold uppercase tracking-tight">Catalog</span>
                             {activeView === 'inventory' && (
-                                <span className="absolute -bottom-1 w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
+                                <span className={`absolute -bottom-1 w-1.5 h-1.5 ${themeStyles.accentGlow} rounded-full animate-bounce`} />
                             )}
                         </button>
 
                         {/* 3. Central Highlighted POS Button */}
                         <button
                             onClick={() => setActiveView('pos')}
-                            className={`flex flex-col items-center justify-center -mt-6 p-3 rounded-full bg-gradient-to-tr from-emerald-500 via-emerald-600 to-teal-500 text-white shadow-xl shadow-emerald-500/30 border-4 border-slate-950 dark:border-slate-900 transition-all active:scale-95 ${
-                                activeView === 'pos' ? 'ring-4 ring-emerald-400/40 scale-105' : ''
+                            className={`flex flex-col items-center justify-center -mt-6 p-3 rounded-full bg-gradient-to-tr ${themeStyles.dockGlow} text-white shadow-2xl border-4 border-slate-950 transition-all active:scale-95 ${
+                                activeView === 'pos' ? 'ring-4 ring-white/40 scale-105' : ''
                             }`}
                         >
                             <Smartphone className="w-5 h-5" />
@@ -1020,21 +1165,21 @@ export function RetailManager(props: RetailManagerProps) {
                             onClick={() => setActiveView('stock_inwards')}
                             className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all relative ${
                                 activeView === 'stock_inwards'
-                                    ? 'text-indigo-400 scale-110 font-black'
-                                    : 'text-slate-400 hover:text-slate-200'
+                                    ? `${themeStyles.tagColor} scale-110 font-black`
+                                    : 'text-slate-400 hover:text-white'
                             }`}
                         >
                             <Truck className="w-5 h-5" />
                             <span className="text-[8px] font-extrabold uppercase tracking-tight">Receive</span>
                             {activeView === 'stock_inwards' && (
-                                <span className="absolute -bottom-1 w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
+                                <span className={`absolute -bottom-1 w-1.5 h-1.5 ${themeStyles.accentGlow} rounded-full animate-bounce`} />
                             )}
                         </button>
 
                         {/* 5. More / All Menu Drawer Toggle */}
                         <button
                             onClick={() => setIsMobileDrawerOpen(true)}
-                            className="flex flex-col items-center gap-1 p-2 rounded-2xl text-slate-400 hover:text-slate-200 active:scale-95 transition-all"
+                            className="flex flex-col items-center gap-1 p-2 rounded-2xl text-slate-400 hover:text-white active:scale-95 transition-all"
                         >
                             <div className="w-5 h-5 flex flex-wrap gap-0.5 justify-center items-center">
                                 <span className="w-1.5 h-1.5 bg-current rounded-full" />
