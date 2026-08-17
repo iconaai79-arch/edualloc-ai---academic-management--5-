@@ -29,6 +29,9 @@ export function getAdminRoleForInstitution(institution: Partial<Institution>): R
     if (type === 'Church') return 'church_admin';
     if (type === 'Community' || (type as any) === 'Political Campaign' || subType.includes('campaign') || subType.includes('politics')) return 'campaign_admin';
 
+    // Restaurant & Hospitality
+    if (isRestaurantInstitution(institution)) return 'restaurant_admin' as any;
+
     // Driving School — admin role is Director
     if (type === 'Driving School' || subType.includes('driving school') || (institution.category || '').toLowerCase() === 'driving school') return 'director';
 
@@ -81,6 +84,11 @@ export function getRolesForInstitution(institution: Institution | null | undefin
     // Car Wash / Car Service
     if (subType.includes('car wash') || subType.includes('car service') || subType.includes('mechanic')) {
         return ['carwash_admin', 'carwash_attendant', 'carwash_customer', 'customer', 'lead'];
+    }
+
+    // Restaurant / Cafe / Hospitality POS
+    if (isRestaurantInstitution(institution)) {
+        return ['restaurant_admin', 'chef', 'waiter', 'cashier', 'finance', 'store', 'security', 'driver'] as any[];
     }
 
     // Retail
@@ -223,6 +231,23 @@ export function isMillingInstitution(institution: Partial<Institution> | null | 
            category.includes('miller') || category.includes('milling') || category.includes('grain') ||
            subType.includes('milling') || subType.includes('miller') || subType.includes('posho') || subType.includes('grain') ||
            name.includes('miller') || name.includes('millers') || name.includes('milling') || name.includes('grain') || name.includes('flour') || !!hasModule;
+}
+
+/**
+ * Centralized logic to determine if an institution is a Restaurant, Cafe, Eatery or Hospitality POS entity.
+ */
+export function isRestaurantInstitution(institution: Partial<Institution> | null | undefined): boolean {
+    if (!institution) return false;
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
+    const subType = institution.businessSubType?.toLowerCase() || '';
+    const name = (institution.name || '').toLowerCase();
+    const hasModule = institution.moduleStates?.some(m => (m.moduleId === 'restaurant' || m.moduleId === 'restaurant_pos' || m.moduleId === 'hospitality') && (m.status === 'active' || m.status === 'trial'));
+
+    return type === 'restaurant' || type === 'hospitality' || type === 'cafe' || type === 'hotel' ||
+           category.includes('restaurant') || category.includes('cafe') || category.includes('eatery') || category.includes('hotel') || category.includes('hospitality') ||
+           subType.includes('restaurant') || subType.includes('cafe') || subType.includes('eatery') || subType.includes('hotel') || subType.includes('bar') ||
+           name.includes('restaurant') || name.includes('cafe') || name.includes('hotel') || name.includes('diner') || name.includes('bistro') || !!hasModule;
 }
 
 
