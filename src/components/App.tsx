@@ -6456,19 +6456,166 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                         inventoryItems: countyInventory,
                                         inventoryCategories: countyInventoryCategories,
                                         onAddInventoryItem: async (data: any) => {
-                                            const id = data.id || `cinv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                                            await apiService.saveModuleRecord('county_inventory', { ...data, id });
-                                            loadData();
+                                            try {
+                                                const id = data.id || `cinv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                                                const effectiveCountyId = data.countyId || data.county_id || activeCounty?.id || currentUser?.countyId || currentUser?.institutionId;
+                                                const newItem: any = {
+                                                    id,
+                                                    name: data.name || '',
+                                                    category: data.category || 'General',
+                                                    quantity: Number(data.quantity || 0),
+                                                    unit: data.unit || 'Units',
+                                                    supplier_name: data.supplierName || data.supplier_name || '',
+                                                    supplierName: data.supplierName || data.supplier_name || '',
+                                                    status: data.status || 'at_hq',
+                                                    target_institution_id: data.targetInstitutionId || data.target_institution_id || null,
+                                                    targetInstitutionId: data.targetInstitutionId || data.target_institution_id || null,
+                                                    driver_name: data.driverName || data.driver_name || '',
+                                                    driverName: data.driverName || data.driver_name || '',
+                                                    delivery_method: data.deliveryMethod || data.delivery_method || 'driver',
+                                                    deliveryMethod: data.deliveryMethod || data.delivery_method || 'driver',
+                                                    tracking_number: data.trackingNumber || data.tracking_number || '',
+                                                    trackingNumber: data.trackingNumber || data.tracking_number || '',
+                                                    county_id: effectiveCountyId,
+                                                    countyId: effectiveCountyId,
+                                                    at_hq_date: data.atHqDate || data.at_hq_date || data.recordedAt || new Date().toISOString(),
+                                                    atHqDate: data.atHqDate || data.at_hq_date || data.recordedAt || new Date().toISOString()
+                                                };
+                                                setCountyInventory(prev => [newItem, ...prev.filter(i => i.id !== id)]);
+                                                await apiService.saveModuleRecord('county_inventory', newItem);
+                                                await loadData(false, true);
+                                                success?.(`Logged inventory receipt: ${newItem.name}`);
+                                            } catch (err: any) {
+                                                console.error("Failed to add county inventory item:", err);
+                                                toastError?.("Failed to add inventory item: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
                                         },
-                                        onUpdateInventoryItem: async (id: string, data: any) => { await apiService.saveModuleRecord('county_inventory', { ...data, id }); loadData(); },
-                                        onDeleteInventoryItem: async (id: string) => { await apiService.deleteModuleRecord('county_inventory', id); loadData(); },
-                                        onAddInventoryCategory: async (data: any) => { const id = data.id || `cat_${Date.now()}`; await apiService.saveModuleRecord('county_inventory_categories', { ...data, id }); loadData(); },
-                                        onUpdateInventoryCategory: async (id: string, data: any) => { await apiService.saveModuleRecord('county_inventory_categories', { ...data, id }); loadData(); },
-                                        onDeleteInventoryCategory: async (id: string) => { await apiService.deleteModuleRecord('county_inventory_categories', id); loadData(); },
+                                        onUpdateInventoryItem: async (id: string, data: any) => {
+                                            try {
+                                                const effectiveCountyId = data.countyId || data.county_id || activeCounty?.id || currentUser?.countyId || currentUser?.institutionId;
+                                                const updatedItem: any = {
+                                                    id,
+                                                    ...data,
+                                                    quantity: Number(data.quantity || 0),
+                                                    county_id: effectiveCountyId,
+                                                    countyId: effectiveCountyId,
+                                                    supplier_name: data.supplierName || data.supplier_name || '',
+                                                    supplierName: data.supplierName || data.supplier_name || '',
+                                                    target_institution_id: data.targetInstitutionId || data.target_institution_id || null,
+                                                    targetInstitutionId: data.targetInstitutionId || data.target_institution_id || null,
+                                                    driver_name: data.driverName || data.driver_name || '',
+                                                    driverName: data.driverName || data.driver_name || '',
+                                                    delivery_method: data.deliveryMethod || data.delivery_method || 'driver',
+                                                    deliveryMethod: data.deliveryMethod || data.delivery_method || 'driver',
+                                                    tracking_number: data.trackingNumber || data.tracking_number || '',
+                                                    trackingNumber: data.trackingNumber || data.tracking_number || ''
+                                                };
+                                                setCountyInventory(prev => prev.map(i => i.id === id ? { ...i, ...updatedItem } : i));
+                                                await apiService.saveModuleRecord('county_inventory', updatedItem);
+                                                await loadData(false, true);
+                                                success?.(`Updated inventory item: ${updatedItem.name || ''}`);
+                                            } catch (err: any) {
+                                                console.error("Failed to update county inventory item:", err);
+                                                toastError?.("Failed to update inventory item: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
+                                        },
+                                        onDeleteInventoryItem: async (id: string) => {
+                                            try {
+                                                setCountyInventory(prev => prev.filter(i => i.id !== id));
+                                                await apiService.deleteModuleRecord('county_inventory', id);
+                                                await loadData(false, true);
+                                                success?.("Inventory item deleted.");
+                                            } catch (err: any) {
+                                                console.error("Failed to delete county inventory item:", err);
+                                                toastError?.("Failed to delete inventory item: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
+                                        },
+                                        onAddInventoryCategory: async (data: any) => {
+                                            try {
+                                                const id = data.id || `cat_${Date.now()}`;
+                                                const effectiveCountyId = data.countyId || data.county_id || activeCounty?.id || currentUser?.countyId || currentUser?.institutionId;
+                                                const newCat = { ...data, id, county_id: effectiveCountyId, countyId: effectiveCountyId };
+                                                setCountyInventoryCategories(prev => [newCat, ...prev.filter(c => c.id !== id)]);
+                                                await apiService.saveModuleRecord('county_inventory_categories', newCat);
+                                                await loadData(false, true);
+                                                success?.(`Created category: ${newCat.name}`);
+                                            } catch (err: any) {
+                                                console.error("Failed to add category:", err);
+                                                toastError?.("Failed to add category: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
+                                        },
+                                        onUpdateInventoryCategory: async (id: string, data: any) => {
+                                            try {
+                                                const effectiveCountyId = data.countyId || data.county_id || activeCounty?.id || currentUser?.countyId || currentUser?.institutionId;
+                                                const updatedCat = { ...data, id, county_id: effectiveCountyId, countyId: effectiveCountyId };
+                                                setCountyInventoryCategories(prev => prev.map(c => c.id === id ? { ...c, ...updatedCat } : c));
+                                                await apiService.saveModuleRecord('county_inventory_categories', updatedCat);
+                                                await loadData(false, true);
+                                                success?.(`Updated category: ${updatedCat.name}`);
+                                            } catch (err: any) {
+                                                console.error("Failed to update category:", err);
+                                                toastError?.("Failed to update category: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
+                                        },
+                                        onDeleteInventoryCategory: async (id: string) => {
+                                            try {
+                                                setCountyInventoryCategories(prev => prev.filter(c => c.id !== id));
+                                                await apiService.deleteModuleRecord('county_inventory_categories', id);
+                                                await loadData(false, true);
+                                                success?.("Category deleted.");
+                                            } catch (err: any) {
+                                                console.error("Failed to delete category:", err);
+                                                toastError?.("Failed to delete category: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
+                                        },
                                         stores: countyStores,
-                                        onAddStore: async (data: any) => { const id = data.id || `store_${Date.now()}`; await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); },
-                                        onUpdateStore: async (id: string, data: any) => { await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); },
-                                        onDeleteStore: async (id: string) => { await apiService.deleteModuleRecord('county_stores', id); loadData(); },
+                                        onAddStore: async (data: any) => {
+                                            try {
+                                                const id = data.id || `store_${Date.now()}`;
+                                                const effectiveCountyId = data.countyId || data.county_id || activeCounty?.id || currentUser?.countyId || currentUser?.institutionId;
+                                                const newStore = { ...data, id, county_id: effectiveCountyId, countyId: effectiveCountyId };
+                                                setCountyStores(prev => [newStore, ...prev.filter(s => s.id !== id)]);
+                                                await apiService.saveModuleRecord('county_stores', newStore);
+                                                await loadData(false, true);
+                                                success?.(`Added store location: ${newStore.name}`);
+                                            } catch (err: any) {
+                                                console.error("Failed to add store:", err);
+                                                toastError?.("Failed to add store: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
+                                        },
+                                        onUpdateStore: async (id: string, data: any) => {
+                                            try {
+                                                const effectiveCountyId = data.countyId || data.county_id || activeCounty?.id || currentUser?.countyId || currentUser?.institutionId;
+                                                const updatedStore = { ...data, id, county_id: effectiveCountyId, countyId: effectiveCountyId };
+                                                setCountyStores(prev => prev.map(s => s.id === id ? { ...s, ...updatedStore } : s));
+                                                await apiService.saveModuleRecord('county_stores', updatedStore);
+                                                await loadData(false, true);
+                                                success?.(`Updated store location: ${updatedStore.name}`);
+                                            } catch (err: any) {
+                                                console.error("Failed to update store:", err);
+                                                toastError?.("Failed to update store: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
+                                        },
+                                        onDeleteStore: async (id: string) => {
+                                            try {
+                                                setCountyStores(prev => prev.filter(s => s.id !== id));
+                                                await apiService.deleteModuleRecord('county_stores', id);
+                                                await loadData(false, true);
+                                                success?.("Store location deleted.");
+                                            } catch (err: any) {
+                                                console.error("Failed to delete store:", err);
+                                                toastError?.("Failed to delete store: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
+                                        },
                                         onAddStockTransaction: async (data: any) => { await apiService.saveModuleRecord('county_stock_transactions', { ...data, id: `ctx_${Date.now()}` }); loadData(); },
                                         bursaryApplications,
                                         bursaryFunds,

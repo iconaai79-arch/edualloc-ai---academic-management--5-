@@ -402,20 +402,32 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         e.preventDefault();
         try {
             if (editingInventory) {
-                await onUpdateInventoryItem?.(editingInventory.id, inventoryForm);
+                await onUpdateInventoryItem?.(editingInventory.id, {
+                    ...inventoryForm,
+                    countyId: myCounty?.id,
+                    county_id: myCounty?.id
+                });
                 onLogAction?.(`Updated inventory item: ${inventoryForm.name}`);
             } else {
                 await onAddInventoryItem?.({ 
                     ...inventoryForm, 
-                    countyId: myCounty.id, 
+                    countyId: myCounty?.id, 
+                    county_id: myCounty?.id,
                     status: 'at_hq',
-                    recordedAt: new Date().toISOString()
+                    recordedAt: new Date().toISOString(),
+                    at_hq_date: new Date().toISOString()
                 });
                 onLogAction?.(`Logged HQ receipt: ${inventoryForm.name}`);
             }
             setShowInventoryModal(false);
-        } catch (error) {
+            setEditingInventory(null);
+            setInventoryForm({
+                name: '', category: '', quantity: 1, unit: 'Units', supplierName: '',
+                targetInstitutionId: '', deliveryMethod: 'driver', driverName: '', trackingNumber: ''
+            });
+        } catch (error: any) {
             console.error("Inventory error:", error);
+            alert("Failed to save inventory item: " + (error?.message || 'Unknown error'));
         }
     };
 
