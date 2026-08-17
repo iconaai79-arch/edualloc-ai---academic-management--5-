@@ -22,10 +22,12 @@ interface Broadcast {
 
 interface DSBroadcasterViewProps {
     onNewBroadcast?: () => void;
+    onBuySms?: () => void;
     currentInstitution?: any;
     leads?: DSLead[];
     students?: any[];
     instructors?: any[];
+    onRefreshData?: () => Promise<void>;
 }
 
 const MOCK_MESSAGES: Broadcast[] = [
@@ -126,35 +128,56 @@ const CampaignLinkChecker: React.FC<{ url: string }> = ({ url }) => {
     );
 };
 
-export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroadcast, currentInstitution, leads = [], students = [], instructors = [] }) => {
-    const [activeTab, setActiveTab] = useState<'Live Feed' | 'Sent' | 'Outbox'>('Live Feed');
+export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ 
+    onNewBroadcast, 
+    onBuySms,
+    currentInstitution, 
+    leads = [], 
+    students = [], 
+    instructors = [],
+    onRefreshData
+}) => {
+    const [activeTab, setActiveTab] = useState<'Live Feed' | 'Sent' | 'SMS Logs' | 'Outbox'>('Sent');
     const [sentBroadcasts, setSentBroadcasts] = useState<any[]>([]);
+    const [smsLogs, setSmsLogs] = useState<any[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
     const [loadingSent, setLoadingSent] = useState(false);
 
-    const fetchSentBroadcasts = useCallback(async () => {
+    const fetchHistory = useCallback(async () => {
         if (!currentInstitution?.id) return;
         setLoadingSent(true);
         try {
-            const res = await apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution.id, undefined, { limit: 100000 });
-            // Sort by created_at descending
-            const sorted = (res || []).sort((a: any, b: any) => {
+            // Fetch broadcaster messages (campaigns and bulk messages)
+            const [bRes, smsRes] = await Promise.all([
+                apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution.id, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<any>('sms_logs', currentInstitution.id, undefined, { limit: 100000 }).catch(() => [])
+            ]);
+
+            // Sort broadcaster messages by date descending
+            const sortedBroadcasts = (bRes || []).sort((a: any, b: any) => {
                 const timeA = new Date(a.created_at || a.createdAt || 0).getTime();
                 const timeB = new Date(b.created_at || b.createdAt || 0).getTime();
                 return timeB - timeA;
             });
-            setSentBroadcasts(sorted);
+            setSentBroadcasts(sortedBroadcasts);
+
+            // Sort SMS logs by date descending
+            const sortedSms = (smsRes || []).sort((a: any, b: any) => {
+                const timeA = new Date(a.created_at || a.createdAt || a.sentAt || a.sent_at || 0).getTime();
+                const timeB = new Date(b.created_at || b.createdAt || b.sentAt || b.sent_at || 0).getTime();
+                return timeB - timeA;
+            });
+            setSmsLogs(sortedSms);
         } catch (e) {
-            console.error("Failed to load sent broadcaster messages:", e);
+            console.error("Failed to load sent messages and SMS logs:", e);
         } finally {
             setLoadingSent(false);
         }
     }, [currentInstitution?.id]);
 
     useEffect(() => {
-        if (activeTab === 'Sent') {
-            fetchSentBroadcasts();
-        }
-    }, [activeTab, fetchSentBroadcasts]);
+        fetchHistory();
+    }, [fetchHistory]);
 
     const getResponseCount = (msgId: string) => {
         return leads.filter(l => 
@@ -163,8 +186,33 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
         ).length;
     };
 
+    const currentSmsBalance = currentInstitution?.smsBalance ?? currentInstitution?.sms_balance ?? 0;
+
+    const filteredBroadcasts = sentBroadcasts.filter(msg => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+            (msg.subject || '').toLowerCase().includes(q) ||
+            (msg.body || '').toLowerCase().includes(q) ||
+            (msg.target || '').toLowerCase().includes(q) ||
+            (msg.channel || '').toLowerCase().includes(q)
+        );
+    });
+
+    const filteredSmsLogs = smsLogs.filter(log => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+            (log.recipient || log.recipients || '').toLowerCase().includes(q) ||
+            (log.message || '').toLowerCase().includes(q) ||
+            (log.status || '').toLowerCase().includes(q) ||
+            (log.provider || '').toLowerCase().includes(q)
+        );
+    });
+
     return (
         <div className="animate-fade-in-up space-y-8">
+            {/* Header with Title and Quick Triggers */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div>
                     <h2 className="text-4xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Institutional <span className="text-indigo-600">Broadcaster</span></h2>
@@ -186,29 +234,87 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
                 </div>
             </div>
 
+            {/* Real-time SMS Units & Transmission Status Card */}
+            <div className="p-6 md:p-8 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-[2.5rem] border border-indigo-900/50 shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="space-y-2 z-10">
+                    <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Live SMS & Dispatch Transmission Node</span>
+                    </div>
+                    <div className="flex items-baseline gap-3">
+                        <span className="text-3xl md:text-4xl font-black tracking-tight">{currentSmsBalance.toLocaleString()}</span>
+                        <span className="text-xs font-black uppercase tracking-widest text-indigo-200">SMS Units Available</span>
+                    </div>
+                    <p className="text-xs text-slate-300">Each SMS page is 160 characters (70 for Unicode). Units are auto-deducted per recipient upon dispatch.</p>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap z-10">
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            await fetchHistory();
+                            if (onRefreshData) await onRefreshData();
+                        }}
+                        disabled={loadingSent}
+                        className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-white/10 backdrop-blur-sm"
+                    >
+                        <ArrowPathIcon className={`w-4 h-4 ${loadingSent ? 'animate-spin' : ''}`} />
+                        Refresh Logs
+                    </button>
+
+                    {onBuySms && (
+                        <button
+                            type="button"
+                            onClick={onBuySms}
+                            className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20 font-bold"
+                        >
+                            <SparklesIcon className="w-4 h-4" />
+                            Top Up Units
+                        </button>
+                    )}
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Visual Signal Mixer / Live Feed */}
                 <div className="lg:col-span-8 space-y-8">
                     <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
-                        <div className="flex justify-between items-center mb-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                             <h3 className="text-xl font-black uppercase tracking-tighter flex items-center gap-3 text-slate-900 dark:text-white">
-                                <SignalIcon className="w-6 h-6 text-indigo-600 animate-pulse" /> Live <span className="text-indigo-600">Transmissions</span>
+                                <SignalIcon className="w-6 h-6 text-indigo-600 animate-pulse" /> Transmission <span className="text-indigo-600">Feed</span>
                             </h3>
-                            <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full border border-emerald-100">PA System: Online</span>
+                            
+                            {/* Search bar */}
+                            <div className="relative w-full sm:w-64">
+                                <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search transmissions..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                                />
+                            </div>
                         </div>
 
-                        <div className="flex gap-4 mb-8 border-b border-slate-100 dark:border-slate-800 pb-4 overflow-x-auto scrollbar-hide">
-                            {['Live Feed', 'Sent', 'Outbox'].map(tab => (
+                        {/* Navigation Tabs */}
+                        <div className="flex gap-2 mb-8 border-b border-slate-100 dark:border-slate-800 pb-4 overflow-x-auto scrollbar-hide">
+                            {[
+                                { id: 'Sent', label: `Sent Broadcasts (${sentBroadcasts.length})` },
+                                { id: 'SMS Logs', label: `SMS Delivery Logs (${smsLogs.length})` },
+                                { id: 'Live Feed', label: 'Live Monitoring' },
+                                { id: 'Outbox', label: 'Outbox' }
+                            ].map(tab => (
                                 <button 
-                                    key={tab}
-                                    onClick={() => setActiveTab(tab as any)}
-                                    className={`text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all ${
-                                        activeTab === tab 
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id as any)}
+                                    className={`text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                                        activeTab === tab.id 
                                         ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 shadow-sm border border-indigo-100 dark:border-indigo-900/50' 
                                         : 'text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
                                     }`}
                                 >
-                                    {tab}
+                                    {tab.label}
                                 </button>
                             ))}
                         </div>
@@ -222,13 +328,59 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
                                     <h4 className="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Outbox is Empty</h4>
                                     <p className="text-xs text-slate-400 mt-2">All scheduled and queued broadcasts have been dispatched.</p>
                                 </div>
+                            ) : activeTab === 'SMS Logs' ? (
+                                loadingSent ? (
+                                    <div className="text-center py-12">
+                                        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Fetching SMS Dispatch Logs...</p>
+                                    </div>
+                                ) : filteredSmsLogs.length === 0 ? (
+                                    <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/30 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
+                                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4 text-slate-400">
+                                            <BellIcon className="w-8 h-8 opacity-50" />
+                                        </div>
+                                        <h4 className="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">No SMS Logs Found</h4>
+                                        <p className="text-xs text-slate-400 mt-2">Dispatched lesson alerts, payment notifications, and candidate reminders will show here.</p>
+                                    </div>
+                                ) : (
+                                    filteredSmsLogs.map((log, i) => {
+                                        const dateStr = new Date(log.created_at || log.createdAt || log.sentAt || log.sent_at || Date.now()).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+                                        return (
+                                            <div key={log.id || i} className="p-5 rounded-[1.8rem] border bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:shadow-md transition-all">
+                                                <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600">
+                                                            <BellIcon className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                                                {log.recipient || log.recipients || 'Recipient'}
+                                                            </h4>
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{dateStr}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                                                            {log.units || 1} Unit{(log.units || 1) > 1 ? 's' : ''}
+                                                        </span>
+                                                        <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                                                            ✓ {log.status || 'Sent'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs font-bold text-slate-600 dark:text-slate-300 pl-0 sm:pl-13 whitespace-pre-line leading-relaxed">{log.message}</p>
+                                            </div>
+                                        );
+                                    })
+                                )
                             ) : activeTab === 'Sent' ? (
                                 loadingSent ? (
                                     <div className="text-center py-12">
                                         <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                                         <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Fetching Sent Archive...</p>
                                     </div>
-                                ) : sentBroadcasts.length === 0 ? (
+                                ) : filteredBroadcasts.length === 0 ? (
                                     <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/30 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
                                         <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4 text-slate-400">
                                             <MegaphoneIcon className="w-8 h-8 opacity-50" />
@@ -237,11 +389,11 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
                                         <p className="text-xs text-slate-400 mt-2">Any promotional messages or priority alerts you send will appear here.</p>
                                     </div>
                                 ) : (
-                                    sentBroadcasts.map((msg, i) => {
+                                    filteredBroadcasts.map((msg, i) => {
                                         const responses = getResponseCount(msg.id);
-                                        const dateStr = new Date(msg.created_at || msg.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+                                        const dateStr = new Date(msg.created_at || msg.createdAt || Date.now()).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
                                         return (
-                                            <div key={i} className="p-6 rounded-[2rem] border bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:shadow-md transition-all">
+                                            <div key={msg.id || i} className="p-6 rounded-[2rem] border bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:shadow-md transition-all">
                                                 <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
                                                     <div className="flex gap-4">
                                                         <div className="w-12 h-12 rounded-2xl flex items-center justify-center border bg-indigo-50 dark:bg-indigo-900/30 border-indigo-100 dark:border-indigo-800 text-indigo-600">
@@ -251,7 +403,10 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
                                                             <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">{msg.subject || 'Institutional Broadcast'}</h4>
                                                             <div className="flex flex-wrap gap-2 mt-1">
                                                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{dateStr}</span>
-                                                                <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-md uppercase tracking-wider">{msg.channel}</span>
+                                                                <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-md uppercase tracking-wider">{msg.channel || 'SMS'}</span>
+                                                                {msg.target && (
+                                                                    <span className="text-[9px] font-black text-slate-500 bg-slate-200/50 dark:bg-slate-700 px-2 py-0.5 rounded-md uppercase tracking-wider">🎯 {msg.target}</span>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>

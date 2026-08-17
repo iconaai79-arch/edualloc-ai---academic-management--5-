@@ -115,14 +115,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         msgLower.includes('password reset') ||
         msgLower.includes('recovery link') ||
         msgLower.includes('resettoken=') ||
-        msgLower.includes('invited to') ||
         msgLower.includes('confirm attendance') ||
         msgLower.includes('confirm your attendance') ||
         msgLower.includes('show this pin') ||
-        msgLower.includes('rsvp') ||
         msgLower.includes('temporary password') ||
-        msgLower.includes('your driving school') ||
-        msgLower.includes('your driving instructor') ||
         msgLower.includes('temp password');
 
     // Robust phone normalization function
@@ -860,7 +856,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 // Deduct balance and Log (simplified for bulk)
-                if (institutionId !== 'SYSTEM' && user.id !== 'system') {
+                if (institutionId && institutionId !== 'SYSTEM' && !isSystemMessage) {
                     if (deductedFromSystem > 0) {
                         const newSystemBal = Math.max(0, (instConfig.systemSmsBalance || 0) - deductedFromSystem);
                         const updatedConfig = { ...instConfig, systemSmsBalance: newSystemBal };
@@ -874,18 +870,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     if (deductedFromGeneral > 0) {
-                        await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+                        const { error: rpcErr } = await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+                        if (rpcErr) {
+                            console.warn('[SMS Gateway] decrement_sms_balance RPC failed/missing, executing direct decrement fallback:', rpcErr);
+                            const { data: currInst } = await supabase
+                                .from('institutions')
+                                .select('sms_balance, smsBalance')
+                                .eq('id', institutionId)
+                                .maybeSingle();
+                            if (currInst) {
+                                const currentBal = currInst.sms_balance ?? currInst.smsBalance ?? 0;
+                                const newBal = Math.max(0, currentBal - deductedFromGeneral);
+                                await supabase
+                                    .from('institutions')
+                                    .update({ sms_balance: newBal, smsBalance: newBal })
+                                    .eq('id', institutionId);
+                            }
+                        }
 
-                        if (user.role === 'super_admin') {
-                            await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+                        if (user?.role === 'super_admin') {
+                            await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral }).catch(() => {});
                         }
                     }
 
                     try {
                         // Bulk log entry
                         await supabase.from('sms_logs').insert({
+                            id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
                             institution_id: institutionId,
-                            sender_id: (user.id === 'system' || !user.id) ? null : user.id,
+                            sender_id: (user?.id === 'system' || !user?.id) ? null : user.id,
                             recipient: normalizedRecipients.length === 1 ? normalizedRecipients[0] : `${normalizedRecipients.length} recipients`,
                             message: message,
                             units: totalUnitsToDeduct,
@@ -985,7 +998,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 // Deduct balance and Log
-                if (institutionId !== 'SYSTEM' && user.id !== 'system') {
+                if (institutionId && institutionId !== 'SYSTEM' && !isSystemMessage) {
                     const supabase = getSupabase();
                     if (supabase) {
                         if (deductedFromSystem > 0) {
@@ -1001,17 +1014,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
 
                         if (deductedFromGeneral > 0) {
-                            await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+                            const { error: rpcErr } = await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+                            if (rpcErr) {
+                                console.warn('[Sematime Gateway] decrement_sms_balance RPC failed/missing, executing direct fallback:', rpcErr);
+                                const { data: currInst } = await supabase
+                                    .from('institutions')
+                                    .select('sms_balance, smsBalance')
+                                    .eq('id', institutionId)
+                                    .maybeSingle();
+                                if (currInst) {
+                                    const currentBal = currInst.sms_balance ?? currInst.smsBalance ?? 0;
+                                    const newBal = Math.max(0, currentBal - deductedFromGeneral);
+                                    await supabase
+                                        .from('institutions')
+                                        .update({ sms_balance: newBal, smsBalance: newBal })
+                                        .eq('id', institutionId);
+                                }
+                            }
 
-                            if (user.role === 'super_admin') {
-                                await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+                            if (user?.role === 'super_admin') {
+                                await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral }).catch(() => {});
                             }
                         }
 
                         try {
                             await supabase.from('sms_logs').insert({
+                                id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
                                 institution_id: institutionId,
-                                sender_id: (user.id === 'system' || !user.id) ? null : user.id,
+                                sender_id: (user?.id === 'system' || !user?.id) ? null : user.id,
                                 recipient: normalizedRecipients.length === 1 ? normalizedRecipients[0] : `${normalizedRecipients.length} recipients`,
                                 message: message,
                                 units: totalUnitsToDeduct,

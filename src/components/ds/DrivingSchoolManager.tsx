@@ -9635,10 +9635,12 @@ END $$;
                         <div className="animate-fade-in">
                             <DSBroadcasterView 
                                 onNewBroadcast={() => setActionModal({ type: 'broadcast' })} 
+                                onBuySms={() => setIsBuySMSModalOpen(true)}
                                 currentInstitution={currentInstitution}
                                 leads={leads}
                                 students={normalizedStudents}
                                 instructors={normalizedInstructors}
+                                onRefreshData={onRefreshData}
                             />
                         </div>
                     )}
@@ -11256,7 +11258,6 @@ END $$;
                                          if (channels.includes('Email') && email) emails.push(email);
                                          if (channels.includes('SMS') && phone) phones.push(phone);
                                      });
-
                                      const tasks = [];
                                      let smsResInfo = null;
                                      const currentBalance = currentInstitution?.smsBalance || 0;
@@ -11274,6 +11275,18 @@ END $$;
                                              return;
                                          }
                                          smsResInfo = await apiService.sendSms(phones, fullMsg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
+
+                                         // Optimistically update institution SMS balance locally and persist to database
+                                         if (currentInstitution?.id && requiredUnits > 0) {
+                                             const newBal = Math.max(0, currentBalance - requiredUnits);
+                                             currentInstitution.smsBalance = newBal;
+                                             currentInstitution.sms_balance = newBal;
+                                             await apiService.saveModuleRecord('institutions', {
+                                                 id: currentInstitution.id,
+                                                 smsBalance: newBal,
+                                                 sms_balance: newBal
+                                             }).catch(() => {});
+                                         }
                                      }
 
                                      if (emails.length > 0) {
@@ -11287,16 +11300,24 @@ END $$;
                                          const logRecord = {
                                              id: broadcastId,
                                              institutionId: currentInstitution?.id || 'inst',
+                                             institution_id: currentInstitution?.id || 'inst',
                                              target: data.target + (data.target === 'Students' && data.targetCategory ? ` (${data.targetCategory})` : data.target === 'Students' && data.targetGroup ? ` (${data.targetGroup})` : ''),
                                              channel: channels.join(' / '),
                                              subject: data.title || "Institutional Broadcast",
                                              body: finalMessage,
                                              recipientsCount: targetUsers.length,
-                                             createdAt: new Date().toISOString()
+                                             recipients_count: targetUsers.length,
+                                             createdAt: new Date().toISOString(),
+                                             created_at: new Date().toISOString()
                                          };
                                          await apiService.saveModuleRecord('broadcaster_messages', logRecord);
                                      } catch (logErr) {
                                          console.error("Failed to save broadcast log:", logErr);
+                                     }
+
+                                     // Trigger live data sync
+                                     if (onRefreshData) {
+                                         onRefreshData().catch(() => {});
                                      }
 
                                      let deliverySummary = `Broadcast dispatched to ${targetUsers.length} recipients.`;
