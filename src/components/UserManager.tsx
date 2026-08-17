@@ -884,7 +884,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         isCoop: isCoopProp, isPm: isPmProp, isAutoMarket: isAutoMarketProp,
         isAdding: isAddingProp = false, onAddExtensionRequest, isDS, defaultRole
     } = props;
-    const isRetailAgency = isRetailAgencyProp ?? RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
+    const isRetailAgency = isRetailAgencyProp ?? (
+        RETAIL_SUBTYPES.map(s => s.toLowerCase()).includes((currentInstitution?.businessSubType || '').toLowerCase()) ||
+        RETAIL_SUBTYPES.map(s => s.toLowerCase()).includes((currentInstitution?.institutionType || '').toLowerCase()) ||
+        RETAIL_SUBTYPES.map(s => s.toLowerCase()).includes((currentInstitution?.category || '').toLowerCase()) ||
+        (currentInstitution?.businessSubType || '').toLowerCase().includes('retail') ||
+        (currentInstitution?.institutionType || '').toLowerCase().includes('retail') ||
+        (currentInstitution?.category || '').toLowerCase().includes('retail')
+    );
 
     const [activeTab, setActiveTab] = useState<'staff' | 'student' | 'customer' | 'visitors'>(showOnly as any || 'staff');
     const isChurch = useMemo(() => currentInstitution?.institutionType === 'Church', [currentInstitution]);
@@ -1056,7 +1063,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             : currentInstitution;
 
         const targetIsPm = targetInst ? ((targetInst.institutionType as string) === 'Property Management' || targetInst.businessSubType?.toLowerCase().includes('property management')) : isPm;
-        const targetIsRetail = targetInst ? ((targetInst.institutionType as string) === 'Retail Agency' || targetInst.businessSubType?.toLowerCase().includes('retail')) : isRetailAgency;
+        const targetIsRetail = targetInst ? ((targetInst.institutionType as string) === 'Retail Agency' || targetInst.businessSubType?.toLowerCase().includes('retail') || (targetInst as any).category?.toLowerCase().includes('retail') || RETAIL_SUBTYPES.map(s => s.toLowerCase()).includes((targetInst.businessSubType || '').toLowerCase())) : isRetailAgency;
         const targetIsAuto = targetInst ? ((targetInst.institutionType as string) === 'Car Showroom' || (targetInst as any).category === 'Automotive Marketplace' || targetInst.businessSubType?.toLowerCase().includes('showroom')) : isAutoMarket;
 
         if (searchQuery.trim()) {

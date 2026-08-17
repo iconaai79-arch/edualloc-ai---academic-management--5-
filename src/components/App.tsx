@@ -740,7 +740,7 @@ export const App: React.FC = () => {
         return isHISInstitution(activeInstitution, activeRole);
     }, [activeInstitution, activeRole]);
 
-    const isAdminCatchAll = ['super_admin', 'group_admin', 'school_group_admin', 'school_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'teacher', 'practice_teacher', 'county_teacher', 'agrovet_admin', 'property_admin', 'his_admin', 'nurse', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception', 'mechanic_admin', 'finance_officer', 'procurement_officer', 'managing_director', 'hoi', 'operation_manager', 'operations_manager', 'principal', 'headmaster', 'headmistress', 'manager'].includes(activeRole || '');
+    const isAdminCatchAll = ['super_admin', 'group_admin', 'school_group_admin', 'school_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'teacher', 'practice_teacher', 'county_teacher', 'agrovet_admin', 'property_admin', 'his_admin', 'nurse', 'carwash_admin', 'transport_admin', 'reseller', 'retail_agent', 'field_agent', 'store', 'supplier', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception', 'mechanic_admin', 'finance_officer', 'procurement_officer', 'managing_director', 'hoi', 'operation_manager', 'operations_manager', 'principal', 'headmaster', 'headmistress', 'manager'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -1151,7 +1151,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             const isLaw = isSuper || instTypeLower === 'law firm' || (activeInst?.businessSubType || '').toLowerCase().includes('law') || (activeInst?.businessSubType || '').toLowerCase().includes('legal');
             const isCoopRole = currentUser ? ['cooperative_manager', 'coop_admin', 'coop_chairman', 'farmer', 'rider', 'sacco_officer', 'agrovet_admin'].includes(currentUser.role) : false;
             const isCoop = isSuper || isCoopRole || ['cooperative', 'sacco', 'agrovet', 'farming'].includes(instTypeLower);
-            const isBusiness = isSuper || ['business', 'business ecosystem', 'retail', 'agrovet', 'car wash', 'automotive marketplace', 'car showroom', 'hardware', 'pharmacy'].includes(instTypeLower);
+            const isBusiness = isSuper || ['business', 'business ecosystem', 'retail', 'retail agency', 'agrovet', 'car wash', 'automotive marketplace', 'car showroom', 'hardware', 'pharmacy'].includes(instTypeLower) || instTypeLower.includes('retail') || (activeInst?.businessSubType || '').toLowerCase().includes('retail') || (activeInst?.category || '').toLowerCase().includes('retail');
             const isHigherEd = ['university', 'college', 'tvet', 'polytechnic', 'institute'].includes(instTypeLower);
 
             const isLogistics = isSuper || ['logistics', 'transport'].includes(instTypeLower);

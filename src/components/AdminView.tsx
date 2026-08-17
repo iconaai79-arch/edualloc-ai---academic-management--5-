@@ -699,10 +699,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     const isRetailAgency = useMemo(() => {
         if (props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.institutionType === 'Hospitality' || props.currentInstitution?.institutionType === 'Car Showroom' || isAutoMarket || isLaw) return false;
-        const subType = props.currentInstitution?.businessSubType || '';
-        const type = props.currentInstitution?.institutionType || '';
-        return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type);
-    }, [props.currentInstitution, isAutoMarket, isLaw]);
+        const subType = (props.currentInstitution?.businessSubType || '').toLowerCase();
+        const type = (props.currentInstitution?.institutionType || '').toLowerCase();
+        const cat = (props.currentInstitution?.category || '').toLowerCase();
+        const role = (props.activeRole || props.currentUser?.role || '').toLowerCase();
+        return RETAIL_SUBTYPES.map(s => s.toLowerCase()).includes(subType) || 
+               RETAIL_SUBTYPES.map(s => s.toLowerCase()).includes(type) || 
+               RETAIL_SUBTYPES.map(s => s.toLowerCase()).includes(cat) ||
+               subType.includes('retail') || type.includes('retail') || cat.includes('retail') ||
+               role === 'retail_agent' || role === 'field_agent';
+    }, [props.currentInstitution, isAutoMarket, isLaw, props.activeRole, props.currentUser?.role]);
 
     const isChurch = useMemo(() => {
         return props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.businessSubType === 'Church';
@@ -863,6 +869,18 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
         if (isHeritage) {
             return [];
+        }
+
+        if (isRetailAgency) {
+            return [
+                { id: 'retail', label: 'Retail & Inventory', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
+                { id: 'customers', label: 'Customers', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
+                { id: 'users', label: 'Staff & Agents', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> },
+                { id: 'comms', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+                { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            ];
         }
 
         if (isCampaign) {

@@ -1808,7 +1808,7 @@ Please change it after login.`;
     const isAdminCatchAll = [
         'admin', 'principal', 'headmaster', 'headmistress', 'head_teacher', 'managing_director', 'hoi',
         'school_admin', 'group_admin', 'school_group_admin', 'dean', 'director',
-        'deputy', 'dos', 'hod', 'tto'
+        'deputy', 'dos', 'hod', 'tto', 'retail_agent', 'field_agent', 'reseller', 'store', 'supplier', 'staff'
     ].includes(activeRole || '');
 
     // Render logic moved from App.tsx into component to reuse for perspective switching
