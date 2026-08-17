@@ -3206,14 +3206,18 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                             e.preventDefault();
                             const formEl = e.currentTarget;
                             const fd = new FormData(formEl);
+                            const instName = (fd.get('name') as string || '').trim();
+                            const instEmail = (fd.get('email') as string || '').trim();
                             const newInst = {
-                                name: fd.get('name') as string,
-                                email: fd.get('email') as string,
-                                phoneNumber: fd.get('phoneNumber') as string,
+                                name: instName,
+                                email: instEmail,
+                                phoneNumber: (fd.get('phoneNumber') as string || '').trim(),
                                 institutionType: fd.get('institutionType') as any,
-                                category: fd.get('category') as string,
+                                category: (fd.get('category') as string || '').trim(),
                                 countyId: myCounty.id,
-                                status: 'active'
+                                status: 'active',
+                                adminName: `${instName} Admin`,
+                                adminEmail: instEmail
                             };
                             await onAddInstitution?.(newInst);
                             setShowRegisterModal(false);

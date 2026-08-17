@@ -4490,16 +4490,19 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             const instId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
             const adminId = `u_admin_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
             const generatedPassword = Math.random().toString(36).slice(-8);
+            const adminName = (data.adminName || `${data.name} Admin`).trim();
+            const adminEmail = (data.adminEmail || data.email || `admin@${instId}.eduai.io`).trim();
 
             const newInstitution: Institution = {
                 id: instId,
-                name: data.name,
-                email: data.email,
-                phoneNumber: data.phoneNumber,
+                name: (data.name || '').trim(),
+                email: (data.email || adminEmail).trim(),
+                phoneNumber: (data.phoneNumber || '').trim(),
                 institutionType: data.institutionType as any,
+                category: data.category || 'General',
                 status: 'active',
                 trialEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-                institutionCode: `INST-${Date.now().toString().slice(-4)}`,
+                institutionCode: `INST-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`,
                 useAllocationRequests: true,
                 countyId: data.countyId,
                 subCounty: data.subCounty,
@@ -4510,9 +4513,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             const adminRole: Role = getAdminRoleForInstitution(newInstitution);
             const newAdmin: User = {
                 id: adminId,
-                name: data.adminName,
-                email: data.adminEmail,
-                phoneNumber: data.phoneNumber,
+                name: adminName,
+                email: adminEmail,
+                phoneNumber: data.phoneNumber || '',
                 role: adminRole,
                 institutionId: instId,
                 countyId: data.countyId,
