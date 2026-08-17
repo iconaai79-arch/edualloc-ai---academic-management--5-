@@ -3459,6 +3459,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         sendLessonNotification
     } = useDrivingSchool();
     
+    const onRefreshData = useCallback(async () => {
+        if (onRefreshDataProp) await onRefreshDataProp().catch(() => {});
+        if (refreshData) await refreshData().catch(() => {});
+    }, [onRefreshDataProp, refreshData]);
+
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase' | 'dispatch'>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
