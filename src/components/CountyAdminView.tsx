@@ -294,6 +294,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         (u.role?.startsWith('county_') || u.role === 'county_admin' || u.role === 'county_staff')
     ), [users, myCounty]);
     const myInventory = useMemo(() => inventoryItems.filter(item => item.countyId === myCounty?.id || (item as any).county_id === myCounty?.id), [inventoryItems, myCounty]);
+    const myCategories = useMemo(() => (inventoryCategories || []).filter(cat => !cat.countyId || cat.countyId === myCounty?.id || (cat as any).county_id === myCounty?.id), [inventoryCategories, myCounty]);
+    const myStores = useMemo(() => (stores || []).filter(s => !s.countyId || s.countyId === myCounty?.id || (s as any).county_id === myCounty?.id), [stores, myCounty]);
     const totalStudents = useMemo(() => users.filter(u => u.role === 'student' && myInstitutions.some(inst => inst.id === u.institutionId)).length, [users, myInstitutions]);
 
     if (!myCounty) {
@@ -345,6 +347,54 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         } catch (error: any) {
             console.error("Staff management error:", error);
             alert("Failed to save staff member: " + (error?.message || 'Unknown error'));
+        }
+    };
+
+    const handleCategorySubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            if (editingCategory) {
+                await onUpdateInventoryCategory?.(editingCategory.id, {
+                    ...categoryForm,
+                    countyId: myCounty.id
+                });
+                onLogAction?.(`Updated inventory category: ${categoryForm.name}`);
+            } else {
+                await onAddInventoryCategory?.({
+                    ...categoryForm,
+                    countyId: myCounty.id
+                });
+                onLogAction?.(`Created inventory category: ${categoryForm.name}`);
+            }
+            setShowCategoryModal(false);
+            setEditingCategory(null);
+            setCategoryForm({ name: '', description: '' });
+        } catch (error) {
+            console.error("Category submit error:", error);
+        }
+    };
+
+    const handleStoreSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            if (editingStore) {
+                await onUpdateStore?.(editingStore.id, {
+                    ...storeForm,
+                    countyId: myCounty.id
+                });
+                onLogAction?.(`Updated store location: ${storeForm.name}`);
+            } else {
+                await onAddStore?.({
+                    ...storeForm,
+                    countyId: myCounty.id
+                });
+                onLogAction?.(`Added store location: ${storeForm.name}`);
+            }
+            setShowStoreModal(false);
+            setEditingStore(null);
+            setStoreForm({ name: '', locationName: '', latitude: 0, longitude: 0, description: '' });
+        } catch (error) {
+            console.error("Store submit error:", error);
         }
     };
 
@@ -1173,6 +1223,290 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                     </div>
                                 </div>
                             </>
+                        )}
+
+                        {inventorySubTab === 'categories' && (
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                {myCategories.length === 0 ? (
+                                    <div className="p-12 text-center">
+                                        <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                                            <Package className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-1">No Categories Found</h3>
+                                        <p className="text-xs text-slate-500 font-medium mb-6 max-w-sm mx-auto">Create supply categories (e.g. Textbooks, CBC Material, Medical Supplies) to organize your county inventory.</p>
+                                        <button
+                                            onClick={() => {
+                                                setEditingCategory(null);
+                                                setCategoryForm({ name: '', description: '' });
+                                                setShowCategoryModal(true);
+                                            }}
+                                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors inline-flex items-center gap-2"
+                                        >
+                                            <PlusIcon className="w-4 h-4" /> Create First Category
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Category Name</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Description</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Associated Items</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {myCategories.map(cat => {
+                                                    const count = myInventory.filter(i => (i.category || '').toLowerCase() === (cat.name || '').toLowerCase()).length;
+                                                    return (
+                                                        <tr key={cat.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-sm">
+                                                                        {cat.name.charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                    <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{cat.name}</div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="text-xs text-slate-600 font-medium max-w-md">{cat.description || 'No description provided.'}</div>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-bold">
+                                                                    {count} {count === 1 ? 'item' : 'items'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                                <div className="flex justify-end gap-2">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setEditingCategory(cat);
+                                                                            setCategoryForm({
+                                                                                name: cat.name,
+                                                                                description: cat.description || ''
+                                                                            });
+                                                                            setShowCategoryModal(true);
+                                                                        }}
+                                                                        className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                                                                        title="Edit Category"
+                                                                    >
+                                                                        <PencilIcon className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            if (window.confirm(`Delete category "${cat.name}"?`)) {
+                                                                                await onDeleteInventoryCategory?.(cat.id);
+                                                                                onLogAction?.(`Deleted inventory category: ${cat.name}`);
+                                                                            }
+                                                                        }}
+                                                                        className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                                        title="Delete Category"
+                                                                    >
+                                                                        <CloseIcon className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {inventorySubTab === 'stores' && (
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                {myStores.length === 0 ? (
+                                    <div className="p-12 text-center">
+                                        <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                                            <Building2 className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-1">No Stores / Locations Configured</h3>
+                                        <p className="text-xs text-slate-500 font-medium mb-6 max-w-sm mx-auto">Add central county warehouses, sub-county depots, and distribution centers.</p>
+                                        <button
+                                            onClick={() => {
+                                                setEditingStore(null);
+                                                setStoreForm({ name: '', locationName: '', latitude: 0, longitude: 0, description: '' });
+                                                setShowStoreModal(true);
+                                            }}
+                                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors inline-flex items-center gap-2"
+                                        >
+                                            <PlusIcon className="w-4 h-4" /> Add First Store
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Store / Depot</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Physical Address</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Coordinates</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {myStores.map(store => (
+                                                    <tr key={store.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                                                                    <MapPinIcon className="w-4 h-4" />
+                                                                </div>
+                                                                <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{store.name}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <div className="text-xs font-bold text-slate-700">{store.locationName}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                                                                {store.latitude ? `${store.latitude}, ${store.longitude}` : 'No GPS Set'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="text-xs text-slate-500 font-medium max-w-xs truncate">{store.description || '—'}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                            <div className="flex justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setEditingStore(store);
+                                                                        setStoreForm({
+                                                                            name: store.name,
+                                                                            locationName: store.locationName,
+                                                                            latitude: store.latitude || 0,
+                                                                            longitude: store.longitude || 0,
+                                                                            description: store.description || ''
+                                                                        });
+                                                                        setShowStoreModal(true);
+                                                                    }}
+                                                                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                                                                    title="Edit Store"
+                                                                >
+                                                                    <PencilIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (window.confirm(`Delete store location "${store.name}"?`)) {
+                                                                            await onDeleteStore?.(store.id);
+                                                                            onLogAction?.(`Deleted store location: ${store.name}`);
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                                    title="Delete Store"
+                                                                >
+                                                                    <CloseIcon className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {inventorySubTab === 'dispatch' && (
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Dispatched Item</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Destination Facility</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Logistics & Driver</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Dispatched Time</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {myInventory.filter(i => i.status === 'in_transit' || i.dispatchedAt).length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                                        No active dispatches found. Dispatched items will appear here.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                myInventory.filter(i => i.status === 'in_transit' || i.dispatchedAt).map(item => (
+                                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <div className="text-sm font-black text-slate-900 uppercase">{item.name}</div>
+                                                            <div className="text-[10px] font-bold text-slate-400">{item.quantity} {item.unit}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <div className="text-xs font-bold text-slate-800">
+                                                                {institutions.find(inst => inst.id === item.targetInstitutionId)?.name || 'Pending Destination'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                                                <TruckIcon className="w-3.5 h-3.5 text-indigo-500" />
+                                                                {item.deliveryMethod === 'driver' ? (item.driverName || 'Driver Dispatched') : (item.trackingNumber || 'Parcel')}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-medium">
+                                                            {item.dispatchedAt ? new Date(item.dispatchedAt).toLocaleDateString() : 'Recent'}
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                                                                item.status === 'received' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
+                                                            }`}>
+                                                                {item.status.replace('_', ' ')}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                            {item.status === 'in_transit' && (
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        await onUpdateInventoryItem?.(item.id, { ...item, status: 'received' });
+                                                                        onLogAction?.(`Confirmed delivery of ${item.name}`);
+                                                                    }}
+                                                                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors shadow-sm"
+                                                                >
+                                                                    Mark Delivered
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {inventorySubTab === 'reports' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Stock Items</div>
+                                    <div className="text-3xl font-black text-slate-900">{myInventory.length}</div>
+                                    <div className="text-xs text-slate-500 font-medium mt-1">Across all facilities</div>
+                                </div>
+                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Configured Categories</div>
+                                    <div className="text-3xl font-black text-indigo-600">{myCategories.length}</div>
+                                    <div className="text-xs text-slate-500 font-medium mt-1">Supply classifications</div>
+                                </div>
+                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">County Store Depots</div>
+                                    <div className="text-3xl font-black text-emerald-600">{myStores.length}</div>
+                                    <div className="text-xs text-slate-500 font-medium mt-1">Active storage points</div>
+                                </div>
+                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Delivered Shipments</div>
+                                    <div className="text-3xl font-black text-slate-900">{myInventory.filter(i => i.status === 'received').length}</div>
+                                    <div className="text-xs text-slate-500 font-medium mt-1">Confirmed at school/facility</div>
+                                </div>
+                            </div>
                         )}
                     </div>
                 )}
@@ -2190,12 +2524,18 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                     </label>
                                     <input
                                         type="text"
+                                        list="county-category-datalist"
                                         required
                                         value={inventoryForm.category}
                                         onChange={e => setInventoryForm({ ...inventoryForm, category: e.target.value })}
-                                        placeholder="e.g. Education"
+                                        placeholder="e.g. Education, Health, IT"
                                         className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
                                     />
+                                    <datalist id="county-category-datalist">
+                                        {myCategories.map(cat => (
+                                            <option key={cat.id} value={cat.name} />
+                                        ))}
+                                    </datalist>
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
@@ -2270,6 +2610,238 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Category Modal */}
+            {showCategoryModal && (
+                <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                    {editingCategory ? 'Edit Category' : 'New Inventory Category'}
+                                </h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">
+                                    Supply Classification · {myCounty.name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { setShowCategoryModal(false); setEditingCategory(null); }}
+                                className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <CloseIcon className="w-5 h-5 text-slate-600" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleCategorySubmit} className="p-8 space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Category Name
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={categoryForm.name}
+                                    onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                                    placeholder="e.g. Textbooks, CBC Materials, Medical, IT Hardware, Sports"
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-bold text-sm outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Description (Optional)
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={categoryForm.description}
+                                    onChange={e => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                                    placeholder="Brief notes or guidelines regarding this supply category..."
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none resize-none"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowCategoryModal(false); setEditingCategory(null); }}
+                                    className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors"
+                                >
+                                    {editingCategory ? 'Save Changes' : 'Create Category'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Store / Depot Modal */}
+            {showStoreModal && (
+                <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                    {editingStore ? 'Edit Store / Location' : 'Add Store / Location'}
+                                </h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">
+                                    Warehouses & Supply Depots · {myCounty.name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { setShowStoreModal(false); setEditingStore(null); }}
+                                className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <CloseIcon className="w-5 h-5 text-slate-600" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleStoreSubmit} className="p-8 space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Store / Depot Name
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={storeForm.name}
+                                    onChange={e => setStoreForm({ ...storeForm, name: e.target.value })}
+                                    placeholder="e.g. Central County Warehouse, Sub-County Depot"
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-bold text-sm outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Physical Address / Location
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={storeForm.locationName}
+                                    onChange={e => setStoreForm({ ...storeForm, locationName: e.target.value })}
+                                    placeholder="e.g. County HQ Complex, Block C, Ground Floor"
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        GPS Latitude (Optional)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        value={storeForm.latitude || ''}
+                                        onChange={e => setStoreForm({ ...storeForm, latitude: parseFloat(e.target.value) || 0 })}
+                                        placeholder="-1.286389"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        GPS Longitude (Optional)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        value={storeForm.longitude || ''}
+                                        onChange={e => setStoreForm({ ...storeForm, longitude: parseFloat(e.target.value) || 0 })}
+                                        placeholder="36.817223"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Description / Notes
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={storeForm.description}
+                                    onChange={e => setStoreForm({ ...storeForm, description: e.target.value })}
+                                    placeholder="Storage capacity, storekeeper contact, operating hours..."
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none resize-none"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowStoreModal(false); setEditingStore(null); }}
+                                    className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors"
+                                >
+                                    {editingStore ? 'Save Changes' : 'Add Store'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* QR Asset Code Modal */}
+            {showQrModal && (
+                <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100 text-center p-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                                Asset Tag
+                            </h3>
+                            <button onClick={() => setShowQrModal(null)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors">
+                                <CloseIcon className="w-4 h-4 text-slate-600" />
+                            </button>
+                        </div>
+                        <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200 flex flex-col items-center justify-center mb-6">
+                            <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`EDUAI-INVENTORY:${showQrModal.id}:${showQrModal.name}`)}`} 
+                                alt="Asset QR Code"
+                                className="w-44 h-44 rounded-xl shadow-inner bg-white p-2"
+                            />
+                            <p className="font-mono text-xs font-black text-slate-600 mt-4 uppercase">
+                                ID: {showQrModal.id}
+                            </p>
+                            <p className="text-sm font-black text-slate-900 mt-1 uppercase">
+                                {showQrModal.name}
+                            </p>
+                            <p className="text-xs text-slate-500 font-bold">
+                                {showQrModal.quantity} {showQrModal.unit} • {showQrModal.category}
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => window.print()}
+                            className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Printer className="w-4 h-4" /> Print Asset Label
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Smart Inventory Importer Modal */}
+            {showInventoryImportModal && (
+                <SmartInventoryImporterModal
+                    onClose={() => setShowInventoryImportModal(false)}
+                    countyId={myCounty.id}
+                    institutions={myInstitutions}
+                    onImport={async (items) => {
+                        for (const item of items) {
+                            await onAddInventoryItem?.({
+                                ...item,
+                                countyId: myCounty.id,
+                                status: 'at_hq',
+                                recordedAt: new Date().toISOString()
+                            });
+                        }
+                        setShowInventoryImportModal(false);
+                        onLogAction?.(`Bulk imported ${items.length} inventory items.`);
+                    }}
+                />
             )}
 
             {/* Fund Modal */}
