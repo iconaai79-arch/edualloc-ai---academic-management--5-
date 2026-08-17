@@ -124,6 +124,7 @@ import { GroupedInstitutionsManager } from './superadmin/GroupedInstitutionsMana
 import { AddCarListingModal } from './modals/AddCarListingModal';
 import { CreateCarInvoiceModal } from './modals/CreateCarInvoiceModal';
 import { RecordCarPaymentModal } from './modals/RecordCarPaymentModal';
+import { AutomotiveManager } from './automotive/AutomotiveManager';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import * as pdfService from '../services/pdfService';
 const DisciplineManager = React.lazy(() => import('./Academics/DisciplineManager').then(m => ({ default: m.DisciplineManager })));
@@ -4155,189 +4156,81 @@ Please change it after login.`;
                 )}
 
                 {activeTab === 'auto_marketplace' && (
-                    <div className="space-y-10 animate-fade-in-up">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                            <div>
-                                <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Auto <span className="text-indigo-600 italic">Marketplace</span></h1>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
-                                    <SparklesIcon className="w-3 h-3 text-amber-500" /> Platform-Wide Automotive Ecosystem
-                                </p>
-                            </div>
-                            <div className="flex gap-4">
-                                <button 
-                                    onClick={() => { 
-                                        setSelectedListingForEdit(null); 
-                                        setIsAddListingModalOpen(true); 
-                                    }}
-                                    className="px-8 py-4 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-[9px] shadow-2xl transition-all flex items-center gap-3"
-                                >
-                                    <PlusIcon className="w-4 h-4" /> Add Featured Listing
-                                </button>
-                                <button 
-                                    onClick={() => setAutoSubTab('financials')}
-                                    className="px-8 py-4 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-[9px] shadow-2xl transition-all flex items-center gap-3"
-                                >
-                                    <ArrowTrendingUpIcon className="w-4 h-4" /> Market Reports
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Sub-navigation */}
-                        <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-700">
-                            <button onClick={() => setAutoSubTab('dashboard')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'dashboard' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Operations Hub</button>
-                            <button onClick={() => setAutoSubTab('inventory')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Inventory Preview</button>
-                            <button onClick={() => setAutoSubTab('customers')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'customers' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Customers</button>
-                            <button onClick={() => setAutoSubTab('financials')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Invoices</button>
-                            <button onClick={() => setAutoSubTab('bank_feeds')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'bank_feeds' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Transactions</button>
-                        </div>
-
-                        <div className="animate-fade-in">
-                            {autoSubTab === 'dashboard' && (
-                                <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
-                                    <CarShowroomDashboard 
-                                        listings={carListings || []}
-                                        invoices={props.carInvoices || []}
-                                        payments={props.carPayments || []}
-                                        testDrives={carTestDrives || []}
-                                        users={users || []}
-                                        institution={currentInstitution || institutions[0]}
-                                        currentUser={currentUser}
-                                        onAction={(tab, sub) => {
-                                            if (tab === 'inventory') setAutoSubTab('inventory');
-                                            else if (tab === 'financials') setAutoSubTab('financials');
-                                            else if (tab === 'auto_marketplace') setAutoSubTab(sub as any || 'dashboard');
-                                            else if (tab === 'customers') setAutoSubTab('customers');
-                                        }}
-                                        onAddListing={() => {
-                                            setSelectedListingForEdit(null);
-                                            setIsAddListingModalOpen(true);
-                                        }}
-                                        onAddInvoice={() => {
-                                            setSelectedInvoiceForEdit(null);
-                                            setIsAddCarInvoiceModalOpen(true);
-                                        }}
-                                        onAddPayment={() => {
-                                            setSelectedInvoiceForPayment(null);
-                                            setSelectedPaymentForEdit(null);
-                                            setIsAddCarPaymentModalOpen(true);
-                                        }}
-                                        onAddLead={() => {}}
-                                        onSwitchPerspective={() => { if (props.onSwitchPerspective) props.onSwitchPerspective(null as any); }}
-                                    />
-                                </Suspense>
-                            )}
-
-                            {autoSubTab === 'customers' && (
-                                <UserManager
-                                    {...props as any}
-                                    showOnly="customer"
-                                    currentInstitution={currentInstitution || institutions[0]}
-                                    smsConfig={smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' }}
-                                    users={users || []}
-                                    departments={departments || []}
-                                    courses={courses || []}
-                                    subjects={subjects || []}
-                                    currentUser={currentUser}
-                                    onImportUsers={onImportUsers}
-                                    onImportStudents={onImportStudents}
-                                    onDeleteUser={props.onDeleteUser}
-                                    onEditUser={props.onEditUser}
-                                    onWithdrawRequest={async () => { }}
-                                    letterheadConfig={localCompanyInfo.letterheadConfig}
-                                    logoUrl={localCompanyInfo.logoUrl}
-                                    footerImageUrl={localCompanyInfo.footerImageUrl}
-                                    onSendSms={props.onSendSms}
-                                    onAddParent={props.onAddParent}
-                                    onDeleteParent={props.onDeleteParent}
-                                />
-                            )}
-
-                            {autoSubTab === 'financials' && (
-                                <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
-                                    <CarSalesLedger 
-                                        invoices={props.carInvoices || []}
-                                        payments={props.carPayments || []}
-                                        listings={carListings || []}
-                                        onAddInvoice={() => {
-                                            setSelectedInvoiceForEdit(null);
-                                            setIsAddCarInvoiceModalOpen(true);
-                                        }}
-                                        onAddPayment={(invoice) => {
-                                            setSelectedInvoiceForPayment(invoice || null);
-                                            setSelectedPaymentForEdit(null);
-                                            setIsAddCarPaymentModalOpen(true);
-                                        }}
-                                        onPrintInvoice={handlePreviewCarInvoice}
-                                        onPrintReceipt={(pay) => {
-                                            const inv = props.carInvoices?.find(i => i.id === pay.invoiceId);
-                                            if (inv) handlePreviewCarReceipt(pay, inv);
-                                        }}
-                                        onPrintAgreement={handlePreviewCarAgreement}
-                                        onEditInvoice={(invoice) => {
-                                            setSelectedInvoiceForEdit(invoice);
-                                            setIsAddCarInvoiceModalOpen(true);
-                                        }}
-                                        onEditPayment={(payment) => {
-                                            setSelectedPaymentForEdit(payment);
-                                            const inv = props.carInvoices?.find(i => i.id === payment.invoiceId) || null;
-                                            setSelectedInvoiceForPayment(inv);
-                                            setIsAddCarPaymentModalOpen(true);
-                                        }}
-                                        onDeleteInvoice={props.onDeleteCarInvoice}
-                                        onDeletePayment={props.onDeleteCarPayment}
-                                    />
-                                </Suspense>
-                            )}
-
-                            {autoSubTab === 'bank_feeds' && (
-                                <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
-                                    <BankFeedsManager
-                                        transactions={props.carBankTransactions || []}
-                                        invoices={props.carInvoices || []}
-                                        onReconcile={async (tid, invId) => {
-                                            if (props.onReconcileBankTransaction) {
-                                                await props.onReconcileBankTransaction(tid, invId);
-                                            }
-                                        }}
-                                        onFetchFeeds={async () => {
-                                            if (props.onFetchBankFeeds) {
-                                                await props.onFetchBankFeeds();
-                                            }
-                                        }}
-                                        currentUser={currentUser}
-                                        institution={currentInstitution || institutions[0]}
-                                    />
-                                </Suspense>
-                            )}
-
-                            {autoSubTab === 'inventory' && (
-                                <div className="space-y-12">
-                                    <div className="max-w-xl space-y-4">
-                                        <h3 className="text-4xl font-black uppercase tracking-tighter text-slate-900 leading-none">
-                                            Marketplace <span className="text-indigo-600">Simulated View</span>
-                                        </h3>
-                                        <p className="text-slate-400 text-xs font-bold leading-relaxed uppercase tracking-wider italic">
-                                            Experience the high-end vehicle discovery portal as your users see it. Verified listings only.
-                                        </p>
-                                    </div>
-                                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-2xl overflow-hidden h-[800px] relative">
-                                        <div className="h-full overflow-y-auto scrollbar-none p-12">
-                                            <VehicleMarketplaceView 
-                                                listings={carListings || []}
-                                                currentInstitution={currentInstitution}
-                                                onBookTestDrive={() => {}}
-                                                onInquiry={() => {}}
-                                                onEditListing={(listing) => {
-                                                    setSelectedListingForEdit(listing);
-                                                    setIsAddListingModalOpen(true);
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <AutomotiveManager
+                        institution={currentInstitution || institutions[0]}
+                        currentUser={currentUser}
+                        users={users || []}
+                        companyDetails={localCompanyInfo}
+                        carListings={carListings || []}
+                        carInvoices={props.carInvoices || []}
+                        carPayments={props.carPayments || []}
+                        carTestDrives={carTestDrives || []}
+                        carBankTransactions={props.carBankTransactions || []}
+                        onRefreshData={props.onRefreshData}
+                        onAddListing={() => {
+                            setSelectedListingForEdit(null);
+                            setIsAddListingModalOpen(true);
+                        }}
+                        onEditListing={(listing) => {
+                            setSelectedListingForEdit(listing);
+                            setIsAddListingModalOpen(true);
+                        }}
+                        onDeleteListing={async (id) => {
+                            if (confirm('Are you sure you want to delete this vehicle listing?')) {
+                                await apiService.deleteModuleRecord('car_sales_listings', id);
+                                if (props.onRefreshData) props.onRefreshData();
+                            }
+                        }}
+                        onAddInvoice={() => {
+                            setSelectedInvoiceForEdit(null);
+                            setIsAddCarInvoiceModalOpen(true);
+                        }}
+                        onEditInvoice={(invoice) => {
+                            setSelectedInvoiceForEdit(invoice);
+                            setIsAddCarInvoiceModalOpen(true);
+                        }}
+                        onDeleteInvoice={props.onDeleteCarInvoice}
+                        onAddPayment={(invoice) => {
+                            setSelectedInvoiceForPayment(invoice || null);
+                            setSelectedPaymentForEdit(null);
+                            setIsAddCarPaymentModalOpen(true);
+                        }}
+                        onEditPayment={(payment) => {
+                            setSelectedPaymentForEdit(payment);
+                            const inv = props.carInvoices?.find(i => i.id === payment.invoiceId) || null;
+                            setSelectedInvoiceForPayment(inv);
+                            setIsAddCarPaymentModalOpen(true);
+                        }}
+                        onDeletePayment={props.onDeleteCarPayment}
+                        onPrintInvoice={handlePreviewCarInvoice}
+                        onPrintReceipt={(pay) => {
+                            const inv = props.carInvoices?.find(i => i.id === pay.invoiceId);
+                            if (inv) handlePreviewCarReceipt(pay, inv);
+                        }}
+                        onPrintAgreement={handlePreviewCarAgreement}
+                        onReconcileBankTransaction={async (tid, invId) => {
+                            if (props.onReconcileBankTransaction) {
+                                await props.onReconcileBankTransaction(tid, invId);
+                            }
+                        }}
+                        onFetchBankFeeds={async () => {
+                            if (props.onFetchBankFeeds) {
+                                await props.onFetchBankFeeds();
+                            }
+                        }}
+                        onAddLead={() => {}}
+                        onSwitchPerspective={() => { if (props.onSwitchPerspective) props.onSwitchPerspective(null as any); }}
+                        smsConfig={smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' }}
+                        onSendSms={props.onSendSms}
+                        onImportUsers={onImportUsers}
+                        onImportStudents={onImportStudents}
+                        onDeleteUser={props.onDeleteUser}
+                        onEditUser={props.onEditUser}
+                        departments={departments || []}
+                        courses={courses || []}
+                        subjects={subjects || []}
+                        counties={counties || []}
+                    />
                 )}
 
                 {activeTab === 'hospitality' && (
