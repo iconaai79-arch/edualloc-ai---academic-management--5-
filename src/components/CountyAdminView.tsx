@@ -288,9 +288,12 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
             setIsSavingSettings(false);
         }
     };
-    const myInstitutions = useMemo(() => institutions.filter(inst => inst.countyId === myCounty?.id), [institutions, myCounty]);
-    const myStaff = useMemo(() => users.filter(u => u.countyId === myCounty?.id && u.role.startsWith('county_')), [users, myCounty]);
-    const myInventory = useMemo(() => inventoryItems.filter(item => item.countyId === myCounty?.id), [inventoryItems, myCounty]);
+    const myInstitutions = useMemo(() => institutions.filter(inst => inst.countyId === myCounty?.id || (inst as any).county_id === myCounty?.id), [institutions, myCounty]);
+    const myStaff = useMemo(() => users.filter(u => 
+        (u.countyId === myCounty?.id || (u as any).county_id === myCounty?.id || u.institutionId === myCounty?.id) && 
+        (u.role?.startsWith('county_') || u.role === 'county_admin' || u.role === 'county_staff')
+    ), [users, myCounty]);
+    const myInventory = useMemo(() => inventoryItems.filter(item => item.countyId === myCounty?.id || (item as any).county_id === myCounty?.id), [inventoryItems, myCounty]);
     const totalStudents = useMemo(() => users.filter(u => u.role === 'student' && myInstitutions.some(inst => inst.id === u.institutionId)).length, [users, myInstitutions]);
 
     if (!myCounty) {
@@ -319,15 +322,29 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         e.preventDefault();
         try {
             if (editingStaff) {
-                await onUpdateUser?.(editingStaff.id, staffForm);
+                await onUpdateUser?.(editingStaff.id, {
+                    ...staffForm,
+                    countyId: myCounty.id,
+                    county_id: myCounty.id,
+                    institutionId: myCounty.id
+                });
                 onLogAction?.(`Updated staff member: ${staffForm.name}`);
             } else {
-                await onAddUser?.({ ...staffForm, countyId: myCounty.id });
+                await onAddUser?.({
+                    ...staffForm,
+                    countyId: myCounty.id,
+                    county_id: myCounty.id,
+                    institutionId: myCounty.id,
+                    status: 'active'
+                });
                 onLogAction?.(`Added new staff member: ${staffForm.name}`);
             }
             setShowStaffModal(false);
-        } catch (error) {
+            setEditingStaff(null);
+            setStaffForm({ name: '', email: '', phoneNumber: '', role: 'county_staff' as Role, staffId: '' });
+        } catch (error: any) {
             console.error("Staff management error:", error);
+            alert("Failed to save staff member: " + (error?.message || 'Unknown error'));
         }
     };
 

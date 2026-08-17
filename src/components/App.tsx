@@ -1099,7 +1099,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                     apiService.fetchInstitutions().catch(() => []),
                     (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
                     apiService.fetchCompanySettings().catch(() => null),
-                    (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers(currentUser?.role === 'super_admin' ? undefined : currentUser?.institutionId).catch(() => []),
+                    (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : (currentUser?.role === 'super_admin' || currentUser?.role?.startsWith('county_')) ? apiService.fetchModuleRecords<User>('users').catch(() => []) : apiService.fetchUsers(currentUser?.institutionId).catch(() => []),
                     (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchFullRegistry().catch(() => []) : Promise.resolve([]),
                     !currentUser ? Promise.resolve([]) : apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
                     apiService.fetchModuleRecords<any>('events').catch(() => []),
@@ -1118,7 +1118,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             }
 
             // Sync identity state immediately so we can use activeInstitution in Phase 2
-            setUsers(u || []);
+            const normalizedUsers = (u || []).map((usr: any) => ({
+                ...usr,
+                countyId: usr.countyId || usr.county_id,
+                institutionId: usr.institutionId || usr.institution_id
+            }));
+            setUsers(normalizedUsers);
             setInstitutions(insts || []);
             setEvents(evts || []);
             if (cnts) setCounties(cnts);
@@ -6416,8 +6421,37 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                         onAddInstitution: handleAddCountyInstitution,
                                         onLoginAsAdmin,
                                         onImportInstitutions: handleImportCountyInstitutions,
-                                        onAddUser: async (data: any) => { await apiService.registerUser({ ...data, id: `u_county_${Date.now()}` }, 'County Portal'); await loadData(false, true); },
-                                        onUpdateUser: onEditUser,
+                                        onAddUser: async (data: any) => { 
+                                            try {
+                                                const userId = data.id || `u_county_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+                                                const newStaff: User = {
+                                                    id: userId,
+                                                    status: 'active',
+                                                    password: data.password || 'password123',
+                                                    ...data,
+                                                    countyId: data.countyId || activeCounty?.id || currentUser?.countyId,
+                                                    county_id: data.countyId || activeCounty?.id || currentUser?.countyId,
+                                                    institutionId: data.institutionId || data.countyId || activeCounty?.id || currentUser?.countyId,
+                                                };
+                                                await apiService.saveUser(newStaff);
+                                                setUsers(prev => [newStaff, ...prev.filter(u => u.id !== userId)]);
+                                                await loadData(false, true);
+                                                success("County staff member added successfully.");
+                                            } catch (err: any) {
+                                                console.error("Failed to add county staff:", err);
+                                                toastError("Failed to add staff: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
+                                        },
+                                        onUpdateUser: async (id: string, data: any) => {
+                                            try {
+                                                await onEditUser(id, data);
+                                            } catch (err: any) {
+                                                console.error("Failed to update county staff:", err);
+                                                toastError("Failed to update staff: " + (err?.message || 'Unknown error'));
+                                                throw err;
+                                            }
+                                        },
                                         onDeleteUser: onDeleteUser,
                                         inventoryItems: countyInventory,
                                         inventoryCategories: countyInventoryCategories,
