@@ -947,6 +947,694 @@ export function MCHMaternityCWCView({ patients = [], institutionId, userName }: 
                     </div>
                 </div>
             )}
+
+            {/* ── MODAL 1: RECORD ANC VISIT (MOH 405) ── */}
+            {isRecordAncVisitModalOpen && selectedAncRecord && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+                    <div className="bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden max-h-[90vh] flex flex-col my-auto">
+                        <div className="p-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase italic">
+                                    Record ANC Visit #{(selectedAncRecord.visits?.length || 0) + 1} (MOH 405)
+                                </h3>
+                                <p className="text-[9px] text-emerald-100 uppercase tracking-widest font-black">
+                                    Mother: {selectedAncRecord.motherName} • Gestation: ~{calculateGestationWeeks(selectedAncRecord.lmp)} Wks • EDD: {selectedAncRecord.edd}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsRecordAncVisitModalOpen(false)} className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer">
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const form = e.currentTarget;
+                            const visitNum = (selectedAncRecord.visits?.length || 0) + 1;
+                            const date = (form.elements.namedItem('visitDate') as HTMLInputElement).value || new Date().toISOString().slice(0, 10);
+                            const gestationWeeks = parseFloat((form.elements.namedItem('gestationWeeks') as HTMLInputElement).value || '20');
+                            const fundalHeightCm = parseFloat((form.elements.namedItem('fundalHeightCm') as HTMLInputElement).value || '20');
+                            const presentation = (form.elements.namedItem('presentation') as HTMLSelectElement).value;
+                            const fetalHeartRateBpm = parseInt((form.elements.namedItem('fetalHeartRate') as HTMLInputElement).value || '140', 10);
+                            const bloodPressure = (form.elements.namedItem('bloodPressure') as HTMLInputElement).value || '120/80';
+                            const weightKg = parseFloat((form.elements.namedItem('weightKg') as HTMLInputElement).value || '65');
+                            const urinalysisProtein = (form.elements.namedItem('urinalysisProtein') as HTMLSelectElement).value;
+                            const urinalysisGlucose = (form.elements.namedItem('urinalysisGlucose') as HTMLSelectElement).value;
+                            const ifasSupplied = (form.elements.namedItem('ifasSupplied') as HTMLInputElement).checked;
+                            const iptpDose = (form.elements.namedItem('iptpDose') as HTMLSelectElement).value as any;
+                            const ttVaccineGiven = (form.elements.namedItem('ttVaccineGiven') as HTMLInputElement).checked;
+                            const nextVisitDate = (form.elements.namedItem('nextVisitDate') as HTMLInputElement).value;
+                            const notes = (form.elements.namedItem('notes') as HTMLTextAreaElement).value;
+
+                            const newVisit: HISANCVisit = {
+                                visitNumber: visitNum,
+                                date,
+                                gestationWeeks,
+                                fundalHeightCm,
+                                presentation,
+                                fetalHeartRateBpm,
+                                bloodPressure,
+                                weightKg,
+                                urinalysisProtein,
+                                urinalysisGlucose,
+                                ifasSupplied,
+                                iptpDose,
+                                ttVaccineGiven,
+                                nextVisitDate: nextVisitDate || undefined,
+                                clinician: userName || 'Attending Clinician'
+                            };
+
+                            const updatedVisits = [...(selectedAncRecord.visits || []), newVisit];
+                            const updatedRecord: HISANCRecord = {
+                                ...selectedAncRecord,
+                                gestationWeeks,
+                                visits: updatedVisits,
+                            };
+
+                            await apiService.saveModuleRecord('his_anc_records', updatedRecord).catch(() => null);
+                            setAncRecords(prev => prev.map(r => r.id === selectedAncRecord.id ? updatedRecord : r));
+                            setIsRecordAncVisitModalOpen(false);
+                            alert(`✓ Successfully recorded ANC Visit #${visitNum} for ${selectedAncRecord.motherName}!`);
+                        }} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Visit Date *</label>
+                                    <input type="date" name="visitDate" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Gestation (Weeks) *</label>
+                                    <input type="number" name="gestationWeeks" defaultValue={calculateGestationWeeks(selectedAncRecord.lmp) || 24} min={4} max={42} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Fundal Height (cm)</label>
+                                    <input type="number" name="fundalHeightCm" defaultValue={calculateGestationWeeks(selectedAncRecord.lmp) || 24} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500" />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Fetal Heart (BPM) *</label>
+                                    <input type="number" name="fetalHeartRate" defaultValue={142} min={80} max={200} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-emerald-400 outline-none focus:border-emerald-500" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Blood Pressure (BP) *</label>
+                                    <input type="text" name="bloodPressure" defaultValue="120/80" placeholder="120/80" required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500 font-mono" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Mother Weight (kg)</label>
+                                    <input type="number" name="weightKg" step="0.1" defaultValue={65} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500" />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Presentation / Lie</label>
+                                    <select name="presentation" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                        <option value="Vertex / Cephalic">Vertex / Cephalic</option>
+                                        <option value="Breech">Breech</option>
+                                        <option value="Transverse">Transverse Lie</option>
+                                        <option value="Oblique / Unstable">Oblique / Unstable</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Urinalysis (Protein)</label>
+                                    <select name="urinalysisProtein" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                        <option value="Nil">Nil</option>
+                                        <option value="Trace">Trace</option>
+                                        <option value="+1">+1</option>
+                                        <option value="+2">+2 (Pre-eclampsia Alert)</option>
+                                        <option value="+3">+3 (Severe)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Urinalysis (Glucose)</label>
+                                    <select name="urinalysisGlucose" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                        <option value="Nil">Nil</option>
+                                        <option value="Trace">Trace</option>
+                                        <option value="+1">+1</option>
+                                        <option value="+2">+2</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Medications & Prophylaxis */}
+                            <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-300 block">Prophylaxis &amp; Supplements</span>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <label className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer">
+                                        <input type="checkbox" name="ifasSupplied" defaultChecked className="w-4 h-4 rounded text-emerald-600" />
+                                        <span>IFAS Iron &amp; Folic</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer">
+                                        <input type="checkbox" name="ttVaccineGiven" defaultChecked className="w-4 h-4 rounded text-emerald-600" />
+                                        <span>Tetanus (TT/TD)</span>
+                                    </label>
+                                    <div>
+                                        <select name="iptpDose" className="w-full bg-black/40 border border-white/10 rounded-xl p-2 text-xs font-bold text-pink-300 outline-none">
+                                            <option value="None">IPTp: None</option>
+                                            <option value="IPTp 1">IPTp Dose 1</option>
+                                            <option value="IPTp 2">IPTp Dose 2</option>
+                                            <option value="IPTp 3">IPTp Dose 3</option>
+                                            <option value="IPTp 4">IPTp Dose 4</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Next Scheduled ANC Visit</label>
+                                <input type="date" name="nextVisitDate" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500" />
+                            </div>
+
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Clinical Findings &amp; Prescription Notes</label>
+                                <textarea name="notes" rows={2} placeholder="Fetal movements active, normotensive, counselled on birth preparedness and danger signs." className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500" />
+                            </div>
+
+                            <button type="submit" className="w-full py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-950/50 hover:scale-[1.02] transition-all cursor-pointer">
+                                ✓ Save ANC Visit #{(selectedAncRecord.visits?.length || 0) + 1} Record
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL 2: RECORD LABOR & DELIVERY (MOH 406) ── */}
+            {isRecordDeliveryModalOpen && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+                    <div className="bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden max-h-[90vh] flex flex-col my-auto">
+                        <div className="p-6 bg-gradient-to-r from-rose-600 to-pink-600 flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase italic">Record Labor &amp; Delivery (MOH 406)</h3>
+                                <p className="text-[9px] text-rose-100 uppercase tracking-widest font-black">Official Delivery Summary, APGAR Score &amp; Baby Linkage</p>
+                            </div>
+                            <button onClick={() => setIsRecordDeliveryModalOpen(false)} className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer">
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const form = e.currentTarget;
+                            const motherName = (form.elements.namedItem('motherName') as HTMLInputElement).value;
+                            const babyGender = (form.elements.namedItem('babyGender') as HTMLSelectElement).value as any;
+                            const babyName = (form.elements.namedItem('babyName') as HTMLInputElement).value || `Baby of ${motherName}`;
+                            const deliveryDate = (form.elements.namedItem('deliveryDate') as HTMLInputElement).value || new Date().toISOString().slice(0, 10);
+                            const deliveryTime = (form.elements.namedItem('deliveryTime') as HTMLInputElement).value || '10:00 AM';
+                            const gestationWeeks = parseFloat((form.elements.namedItem('gestationWeeks') as HTMLInputElement).value || '39');
+                            const deliveryMode = (form.elements.namedItem('deliveryMode') as HTMLSelectElement).value;
+                            const episiotomyTear = (form.elements.namedItem('episiotomyTear') as HTMLSelectElement).value;
+                            const bloodLossMl = parseInt((form.elements.namedItem('bloodLossMl') as HTMLInputElement).value || '200', 10);
+                            const birthWeightKg = parseFloat((form.elements.namedItem('birthWeightKg') as HTMLInputElement).value || '3.2');
+                            const apgar1Min = parseInt((form.elements.namedItem('apgar1Min') as HTMLInputElement).value || '9', 10);
+                            const apgar5Min = parseInt((form.elements.namedItem('apgar5Min') as HTMLInputElement).value || '10', 10);
+                            const babyStatus = (form.elements.namedItem('babyStatus') as HTMLSelectElement).value;
+                            const notes = (form.elements.namedItem('notes') as HTMLTextAreaElement).value;
+
+                            const newDel: HISDeliveryRecord = {
+                                id: `del_${Date.now()}`,
+                                institutionId: institutionId || 'inst_01',
+                                motherId: selectedAncRecord?.motherId || `pat_m_${Date.now()}`,
+                                motherName,
+                                babyId: `baby_${Date.now()}`,
+                                babyName,
+                                deliveryDate,
+                                deliveryTime,
+                                gestationWeeks,
+                                deliveryMode,
+                                episiotomyTear,
+                                bloodLossMl,
+                                oxytocinGiven: true,
+                                placentaComplete: true,
+                                babyGender,
+                                birthWeightKg,
+                                apgar1Min,
+                                apgar5Min,
+                                resuscitationDone: false,
+                                babyStatus,
+                                deliveredBy: userName || 'Attending Midwife / Obstetrician',
+                                notes
+                            };
+
+                            await apiService.saveModuleRecord('his_delivery_records', newDel).catch(() => null);
+                            setDeliveryRecords(prev => [newDel, ...prev]);
+                            setIsRecordDeliveryModalOpen(false);
+                            alert(`✓ Delivery recorded for ${motherName} (Baby ${babyGender}, ${birthWeightKg}kg, APGAR ${apgar1Min}/${apgar5Min})!`);
+                        }} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Mother Full Name *</label>
+                                    <input type="text" name="motherName" defaultValue={selectedAncRecord?.motherName || ''} required placeholder="Jane Wanjiku" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-rose-500" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Baby Given Name</label>
+                                    <input type="text" name="babyName" placeholder="Baby of Jane Wanjiku" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-rose-500" />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Delivery Date *</label>
+                                    <input type="date" name="deliveryDate" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Delivery Time</label>
+                                    <input type="time" name="deliveryTime" defaultValue="08:30" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Baby Gender *</label>
+                                    <select name="babyGender" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                        <option value="Female">👧 Female</option>
+                                        <option value="Male">👦 Male</option>
+                                        <option value="Ambiguous">Ambiguous / Undetermined</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Delivery Mode *</label>
+                                    <select name="deliveryMode" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                        <option value="Spontaneous Vertex (SVD)">Spontaneous Vertex (SVD)</option>
+                                        <option value="Assisted Breech Delivery">Assisted Breech Delivery</option>
+                                        <option value="Vacuum Extraction">Vacuum Extraction</option>
+                                        <option value="Emergency Caesarean Section">Emergency C-Section</option>
+                                        <option value="Elective Caesarean Section">Elective C-Section</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Episiotomy / Tear</label>
+                                    <select name="episiotomyTear" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                        <option value="None">None (Perineum Intact)</option>
+                                        <option value="Episiotomy (Repaired)">Episiotomy (Repaired)</option>
+                                        <option value="1st Degree Tear">1st Degree Tear</option>
+                                        <option value="2nd Degree Tear">2nd Degree Tear</option>
+                                        <option value="3rd Degree Tear">3rd Degree Tear</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Blood Loss (mL)</label>
+                                    <input type="number" name="bloodLossMl" defaultValue={200} step={50} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Birth Weight (kg) *</label>
+                                    <input type="number" name="birthWeightKg" defaultValue={3.25} step="0.01" required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-emerald-400 outline-none font-mono" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">APGAR (1 min) *</label>
+                                    <input type="number" name="apgar1Min" defaultValue={9} min={0} max={10} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">APGAR (5 min) *</label>
+                                    <input type="number" name="apgar5Min" defaultValue={10} min={0} max={10} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Baby Status &amp; Disposition *</label>
+                                <select name="babyStatus" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                    <option value="Healthy / In-Room with Mother">Healthy / In-Room with Mother (Early Breastfeeding)</option>
+                                    <option value="Admitted to Newborn Unit (NBU)">Admitted to Newborn Unit (NBU / Phototherapy)</option>
+                                    <option value="Transferred to KMC Unit">Transferred to Kangaroo Mother Care (KMC)</option>
+                                    <option value="Referred to Tertiary NICU">Referred to Tertiary NICU</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Delivery Notes &amp; Observations</label>
+                                <textarea name="notes" rows={2} placeholder="Oxytocin given within 1 min of birth. Placenta delivered complete by CCT. Mother and baby stable." className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                            </div>
+
+                            <button type="submit" className="w-full py-4 bg-gradient-to-r from-rose-600 to-pink-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-rose-950/50 hover:scale-[1.02] transition-all cursor-pointer">
+                                ✓ Save Delivery Summary Record
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL 3: RECORD CWC IMMUNIZATION & GROWTH CHECK ── */}
+            {isRecordImmunizationModalOpen && selectedCwcRecord && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+                    <div className="bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden max-h-[90vh] flex flex-col my-auto">
+                        <div className="p-6 bg-gradient-to-r from-purple-600 to-pink-600 flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase italic">Record CWC Vaccine &amp; Growth Visit</h3>
+                                <p className="text-[9px] text-purple-100 uppercase tracking-widest font-black">
+                                    Child: {selectedCwcRecord.childName} • DOB: {selectedCwcRecord.dob} • Mother: {selectedCwcRecord.motherName}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsRecordImmunizationModalOpen(false)} className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer">
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const form = e.currentTarget;
+                            const dateGiven = (form.elements.namedItem('dateGiven') as HTMLInputElement).value || new Date().toISOString().slice(0, 10);
+                            const milestone = (form.elements.namedItem('ageMilestone') as HTMLSelectElement).value;
+                            const weightKg = parseFloat((form.elements.namedItem('weightKg') as HTMLInputElement).value || '0');
+                            const heightCm = parseFloat((form.elements.namedItem('heightCm') as HTMLInputElement).value || '0');
+                            const muacCm = parseFloat((form.elements.namedItem('muacCm') as HTMLInputElement).value || '0');
+                            const vaccineCode = (form.elements.namedItem('vaccineCode') as HTMLSelectElement).value;
+                            const site = (form.elements.namedItem('site') as HTMLSelectElement).value;
+
+                            const vaccineMap: Record<string, string> = {
+                                'BCG': 'BCG (Tuberculosis)',
+                                'OPV_0': 'Oral Polio Vaccine 0 (Birth)',
+                                'OPV_1': 'Oral Polio Vaccine 1 (6 Wks)',
+                                'PENTA_1': 'Pentavalent 1 (DTP-HepB-Hib)',
+                                'PCV_1': 'Pneumococcal Conjugate 1',
+                                'ROTA_1': 'Rotavirus 1',
+                                'OPV_2': 'Oral Polio Vaccine 2 (10 Wks)',
+                                'PENTA_2': 'Pentavalent 2',
+                                'PCV_2': 'Pneumococcal Conjugate 2',
+                                'ROTA_2': 'Rotavirus 2',
+                                'OPV_3': 'Oral Polio Vaccine 3 (14 Wks)',
+                                'PENTA_3': 'Pentavalent 3',
+                                'IPV': 'Inactivated Polio Vaccine (IPV)',
+                                'PCV_3': 'Pneumococcal Conjugate 3',
+                                'VIT_A_6M': 'Vitamin A 100,000 IU (6 Mos)',
+                                'MR_1': 'Measles-Rubella 1 (9 Mos)',
+                                'YF': 'Yellow Fever Vaccine (9 Mos)',
+                                'MR_2': 'Measles-Rubella 2 (18 Mos)',
+                                'DEWORM': 'Deworming (Albendazole)'
+                            };
+
+                            const newDose: HISImmunizationDose = {
+                                vaccineCode,
+                                vaccineName: vaccineMap[vaccineCode] || vaccineCode,
+                                doseNumber: 1,
+                                ageMilestone: milestone,
+                                dateGiven,
+                                site,
+                                administeredBy: userName || 'Nurse on Duty'
+                            };
+
+                            const newGrowth: HISGrowthRecord = {
+                                date: dateGiven,
+                                ageMonths: 6,
+                                weightKg,
+                                heightCm,
+                                muacCm,
+                                nutritionalStatus: muacCm >= 12.5 ? 'Normal (Green)' : 'Moderate Malnutrition (Yellow)'
+                            };
+
+                            const updatedRec: HISCWCRecord = {
+                                ...selectedCwcRecord,
+                                immunizations: [...selectedCwcRecord.immunizations, newDose],
+                                growthRecords: weightKg > 0 ? [...(selectedCwcRecord.growthRecords || []), newGrowth] : (selectedCwcRecord.growthRecords || [])
+                            };
+
+                            await apiService.saveModuleRecord('his_cwc_immunizations', updatedRec).catch(() => null);
+                            setCwcRecords(prev => prev.map(r => r.id === selectedCwcRecord.id ? updatedRec : r));
+                            setIsRecordImmunizationModalOpen(false);
+                            alert(`✓ Administered ${newDose.vaccineName} to ${selectedCwcRecord.childName}!`);
+                        }} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Date Administered *</label>
+                                    <input type="date" name="dateGiven" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Age Milestone *</label>
+                                    <select name="ageMilestone" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                        <option value="Birth">Birth</option>
+                                        <option value="6 Weeks">6 Weeks</option>
+                                        <option value="10 Weeks">10 Weeks</option>
+                                        <option value="14 Weeks">14 Weeks</option>
+                                        <option value="6 Months">6 Months</option>
+                                        <option value="9 Months">9 Months</option>
+                                        <option value="18 Months">18 Months</option>
+                                        <option value="24 Months">24 Months</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Select Target KEPI Vaccine *</label>
+                                <select name="vaccineCode" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-purple-300 outline-none">
+                                    <option value="BCG">BCG (Tuberculosis)</option>
+                                    <option value="OPV_0">Oral Polio Vaccine 0 (At Birth)</option>
+                                    <option value="OPV_1">Oral Polio Vaccine 1 (6 Weeks)</option>
+                                    <option value="PENTA_1">Pentavalent 1 (DTP-HepB-Hib - 6 Wks)</option>
+                                    <option value="PCV_1">Pneumococcal (PCV 10) 1 (6 Wks)</option>
+                                    <option value="ROTA_1">Rotavirus 1 (6 Wks)</option>
+                                    <option value="OPV_2">Oral Polio Vaccine 2 (10 Weeks)</option>
+                                    <option value="PENTA_2">Pentavalent 2 (10 Wks)</option>
+                                    <option value="PCV_2">Pneumococcal 2 (10 Wks)</option>
+                                    <option value="ROTA_2">Rotavirus 2 (10 Wks)</option>
+                                    <option value="OPV_3">Oral Polio Vaccine 3 (14 Weeks)</option>
+                                    <option value="PENTA_3">Pentavalent 3 (14 Wks)</option>
+                                    <option value="IPV">Inactivated Polio (IPV - 14 Wks)</option>
+                                    <option value="PCV_3">Pneumococcal 3 (14 Wks)</option>
+                                    <option value="VIT_A_6M">Vitamin A 100,000 IU (6 Months)</option>
+                                    <option value="MR_1">Measles-Rubella 1 (9 Months)</option>
+                                    <option value="YF">Yellow Fever (9 Months)</option>
+                                    <option value="MR_2">Measles-Rubella 2 (18 Months)</option>
+                                    <option value="DEWORM">Deworming Albendazole (12+ Mos)</option>
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Administration Site</label>
+                                    <select name="site" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                        <option value="Oral">Oral (Drops)</option>
+                                        <option value="Right Upper Arm">Right Upper Arm (Deltoid)</option>
+                                        <option value="Left Upper Arm">Left Upper Arm (Deltoid)</option>
+                                        <option value="Left Anterolateral Thigh">Left Anterolateral Thigh</option>
+                                        <option value="Right Anterolateral Thigh">Right Anterolateral Thigh</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Child Weight (kg)</label>
+                                    <input type="number" name="weightKg" step="0.05" defaultValue={6.5} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Length / Height (cm)</label>
+                                    <input type="number" name="heightCm" step="0.5" defaultValue={65} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">MUAC (cm)</label>
+                                    <input type="number" name="muacCm" step="0.1" defaultValue={13.5} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                                </div>
+                            </div>
+
+                            <button type="submit" className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-purple-950/50 hover:scale-[1.02] transition-all cursor-pointer">
+                                ✓ Log Immunization Dose &amp; Growth Check
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL 4: ADMIT NEWBORN TO NBU ── */}
+            {isAdmitNbuModalOpen && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+                    <div className="bg-slate-900 w-full max-w-xl rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden max-h-[90vh] flex flex-col my-auto">
+                        <div className="p-6 bg-gradient-to-r from-amber-600 to-rose-600 flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase italic">Admit Baby to Newborn Unit (NBU)</h3>
+                                <p className="text-[9px] text-amber-100 uppercase tracking-widest font-black">Preterm Incubator, Phototherapy &amp; KMC Bay Allocation</p>
+                            </div>
+                            <button onClick={() => setIsAdmitNbuModalOpen(false)} className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer">
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const form = e.currentTarget;
+                            const babyName = (form.elements.namedItem('babyName') as HTMLInputElement).value;
+                            const motherName = (form.elements.namedItem('motherName') as HTMLInputElement).value;
+                            const gestationWeeks = parseFloat((form.elements.namedItem('gestationWeeks') as HTMLInputElement).value || '32');
+                            const birthWeightKg = parseFloat((form.elements.namedItem('birthWeightKg') as HTMLInputElement).value || '1.8');
+                            const currentWeightKg = birthWeightKg;
+                            const reason = (form.elements.namedItem('reason') as HTMLInputElement).value;
+                            const incubatorCribNumber = (form.elements.namedItem('cribNumber') as HTMLSelectElement).value;
+                            const feedingMode = (form.elements.namedItem('feedingMode') as HTMLSelectElement).value;
+                            const phototherapy = (form.elements.namedItem('phototherapy') as HTMLSelectElement).value === 'Yes';
+
+                            const newAdm: HISNBUAdmission = {
+                                id: `nbu_${Date.now()}`,
+                                institutionId: institutionId || 'inst_01',
+                                babyId: `baby_${Date.now()}`,
+                                babyName,
+                                motherName,
+                                admissionDate: new Date().toISOString().slice(0, 10),
+                                gestationWeeks,
+                                birthWeightKg,
+                                currentWeightKg,
+                                reasonForAdmission: reason,
+                                incubatorCribNumber,
+                                phototherapyActive: phototherapy,
+                                kmcCandidate: gestationWeeks < 37,
+                                feedingMode,
+                                status: 'Active Inpatient',
+                                dailyWeights: [
+                                    {
+                                        date: new Date().toISOString().slice(0, 10),
+                                        weightKg: birthWeightKg,
+                                        feedingVolumeMl: 15,
+                                        notes: 'Admission baseline weight recorded'
+                                    }
+                                ]
+                            };
+
+                            await apiService.saveModuleRecord('his_nbu_admissions', newAdm).catch(() => null);
+                            setNbuAdmissions(prev => [newAdm, ...prev]);
+                            setIsAdmitNbuModalOpen(false);
+                            alert(`✓ Admitted ${babyName} to ${incubatorCribNumber}!`);
+                        }} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Baby Name *</label>
+                                    <input type="text" name="babyName" placeholder="Baby of Jane" required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-amber-500" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Mother Full Name *</label>
+                                    <input type="text" name="motherName" placeholder="Jane Wanjiku" required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-amber-500" />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Gestation (Weeks) *</label>
+                                    <input type="number" name="gestationWeeks" defaultValue={32} min={24} max={42} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-amber-500" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Birth Weight (kg) *</label>
+                                    <input type="number" name="birthWeightKg" defaultValue={1.85} step="0.01" required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-emerald-400 outline-none focus:border-amber-500" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Reason for Admission *</label>
+                                <input type="text" name="reason" placeholder="e.g. Prematurity (32 wks) & Very Low Birth Weight, Neonatal Jaundice" required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-amber-500" />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">NBU Bay / Incubator</label>
+                                    <select name="cribNumber" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                        <option value="Incubator Bay 01">Incubator Bay 01</option>
+                                        <option value="Incubator Bay 02">Incubator Bay 02</option>
+                                        <option value="Phototherapy Unit 01">Phototherapy Unit 01</option>
+                                        <option value="KMC Kangaroo Bay 01">KMC Kangaroo Bay 01</option>
+                                        <option value="Radiant Warmer 01">Radiant Warmer 01</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Feeding Regimen</label>
+                                    <select name="feedingMode" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                        <option value="Express Breast Milk via NGT">Express Breast Milk (EBM) via NGT</option>
+                                        <option value="Cup Feeding (EBM)">Cup Feeding (EBM)</option>
+                                        <option value="Direct Breastfeeding (EBF)">Direct Breastfeeding (EBF)</option>
+                                        <option value="IV TPN / Fluids">IV Fluids / TPN</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Phototherapy Active?</label>
+                                <select name="phototherapy" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none">
+                                    <option value="No">No — Radiant / Incubator Care Only</option>
+                                    <option value="Yes">Yes — Blue Light Phototherapy Indicated</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" className="w-full py-4 bg-gradient-to-r from-amber-600 to-rose-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-amber-950/50 hover:scale-[1.02] transition-all cursor-pointer">
+                                ✓ Admit Newborn to NBU
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL 5: LOG DAILY NBU WEIGHT & FEED ── */}
+            {isRecordNbuWeightModalOpen && selectedNbuAdmission && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-fade-in">
+                    <div className="bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden max-h-[90vh] flex flex-col my-auto">
+                        <div className="p-6 bg-gradient-to-r from-amber-600 to-rose-600 flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase italic">Log NBU Weight &amp; Feeds</h3>
+                                <p className="text-[9px] text-amber-100 uppercase tracking-widest font-black">
+                                    {selectedNbuAdmission.babyName} • Bay: {selectedNbuAdmission.incubatorCribNumber}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsRecordNbuWeightModalOpen(false)} className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer">
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const form = e.currentTarget;
+                            const date = (form.elements.namedItem('logDate') as HTMLInputElement).value || new Date().toISOString().slice(0, 10);
+                            const weightKg = parseFloat((form.elements.namedItem('weightKg') as HTMLInputElement).value);
+                            const feedingVolumeMl = parseInt((form.elements.namedItem('feedingVolumeMl') as HTMLInputElement).value || '25', 10);
+                            const notes = (form.elements.namedItem('notes') as HTMLInputElement).value;
+
+                            const prevWeight = selectedNbuAdmission.currentWeightKg || selectedNbuAdmission.birthWeightKg;
+                            const gainGrams = Math.round((weightKg - prevWeight) * 1000);
+
+                            const updatedWeights = [
+                                ...(selectedNbuAdmission.dailyWeights || []),
+                                {
+                                    date,
+                                    weightKg,
+                                    gainGrams: gainGrams !== 0 ? gainGrams : undefined,
+                                    feedingVolumeMl,
+                                    notes
+                                }
+                            ];
+
+                            const updatedAdm: HISNBUAdmission = {
+                                ...selectedNbuAdmission,
+                                currentWeightKg: weightKg,
+                                dailyWeights: updatedWeights
+                            };
+
+                            await apiService.saveModuleRecord('his_nbu_admissions', updatedAdm).catch(() => null);
+                            setNbuAdmissions(prev => prev.map(r => r.id === selectedNbuAdmission.id ? updatedAdm : r));
+                            setIsRecordNbuWeightModalOpen(false);
+                            alert(`✓ Logged weight for ${selectedNbuAdmission.babyName}: ${weightKg}kg (${gainGrams >= 0 ? `+${gainGrams}` : gainGrams}g gain)!`);
+                        }} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Date *</label>
+                                    <input type="date" name="logDate" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Current Weight (kg) *</label>
+                                    <input type="number" name="weightKg" step="0.005" defaultValue={selectedNbuAdmission.currentWeightKg || 1.85} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-emerald-400 outline-none font-mono" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Feed Volume (mL / 2hr)</label>
+                                <input type="number" name="feedingVolumeMl" defaultValue={25} step={5} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                            </div>
+
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Nursing &amp; Feeding Progress Notes</label>
+                                <input type="text" name="notes" placeholder="Tolerating NGT feeds well, active rooting reflex, no abdominal distension." className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                            </div>
+
+                            <button type="submit" className="w-full py-4 bg-gradient-to-r from-amber-600 to-rose-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-amber-950/50 hover:scale-[1.02] transition-all cursor-pointer">
+                                ✓ Save Daily Weight &amp; Feeding Log
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
