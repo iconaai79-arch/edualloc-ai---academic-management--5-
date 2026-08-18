@@ -126,7 +126,8 @@ const PUBLIC_MODULES = [
   'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'bank_transactions',
   'feedback_submissions', 'guest_feedback', 'guest_feedbacks',
   'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
-  'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders'
+  'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
+  'county_dispatch_manifests', 'county_dispatch_items'
 ];
 
 const MODULE_ALIASES: Record<string, string> = {
@@ -145,7 +146,7 @@ const isTableWithoutInstitutionId = (module: string) => {
     'counties', 'constituencies', 'wards', 'political_parties',
     'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs',
     'county_bursary_funds', 'ng_cdf_funds', 'building_offices', 'building_visitor_assets',
-    'county_inventory', 'county_inventory_categories', 'county_stores'
+    'county_inventory', 'county_inventory_categories', 'county_stores', 'county_dispatch_manifests', 'county_dispatch_items'
   ].includes(module);
 };
 
@@ -187,7 +188,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'his_pharmacy_interactions', 'his_pharmacy_narcotics_ledger', 'his_pharmacy_adherence_alerts',
           'his_patient_id_config', 'his_medical_notes', 'his_clinical_events', 'document_collections', 'watchlist_records', 'leave_requests', 'financial_goals',
           'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
-          'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders'
+          'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
+          'county_dispatch_manifests', 'county_dispatch_items'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
@@ -443,6 +445,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanFeedback) : cleanFeedback(currentPayload);
+            }
+            if (moduleName === 'institutions') {
+                const cleanInstitution = (inst: any) => {
+                    if (!inst || typeof inst !== 'object') return inst;
+                    const copy = { ...inst };
+                    delete copy.student_count;
+                    delete copy.studentCount;
+                    delete copy.active_users_count;
+                    delete copy.activeUsersCount;
+                    delete copy.staff_count;
+                    delete copy.staffCount;
+                    delete copy.user_count;
+                    delete copy.userCount;
+                    delete copy.sms_balance_formatted;
+                    delete copy.smsBalanceFormatted;
+                    delete copy.departments;
+                    delete copy.courses;
+                    delete copy.rooms;
+                    delete copy.academic_years;
+                    delete copy.semesters;
+                    delete copy.users;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanInstitution) : cleanInstitution(currentPayload);
             }
             let data: any = null;
             let error: any = null;

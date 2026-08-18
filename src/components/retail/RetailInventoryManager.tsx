@@ -13,10 +13,12 @@ import { XIcon as X } from '../icons/XIcon';
 import { ImageIcon } from '../icons/ImageIcon';
 import { UploadIcon as Upload } from '../icons/UploadIcon';
 import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
+import { TruckIcon as Truck } from '../icons/TruckIcon';
 import { apiService } from '../../services/apiService';
 import { SmartRetailInventoryImporterModal } from './SmartRetailInventoryImporterModal';
 import { AddPharmacyInventoryModal } from '../his/AddPharmacyInventoryModal';
 import { SmartPharmacyInventoryImporterModal } from '../his/SmartPharmacyInventoryImporterModal';
+import { InboundCountyConsignmentsView } from '../InboundCountyConsignmentsView';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PdfViewer } from '../PdfViewer';
@@ -47,8 +49,8 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const [lastSaved, setLastSaved] = useState<string | null>(null);
     const [categoryFilter, setCategoryFilter] = useState('all');
 
-    // Pharmacy subtab state
-    const [inventorySubTab, setInventorySubTab] = useState<'school' | 'pharmacy'>('school');
+    // Subtab state: School store stock, Inbound county consignments pipeline, or Sickbay/Pharmacy
+    const [inventorySubTab, setInventorySubTab] = useState<'school' | 'county_consignments' | 'pharmacy'>('school');
     const [pharmacyDrugs, setPharmacyDrugs] = useState<HISPharmacyInventory[]>([]);
     const [pharmacySearch, setPharmacySearch] = useState('');
     const [isPharmacyLoading, setIsPharmacyLoading] = useState(false);
@@ -763,29 +765,46 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 </div>
             </div>
 
-            {/* ─ SUBTAB SWITCHER (education only) ─ */}
-            {isEducation && (
-                <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1 rounded-2xl w-fit border border-slate-200 dark:border-slate-700/50 shadow-inner gap-1">
-                    <button
-                        onClick={() => setInventorySubTab('school')}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                            inventorySubTab === 'school'
-                                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                                : 'text-slate-500 hover:text-indigo-500 dark:text-slate-400'
-                        }`}
-                    >
-                        <Layers className="w-3.5 h-3.5" />
-                        School Store
-                        <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-md text-[9px] font-black">
-                            {items.length}
-                        </span>
-                    </button>
+            {/* ─ SUBTAB SWITCHER (Institutional Stores vs Inbound County Pipeline vs Pharmacy) ─ */}
+            <div className="flex flex-wrap bg-slate-100 dark:bg-slate-800/60 p-1 rounded-2xl w-fit border border-slate-200 dark:border-slate-700/50 shadow-inner gap-1">
+                <button
+                    onClick={() => setInventorySubTab('school')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        inventorySubTab === 'school'
+                            ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                            : 'text-slate-500 hover:text-indigo-500 dark:text-slate-400'
+                    }`}
+                >
+                    <Layers className="w-3.5 h-3.5" />
+                    School Stores Stock
+                    <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-md text-[9px] font-black">
+                        {items.length}
+                    </span>
+                </button>
+
+                <button
+                    onClick={() => setInventorySubTab('county_consignments')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        inventorySubTab === 'county_consignments'
+                            ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                            : 'text-slate-500 hover:text-emerald-500 dark:text-slate-400'
+                    }`}
+                >
+                    <Truck className="w-3.5 h-3.5" />
+                    Inbound County Consignments
+                    <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-md text-[9px] font-black flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Supply Stream
+                    </span>
+                </button>
+
+                {isEducation && (
                     <button
                         onClick={() => setInventorySubTab('pharmacy')}
                         className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                             inventorySubTab === 'pharmacy'
-                                ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                                : 'text-slate-500 hover:text-emerald-500 dark:text-slate-400'
+                                ? 'bg-white dark:bg-slate-700 text-fuchsia-600 dark:text-fuchsia-400 shadow-sm'
+                                : 'text-slate-500 hover:text-fuchsia-500 dark:text-slate-400'
                         }`}
                     >
                         <Banknote className="w-3.5 h-3.5" />
@@ -800,7 +819,17 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                             </span>
                         )}
                     </button>
-                </div>
+                )}
+            </div>
+
+            {/* ─ INBOUND COUNTY CONSIGNMENTS PANEL ─ */}
+            {inventorySubTab === 'county_consignments' && (
+                <InboundCountyConsignmentsView
+                    institutionId={institutionId}
+                    currentInstitution={currentInstitution}
+                    stores={effectiveStores}
+                    onRefreshStock={fetchInventory}
+                />
             )}
 
             {/* ─ PHARMACY / SICKBAY PANEL ─ */}
@@ -848,25 +877,20 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                 <thead>
                                     <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
                                         {['Drug / Item','Category','Unit','Stock Qty','Reorder Lvl','Unit Price (KES)','Narcotic','Linked to Store','Status'].map(h => (
-                                            <th key={h} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 whitespace-nowrap">{h}</th>
+                                            <th key={h} className="text-left text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 px-4 py-3.5">{h}</th>
                                         ))}
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                                     {filteredPharmacyDrugs.map(drug => {
                                         const isLow = drug.stockQuantity <= drug.reorderLevel;
                                         const isLinked = Boolean(drug.linkedInventoryItemId);
                                         return (
-                                            <tr key={drug.id} className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${isLow ? 'bg-rose-50/40 dark:bg-rose-900/10' : ''}`}>
+                                            <tr key={drug.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                                                 <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black ${
-                                                            drug.isNarcotic ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
-                                                        }`}>{drug.name.charAt(0)}</div>
-                                                        <div>
-                                                            <p className="font-bold text-slate-900 dark:text-white text-xs">{drug.name}</p>
-                                                            {drug.sku && <p className="text-[9px] text-slate-400 font-mono">{drug.sku}</p>}
-                                                        </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-900 dark:text-white text-xs">{drug.name}</p>
+                                                        {drug.genericName && <p className="text-[10px] text-slate-400">{drug.genericName}</p>}
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-xs text-slate-500 font-semibold">{drug.category || '—'}</td>
@@ -890,7 +914,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 </div>
             )}
 
-            {/* ─ SCHOOL STORE CONTENT (hidden when pharmacy tab active) ─ */}
+            {/* ─ SCHOOL STORE CONTENT (hidden when other tabs active) ─ */}
             {inventorySubTab === 'school' && (<>
 
             {/* Controls */}
