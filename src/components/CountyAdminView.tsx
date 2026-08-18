@@ -204,6 +204,33 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         countyFleet, onAddCountyFleetVehicle, onUpdateCountyFleetVehicle, onDeleteCountyFleetVehicle
     } = props;
 
+    // 1. Core County & Facility Scope Resolution (Declared first to avoid TDZ errors)
+    const myCounty = useMemo(() => counties.find(c => 
+        c.id === currentUser?.countyId || 
+        c.id === currentUser?.institutionId || 
+        c.code === currentUser?.countyId || 
+        c.code === currentUser?.institutionId || 
+        (c.name && currentUser?.institutionId && c.name.toLowerCase() === currentUser.institutionId.toLowerCase())
+    ) || counties[0], [counties, currentUser]);
+
+    const myInstitutions = useMemo(() => institutions.filter(inst => inst.countyId === myCounty?.id || (inst as any).county_id === myCounty?.id), [institutions, myCounty]);
+    const myStaff = useMemo(() => users.filter(u => 
+        (u.countyId === myCounty?.id || (u as any).county_id === myCounty?.id || u.institutionId === myCounty?.id) && 
+        (u.role?.startsWith('county_') || u.role === 'county_admin' || u.role === 'county_staff')
+    ), [users, myCounty]);
+    const countyBroadcasterUsers = useMemo(() => {
+        const facilityIds = new Set(myInstitutions.map(i => i.id));
+        return (users || []).filter(u => 
+            u.countyId === myCounty?.id || 
+            (u as any).county_id === myCounty?.id || 
+            u.institutionId === myCounty?.id || 
+            facilityIds.has(u.institutionId || '')
+        );
+    }, [users, myCounty, myInstitutions]);
+    const myInventory = useMemo(() => inventoryItems.filter(item => item.countyId === myCounty?.id || (item as any).county_id === myCounty?.id), [inventoryItems, myCounty]);
+    const myCategories = useMemo(() => (inventoryCategories || []).filter(cat => !cat.countyId || cat.countyId === myCounty?.id || (cat as any).county_id === myCounty?.id), [inventoryCategories, myCounty]);
+    const myStores = useMemo(() => (stores || []).filter(s => !s.countyId || s.countyId === myCounty?.id || (s as any).county_id === myCounty?.id), [stores, myCounty]);
+
     const [activeTab, setActiveTab] = useState('dashboard');
     const [attendanceSubTab, setAttendanceSubTab] = useState<'overview' | 'teachers' | 'students' | 'analytics'>('overview');
     const [attendanceDate, setAttendanceDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -238,7 +265,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     // Multi-School Truck Dispatch Manifests State
     const [dispatchManifests, setDispatchManifests] = useState<CountyDispatchManifest[]>(() => {
         try {
-            const saved = localStorage.getItem(`county_dispatch_manifests_${myCounty?.id || 'default'}`);
+            const saved = localStorage.getItem('county_dispatch_manifests_v1');
             if (saved) return JSON.parse(saved);
         } catch (e) {
             console.error("Error loading saved manifests", e);
@@ -246,8 +273,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         return [
             {
                 id: 'MNF-001',
-                countyId: myCounty?.id || '047',
-                manifestNumber: `MNF-${myCounty?.code || '047'}-TRK01`,
+                countyId: '047',
+                manifestNumber: 'MNF-047-TRK01',
                 dispatchDate: new Date(Date.now() - 3600000 * 4).toISOString(),
                 vehicleReg: '47 CG 018 B',
                 vehicleType: 'Isuzu FRR 10-Tonne Logistics Truck',
@@ -267,8 +294,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                         category: 'Education & CBC',
                         quantity: 120,
                         unit: 'Kits',
-                        targetInstitutionId: myInstitutions[0]?.id || 'inst-1',
-                        targetInstitutionName: myInstitutions[0]?.name || 'Dagoretti High School',
+                        targetInstitutionId: 'inst-1',
+                        targetInstitutionName: 'Dagoretti High School',
                         recipientName: 'Head of Science Dept',
                         recipientPhone: '+254722114455',
                         notes: 'Handover to school stores master',
@@ -280,8 +307,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                         category: 'ECDE & Nutrition',
                         quantity: 250,
                         unit: 'Bags (25kg)',
-                        targetInstitutionId: myInstitutions[1]?.id || 'inst-2',
-                        targetInstitutionName: myInstitutions[1]?.name || 'Lenana ECDE Center',
+                        targetInstitutionId: 'inst-2',
+                        targetInstitutionName: 'Lenana ECDE Center',
                         recipientName: 'ECDE Center Coordinator',
                         recipientPhone: '+254733667788',
                         notes: 'For county free milk & feeding program',
@@ -295,8 +322,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                         category: 'Education & CBC',
                         quantity: 80,
                         unit: 'Cartons',
-                        targetInstitutionId: myInstitutions[2]?.id || myInstitutions[0]?.id || 'inst-3',
-                        targetInstitutionName: myInstitutions[2]?.name || myInstitutions[0]?.name || 'Olympic Primary School',
+                        targetInstitutionId: 'inst-3',
+                        targetInstitutionName: 'Olympic Primary School',
                         recipientName: 'Deputy Principal',
                         recipientPhone: '+254799001122',
                         notes: 'Standard curriculum textbooks',
@@ -1059,14 +1086,6 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         signatureUrl: ''
     });
 
-    const myCounty = useMemo(() => counties.find(c => 
-        c.id === currentUser?.countyId || 
-        c.id === currentUser?.institutionId || 
-        c.code === currentUser?.countyId || 
-        c.code === currentUser?.institutionId || 
-        (c.name && currentUser?.institutionId && c.name.toLowerCase() === currentUser.institutionId.toLowerCase())
-    ) || counties[0], [counties, currentUser]);
-
     useEffect(() => {
         if (myCounty) {
             setCountySettingsForm({
@@ -1128,23 +1147,6 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
             setIsSavingSettings(false);
         }
     };
-    const myInstitutions = useMemo(() => institutions.filter(inst => inst.countyId === myCounty?.id || (inst as any).county_id === myCounty?.id), [institutions, myCounty]);
-    const myStaff = useMemo(() => users.filter(u => 
-        (u.countyId === myCounty?.id || (u as any).county_id === myCounty?.id || u.institutionId === myCounty?.id) && 
-        (u.role?.startsWith('county_') || u.role === 'county_admin' || u.role === 'county_staff')
-    ), [users, myCounty]);
-    const countyBroadcasterUsers = useMemo(() => {
-        const facilityIds = new Set(myInstitutions.map(i => i.id));
-        return (users || []).filter(u => 
-            u.countyId === myCounty?.id || 
-            (u as any).county_id === myCounty?.id || 
-            u.institutionId === myCounty?.id || 
-            facilityIds.has(u.institutionId || '')
-        );
-    }, [users, myCounty, myInstitutions]);
-    const myInventory = useMemo(() => inventoryItems.filter(item => item.countyId === myCounty?.id || (item as any).county_id === myCounty?.id), [inventoryItems, myCounty]);
-    const myCategories = useMemo(() => (inventoryCategories || []).filter(cat => !cat.countyId || cat.countyId === myCounty?.id || (cat as any).county_id === myCounty?.id), [inventoryCategories, myCounty]);
-    const myStores = useMemo(() => (stores || []).filter(s => !s.countyId || s.countyId === myCounty?.id || (s as any).county_id === myCounty?.id), [stores, myCounty]);
     const totalStudents = useMemo(() => users.filter(u => u.role === 'student' && myInstitutions.some(inst => inst.id === u.institutionId)).length, [users, myInstitutions]);
 
     const filteredInventory = useMemo(() => {
