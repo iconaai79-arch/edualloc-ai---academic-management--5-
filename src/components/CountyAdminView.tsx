@@ -35,9 +35,9 @@ import { SmartInstitutionImporterModal } from './SmartInstitutionImporterModal';
 import { SmartInventoryImporterModal } from './SmartInventoryImporterModal';
 import { DisciplineManager } from './Academics/DisciplineManager';
 import { AcademicReportsHub } from './Academics/AcademicReportsHub';
-import { ActivityLogView } from './ActivityLogView';
-import { CommunicationsManager } from './CommunicationsManager';
 import { CountyInventoryRadar } from './CountyInventoryRadar';
+import { CountySchoolStockRadar } from './CountySchoolStockRadar';
+import { DigitalHandoverScannerModal } from './DigitalHandoverScannerModal';
 import { CountyWaybillModal } from './CountyWaybillModal';
 import { apiService } from '../services/apiService';
 
@@ -239,7 +239,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const [selectedSchoolForAttendance, setSelectedSchoolForAttendance] = useState<Institution | null>(null);
     const [attendanceAlertFilter, setAttendanceAlertFilter] = useState<'all' | 'alert' | 'excellent'>('all');
     const [subTab, setSubTab] = useState('overview');
-    const [inventorySubTab, setInventorySubTab] = useState<'items' | 'dispatch' | 'requisitions' | 'stores' | 'categories' | 'reports'>('items');
+    const [inventorySubTab, setInventorySubTab] = useState<'items' | 'dispatch' | 'requisitions' | 'stock_radar' | 'stores' | 'categories' | 'reports'>('items');
     const [bursarySubTab, setBursarySubTab] = useState<'applications' | 'funds' | 'payouts' | 'vetting'>('applications');
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
@@ -251,6 +251,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const [showWaybillModal, setShowWaybillModal] = useState<CountyInventoryItem | null>(null);
     const [showManifestWaybillModal, setShowManifestWaybillModal] = useState<CountyDispatchManifest | null>(null);
     const [showBatchDispatchModal, setShowBatchDispatchModal] = useState(false);
+    const [showDigitalScannerModal, setShowDigitalScannerModal] = useState(false);
     const [dispatchViewMode, setDispatchViewMode] = useState<'manifests' | 'items'>('manifests');
     const [inventorySearch, setInventorySearch] = useState('');
     const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('all');
@@ -1818,21 +1819,30 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const handleMarkManifestDelivered = async (manifestId: string) => {
         if (!window.confirm("Confirm that all cargo on this truck trip has been delivered and verified by all destination schools?")) return;
         const nowIso = new Date().toISOString();
-        setDispatchManifests(prev => prev.map(m => {
+        let targetVehicleReg = '';
+        let dropCount = 1;
+
+        const updatedManifests = dispatchManifests.map(m => {
             if (m.id === manifestId) {
+                targetVehicleReg = m.vehicleReg;
+                dropCount = m.items.length;
                 return {
                     ...m,
-                    status: 'completed',
+                    status: 'completed' as const,
+                    updatedAt: nowIso,
                     items: m.items.map(i => ({
                         ...i,
                         status: 'received' as const,
                         receivedDate: nowIso,
-                        receivedBy: 'School Stores Incharge'
+                        receivedBy: i.receivedBy || 'School Stores Incharge'
                     }))
                 };
             }
             return m;
-        }));
+        });
+
+        setDispatchManifests(updatedManifests);
+        localStorage.setItem('county_dispatch_manifests_v1', JSON.stringify(updatedManifests));
 
         const targetManifest = dispatchManifests.find(m => m.id === manifestId);
         if (targetManifest) {
@@ -1848,8 +1858,64 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                     }
                 }
             }
-            onLogAction?.(`Marked entire truck manifest ${targetManifest.manifestNumber} delivered`);
         }
+
+        // Fleet Telematics Update: Add trip mileage and check service thresholds
+        const tripKm = Math.floor(30 + dropCount * 18);
+        const fleetVeh = activeFleetVehicles.find(v => v.vehicleReg?.toUpperCase() === targetVehicleReg?.toUpperCase());
+        if (fleetVeh) {
+            const newOdo = (fleetVeh.currentOdometerKm || 0) + tripKm;
+            const isDue = newOdo >= (fleetVeh.nextServiceDueKm || 45000);
+            const updatedVehicle: CountyFleetVehicle = {
+                ...fleetVeh,
+                currentOdometerKm: newOdo,
+                status: isDue ? 'service_due' : fleetVeh.status,
+                tireHealthPct: Math.max(30, (fleetVeh.tireHealthPct || 90) - 1),
+                updatedAt: nowIso
+            };
+
+            if (onUpdateCountyFleetVehicle) {
+                await onUpdateCountyFleetVehicle(fleetVeh.id, updatedVehicle);
+            }
+            setInternalFleet(prev => prev.map(v => v.id === fleetVeh.id ? updatedVehicle : v));
+            onLogAction?.(`Completed logistics run for truck ${targetVehicleReg}. Telematics logged: +${tripKm} KM (New Odometer: ${newOdo.toLocaleString()} KM).`);
+            alert(`✓ Consignment marked completed!\n🚚 Fleet Telematics: Added +${tripKm} KM to Vehicle ${targetVehicleReg} (Current Odo: ${newOdo.toLocaleString()} KM).${isDue ? '\n⚠️ Maintenance Warning: Service interval reached! Vehicle status set to Service Due.' : ''}`);
+        } else {
+            onLogAction?.(`Marked entire truck manifest ${targetManifest?.manifestNumber || manifestId} delivered`);
+        }
+    };
+
+    const handleDigitalHandoverCompleted = async (manifestId: string, dropItemId: string, signatureDataUrl: string, receiverName: string, receiverNotes: string) => {
+        const nowIso = new Date().toISOString();
+        const updatedManifests = dispatchManifests.map(m => {
+            if (m.id === manifestId) {
+                const updatedItems = m.items.map(drop => {
+                    if (drop.id === dropItemId) {
+                        return {
+                            ...drop,
+                            status: 'received' as const,
+                            receivedDate: nowIso,
+                            receivedBy: receiverName,
+                            recipientSignature: signatureDataUrl,
+                            notes: `${drop.notes || ''} | Stamped Signature by ${receiverName}: ${receiverNotes}`
+                        };
+                    }
+                    return drop;
+                });
+                const allReceived = updatedItems.every(i => i.status === 'received');
+                return {
+                    ...m,
+                    items: updatedItems,
+                    status: allReceived ? ('completed' as const) : ('partially_delivered' as const),
+                    updatedAt: nowIso
+                };
+            }
+            return m;
+        });
+
+        setDispatchManifests(updatedManifests);
+        localStorage.setItem('county_dispatch_manifests_v1', JSON.stringify(updatedManifests));
+        onLogAction?.(`Recorded digital signature Proof of Delivery (POD) for drop ${dropItemId}`);
     };
 
     const handleMarkDropDelivered = async (manifestId: string, dropId: string) => {
@@ -3481,6 +3547,19 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                 )}
                             </button>
                             <button
+                                onClick={() => setInventorySubTab('stock_radar')}
+                                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${inventorySubTab === 'stock_radar'
+                                    ? 'bg-white text-indigo-600 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                <Compass className="w-4 h-4" />
+                                School Stock Deficit Radar
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold">
+                                    Heatmap
+                                </span>
+                            </button>
+                            <button
                                 onClick={() => setInventorySubTab('stores')}
                                 className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${inventorySubTab === 'stores'
                                     ? 'bg-white text-indigo-600 shadow-sm'
@@ -3911,12 +3990,21 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                         </button>
                                     </div>
 
-                                    <button
-                                        onClick={() => handleOpenBatchDispatchModal()}
-                                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors flex items-center gap-2 cursor-pointer w-fit"
-                                    >
-                                        <Truck className="w-4 h-4 text-indigo-200" /> + Dispatch New Truck
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => setShowDigitalScannerModal(true)}
+                                            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                                        >
+                                            <QrCodeIcon className="w-4 h-4 text-emerald-400" />
+                                            Scan QR & Sign POD
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenBatchDispatchModal()}
+                                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors flex items-center gap-2 cursor-pointer w-fit"
+                                        >
+                                            <Truck className="w-4 h-4 text-indigo-200" /> + Dispatch New Truck
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* VIEW 1: TRUCK CONSIGNMENT MANIFESTS */}
@@ -4515,7 +4603,53 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                             </div>
                         )}
 
-                        {/* SUBTAB 4: CATEGORIES */}
+                        {/* SUBTAB 4: SCHOOL STOCK DEFICIT HEATMAP RADAR */}
+                        {inventorySubTab === 'stock_radar' && (
+                            <CountySchoolStockRadar
+                                institutions={myInstitutions}
+                                countyName={myCounty.name}
+                                countyInventory={myInventory}
+                                onLaunchProactiveRestock={(targetInst, deficits) => {
+                                    const defaultTruck = activeFleetVehicles.find(v => 
+                                        v.vehicleType?.toLowerCase().includes('truck') || 
+                                        v.vehicleType?.toLowerCase().includes('bus')
+                                    ) || activeFleetVehicles[0];
+
+                                    const prefilledDrops = deficits.map((def: any, idx: number) => {
+                                        const stockMatch = myInventory.find(i => i.name.toLowerCase().includes(def.name.toLowerCase()));
+                                        return {
+                                            id: `drop-radar-${Date.now()}-${idx + 1}`,
+                                            inventoryItemId: stockMatch?.id || '',
+                                            name: def.name,
+                                            category: def.category || 'Education & CBC',
+                                            quantity: Math.max(20, (def.reorderThreshold || 25) - (def.currentStock || 0)),
+                                            unit: 'Units',
+                                            targetInstitutionId: targetInst.id,
+                                            recipientName: 'Stores Master',
+                                            recipientPhone: '',
+                                            notes: `Proactive Deficit Replenishment for ${def.name}`
+                                        };
+                                    });
+
+                                    setBatchDispatchForm({
+                                        manifestNumber: `MNF-${myCounty?.code || '047'}-${Date.now().toString().slice(-5).toUpperCase()}`,
+                                        vehicleReg: defaultTruck ? defaultTruck.vehicleReg : `47 CG 018 B`,
+                                        vehicleType: defaultTruck ? `${defaultTruck.makeModel} (${defaultTruck.vehicleType})` : 'Isuzu FRR 10-Tonne Logistics Truck',
+                                        driverName: defaultTruck?.assignedDriverName || 'Corporal David Ochieng',
+                                        driverPhone: defaultTruck?.assignedDriverPhone || '+254711889900',
+                                        departureDepot: myStores[0]?.name || 'Central County HQ Logistics Warehouse',
+                                        routeDescription: `Central Depot → ${targetInst.name} (Deficit Corridor)`,
+                                        deliveryMethod: 'driver',
+                                        notes: `Proactive replenishment truck load to eliminate stock deficit at ${targetInst.name}`,
+                                        items: prefilledDrops
+                                    });
+
+                                    setShowBatchDispatchModal(true);
+                                }}
+                            />
+                        )}
+
+                        {/* SUBTAB 5: CATEGORIES */}
                         {inventorySubTab === 'categories' && (
                             <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
                                 {myCategories.length === 0 ? (
@@ -7850,6 +7984,15 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Digital Handover QR Scanner & Signature Modal */}
+            {showDigitalScannerModal && (
+                <DigitalHandoverScannerModal
+                    manifests={dispatchManifests}
+                    onClose={() => setShowDigitalScannerModal(false)}
+                    onCompleteHandover={handleDigitalHandoverCompleted}
+                />
             )}
         </div>
     );

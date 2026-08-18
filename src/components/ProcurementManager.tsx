@@ -20,6 +20,7 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 
 import { Requisition, RetailStore, RetailInventoryItem, RetailExpense, Supplier, Institution, CompanyDetails } from '../types';
 import { generateLpoPdf } from '../services/pdfService';
+import { apiService } from '../services/apiService';
 
 interface ProcurementManagerProps {
     requisitions: Requisition[];
@@ -91,6 +92,48 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
         // Note: The logic to actually update the inventory quantities in the database 
         // should be handled in the App.tsx onUpdateRequisition handler or a dedicated 
         // onMarkLPOReceived handler to ensure atomicity.
+    };
+
+    const handleIngestIntoCountyInventory = async (req: Requisition) => {
+        try {
+            const supplier = suppliers.find(s => s.id === req.supplierId);
+            const nowIso = new Date().toISOString();
+            
+            const rawCountyInv = localStorage.getItem('county_inventory_items_v1');
+            const existingCountyInv: any[] = rawCountyInv ? JSON.parse(rawCountyInv) : [];
+
+            const newItems: any[] = req.items.map((item, idx) => ({
+                id: `county-item-${Date.now()}-${idx + 1}`,
+                countyId: institution?.countyId || 'county-default',
+                name: item.name,
+                category: 'Procured Supplies & Curriculum',
+                quantity: Number(item.quantity),
+                unit: item.unit || 'Units',
+                unitPrice: item.unitCost || 0,
+                minimumThreshold: Math.floor(Number(item.quantity) * 0.2),
+                status: 'at_hq',
+                at_hq_date: nowIso,
+                storeLocation: 'Central County Logistics Warehouse',
+                notes: `Ingested from Procurement LPO #${req.lpoNumber || req.id.slice(0, 8)} | Supplier: ${supplier?.name || 'Local Vendor'}`
+            }));
+
+            const updatedCountyInv = [...newItems, ...existingCountyInv];
+            localStorage.setItem('county_inventory_items_v1', JSON.stringify(updatedCountyInv));
+
+            for (const item of newItems) {
+                try {
+                    await apiService.saveModuleRecord('county_inventory', item);
+                } catch (e) {
+                    console.warn("Could not push item to county_inventory backend:", e);
+                }
+            }
+
+            window.dispatchEvent(new CustomEvent('inventory_updated'));
+            alert(`✓ Successfully ingested ${req.items.length} product lines (${req.items.reduce((s, i) => s + i.quantity, 0)} total units) from LPO #${req.lpoNumber || req.id.slice(0, 8)} into the County Central Logistics Warehouse!`);
+        } catch (err: any) {
+            console.error("Failed to ingest LPO into county inventory:", err);
+            alert("Error ingesting into County Inventory: " + (err.message || 'Unknown error'));
+        }
     };
 
     const handleAddItem = () => {
@@ -340,6 +383,16 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
                                                         className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm" title="Mark as Received"
                                                     >
                                                         <CheckCircleIcon className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                {(req.status === 'received' || req.status === 'ordered') && (
+                                                    <button
+                                                        onClick={() => handleIngestIntoCountyInventory(req)}
+                                                        className="p-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-1 text-[10px] font-bold"
+                                                        title="Ingest into County Central Logistics Warehouse"
+                                                    >
+                                                        <BuildingIcon className="w-4 h-4" />
+                                                        <span className="hidden xl:inline">To County Depot</span>
                                                     </button>
                                                 )}
                                                 <button 
