@@ -1904,6 +1904,35 @@ export interface CountyDispatchDropItem {
     receivedBy?: string;
 }
 
+export interface CountySchoolRequisition {
+    id: string;
+    countyId?: string;
+    institutionId: string;
+    institutionName: string;
+    requisitionNumber: string;
+    requestedDate: string;
+    requestedBy: string;
+    requestedByRole?: string;
+    requestedByPhone?: string;
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    category: string;
+    urgencyReason?: string;
+    items: {
+        id: string;
+        name: string;
+        quantity: number;
+        unit: string;
+        notes?: string;
+    }[];
+    status: 'pending' | 'approved' | 'dispatched' | 'rejected';
+    approvedBy?: string;
+    approvedDate?: string;
+    rejectionReason?: string;
+    allocatedManifestNumber?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 export interface CountyDispatchManifest {
     id: string;
     countyId: string;

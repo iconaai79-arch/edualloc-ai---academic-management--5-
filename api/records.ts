@@ -127,7 +127,7 @@ const PUBLIC_MODULES = [
   'feedback_submissions', 'guest_feedback', 'guest_feedbacks',
   'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
   'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
-  'county_dispatch_manifests', 'county_dispatch_items'
+  'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions'
 ];
 
 const MODULE_ALIASES: Record<string, string> = {
@@ -146,7 +146,7 @@ const isTableWithoutInstitutionId = (module: string) => {
     'counties', 'constituencies', 'wards', 'political_parties',
     'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs',
     'county_bursary_funds', 'ng_cdf_funds', 'building_offices', 'building_visitor_assets',
-    'county_inventory', 'county_inventory_categories', 'county_stores', 'county_dispatch_manifests', 'county_dispatch_items'
+    'county_inventory', 'county_inventory_categories', 'county_stores', 'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions'
   ].includes(module);
 };
 
@@ -189,7 +189,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'his_patient_id_config', 'his_medical_notes', 'his_clinical_events', 'document_collections', 'watchlist_records', 'leave_requests', 'financial_goals',
           'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
           'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
-          'county_dispatch_manifests', 'county_dispatch_items'
+          'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         

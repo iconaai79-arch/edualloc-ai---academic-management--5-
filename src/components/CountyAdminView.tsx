@@ -8,7 +8,7 @@ import {
     LawAgreement, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, 
     DSSettings, Department, Subject, DisciplineIncident, Book, Assessment, AssessmentMark,
     StudentAttendance, TeacherCheckIn, CountyFleetVehicle,
-    CountyDispatchDropItem, CountyDispatchManifest
+    CountyDispatchDropItem, CountyDispatchManifest, CountySchoolRequisition
 } from '../types';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
@@ -239,7 +239,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const [selectedSchoolForAttendance, setSelectedSchoolForAttendance] = useState<Institution | null>(null);
     const [attendanceAlertFilter, setAttendanceAlertFilter] = useState<'all' | 'alert' | 'excellent'>('all');
     const [subTab, setSubTab] = useState('overview');
-    const [inventorySubTab, setInventorySubTab] = useState<'items' | 'categories' | 'stores' | 'dispatch' | 'reports'>('items');
+    const [inventorySubTab, setInventorySubTab] = useState<'items' | 'dispatch' | 'requisitions' | 'stores' | 'categories' | 'reports'>('items');
     const [bursarySubTab, setBursarySubTab] = useState<'applications' | 'funds' | 'payouts' | 'vetting'>('applications');
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
@@ -333,6 +333,71 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
             }
         ];
     });
+
+    // School Material Requisitions State
+    const [schoolRequisitions, setSchoolRequisitions] = useState<CountySchoolRequisition[]>(() => {
+        try {
+            const saved = localStorage.getItem('county_school_requisitions_v1');
+            if (saved) return JSON.parse(saved);
+        } catch (e) {
+            console.error("Error loading saved school requisitions", e);
+        }
+        return [
+            {
+                id: 'REQ-SCH-001',
+                countyId: '047',
+                institutionId: 'inst-1',
+                institutionName: 'Dagoretti High School',
+                requisitionNumber: 'REQ-2026-089',
+                requestedDate: new Date(Date.now() - 86400000 * 3).toISOString(),
+                requestedBy: 'Dr. Kennedy Wanyama (Principal)',
+                requestedByRole: 'Head of Institution',
+                requestedByPhone: '+254722114455',
+                priority: 'urgent',
+                category: 'CBC & Lab Equipment',
+                urgencyReason: 'CBC Grade 8 Integrated Science and Physics practicals require lab reagent sets and microscopes before mid-term assessments.',
+                status: 'pending',
+                items: [
+                    { id: 'item-1', name: 'Grade 8 CBC Science Lab Kits', quantity: 80, unit: 'Kits', notes: 'Complete kit with burner & glassware' },
+                    { id: 'item-2', name: 'Compound Optical Microscopes (400x)', quantity: 15, unit: 'Units', notes: 'Biology & CBC science labs' }
+                ]
+            },
+            {
+                id: 'REQ-SCH-002',
+                countyId: '047',
+                institutionId: 'inst-2',
+                institutionName: 'Lenana ECDE Center',
+                requisitionNumber: 'REQ-2026-092',
+                requestedDate: new Date(Date.now() - 86400000 * 2).toISOString(),
+                requestedBy: 'Madam Mercy Chebet (Head Teacher)',
+                requestedByRole: 'ECDE Coordinator',
+                requestedByPhone: '+254733221100',
+                priority: 'high',
+                category: 'ECDE & Nutrition',
+                urgencyReason: 'Learner intake up by 40 pupils for Term 2. Porridge feeding granary reserves at critical 5-day buffer.',
+                status: 'approved',
+                approvedBy: 'Director of Early Childhood Education',
+                approvedDate: new Date(Date.now() - 86400000).toISOString(),
+                allocatedManifestNumber: 'MNF-047-TRK01',
+                items: [
+                    { id: 'item-3', name: 'ECDE Fortified Porridge Flour (25kg)', quantity: 150, unit: 'Bags', notes: 'Vitamin & mineral fortified' },
+                    { id: 'item-4', name: 'Refined Sugar Granules (50kg)', quantity: 10, unit: 'Bags', notes: 'For student feeding' }
+                ]
+            }
+        ];
+    });
+
+    const [requisitionSearch, setRequisitionSearch] = useState('');
+    const [requisitionStatusFilter, setRequisitionStatusFilter] = useState<'all' | 'pending' | 'approved' | 'dispatched' | 'rejected'>('all');
+    const [requisitionPriorityFilter, setRequisitionPriorityFilter] = useState<string>('all');
+    const [reviewingRequisition, setReviewingRequisition] = useState<CountySchoolRequisition | null>(null);
+    const [rejectionNotes, setRejectionNotes] = useState('');
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('county_school_requisitions_v1', JSON.stringify(schoolRequisitions));
+        } catch (e) {}
+    }, [schoolRequisitions]);
 
     // Batch Dispatch Form State
     const [batchDispatchForm, setBatchDispatchForm] = useState<{
@@ -3397,6 +3462,25 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                 </span>
                             </button>
                             <button
+                                onClick={() => setInventorySubTab('requisitions')}
+                                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${inventorySubTab === 'requisitions'
+                                    ? 'bg-white text-indigo-600 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                <FileText className="w-4 h-4" />
+                                School Requisitions
+                                {schoolRequisitions.filter(r => r.status === 'pending').length > 0 ? (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold animate-pulse">
+                                        {schoolRequisitions.filter(r => r.status === 'pending').length} Pending
+                                    </span>
+                                ) : (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                                        {schoolRequisitions.length}
+                                    </span>
+                                )}
+                            </button>
+                            <button
                                 onClick={() => setInventorySubTab('stores')}
                                 className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${inventorySubTab === 'stores'
                                     ? 'bg-white text-indigo-600 shadow-sm'
@@ -4110,6 +4194,324 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* SUBTAB 3: SCHOOL MATERIAL REQUISITIONS */}
+                        {inventorySubTab === 'requisitions' && (
+                            <div className="space-y-6">
+                                {/* Overview Metrics */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                                    <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-600">
+                                            <FileText className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="text-2xl font-black text-slate-900">{schoolRequisitions.length}</div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total School Requests</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-600">
+                                            <AlertTriangle className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="text-2xl font-black text-rose-600">
+                                                {schoolRequisitions.filter(r => r.status === 'pending').length}
+                                            </div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pending Review</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                                            <CheckCircle2 className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="text-2xl font-black text-emerald-600">
+                                                {schoolRequisitions.filter(r => r.status === 'approved').length}
+                                            </div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Approved at HQ</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+                                            <Truck className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="text-2xl font-black text-blue-600">
+                                                {schoolRequisitions.filter(r => r.status === 'dispatched').length}
+                                            </div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Loaded onto Trucks</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Filters & Search */}
+                                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                                    <div className="relative w-full md:w-96">
+                                        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                        <input
+                                            type="text"
+                                            value={requisitionSearch}
+                                            onChange={(e) => setRequisitionSearch(e.target.value)}
+                                            placeholder="Search by school name, requisition #, or item..."
+                                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-3 w-full md:w-auto items-center">
+                                        <div className="flex items-center gap-2">
+                                            <Filter className="w-3.5 h-3.5 text-slate-400" />
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Priority:</span>
+                                            <select
+                                                value={requisitionPriorityFilter}
+                                                onChange={(e) => setRequisitionPriorityFilter(e.target.value)}
+                                                className="bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 px-3 py-2 focus:outline-none focus:border-indigo-500"
+                                            >
+                                                <option value="all">All Priorities</option>
+                                                <option value="urgent">Urgent</option>
+                                                <option value="high">High</option>
+                                                <option value="medium">Medium</option>
+                                                <option value="low">Low</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Status:</span>
+                                            <select
+                                                value={requisitionStatusFilter}
+                                                onChange={(e) => setRequisitionStatusFilter(e.target.value as any)}
+                                                className="bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 px-3 py-2 focus:outline-none focus:border-indigo-500"
+                                            >
+                                                <option value="all">All Statuses</option>
+                                                <option value="pending">Pending Review</option>
+                                                <option value="approved">Approved</option>
+                                                <option value="dispatched">Dispatched on Truck</option>
+                                                <option value="rejected">Rejected</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Requisitions List */}
+                                <div className="space-y-4">
+                                    {schoolRequisitions.filter(req => {
+                                        if (requisitionStatusFilter !== 'all' && req.status !== requisitionStatusFilter) return false;
+                                        if (requisitionPriorityFilter !== 'all' && req.priority !== requisitionPriorityFilter) return false;
+                                        if (requisitionSearch.trim()) {
+                                            const q = requisitionSearch.toLowerCase();
+                                            const matchReqNum = req.requisitionNumber?.toLowerCase().includes(q);
+                                            const matchSchool = req.institutionName?.toLowerCase().includes(q);
+                                            const matchCategory = req.category?.toLowerCase().includes(q);
+                                            const matchItem = req.items?.some(i => i.name.toLowerCase().includes(q));
+                                            if (!matchReqNum && !matchSchool && !matchCategory && !matchItem) return false;
+                                        }
+                                        return true;
+                                    }).length === 0 ? (
+                                        <div className="bg-white p-12 rounded-[2.5rem] border border-slate-100 text-center shadow-xs">
+                                            <div className="w-16 h-16 rounded-3xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4">
+                                                <FileText className="w-8 h-8" />
+                                            </div>
+                                            <h4 className="text-base font-black text-slate-900 uppercase">No School Material Requisitions Match Filters</h4>
+                                            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                                                School Store Masters and Principals can raise requisitions directly from their portal for county-allocated materials.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        schoolRequisitions.filter(req => {
+                                            if (requisitionStatusFilter !== 'all' && req.status !== requisitionStatusFilter) return false;
+                                            if (requisitionPriorityFilter !== 'all' && req.priority !== requisitionPriorityFilter) return false;
+                                            if (requisitionSearch.trim()) {
+                                                const q = requisitionSearch.toLowerCase();
+                                                const matchReqNum = req.requisitionNumber?.toLowerCase().includes(q);
+                                                const matchSchool = req.institutionName?.toLowerCase().includes(q);
+                                                const matchCategory = req.category?.toLowerCase().includes(q);
+                                                const matchItem = req.items?.some(i => i.name.toLowerCase().includes(q));
+                                                if (!matchReqNum && !matchSchool && !matchCategory && !matchItem) return false;
+                                            }
+                                            return true;
+                                        }).map(req => {
+                                            const totalUnits = req.items.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+
+                                            return (
+                                                <div key={req.id || req.requisitionNumber} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:border-slate-200 p-6 md:p-8 space-y-5">
+                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                                                        <div className="flex items-start gap-4">
+                                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                                                                <FileText className="w-6 h-6" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2.5 flex-wrap">
+                                                                    <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">
+                                                                        {req.institutionName}
+                                                                    </h4>
+                                                                    <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-200">
+                                                                        {req.requisitionNumber}
+                                                                    </span>
+                                                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                                                                        req.priority === 'urgent' ? 'bg-rose-100 text-rose-800 animate-pulse' :
+                                                                        req.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                                                                    }`}>
+                                                                        {req.priority} Priority
+                                                                    </span>
+                                                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                                                                        req.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+                                                                        req.status === 'dispatched' ? 'bg-blue-100 text-blue-800' :
+                                                                        req.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
+                                                                        'bg-amber-100 text-amber-800'
+                                                                    }`}>
+                                                                        {req.status === 'approved' && '✓ Approved at HQ'}
+                                                                        {req.status === 'dispatched' && '🚚 Loaded on Truck'}
+                                                                        {req.status === 'pending' && '⏳ Pending Vetting'}
+                                                                        {req.status === 'rejected' && '✕ Rejected'}
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="text-xs text-slate-400 flex items-center gap-3 mt-1 flex-wrap font-medium">
+                                                                    <span>Category: <strong className="text-slate-600">{req.category}</strong></span>
+                                                                    <span>•</span>
+                                                                    <span>Requested By: <strong className="text-slate-600">{req.requestedBy}</strong> ({req.requestedByRole || 'Staff'})</span>
+                                                                    {req.requestedByPhone && (
+                                                                        <>
+                                                                            <span>•</span>
+                                                                            <a href={`tel:${req.requestedByPhone}`} className="text-indigo-600 hover:underline">{req.requestedByPhone}</a>
+                                                                        </>
+                                                                    )}
+                                                                    <span>•</span>
+                                                                    <span>{new Date(req.requestedDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Action Buttons */}
+                                                        <div className="flex items-center gap-2 flex-wrap self-end lg:self-center">
+                                                            {req.status === 'pending' && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            const updatedReqs = schoolRequisitions.map(r => 
+                                                                                (r.id === req.id || r.requisitionNumber === req.requisitionNumber)
+                                                                                    ? { ...r, status: 'approved' as const, approvedBy: myCounty.directorOfEducation || 'County Logistics Director', approvedDate: new Date().toISOString() }
+                                                                                    : r
+                                                                            );
+                                                                            setSchoolRequisitions(updatedReqs);
+                                                                            localStorage.setItem('county_school_requisitions_v1', JSON.stringify(updatedReqs));
+                                                                            onLogAction?.(`Approved school material requisition ${req.requisitionNumber} for ${req.institutionName}`);
+                                                                            alert(`✓ Approved Requisition ${req.requisitionNumber} for ${req.institutionName}! You can now assign it to a delivery truck.`);
+                                                                        }}
+                                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                                                    >
+                                                                        <Check className="w-3.5 h-3.5" /> Approve Request
+                                                                    </button>
+
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const reason = window.prompt(`Enter rejection reason for requisition ${req.requisitionNumber}:`, "Insufficient central stock allocation. Resubmit next term.");
+                                                                            if (reason) {
+                                                                                const updatedReqs = schoolRequisitions.map(r => 
+                                                                                    (r.id === req.id || r.requisitionNumber === req.requisitionNumber)
+                                                                                        ? { ...r, status: 'rejected' as const, rejectionReason: reason }
+                                                                                        : r
+                                                                                );
+                                                                                setSchoolRequisitions(updatedReqs);
+                                                                                localStorage.setItem('county_school_requisitions_v1', JSON.stringify(updatedReqs));
+                                                                                onLogAction?.(`Rejected requisition ${req.requisitionNumber}: ${reason}`);
+                                                                            }
+                                                                        }}
+                                                                        className="px-3.5 py-2 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
+                                                                    >
+                                                                        Reject
+                                                                    </button>
+                                                                </>
+                                                            )}
+
+                                                            {(req.status === 'approved' || req.status === 'pending') && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        // Prefill batch dispatch modal with this school and requested items
+                                                                        const defaultTruck = activeFleetVehicles.find(v => 
+                                                                            v.vehicleType?.toLowerCase().includes('truck') || 
+                                                                            v.vehicleType?.toLowerCase().includes('bus')
+                                                                        ) || activeFleetVehicles[0];
+
+                                                                        const prefilledItems = req.items.map((item, idx) => {
+                                                                            const matchingStock = myInventory.find(i => i.name.toLowerCase().includes(item.name.toLowerCase()));
+                                                                            return {
+                                                                                id: `drop-${Date.now()}-${idx + 1}`,
+                                                                                inventoryItemId: matchingStock?.id || '',
+                                                                                name: item.name,
+                                                                                category: req.category || 'Education & CBC',
+                                                                                quantity: item.quantity,
+                                                                                unit: item.unit || 'Units',
+                                                                                targetInstitutionId: req.institutionId,
+                                                                                recipientName: req.requestedBy,
+                                                                                recipientPhone: req.requestedByPhone || '',
+                                                                                notes: `Fulfilling Requisition #${req.requisitionNumber}: ${item.notes || ''}`
+                                                                            };
+                                                                        });
+
+                                                                        setBatchDispatchForm({
+                                                                            manifestNumber: `MNF-${myCounty?.code || '047'}-${Date.now().toString().slice(-5).toUpperCase()}`,
+                                                                            vehicleReg: defaultTruck ? defaultTruck.vehicleReg : `47 CG 018 B`,
+                                                                            vehicleType: defaultTruck ? `${defaultTruck.makeModel} (${defaultTruck.vehicleType})` : 'Isuzu FRR 10-Tonne Logistics Truck',
+                                                                            driverName: defaultTruck?.assignedDriverName || 'Corporal David Ochieng',
+                                                                            driverPhone: defaultTruck?.assignedDriverPhone || '+254711889900',
+                                                                            departureDepot: myStores[0]?.name || 'Central County HQ Logistics Warehouse',
+                                                                            routeDescription: `Central Depot → ${req.institutionName}`,
+                                                                            deliveryMethod: 'driver',
+                                                                            notes: `Consignment fulfilling Requisition #${req.requisitionNumber} for ${req.institutionName}`,
+                                                                            items: prefilledItems
+                                                                        });
+
+                                                                        // Mark requisition as dispatched / linked
+                                                                        const updatedReqs = schoolRequisitions.map(r => 
+                                                                            (r.id === req.id || r.requisitionNumber === req.requisitionNumber)
+                                                                                ? { ...r, status: 'dispatched' as const, allocatedManifestNumber: `MNF-${myCounty?.code || '047'}` }
+                                                                                : r
+                                                                        );
+                                                                        setSchoolRequisitions(updatedReqs);
+                                                                        localStorage.setItem('county_school_requisitions_v1', JSON.stringify(updatedReqs));
+
+                                                                        setShowBatchDispatchModal(true);
+                                                                    }}
+                                                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/20 flex items-center gap-1.5 cursor-pointer"
+                                                                >
+                                                                    <Truck className="w-3.5 h-3.5" /> Load on Truck Run
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Justification Box */}
+                                                    {req.urgencyReason && (
+                                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs text-slate-700 space-y-1">
+                                                            <span className="font-bold text-slate-900 uppercase text-[10px] tracking-wider block">Official Justification / Context:</span>
+                                                            <p className="font-medium text-slate-600">{req.urgencyReason}</p>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Requested Items Grid */}
+                                                    <div className="space-y-2">
+                                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Requested Line Items ({totalUnits} Total Units):</span>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                            {req.items.map((item, idx) => (
+                                                                <div key={idx} className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                                                                    <div>
+                                                                        <p className="font-bold text-slate-900">{item.name}</p>
+                                                                        {item.notes && <p className="text-[11px] text-slate-400">{item.notes}</p>}
+                                                                    </div>
+                                                                    <span className="font-mono font-extrabold text-emerald-700 bg-white px-3 py-1 rounded-lg border border-slate-200 text-sm">
+                                                                        {item.quantity} {item.unit}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
                             </div>
                         )}
 
