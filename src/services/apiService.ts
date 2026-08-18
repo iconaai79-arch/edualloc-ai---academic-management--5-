@@ -832,8 +832,28 @@ export const apiService = {
         `;
         return apiService.runMigration(sql);
     },
-    async uploadFile(bucket: string, path: string, file: File, contentType?: string): Promise<string | null> {
+    async uploadFile(bucketOrFile: string | File, pathOrBucket: string, fileOrPath?: File | string, contentType?: string): Promise<string | null> {
         try {
+            let activeBucket = 'eduai';
+            let path = '';
+            let file: File;
+
+            // Parameter normalization if called as uploadFile(file, bucket, path) or uploadFile(bucket, path, file)
+            if (bucketOrFile instanceof File || (bucketOrFile && typeof (bucketOrFile as any).name === 'string' && (bucketOrFile as any).size !== undefined)) {
+                file = bucketOrFile as File;
+                activeBucket = typeof pathOrBucket === 'string' ? pathOrBucket : 'eduai';
+                path = typeof fileOrPath === 'string' ? fileOrPath : `uploads/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+            } else {
+                activeBucket = typeof bucketOrFile === 'string' ? bucketOrFile : 'eduai';
+                path = typeof pathOrBucket === 'string' ? pathOrBucket : '';
+                file = fileOrPath as File;
+            }
+
+            if (!file) {
+                console.warn('[Storage] No valid file provided for upload.');
+                return null;
+            }
+
             if (!_supabase) {
                 // Return as base64 for local development/offline mode
                 return new Promise((resolve) => {
@@ -843,7 +863,6 @@ export const apiService = {
                 });
             }
 
-            let activeBucket = bucket;
             let { data, error } = await _supabase.storage
                 .from(activeBucket)
                 .upload(path, file, {

@@ -4496,6 +4496,30 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         }
     }, [loadData, toastError]);
 
+    const handleUpdateCountyInstitution = useCallback(async (id: string, data: Partial<Institution>) => {
+        try {
+            const existing = institutions.find(i => i.id === id);
+            const updated: Institution = { ...(existing || {} as Institution), ...data, id };
+            await apiService.saveInstitution(updated);
+            await loadData();
+            success("Institution updated successfully.");
+        } catch (error: any) {
+            console.error("Failed to update institution:", error);
+            toastError("Failed to update institution: " + (error?.message || 'Unknown error'));
+        }
+    }, [institutions, loadData, success, toastError]);
+
+    const handleDeleteCountyInstitution = useCallback(async (id: string) => {
+        try {
+            await apiService.deleteModuleRecord('institutions', id);
+            await loadData();
+            success("Institution deleted successfully.");
+        } catch (error: any) {
+            console.error("Failed to delete institution:", error);
+            toastError("Failed to delete institution: " + (error?.message || 'Unknown error'));
+        }
+    }, [loadData, success, toastError]);
+
     const handleAddCountyInstitution = useCallback(async (data: any) => {
         try {
             const instId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -5708,7 +5732,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         institutions,
         users,
         onLogout: handleLogout,
-        onUpdateInstitution,
+        onUpdateInstitution: handleUpdateCountyInstitution,
+        onDeleteInstitution: handleDeleteCountyInstitution,
         onAccessAlumnaPortal: handleAccessAlumnaPortal,
         onGenerateReceipt: handleGenerateReceipt,
         onUpdateCounty: handleUpdateCounty,
@@ -5731,7 +5756,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         setReceiptLimit,
         transactionLimit,
         setTransactionLimit
-    }), [currentUser, counties, institutions, users, onUpdateInstitution, activeLetterheadConfig, activeBranding, activeFooterImageUrl, countyInventory, countyInventoryCategories, countyStores, bursaryApplications, bursaryFunds, studentAttendances, teacherCheckIns, activityLogLimit, receiptLimit, transactionLimit]);
+    }), [currentUser, counties, institutions, users, handleUpdateCountyInstitution, handleDeleteCountyInstitution, activeLetterheadConfig, activeBranding, activeFooterImageUrl, countyInventory, countyInventoryCategories, countyStores, bursaryApplications, bursaryFunds, studentAttendances, teacherCheckIns, activityLogLimit, receiptLimit, transactionLimit]);
 
     const hrOfficerProps = useMemo<Partial<HROfficerProps>>(() => ({
         currentUser: currentUser || undefined,
@@ -6430,7 +6455,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                         institutions,
                                         users,
                                         onLogout: handleLogout,
-                                        onUpdateInstitution,
+                                        onUpdateInstitution: handleUpdateCountyInstitution,
+                                        onDeleteInstitution: handleDeleteCountyInstitution,
                                         onAccessAlumnaPortal: handleAccessAlumnaPortal,
                                         onGenerateReceipt: handleGenerateReceipt,
                                         onUpdateCounty: handleUpdateCounty,

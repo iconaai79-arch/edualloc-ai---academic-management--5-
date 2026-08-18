@@ -423,6 +423,33 @@ export interface ScheduleProfile {
     breaks: Break[];
 }
 
+export interface CountyFleetVehicle {
+    id: string;
+    countyId: string;
+    vehicleReg: string;
+    makeModel: string;
+    vehicleType: string;
+    department: string;
+    assignedDriverName?: string;
+    assignedDriverPhone?: string;
+    assignedSubCounty?: string;
+    fuelCardNumber?: string;
+    fuelType?: 'Diesel' | 'Petrol' | 'Electric' | 'Hybrid';
+    tankCapacityLiters?: number;
+    currentOdometerKm: number;
+    nextServiceDueKm: number;
+    tireHealthPct?: number;
+    insurancePolicyNumber?: string;
+    insuranceExpiryDate?: string;
+    inspectionExpiryDate?: string;
+    gpsTrackerId?: string;
+    status: 'operational' | 'service_due' | 'in_maintenance' | 'grounded';
+    purchaseYear?: number;
+    notes?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 export interface County {
     id: string;
     name: string;
@@ -1842,15 +1869,60 @@ export interface CountyInventoryItem {
     status: CountyInventoryStatus;
     targetInstitutionId?: string;
     driverName?: string;
-    deliveryMethod: 'driver' | 'parcel';
+    driverPhone?: string;
+    vehicleReg?: string;
+    departureDepot?: string;
+    routeDescription?: string;
+    dispatchManifestId?: string;
+    manifestNumber?: string;
+    deliveryMethod: 'driver' | 'parcel' | 'contractor';
     trackingNumber?: string;
     qrCode: string; // Used for scanning on arrival
     atHqDate: string;
+    dispatchedAt?: string;
     recipientSignature?: string; // Base64 signature image
     receivedBy?: string; // Name of person who received at destination
     recipientName?: string; // Name of person who collected/received from HQ
     dispatchedDate?: string;
     receivedDate?: string;
+}
+
+export interface CountyDispatchDropItem {
+    id: string;
+    inventoryItemId?: string;
+    name: string;
+    category?: string;
+    quantity: number;
+    unit: string;
+    targetInstitutionId: string;
+    targetInstitutionName?: string;
+    recipientName?: string;
+    recipientPhone?: string;
+    notes?: string;
+    status: CountyInventoryStatus;
+    receivedDate?: string;
+    receivedBy?: string;
+}
+
+export interface CountyDispatchManifest {
+    id: string;
+    countyId: string;
+    manifestNumber: string;
+    dispatchDate: string;
+    vehicleReg: string;
+    vehicleType?: string;
+    driverName: string;
+    driverPhone?: string;
+    departureDepot?: string;
+    routeDescription?: string;
+    deliveryMethod: 'driver' | 'parcel' | 'contractor';
+    items: CountyDispatchDropItem[];
+    status: 'in_transit' | 'partially_delivered' | 'completed' | 'cancelled';
+    totalUnits: number;
+    totalDrops: number;
+    notes?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface StockTransaction {
@@ -5420,6 +5492,7 @@ export interface CountyAdminProps {
     users?: User[];
     onLogout?: () => void;
     onUpdateInstitution?: (id: string, data: Partial<Institution>) => void;
+    onDeleteInstitution?: (id: string) => Promise<void> | void;
     onGenerateReceipt?: (data: any) => void;
     onUpdateCounty?: (id: string, data: Partial<County>) => void;
     onAddInstitution?: (data: any) => void;
@@ -5514,6 +5587,10 @@ export interface CountyAdminProps {
     setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
     transactionLimit?: number;
     setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
+    countyFleet?: CountyFleetVehicle[];
+    onAddCountyFleetVehicle?: (data: any) => Promise<void> | void;
+    onUpdateCountyFleetVehicle?: (id: string, data: any) => Promise<void> | void;
+    onDeleteCountyFleetVehicle?: (id: string) => Promise<void> | void;
 }
 
 export interface HROfficerProps {

@@ -7,7 +7,8 @@ import {
     LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, 
     LawAgreement, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, 
     DSSettings, Department, Subject, DisciplineIncident, Book, Assessment, AssessmentMark,
-    StudentAttendance, TeacherCheckIn
+    StudentAttendance, TeacherCheckIn, CountyFleetVehicle,
+    CountyDispatchDropItem, CountyDispatchManifest
 } from '../types';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
@@ -17,7 +18,8 @@ import {
     AlertCircle, Info, ArrowRight, MoreVertical, X as XIcon,
     Upload, Image as ImageIcon, FileText, Palette, Globe, Building, Save, Award,
     PenTool, Check, Sparkles, Printer, Copy, CheckCheck, RefreshCw, Megaphone, Radio, Send,
-    UserCheck, Clock, AlertTriangle, TrendingUp, BarChart2, FileSpreadsheet
+    UserCheck, Clock, AlertTriangle, TrendingUp, BarChart2, FileSpreadsheet,
+    Fuel, Car, Wrench, Gauge, ShieldCheck, Key
 } from 'lucide-react';
 
 import { 
@@ -35,6 +37,8 @@ import { DisciplineManager } from './Academics/DisciplineManager';
 import { AcademicReportsHub } from './Academics/AcademicReportsHub';
 import { ActivityLogView } from './ActivityLogView';
 import { CommunicationsManager } from './CommunicationsManager';
+import { CountyInventoryRadar } from './CountyInventoryRadar';
+import { CountyWaybillModal } from './CountyWaybillModal';
 import { apiService } from '../services/apiService';
 
 interface CountyAdminViewProps {
@@ -44,6 +48,7 @@ interface CountyAdminViewProps {
     users?: User[];
     onLogout?: () => void;
     onUpdateInstitution?: (id: string, data: Partial<Institution>) => void;
+    onDeleteInstitution?: (id: string) => Promise<void> | void;
     onGenerateReceipt?: (data: any) => void;
     onUpdateCounty?: (id: string, data: Partial<County>) => void;
     onAddInstitution?: (data: any) => void;
@@ -73,7 +78,7 @@ interface CountyAdminViewProps {
     onUpdateBursaryFund?: (id: string, data: any) => Promise<void>;
     onDeleteBursaryFund?: (id: string) => Promise<void>;
     activityLog?: ActivityLog[];
-    onLogAction?: (action: string) => void;
+    onLogAction?: (action: string) => Promise<void>;
     incidents?: DisciplineIncident[];
     onAddIncident?: (data: any) => void;
     books?: Book[];
@@ -132,6 +137,28 @@ interface CountyAdminViewProps {
     onDisbursePayouts?: (ids: string[]) => void;
     onAddPayouts?: (data: any) => void;
     onAccessAlumnaPortal?: (school: SchoolRegistry) => void;
+    onAddCarListing?: (data: any) => void;
+    onAddCarTestDrive?: (data: any) => void;
+    onAddCarInvoice?: (data: any) => void;
+    onUpdateCarListing?: (id: string, data: any) => void;
+    onDeleteCarListing?: (id: string) => void;
+    onUpdateCarTestDriveStatus?: (id: string, status: any) => void;
+    onAddCarAppraisal?: (data: any) => void;
+    onLogGateAction?: (data: any) => void;
+    onSaveAttendance?: (data: any) => void;
+    onTeacherLessonCheckIn?: (data: any) => void;
+    onAddSubject?: (data: any) => void;
+    onUpdateSubject?: (id: string, data: any) => void;
+    onDeleteSubject?: (id: string) => void;
+    onAddCourse?: (data: any) => void;
+    onUpdateCourse?: (id: string, data: any) => void;
+    onDeleteCourse?: (id: string) => void;
+    onAddDepartment?: (data: any) => void;
+    onUpdateDepartment?: (id: string, data: any) => void;
+    onDeleteDepartment?: (id: string) => void;
+    onAddAssessment?: (data: any) => void;
+    onSaveAssessmentMarks?: (data: any) => void;
+    onDeleteAssessment?: (id: string) => void;
     schoolRegistry?: SchoolRegistry[];
     activityLogLimit?: number;
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
@@ -152,13 +179,17 @@ interface CountyAdminViewProps {
     teacherCheckIns?: TeacherCheckIn[];
     onRecordStudentAttendance?: (data: any) => Promise<void>;
     onRecordTeacherCheckIn?: (data: any) => Promise<void>;
+    countyFleet?: CountyFleetVehicle[];
+    onAddCountyFleetVehicle?: (data: any) => Promise<void> | void;
+    onUpdateCountyFleetVehicle?: (id: string, data: any) => Promise<void> | void;
+    onDeleteCountyFleetVehicle?: (id: string) => Promise<void> | void;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const { 
         currentUser = { name: 'User', countyId: 'county_1' } as any, 
         counties = [], institutions = [], users = [], onLogout = () => {}, onUpdateInstitution, 
-        onGenerateReceipt, onUpdateCounty, onAddInstitution, 
+        onDeleteInstitution, onGenerateReceipt, onUpdateCounty, onAddInstitution, 
         onLoginAsAdmin, onImportInstitutions, onAddUser, onUpdateUser, onDeleteUser, 
         inventoryItems = [], inventoryCategories = [], onAddInventoryItem, onUpdateInventoryItem, 
         onDeleteInventoryItem, onAddInventoryCategory, onUpdateInventoryCategory, 
@@ -169,7 +200,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         assessments = [], assessmentMarks = [],
         onSendSms, smsBalance, smsConfig, mpesaConfig, onRefreshData, departments = [],
         courses = [], companyDetails, transactions = [],
-        studentAttendances = [], teacherCheckIns = []
+        studentAttendances = [], teacherCheckIns = [],
+        countyFleet, onAddCountyFleetVehicle, onUpdateCountyFleetVehicle, onDeleteCountyFleetVehicle
     } = props;
 
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -189,16 +221,211 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const [showCategoryModal, setShowCategoryModal] = useState(false);
     const [showStoreModal, setShowStoreModal] = useState(false);
     const [showQrModal, setShowQrModal] = useState<CountyInventoryItem | null>(null);
+    const [showWaybillModal, setShowWaybillModal] = useState<CountyInventoryItem | null>(null);
+    const [showManifestWaybillModal, setShowManifestWaybillModal] = useState<CountyDispatchManifest | null>(null);
+    const [showBatchDispatchModal, setShowBatchDispatchModal] = useState(false);
+    const [dispatchViewMode, setDispatchViewMode] = useState<'manifests' | 'items'>('manifests');
+    const [inventorySearch, setInventorySearch] = useState('');
+    const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('all');
+    const [inventoryStatusFilter, setInventoryStatusFilter] = useState('all');
+    const [storeViewMode, setStoreViewMode] = useState<'radar' | 'list'>('radar');
     const [showInventoryImportModal, setShowInventoryImportModal] = useState(false);
     const [editingStaff, setEditingStaff] = useState<User | null>(null);
     const [editingInventory, setEditingInventory] = useState<CountyInventoryItem | null>(null);
     const [editingCategory, setEditingCategory] = useState<CountyInventoryCategory | null>(null);
     const [editingStore, setEditingStore] = useState<CountyStore | null>(null);
+
+    // Multi-School Truck Dispatch Manifests State
+    const [dispatchManifests, setDispatchManifests] = useState<CountyDispatchManifest[]>(() => {
+        try {
+            const saved = localStorage.getItem(`county_dispatch_manifests_${myCounty?.id || 'default'}`);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {
+            console.error("Error loading saved manifests", e);
+        }
+        return [
+            {
+                id: 'MNF-001',
+                countyId: myCounty?.id || '047',
+                manifestNumber: `MNF-${myCounty?.code || '047'}-TRK01`,
+                dispatchDate: new Date(Date.now() - 3600000 * 4).toISOString(),
+                vehicleReg: '47 CG 018 B',
+                vehicleType: 'Isuzu FRR 10-Tonne Logistics Truck',
+                driverName: 'Corporal David Ochieng',
+                driverPhone: '+254711889900',
+                departureDepot: 'Central County HQ Logistics Warehouse',
+                routeDescription: 'Central Depot → Dagoretti High → Lenana ECDE Hub → Olympic Primary',
+                deliveryMethod: 'driver',
+                status: 'in_transit',
+                totalUnits: 450,
+                totalDrops: 3,
+                notes: 'CBC Term 2 Science lab equipment, student textbooks, and ECDE nutritional porridge flour',
+                items: [
+                    {
+                        id: 'drop-1',
+                        name: 'Grade 7 CBC Integrated Science Lab Kits',
+                        category: 'Education & CBC',
+                        quantity: 120,
+                        unit: 'Kits',
+                        targetInstitutionId: myInstitutions[0]?.id || 'inst-1',
+                        targetInstitutionName: myInstitutions[0]?.name || 'Dagoretti High School',
+                        recipientName: 'Head of Science Dept',
+                        recipientPhone: '+254722114455',
+                        notes: 'Handover to school stores master',
+                        status: 'in_transit'
+                    },
+                    {
+                        id: 'drop-2',
+                        name: 'ECDE Nutritional Fortified Porridge Flour',
+                        category: 'ECDE & Nutrition',
+                        quantity: 250,
+                        unit: 'Bags (25kg)',
+                        targetInstitutionId: myInstitutions[1]?.id || 'inst-2',
+                        targetInstitutionName: myInstitutions[1]?.name || 'Lenana ECDE Center',
+                        recipientName: 'ECDE Center Coordinator',
+                        recipientPhone: '+254733667788',
+                        notes: 'For county free milk & feeding program',
+                        status: 'received',
+                        receivedDate: new Date(Date.now() - 3600000 * 2).toISOString(),
+                        receivedBy: 'Center Head'
+                    },
+                    {
+                        id: 'drop-3',
+                        name: 'Junior School CBC Textbooks (Math & English)',
+                        category: 'Education & CBC',
+                        quantity: 80,
+                        unit: 'Cartons',
+                        targetInstitutionId: myInstitutions[2]?.id || myInstitutions[0]?.id || 'inst-3',
+                        targetInstitutionName: myInstitutions[2]?.name || myInstitutions[0]?.name || 'Olympic Primary School',
+                        recipientName: 'Deputy Principal',
+                        recipientPhone: '+254799001122',
+                        notes: 'Standard curriculum textbooks',
+                        status: 'in_transit'
+                    }
+                ]
+            }
+        ];
+    });
+
+    // Batch Dispatch Form State
+    const [batchDispatchForm, setBatchDispatchForm] = useState<{
+        manifestNumber: string;
+        vehicleReg: string;
+        vehicleType: string;
+        driverName: string;
+        driverPhone: string;
+        departureDepot: string;
+        routeDescription: string;
+        deliveryMethod: 'driver' | 'parcel' | 'contractor';
+        notes: string;
+        items: Array<{
+            id: string;
+            inventoryItemId?: string;
+            name: string;
+            category: string;
+            quantity: number;
+            unit: string;
+            targetInstitutionId: string;
+            recipientName: string;
+            recipientPhone: string;
+            notes: string;
+        }>;
+    }>({
+        manifestNumber: '',
+        vehicleReg: '',
+        vehicleType: '',
+        driverName: '',
+        driverPhone: '',
+        departureDepot: '',
+        routeDescription: '',
+        deliveryMethod: 'driver',
+        notes: '',
+        items: []
+    });
     const [showBursaryModal, setShowBursaryModal] = useState(false);
     const [showFundModal, setShowFundModal] = useState(false);
     const [editingFund, setEditingFund] = useState<CountyBursaryFund | null>(null);
     const [selectedPerspective, setSelectedPerspective] = useState<'academic' | 'finance' | 'hr' | null>(null);
     const [perspectiveInstitution, setPerspectiveInstitution] = useState<Institution | null>(null);
+
+    // Institution Edit & Delete State
+    const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
+    const [showEditInstitutionModal, setShowEditInstitutionModal] = useState(false);
+    const [deletingInstitution, setDeletingInstitution] = useState<Institution | null>(null);
+    const [isSavingInstitution, setIsSavingInstitution] = useState(false);
+    const [isDeletingInstitution, setIsDeletingInstitution] = useState(false);
+    const [institutionEditForm, setInstitutionEditForm] = useState({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        institutionType: 'Education',
+        category: 'General',
+        institutionCode: '',
+        subCounty: '',
+        constituency: '',
+        ward: '',
+        status: 'active' as 'active' | 'suspended' | 'trial' | 'inactive',
+        motto: '',
+        website: '',
+        address: ''
+    });
+
+    const handleOpenEditInstitution = (inst: Institution) => {
+        setEditingInstitution(inst);
+        setInstitutionEditForm({
+            name: inst.name || '',
+            email: inst.email || '',
+            phoneNumber: inst.phoneNumber || '',
+            institutionType: inst.institutionType || 'Education',
+            category: inst.category || 'General',
+            institutionCode: inst.institutionCode || '',
+            subCounty: inst.subCounty || '',
+            constituency: inst.constituency || '',
+            ward: inst.ward || '',
+            status: (inst.status as any) || 'active',
+            motto: inst.motto || '',
+            website: inst.website || '',
+            address: inst.address || ''
+        });
+        setShowEditInstitutionModal(true);
+    };
+
+    const handleSaveInstitutionSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingInstitution) return;
+        try {
+            setIsSavingInstitution(true);
+            if (onUpdateInstitution) {
+                await onUpdateInstitution(editingInstitution.id, {
+                    ...institutionEditForm,
+                    name: institutionEditForm.name.trim(),
+                    email: institutionEditForm.email.trim(),
+                    phoneNumber: institutionEditForm.phoneNumber.trim()
+                });
+            }
+            setShowEditInstitutionModal(false);
+            setEditingInstitution(null);
+        } catch (err) {
+            console.error("Failed to update institution:", err);
+        } finally {
+            setIsSavingInstitution(false);
+        }
+    };
+
+    const handleConfirmDeleteInstitution = async () => {
+        if (!deletingInstitution) return;
+        try {
+            setIsDeletingInstitution(true);
+            if (onDeleteInstitution) {
+                await onDeleteInstitution(deletingInstitution.id);
+            }
+            setDeletingInstitution(null);
+        } catch (err) {
+            console.error("Failed to delete institution:", err);
+        } finally {
+            setIsDeletingInstitution(false);
+        }
+    };
 
     const [staffForm, setStaffForm] = useState({
         name: '', email: '', phoneNumber: '', role: 'county_staff' as Role, staffId: ''
@@ -217,10 +444,598 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         name: '', year: new Date().getFullYear(), totalBudget: 0, description: ''
     });
 
-    const [settingsSubTab, setSettingsSubTab] = useState<'branding' | 'executive' | 'contact' | 'preview'>('branding');
+    const [settingsSubTab, setSettingsSubTab] = useState<'branding' | 'executive' | 'contact' | 'fleet' | 'preview'>('branding');
     const [uploadingField, setUploadingField] = useState<string | null>(null);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
     const [settingsSavedToast, setSettingsSavedToast] = useState(false);
+
+    // ── County Fleet Registry State ──
+    const [internalFleet, setInternalFleet] = useState<CountyFleetVehicle[]>(() => {
+        try {
+            const saved = localStorage.getItem('county_fleet_registry');
+            if (saved) return JSON.parse(saved);
+        } catch (e) {
+            console.error("Failed to load local fleet registry", e);
+        }
+        return [
+            {
+                id: 'veh_01',
+                countyId: 'county_1',
+                vehicleReg: '47 CG 001 A',
+                makeModel: 'Toyota Land Cruiser 300 VXR V6 Twin Turbo',
+                vehicleType: 'Executive SUV / Sedan',
+                department: 'Executive Office of the Governor',
+                assignedDriverName: 'Major John Kiprotich',
+                assignedDriverPhone: '+254711223344',
+                assignedSubCounty: 'County HQ',
+                fuelCardNumber: 'FC-NRB-8801',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 110,
+                currentOdometerKm: 34200,
+                nextServiceDueKm: 35000,
+                tireHealthPct: 92,
+                insurancePolicyNumber: 'CIC-GOV-99201-A',
+                insuranceExpiryDate: '2027-04-30',
+                inspectionExpiryDate: '2027-03-15',
+                gpsTrackerId: 'GPS-TRK-9901-X',
+                status: 'operational',
+                purchaseYear: 2024,
+                notes: 'Governor Official Escort Vehicle'
+            },
+            {
+                id: 'veh_02',
+                countyId: 'county_1',
+                vehicleReg: '47 CG 042 B',
+                makeModel: 'Isuzu FRR 33-Seater High-Capacity Bus',
+                vehicleType: 'School Transit Bus',
+                department: 'Education, Science & ICT',
+                assignedDriverName: 'Peter Kamau',
+                assignedDriverPhone: '+254722334455',
+                assignedSubCounty: 'Central Sub-County',
+                fuelCardNumber: 'FC-EDU-4412',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 200,
+                currentOdometerKm: 89400,
+                nextServiceDueKm: 90000,
+                tireHealthPct: 78,
+                insurancePolicyNumber: 'APA-EDU-33102-K',
+                insuranceExpiryDate: '2026-12-31',
+                inspectionExpiryDate: '2026-11-20',
+                gpsTrackerId: 'GPS-EDU-4412-B',
+                status: 'service_due',
+                purchaseYear: 2022,
+                notes: 'County Inter-School Sports & Academic Exchange Shuttle'
+            },
+            {
+                id: 'veh_03',
+                countyId: 'county_1',
+                vehicleReg: '47 CG 088 C',
+                makeModel: 'Mercedes-Benz Sprinter 416 Advanced Life Support (ALS)',
+                vehicleType: 'Ambulance / Emergency EMS',
+                department: 'Health & Sanitation Services',
+                assignedDriverName: 'David Ochieng',
+                assignedDriverPhone: '+254733445566',
+                assignedSubCounty: 'County Referral Hospital',
+                fuelCardNumber: 'FC-MED-1099',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 90,
+                currentOdometerKm: 142100,
+                nextServiceDueKm: 145000,
+                tireHealthPct: 88,
+                insurancePolicyNumber: 'BRITAM-MED-77123-H',
+                insuranceExpiryDate: '2027-01-15',
+                inspectionExpiryDate: '2026-10-30',
+                gpsTrackerId: 'GPS-AMB-8803-C',
+                status: 'operational',
+                purchaseYear: 2023,
+                notes: 'Emergency Referral 24/7 Mobile ICU Unit'
+            },
+            {
+                id: 'veh_04',
+                countyId: 'county_1',
+                vehicleReg: '47 CG 120 D',
+                makeModel: 'Toyota Hilux Double Cabin 4x4 (GD-6)',
+                vehicleType: 'Agricultural Extension 4x4',
+                department: 'Agriculture, Livestock & Fisheries',
+                assignedDriverName: 'Francis Mwangi',
+                assignedDriverPhone: '+254744556677',
+                assignedSubCounty: 'North Agricultural Zone',
+                fuelCardNumber: 'FC-AGR-5530',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 80,
+                currentOdometerKm: 67300,
+                nextServiceDueKm: 70000,
+                tireHealthPct: 85,
+                insurancePolicyNumber: 'JUBILEE-AGR-44192-M',
+                insuranceExpiryDate: '2026-11-15',
+                inspectionExpiryDate: '2026-09-30',
+                gpsTrackerId: 'GPS-AGR-5530-D',
+                status: 'operational',
+                purchaseYear: 2023,
+                notes: 'Farmer Training & Soil Sampling Field Unit'
+            },
+            {
+                id: 'veh_05',
+                countyId: 'county_1',
+                vehicleReg: '47 CG 215 E',
+                makeModel: 'Scania P380 Heavy Foam Tender & Water Cannon',
+                vehicleType: 'Fire & Rescue Engine',
+                department: 'Transport, Roads & Public Works',
+                assignedDriverName: 'Captain Samuel Mutua',
+                assignedDriverPhone: '+254755667788',
+                assignedSubCounty: 'County Central Fire Station',
+                fuelCardNumber: 'FC-FIRE-9011',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 300,
+                currentOdometerKm: 28500,
+                nextServiceDueKm: 30000,
+                tireHealthPct: 95,
+                insurancePolicyNumber: 'CIC-FIRE-88001-F',
+                insuranceExpiryDate: '2027-02-28',
+                inspectionExpiryDate: '2027-01-30',
+                gpsTrackerId: 'GPS-FIRE-9011-E',
+                status: 'operational',
+                purchaseYear: 2024,
+                notes: 'Emergency Rapid Response Unit'
+            },
+            {
+                id: 'veh_06',
+                countyId: 'county_1',
+                vehicleReg: '47 CG 304 F',
+                makeModel: 'Caterpillar 140K Motor Grader',
+                vehicleType: 'Public Works / Tipper & Grader',
+                department: 'Transport, Roads & Public Works',
+                assignedDriverName: 'Hassan Ali',
+                assignedDriverPhone: '+254766778899',
+                assignedSubCounty: 'Rural Roads Mechanical Depot',
+                fuelCardNumber: 'FC-RDS-2044',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 350,
+                currentOdometerKm: 98200,
+                nextServiceDueKm: 95000,
+                tireHealthPct: 65,
+                insurancePolicyNumber: 'APA-PW-11200-R',
+                insuranceExpiryDate: '2026-08-30',
+                inspectionExpiryDate: '2026-08-15',
+                gpsTrackerId: 'GPS-RDS-2044-F',
+                status: 'in_maintenance',
+                purchaseYear: 2021,
+                notes: 'Routine Murram Grading & Drainage Maintenance'
+            }
+        ];
+    });
+
+    const activeFleetVehicles = useMemo(() => {
+        return countyFleet && countyFleet.length > 0 ? countyFleet : internalFleet;
+    }, [countyFleet, internalFleet]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('county_fleet_registry', JSON.stringify(internalFleet));
+        } catch (e) {}
+    }, [internalFleet]);
+
+    const [showVehicleModal, setShowVehicleModal] = useState(false);
+    const [editingVehicle, setEditingVehicle] = useState<CountyFleetVehicle | null>(null);
+    const [vehicleSearch, setVehicleSearch] = useState('');
+    const [vehicleTypeFilter, setVehicleTypeFilter] = useState('all');
+    const [vehicleStatusFilter, setVehicleStatusFilter] = useState('all');
+    const [vehicleDeptFilter, setVehicleDeptFilter] = useState('all');
+
+    const [vehicleForm, setVehicleForm] = useState<Partial<CountyFleetVehicle>>({
+        vehicleReg: '',
+        makeModel: '',
+        vehicleType: 'Executive SUV / Sedan',
+        department: 'Executive Office of the Governor',
+        assignedDriverName: '',
+        assignedDriverPhone: '',
+        assignedSubCounty: '',
+        fuelCardNumber: '',
+        fuelType: 'Diesel',
+        tankCapacityLiters: 80,
+        currentOdometerKm: 0,
+        nextServiceDueKm: 5000,
+        tireHealthPct: 100,
+        insurancePolicyNumber: '',
+        insuranceExpiryDate: '',
+        inspectionExpiryDate: '',
+        gpsTrackerId: '',
+        status: 'operational',
+        purchaseYear: new Date().getFullYear(),
+        notes: ''
+    });
+
+    const handleOpenAddVehicle = () => {
+        setEditingVehicle(null);
+        setVehicleForm({
+            vehicleReg: '',
+            makeModel: '',
+            vehicleType: 'Executive SUV / Sedan',
+            department: 'Executive Office of the Governor',
+            assignedDriverName: '',
+            assignedDriverPhone: '',
+            assignedSubCounty: myCounty?.headquarters || 'County HQ',
+            fuelCardNumber: '',
+            fuelType: 'Diesel',
+            tankCapacityLiters: 80,
+            currentOdometerKm: 0,
+            nextServiceDueKm: 5000,
+            tireHealthPct: 100,
+            insurancePolicyNumber: '',
+            insuranceExpiryDate: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
+            inspectionExpiryDate: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
+            gpsTrackerId: '',
+            status: 'operational',
+            purchaseYear: new Date().getFullYear(),
+            notes: ''
+        });
+        setShowVehicleModal(true);
+    };
+
+    const handleOpenEditVehicle = (veh: CountyFleetVehicle) => {
+        setEditingVehicle(veh);
+        setVehicleForm({
+            ...veh
+        });
+        setShowVehicleModal(true);
+    };
+
+    const handleSaveVehicleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const reg = (vehicleForm.vehicleReg || '').trim().toUpperCase();
+        if (!reg) {
+            alert("Please enter a valid vehicle registration plate number");
+            return;
+        }
+
+        const vehicleData: CountyFleetVehicle = {
+            id: editingVehicle ? editingVehicle.id : `veh_cty_${Date.now()}`,
+            countyId: myCounty?.id || 'county_1',
+            vehicleReg: reg,
+            makeModel: vehicleForm.makeModel?.trim() || 'Unspecified Vehicle',
+            vehicleType: vehicleForm.vehicleType || 'Executive SUV / Sedan',
+            department: vehicleForm.department || 'Executive Office of the Governor',
+            assignedDriverName: vehicleForm.assignedDriverName?.trim() || '',
+            assignedDriverPhone: vehicleForm.assignedDriverPhone?.trim() || '',
+            assignedSubCounty: vehicleForm.assignedSubCounty?.trim() || '',
+            fuelCardNumber: vehicleForm.fuelCardNumber?.trim() || '',
+            fuelType: vehicleForm.fuelType || 'Diesel',
+            tankCapacityLiters: Number(vehicleForm.tankCapacityLiters) || 80,
+            currentOdometerKm: Number(vehicleForm.currentOdometerKm) || 0,
+            nextServiceDueKm: Number(vehicleForm.nextServiceDueKm) || 5000,
+            tireHealthPct: Number(vehicleForm.tireHealthPct) || 100,
+            insurancePolicyNumber: vehicleForm.insurancePolicyNumber?.trim() || '',
+            insuranceExpiryDate: vehicleForm.insuranceExpiryDate || '',
+            inspectionExpiryDate: vehicleForm.inspectionExpiryDate || '',
+            gpsTrackerId: vehicleForm.gpsTrackerId?.trim() || '',
+            status: (vehicleForm.status as any) || 'operational',
+            purchaseYear: Number(vehicleForm.purchaseYear) || new Date().getFullYear(),
+            notes: vehicleForm.notes?.trim() || '',
+            updatedAt: new Date().toISOString()
+        };
+
+        if (editingVehicle) {
+            if (onUpdateCountyFleetVehicle) {
+                await onUpdateCountyFleetVehicle(editingVehicle.id, vehicleData);
+            }
+            setInternalFleet(prev => prev.map(v => v.id === editingVehicle.id ? vehicleData : v));
+            onLogAction?.(`Updated county fleet vehicle ${reg}`);
+        } else {
+            vehicleData.createdAt = new Date().toISOString();
+            if (onAddCountyFleetVehicle) {
+                await onAddCountyFleetVehicle(vehicleData);
+            }
+            setInternalFleet(prev => [vehicleData, ...prev]);
+            onLogAction?.(`Registered new county fleet vehicle ${reg}`);
+        }
+
+        setShowVehicleModal(false);
+        setEditingVehicle(null);
+    };
+
+    const handleDeleteVehicleConfirm = async (id: string, reg: string) => {
+        if (!window.confirm(`Are you sure you want to decommission / remove vehicle ${reg} from the County Fleet Registry?`)) return;
+        if (onDeleteCountyFleetVehicle) {
+            await onDeleteCountyFleetVehicle(id);
+        }
+        setInternalFleet(prev => prev.filter(v => v.id !== id));
+        onLogAction?.(`Removed county fleet vehicle ${reg}`);
+    };
+
+    const handleLogServiceDone = async (veh: CountyFleetVehicle) => {
+        const nextOdo = veh.currentOdometerKm + 5000;
+        const updated: CountyFleetVehicle = {
+            ...veh,
+            nextServiceDueKm: nextOdo,
+            status: 'operational',
+            tireHealthPct: Math.min(100, (veh.tireHealthPct || 80) + 15),
+            updatedAt: new Date().toISOString()
+        };
+
+        if (onUpdateCountyFleetVehicle) {
+            await onUpdateCountyFleetVehicle(veh.id, updated);
+        }
+        setInternalFleet(prev => prev.map(v => v.id === veh.id ? updated : v));
+        onLogAction?.(`Logged full service maintenance for vehicle ${veh.vehicleReg}. Next service set to ${nextOdo.toLocaleString()} KM.`);
+        alert(`🔧 Service logged for ${veh.vehicleReg}!\nStatus set to Operational. Next Service: ${nextOdo.toLocaleString()} KM.`);
+    };
+
+    const handleLoadSampleFleet = async () => {
+        if (!window.confirm("Load realistic standard county government fleet assets (Executive, Education Bus, Health Ambulance, Agriculture, Fire & Public Works)?")) return;
+        const sampleVehicles: CountyFleetVehicle[] = [
+            {
+                id: `veh_s_${Date.now()}_1`,
+                countyId: myCounty?.id || 'county_1',
+                vehicleReg: `${myCounty?.code || '47'} CG 001 A`,
+                makeModel: 'Toyota Land Cruiser 300 VXR V6',
+                vehicleType: 'Executive SUV / Sedan',
+                department: 'Executive Office of the Governor',
+                assignedDriverName: 'Major John Kiprotich',
+                assignedDriverPhone: '+254711223344',
+                assignedSubCounty: 'County HQ',
+                fuelCardNumber: 'FC-NRB-8801',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 110,
+                currentOdometerKm: 34200,
+                nextServiceDueKm: 35000,
+                tireHealthPct: 92,
+                insurancePolicyNumber: 'CIC-GOV-99201-A',
+                insuranceExpiryDate: '2027-04-30',
+                inspectionExpiryDate: '2027-03-15',
+                gpsTrackerId: 'GPS-TRK-9901-X',
+                status: 'operational',
+                purchaseYear: 2024,
+                notes: 'Governor Official Escort Vehicle'
+            },
+            {
+                id: `veh_s_${Date.now()}_2`,
+                countyId: myCounty?.id || 'county_1',
+                vehicleReg: `${myCounty?.code || '47'} CG 042 B`,
+                makeModel: 'Isuzu FRR 33-Seater CBC Bus',
+                vehicleType: 'School Transit Bus',
+                department: 'Education, Science & ICT',
+                assignedDriverName: 'Peter Kamau',
+                assignedDriverPhone: '+254722334455',
+                assignedSubCounty: 'Central Sub-County',
+                fuelCardNumber: 'FC-EDU-4412',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 200,
+                currentOdometerKm: 89400,
+                nextServiceDueKm: 90000,
+                tireHealthPct: 78,
+                insurancePolicyNumber: 'APA-EDU-33102-K',
+                insuranceExpiryDate: '2026-12-31',
+                inspectionExpiryDate: '2026-11-20',
+                gpsTrackerId: 'GPS-EDU-4412-B',
+                status: 'service_due',
+                purchaseYear: 2022,
+                notes: 'County Inter-School Academic & Sports Transit'
+            },
+            {
+                id: `veh_s_${Date.now()}_3`,
+                countyId: myCounty?.id || 'county_1',
+                vehicleReg: `${myCounty?.code || '47'} CG 088 C`,
+                makeModel: 'Mercedes-Benz Sprinter 416 Advanced Life Support',
+                vehicleType: 'Ambulance / Emergency EMS',
+                department: 'Health & Sanitation Services',
+                assignedDriverName: 'David Ochieng',
+                assignedDriverPhone: '+254733445566',
+                assignedSubCounty: 'County Referral Hospital',
+                fuelCardNumber: 'FC-MED-1099',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 90,
+                currentOdometerKm: 142100,
+                nextServiceDueKm: 145000,
+                tireHealthPct: 88,
+                insurancePolicyNumber: 'BRITAM-MED-77123-H',
+                insuranceExpiryDate: '2027-01-15',
+                inspectionExpiryDate: '2026-10-30',
+                gpsTrackerId: 'GPS-AMB-8803-C',
+                status: 'operational',
+                purchaseYear: 2023,
+                notes: '24/7 Intensive Care Mobile Ambulance'
+            },
+            {
+                id: `veh_s_${Date.now()}_4`,
+                countyId: myCounty?.id || 'county_1',
+                vehicleReg: `${myCounty?.code || '47'} CG 120 D`,
+                makeModel: 'Toyota Hilux Double Cabin 4x4 (GD-6)',
+                vehicleType: 'Agricultural Extension 4x4',
+                department: 'Agriculture, Livestock & Fisheries',
+                assignedDriverName: 'Francis Mwangi',
+                assignedDriverPhone: '+254744556677',
+                assignedSubCounty: 'Agricultural Extension Zone',
+                fuelCardNumber: 'FC-AGR-5530',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 80,
+                currentOdometerKm: 67300,
+                nextServiceDueKm: 70000,
+                tireHealthPct: 85,
+                insurancePolicyNumber: 'JUBILEE-AGR-44192-M',
+                insuranceExpiryDate: '2026-11-15',
+                inspectionExpiryDate: '2026-09-30',
+                gpsTrackerId: 'GPS-AGR-5530-D',
+                status: 'operational',
+                purchaseYear: 2023,
+                notes: 'Soil Testing & Farmer Agrovet Outreach'
+            },
+            {
+                id: `veh_s_${Date.now()}_5`,
+                countyId: myCounty?.id || 'county_1',
+                vehicleReg: `${myCounty?.code || '47'} CG 215 E`,
+                makeModel: 'Scania P380 High-Capacity Fire Tender',
+                vehicleType: 'Fire & Rescue Engine',
+                department: 'Transport, Roads & Public Works',
+                assignedDriverName: 'Captain Samuel Mutua',
+                assignedDriverPhone: '+254755667788',
+                assignedSubCounty: 'County Central Fire Depot',
+                fuelCardNumber: 'FC-FIRE-9011',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 300,
+                currentOdometerKm: 28500,
+                nextServiceDueKm: 30000,
+                tireHealthPct: 95,
+                insurancePolicyNumber: 'CIC-FIRE-88001-F',
+                insuranceExpiryDate: '2027-02-28',
+                inspectionExpiryDate: '2027-01-30',
+                gpsTrackerId: 'GPS-FIRE-9011-E',
+                status: 'operational',
+                purchaseYear: 2024,
+                notes: 'Emergency Rapid Response Water Cannon'
+            },
+            {
+                id: `veh_s_${Date.now()}_6`,
+                countyId: myCounty?.id || 'county_1',
+                vehicleReg: `${myCounty?.code || '47'} CG 304 F`,
+                makeModel: 'Caterpillar 140K Motor Grader',
+                vehicleType: 'Public Works / Tipper & Grader',
+                department: 'Transport, Roads & Public Works',
+                assignedDriverName: 'Hassan Ali',
+                assignedDriverPhone: '+254766778899',
+                assignedSubCounty: 'Public Works Yard',
+                fuelCardNumber: 'FC-RDS-2044',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 350,
+                currentOdometerKm: 98200,
+                nextServiceDueKm: 95000,
+                tireHealthPct: 65,
+                insurancePolicyNumber: 'APA-PW-11200-R',
+                insuranceExpiryDate: '2026-08-30',
+                inspectionExpiryDate: '2026-08-15',
+                gpsTrackerId: 'GPS-RDS-2044-F',
+                status: 'in_maintenance',
+                purchaseYear: 2021,
+                notes: 'Road Opening & Culvert Construction'
+            },
+            {
+                id: `veh_s_${Date.now()}_7`,
+                countyId: myCounty?.id || 'county_1',
+                vehicleReg: `${myCounty?.code || '47'} CG 410 G`,
+                makeModel: 'Isuzu FVZ 15,000L Stainless Water Bowser',
+                vehicleType: 'Water Bowser / Waste Compactor',
+                department: 'Environment, Water & Natural Resources',
+                assignedDriverName: 'James Mwita',
+                assignedDriverPhone: '+254777889900',
+                assignedSubCounty: 'Water Supply Complex',
+                fuelCardNumber: 'FC-WTR-3390',
+                fuelType: 'Diesel',
+                tankCapacityLiters: 280,
+                currentOdometerKm: 52100,
+                nextServiceDueKm: 55000,
+                tireHealthPct: 82,
+                insurancePolicyNumber: 'HERITAGE-WTR-55102-W',
+                insuranceExpiryDate: '2026-10-31',
+                inspectionExpiryDate: '2026-10-15',
+                gpsTrackerId: 'GPS-WTR-3390-G',
+                status: 'operational',
+                purchaseYear: 2023,
+                notes: 'Drought Relief & ECDE Feeding Water Tanker'
+            },
+            {
+                id: `veh_s_${Date.now()}_8`,
+                countyId: myCounty?.id || 'county_1',
+                vehicleReg: `${myCounty?.code || '47'} CG 505 H`,
+                makeModel: 'Yamaha DT 175 Field Patrol Motorcycle',
+                vehicleType: 'Motorcycle / Dispatch Courier',
+                department: 'County Inspectorate & Enforcement',
+                assignedDriverName: 'Officer Daniel Cheruiyot',
+                assignedDriverPhone: '+254788990011',
+                assignedSubCounty: 'Sub-County Ward Offices',
+                fuelCardNumber: 'FC-MOTO-1044',
+                fuelType: 'Petrol',
+                tankCapacityLiters: 12,
+                currentOdometerKm: 18400,
+                nextServiceDueKm: 20000,
+                tireHealthPct: 90,
+                insurancePolicyNumber: 'GA-MOTO-77401-Q',
+                insuranceExpiryDate: '2027-01-20',
+                inspectionExpiryDate: '2027-01-10',
+                gpsTrackerId: 'GPS-MOTO-1044-H',
+                status: 'operational',
+                purchaseYear: 2024,
+                notes: 'Dispatch Memos & Revenue Compliance Mobile Patrol'
+            }
+        ];
+
+        setInternalFleet(sampleVehicles);
+        for (const v of sampleVehicles) {
+            await onAddCountyFleetVehicle?.(v);
+        }
+        onLogAction?.('Loaded realistic County Government Fleet records');
+        alert("Sample County Fleet Registry loaded successfully!");
+    };
+
+    const handleExportFleetCsv = () => {
+        const headers = ["Reg Number", "Make & Model", "Category", "Department", "Assigned Driver", "Driver Phone", "Sub-County", "Status", "Current Odo (KM)", "Next Service (KM)", "Fuel Type", "Fuel Card", "Tank (L)", "Insurance Policy", "Insurance Expiry", "NTSA Inspection Expiry", "GPS Tracker ID", "Purchase Year", "Notes"];
+        const rows = activeFleetVehicles.map(v => [
+            v.vehicleReg,
+            `"${v.makeModel.replace(/"/g, '""')}"`,
+            `"${v.vehicleType}"`,
+            `"${v.department}"`,
+            `"${v.assignedDriverName || 'Unassigned'}"`,
+            `"${v.assignedDriverPhone || ''}"`,
+            `"${v.assignedSubCounty || ''}"`,
+            v.status.toUpperCase(),
+            v.currentOdometerKm,
+            v.nextServiceDueKm,
+            v.fuelType || 'Diesel',
+            v.fuelCardNumber || '',
+            v.tankCapacityLiters || '',
+            v.insurancePolicyNumber || '',
+            v.insuranceExpiryDate || '',
+            v.inspectionExpiryDate || '',
+            v.gpsTrackerId || '',
+            v.purchaseYear || '',
+            `"${(v.notes || '').replace(/"/g, '""')}"`
+        ]);
+
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `County_Fleet_Registry_${myCounty?.code || '047'}_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const filteredFleet = useMemo(() => {
+        return activeFleetVehicles.filter(v => {
+            const matchesSearch = !vehicleSearch ||
+                v.vehicleReg.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+                v.makeModel.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+                (v.assignedDriverName && v.assignedDriverName.toLowerCase().includes(vehicleSearch.toLowerCase())) ||
+                (v.assignedSubCounty && v.assignedSubCounty.toLowerCase().includes(vehicleSearch.toLowerCase())) ||
+                (v.fuelCardNumber && v.fuelCardNumber.toLowerCase().includes(vehicleSearch.toLowerCase())) ||
+                (v.gpsTrackerId && v.gpsTrackerId.toLowerCase().includes(vehicleSearch.toLowerCase()));
+
+            const matchesType = vehicleTypeFilter === 'all' || v.vehicleType === vehicleTypeFilter;
+            const matchesStatus = vehicleStatusFilter === 'all' || v.status === vehicleStatusFilter;
+            const matchesDept = vehicleDeptFilter === 'all' || v.department === vehicleDeptFilter;
+
+            return matchesSearch && matchesType && matchesStatus && matchesDept;
+        });
+    }, [activeFleetVehicles, vehicleSearch, vehicleTypeFilter, vehicleStatusFilter, vehicleDeptFilter]);
+
+    const fleetStats = useMemo(() => {
+        const total = activeFleetVehicles.length;
+        const operational = activeFleetVehicles.filter(v => v.status === 'operational').length;
+        const serviceDue = activeFleetVehicles.filter(v => v.status === 'service_due' || (v.currentOdometerKm >= v.nextServiceDueKm)).length;
+        const inRepair = activeFleetVehicles.filter(v => v.status === 'in_maintenance').length;
+        const grounded = activeFleetVehicles.filter(v => v.status === 'grounded').length;
+        const assignedDrivers = activeFleetVehicles.filter(v => Boolean(v.assignedDriverName)).length;
+
+        return {
+            total,
+            operational,
+            serviceDue,
+            inRepair,
+            grounded,
+            assignedDrivers,
+            readinessPct: total > 0 ? Math.round((operational / total) * 100) : 100
+        };
+    }, [activeFleetVehicles]);
 
     const [countySettingsForm, setCountySettingsForm] = useState({
         name: '',
@@ -285,7 +1100,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         setUploadingField(fieldName);
         try {
             const path = `county-branding/${myCounty?.id || 'general'}/${fieldName}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-            const uploadedUrl = await apiService.uploadFile(file, 'eduai', path);
+            const uploadedUrl = await apiService.uploadFile('eduai', path, file);
             if (uploadedUrl) {
                 setCountySettingsForm(prev => ({ ...prev, [fieldName]: uploadedUrl }));
             }
@@ -331,6 +1146,116 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const myCategories = useMemo(() => (inventoryCategories || []).filter(cat => !cat.countyId || cat.countyId === myCounty?.id || (cat as any).county_id === myCounty?.id), [inventoryCategories, myCounty]);
     const myStores = useMemo(() => (stores || []).filter(s => !s.countyId || s.countyId === myCounty?.id || (s as any).county_id === myCounty?.id), [stores, myCounty]);
     const totalStudents = useMemo(() => users.filter(u => u.role === 'student' && myInstitutions.some(inst => inst.id === u.institutionId)).length, [users, myInstitutions]);
+
+    const filteredInventory = useMemo(() => {
+        return myInventory.filter(item => {
+            const matchesSearch = !inventorySearch || 
+                (item.name && item.name.toLowerCase().includes(inventorySearch.toLowerCase())) ||
+                (item.category && item.category.toLowerCase().includes(inventorySearch.toLowerCase())) ||
+                (item.trackingNumber && item.trackingNumber.toLowerCase().includes(inventorySearch.toLowerCase())) ||
+                (item.driverName && item.driverName.toLowerCase().includes(inventorySearch.toLowerCase())) ||
+                (item.supplierName && item.supplierName.toLowerCase().includes(inventorySearch.toLowerCase()));
+            
+            const matchesCategory = inventoryCategoryFilter === 'all' || item.category === inventoryCategoryFilter;
+            const matchesStatus = inventoryStatusFilter === 'all' || item.status === inventoryStatusFilter;
+
+            return matchesSearch && matchesCategory && matchesStatus;
+        });
+    }, [myInventory, inventorySearch, inventoryCategoryFilter, inventoryStatusFilter]);
+
+    const inventoryAnalytics = useMemo(() => {
+        const getEstimatedUnitCost = (catName: string = '', itemName: string = '') => {
+            const c = (catName || '').toLowerCase();
+            const n = (itemName || '').toLowerCase();
+            if (c.includes('ict') || c.includes('digital') || n.includes('tablet') || n.includes('laptop')) return 15000;
+            if (c.includes('tvet') || c.includes('vocational') || n.includes('tool')) return 12500;
+            if (c.includes('medical') || c.includes('hospital') || n.includes('aid')) return 4200;
+            if (c.includes('nutrition') || c.includes('ecde') || n.includes('flour') || n.includes('milk')) return 2800;
+            if (c.includes('seed') || c.includes('agri') || n.includes('fertilizer')) return 1800;
+            if (c.includes('textbook') || c.includes('cbc') || c.includes('edu') || n.includes('book')) return 450;
+            return 850;
+        };
+
+        let totalValuationKES = 0;
+        const categoryTotals: Record<string, { count: number; totalQty: number; valueKES: number }> = {};
+        const facilityTotals: Record<string, { institution: Institution | null; totalQty: number; totalItems: number; receivedQty: number }> = {};
+
+        myInventory.forEach(item => {
+            const cat = item.category || 'General Supplies';
+            const estCost = getEstimatedUnitCost(cat, item.name);
+            const itemValuation = (item.quantity || 1) * estCost;
+            totalValuationKES += itemValuation;
+
+            if (!categoryTotals[cat]) {
+                categoryTotals[cat] = { count: 0, totalQty: 0, valueKES: 0 };
+            }
+            categoryTotals[cat].count += 1;
+            categoryTotals[cat].totalQty += (item.quantity || 1);
+            categoryTotals[cat].valueKES += itemValuation;
+
+            const instId = item.targetInstitutionId;
+            if (instId) {
+                if (!facilityTotals[instId]) {
+                    const matchedInst = institutions.find(i => i.id === instId) || null;
+                    facilityTotals[instId] = { institution: matchedInst, totalQty: 0, totalItems: 0, receivedQty: 0 };
+                }
+                facilityTotals[instId].totalItems += 1;
+                facilityTotals[instId].totalQty += (item.quantity || 1);
+                if (item.status === 'received') {
+                    facilityTotals[instId].receivedQty += (item.quantity || 1);
+                }
+            }
+        });
+
+        const atHqCount = myInventory.filter(i => i.status === 'at_hq').length;
+        const inTransitCount = myInventory.filter(i => i.status === 'in_transit').length;
+        const receivedCount = myInventory.filter(i => i.status === 'received').length;
+        const totalCount = myInventory.length || 1;
+        const deliveryRate = Math.round((receivedCount / totalCount) * 100);
+
+        return {
+            totalValuationKES,
+            categoryTotals,
+            facilityTotals: Object.values(facilityTotals).sort((a, b) => b.totalQty - a.totalQty),
+            atHqCount,
+            inTransitCount,
+            receivedCount,
+            deliveryRate
+        };
+    }, [myInventory, institutions]);
+
+    const handleExportInventoryCsv = () => {
+        if (myInventory.length === 0) {
+            alert("No inventory records to export.");
+            return;
+        }
+        const headers = ["Item ID", "Item Name", "Category", "Quantity", "Unit", "Supplier", "Status", "Destination Facility", "Delivery Method", "Driver / Parcel Ref", "Tracking QR", "Dispatched At", "Received At"];
+        const rows = myInventory.map(i => [
+            `"${i.id}"`,
+            `"${(i.name || '').replace(/"/g, '""')}"`,
+            `"${(i.category || '').replace(/"/g, '""')}"`,
+            i.quantity,
+            `"${i.unit || 'Units'}"`,
+            `"${(i.supplierName || '').replace(/"/g, '""')}"`,
+            `"${i.status}"`,
+            `"${(institutions.find(inst => inst.id === i.targetInstitutionId)?.name || 'Pending Destination').replace(/"/g, '""')}"`,
+            `"${i.deliveryMethod || 'driver'}"`,
+            `"${(i.driverName || i.trackingNumber || '').replace(/"/g, '""')}"`,
+            `"${i.qrCode || ''}"`,
+            `"${i.dispatchedAt ? new Date(i.dispatchedAt).toLocaleDateString() : ''}"`,
+            `"${i.receivedDate ? new Date(i.receivedDate).toLocaleDateString() : ''}"`
+        ]);
+
+        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `County_Inventory_Ledger_${myCounty?.name || 'County'}_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        onLogAction?.(`Exported county inventory CSV ledger`);
+    };
 
     const countyAttendanceStats = useMemo(() => {
         return myInstitutions.map(inst => {
@@ -584,6 +1509,303 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         if (window.confirm(`Dispatch ${item.name} to ${institutions.find(i => i.id === item.targetInstitutionId)?.name}?`)) {
             await onUpdateInventoryItem?.(item.id, { ...item, status: 'in_transit', dispatchedAt: new Date().toISOString() });
             onLogAction?.(`Dispatched item: ${item.name}`);
+        }
+    };
+
+    const handleOpenBatchDispatchModal = (preselectedItem?: CountyInventoryItem) => {
+        const defaultTruck = activeFleetVehicles.find(v => 
+            v.vehicleType?.toLowerCase().includes('truck') || 
+            v.vehicleType?.toLowerCase().includes('bus') || 
+            v.vehicleType?.toLowerCase().includes('public works')
+        ) || activeFleetVehicles[0];
+
+        const initialItems = preselectedItem ? [
+            {
+                id: `drop-${Date.now()}-1`,
+                inventoryItemId: preselectedItem.id,
+                name: preselectedItem.name,
+                category: preselectedItem.category || 'Education & CBC',
+                quantity: preselectedItem.quantity || 1,
+                unit: preselectedItem.unit || 'Units',
+                targetInstitutionId: preselectedItem.targetInstitutionId || myInstitutions[0]?.id || '',
+                recipientName: preselectedItem.recipientName || '',
+                recipientPhone: '',
+                notes: ''
+            }
+        ] : [
+            {
+                id: `drop-${Date.now()}-1`,
+                inventoryItemId: myInventory.filter(i => i.status === 'at_hq')[0]?.id || '',
+                name: myInventory.filter(i => i.status === 'at_hq')[0]?.name || 'CBC Learning Materials & Textbooks',
+                category: myInventory.filter(i => i.status === 'at_hq')[0]?.category || 'Education & CBC',
+                quantity: myInventory.filter(i => i.status === 'at_hq')[0]?.quantity || 100,
+                unit: myInventory.filter(i => i.status === 'at_hq')[0]?.unit || 'Units',
+                targetInstitutionId: myInstitutions[0]?.id || '',
+                recipientName: '',
+                recipientPhone: '',
+                notes: ''
+            }
+        ];
+
+        setBatchDispatchForm({
+            manifestNumber: `MNF-${myCounty?.code || '047'}-${Date.now().toString().slice(-5).toUpperCase()}`,
+            vehicleReg: defaultTruck ? defaultTruck.vehicleReg : `47 CG ${Math.floor(100 + Math.random() * 900)} B`,
+            vehicleType: defaultTruck ? `${defaultTruck.makeModel} (${defaultTruck.vehicleType})` : 'Isuzu FRR 10-Tonne Logistics Truck',
+            driverName: defaultTruck?.assignedDriverName || 'Corporal David Ochieng',
+            driverPhone: defaultTruck?.assignedDriverPhone || '+254711889900',
+            departureDepot: myStores[0]?.name || 'Central County HQ Logistics Warehouse',
+            routeDescription: myInstitutions.slice(0, 3).map(i => i.name).join(' → '),
+            deliveryMethod: 'driver',
+            notes: 'Official consolidated school dispatch truck load',
+            items: initialItems
+        });
+        setShowBatchDispatchModal(true);
+    };
+
+    const handleAddBatchDropRow = () => {
+        const availableHqItems = myInventory.filter(i => i.status === 'at_hq');
+        const nextItem = availableHqItems[batchDispatchForm.items.length % (availableHqItems.length || 1)];
+
+        setBatchDispatchForm(prev => ({
+            ...prev,
+            items: [
+                ...prev.items,
+                {
+                    id: `drop-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                    inventoryItemId: nextItem?.id || '',
+                    name: nextItem?.name || '',
+                    category: nextItem?.category || 'Education & CBC',
+                    quantity: nextItem ? Math.min(20, nextItem.quantity) : 10,
+                    unit: nextItem?.unit || 'Units',
+                    targetInstitutionId: myInstitutions[prev.items.length % (myInstitutions.length || 1)]?.id || '',
+                    recipientName: '',
+                    recipientPhone: '',
+                    notes: ''
+                }
+            ]
+        }));
+    };
+
+    const handleRemoveBatchDropRow = (index: number) => {
+        if (batchDispatchForm.items.length <= 1) {
+            alert("A truck dispatch must have at least one line item.");
+            return;
+        }
+        setBatchDispatchForm(prev => ({
+            ...prev,
+            items: prev.items.filter((_, i) => i !== index)
+        }));
+    };
+
+    const handleBatchDropItemChange = (index: number, field: string, value: any) => {
+        setBatchDispatchForm(prev => {
+            const updatedItems = [...prev.items];
+            updatedItems[index] = { ...updatedItems[index], [field]: value };
+
+            if (field === 'inventoryItemId' && value) {
+                const stockItem = myInventory.find(i => i.id === value);
+                if (stockItem) {
+                    updatedItems[index].name = stockItem.name;
+                    updatedItems[index].category = stockItem.category;
+                    updatedItems[index].unit = stockItem.unit;
+                    if (!updatedItems[index].quantity || updatedItems[index].quantity > stockItem.quantity) {
+                        updatedItems[index].quantity = stockItem.quantity;
+                    }
+                }
+            }
+            return { ...prev, items: updatedItems };
+        });
+    };
+
+    const handleSaveBatchDispatchSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!batchDispatchForm.vehicleReg) {
+            alert("Please enter or select a carrier vehicle registration number.");
+            return;
+        }
+        if (!batchDispatchForm.driverName) {
+            alert("Please enter the designated driver's name.");
+            return;
+        }
+        if (batchDispatchForm.items.length === 0) {
+            alert("Please add at least one line item to the dispatch manifest.");
+            return;
+        }
+
+        for (let i = 0; i < batchDispatchForm.items.length; i++) {
+            const item = batchDispatchForm.items[i];
+            if (!item.name || !item.name.trim()) {
+                alert(`Item #${i + 1} has no item description.`);
+                return;
+            }
+            if (!item.targetInstitutionId) {
+                alert(`Please select a destination school for "${item.name}".`);
+                return;
+            }
+            if (!item.quantity || item.quantity <= 0) {
+                alert(`Please enter a valid quantity for "${item.name}".`);
+                return;
+            }
+        }
+
+        try {
+            const nowIso = new Date().toISOString();
+            const totalUnits = batchDispatchForm.items.reduce((s, i) => s + Number(i.quantity), 0);
+            const distinctSchools = new Set(batchDispatchForm.items.map(i => i.targetInstitutionId)).size;
+
+            const manifestId = `MNF-${Date.now()}`;
+            const newManifest: CountyDispatchManifest = {
+                id: manifestId,
+                countyId: myCounty?.id || '047',
+                manifestNumber: batchDispatchForm.manifestNumber || `MNF-${myCounty?.code || '047'}-${Date.now().toString().slice(-5)}`,
+                dispatchDate: nowIso,
+                vehicleReg: batchDispatchForm.vehicleReg.toUpperCase(),
+                vehicleType: batchDispatchForm.vehicleType,
+                driverName: batchDispatchForm.driverName,
+                driverPhone: batchDispatchForm.driverPhone,
+                departureDepot: batchDispatchForm.departureDepot,
+                routeDescription: batchDispatchForm.routeDescription,
+                deliveryMethod: batchDispatchForm.deliveryMethod,
+                status: 'in_transit',
+                totalUnits,
+                totalDrops: distinctSchools,
+                notes: batchDispatchForm.notes,
+                createdAt: nowIso,
+                items: batchDispatchForm.items.map((drop, idx) => {
+                    const inst = institutions.find(i => i.id === drop.targetInstitutionId);
+                    return {
+                        id: drop.id || `drop-${Date.now()}-${idx}`,
+                        inventoryItemId: drop.inventoryItemId,
+                        name: drop.name,
+                        category: drop.category,
+                        quantity: Number(drop.quantity),
+                        unit: drop.unit || 'Units',
+                        targetInstitutionId: drop.targetInstitutionId,
+                        targetInstitutionName: inst?.name || 'Target School',
+                        recipientName: drop.recipientName,
+                        recipientPhone: drop.recipientPhone,
+                        notes: drop.notes,
+                        status: 'in_transit'
+                    };
+                })
+            };
+
+            for (const drop of batchDispatchForm.items) {
+                if (drop.inventoryItemId) {
+                    const existingItem = myInventory.find(i => i.id === drop.inventoryItemId);
+                    if (existingItem) {
+                        await onUpdateInventoryItem?.(existingItem.id, {
+                            ...existingItem,
+                            status: 'in_transit',
+                            dispatchedAt: nowIso,
+                            targetInstitutionId: drop.targetInstitutionId,
+                            driverName: batchDispatchForm.driverName,
+                            driverPhone: batchDispatchForm.driverPhone,
+                            vehicleReg: batchDispatchForm.vehicleReg.toUpperCase(),
+                            departureDepot: batchDispatchForm.departureDepot,
+                            routeDescription: batchDispatchForm.routeDescription,
+                            dispatchManifestId: manifestId,
+                            manifestNumber: newManifest.manifestNumber
+                        });
+                    }
+                } else {
+                    await onAddInventoryItem?.({
+                        countyId: myCounty?.id,
+                        county_id: myCounty?.id,
+                        name: drop.name,
+                        category: drop.category,
+                        quantity: Number(drop.quantity),
+                        unit: drop.unit || 'Units',
+                        supplierName: 'County Central Stores',
+                        status: 'in_transit',
+                        targetInstitutionId: drop.targetInstitutionId,
+                        driverName: batchDispatchForm.driverName,
+                        driverPhone: batchDispatchForm.driverPhone,
+                        vehicleReg: batchDispatchForm.vehicleReg.toUpperCase(),
+                        departureDepot: batchDispatchForm.departureDepot,
+                        routeDescription: batchDispatchForm.routeDescription,
+                        dispatchManifestId: manifestId,
+                        manifestNumber: newManifest.manifestNumber,
+                        dispatchedAt: nowIso,
+                        at_hq_date: nowIso
+                    });
+                }
+            }
+
+            setDispatchManifests(prev => [newManifest, ...prev]);
+            setShowBatchDispatchModal(false);
+            onLogAction?.(`Dispatched truck ${newManifest.vehicleReg} with ${totalUnits} units across ${distinctSchools} destination schools`);
+
+            setShowManifestWaybillModal(newManifest);
+        } catch (err: any) {
+            console.error("Batch dispatch error:", err);
+            alert("Failed to process batch dispatch: " + (err.message || 'Unknown error'));
+        }
+    };
+
+    const handleMarkManifestDelivered = async (manifestId: string) => {
+        if (!window.confirm("Confirm that all cargo on this truck trip has been delivered and verified by all destination schools?")) return;
+        const nowIso = new Date().toISOString();
+        setDispatchManifests(prev => prev.map(m => {
+            if (m.id === manifestId) {
+                return {
+                    ...m,
+                    status: 'completed',
+                    items: m.items.map(i => ({
+                        ...i,
+                        status: 'received' as const,
+                        receivedDate: nowIso,
+                        receivedBy: 'School Stores Incharge'
+                    }))
+                };
+            }
+            return m;
+        }));
+
+        const targetManifest = dispatchManifests.find(m => m.id === manifestId);
+        if (targetManifest) {
+            for (const drop of targetManifest.items) {
+                if (drop.inventoryItemId) {
+                    const invItem = myInventory.find(i => i.id === drop.inventoryItemId);
+                    if (invItem) {
+                        await onUpdateInventoryItem?.(invItem.id, {
+                            ...invItem,
+                            status: 'received',
+                            receivedDate: nowIso
+                        });
+                    }
+                }
+            }
+            onLogAction?.(`Marked entire truck manifest ${targetManifest.manifestNumber} delivered`);
+        }
+    };
+
+    const handleMarkDropDelivered = async (manifestId: string, dropId: string) => {
+        const nowIso = new Date().toISOString();
+        setDispatchManifests(prev => prev.map(m => {
+            if (m.id === manifestId) {
+                const updatedItems = m.items.map(item => {
+                    if (item.id === dropId) {
+                        return { ...item, status: 'received' as const, receivedDate: nowIso, receivedBy: 'School Principal / Incharge' };
+                    }
+                    return item;
+                });
+                const allDone = updatedItems.every(i => i.status === 'received');
+                return {
+                    ...m,
+                    items: updatedItems,
+                    status: allDone ? 'completed' : 'partially_delivered'
+                };
+            }
+            return m;
+        }));
+        onLogAction?.(`Confirmed drop delivery for manifest ${manifestId}`);
+    };
+
+    const handleDeleteManifest = (manifestId: string, manifestNumber: string) => {
+        if (window.confirm(`Delete trip manifest ${manifestNumber}?`)) {
+            setDispatchManifests(prev => prev.filter(m => m.id !== manifestId));
+            onLogAction?.(`Deleted dispatch manifest ${manifestNumber}`);
         }
     };
 
@@ -1201,19 +2423,34 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                                         {inst.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right flex justify-end gap-2">
+                                                <td className="px-6 py-4 whitespace-nowrap text-right flex justify-end items-center gap-1.5">
                                                     <button
                                                         onClick={() => openPerspectiveSelection(inst)}
-                                                        className="text-[10px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-all active:scale-95"
+                                                        className="text-[10px] font-black uppercase tracking-wider text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition-all active:scale-95 flex items-center gap-1"
                                                         title="Perspective View"
                                                     >
-                                                        View
+                                                        <Eye className="w-3.5 h-3.5" /> View
                                                     </button>
                                                     <button
                                                         onClick={() => onLoginAsAdmin && onLoginAsAdmin(inst.id)}
-                                                        className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all active:scale-95"
+                                                        className="text-[10px] font-black uppercase tracking-wider text-indigo-700 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg transition-all active:scale-95 flex items-center gap-1"
+                                                        title="Enter Portal"
                                                     >
-                                                        Enter Portal
+                                                        <ArrowRight className="w-3.5 h-3.5" /> Portal
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenEditInstitution(inst)}
+                                                        className="text-[10px] font-black uppercase tracking-wider text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition-all active:scale-95 flex items-center gap-1"
+                                                        title="Edit Institution"
+                                                    >
+                                                        <Edit className="w-3.5 h-3.5 text-slate-600" /> Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setDeletingInstitution(inst)}
+                                                        className="text-[10px] font-black uppercase tracking-wider text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-2.5 py-1.5 rounded-lg transition-all active:scale-95 flex items-center gap-1"
+                                                        title="Delete Institution"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Delete
                                                     </button>
                                                 </td>
                                             </tr>
@@ -2039,30 +3276,46 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
 
                 {activeTab === 'inventory' && (
                     <div className="space-y-6 animate-fade-in-up">
-                        <div className="flex justify-between items-end mb-8">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
                             <div>
-                                <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
-                                    County Inventory
+                                <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-3">
+                                    <span>County Inventory & Logistics</span>
+                                    <span className="text-xs px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full font-mono font-bold">
+                                        KES {inventoryAnalytics.totalValuationKES.toLocaleString()} Est. Value
+                                    </span>
                                 </h2>
-                                <p className="text-slate-500 font-medium">
-                                    Manage supplies from HQ to schools via drivers and parcels
+                                <p className="text-slate-500 font-medium mt-1">
+                                    Manage supplies from HQ warehouse to schools via driver transit and courier tracking
                                 </p>
                             </div>
-                            <div className="flex gap-3">
+                            <div className="flex flex-wrap gap-2.5">
+                                <button
+                                    onClick={handleExportInventoryCsv}
+                                    className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-2 shadow-xs"
+                                    title="Export complete inventory ledger as CSV"
+                                >
+                                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Export CSV
+                                </button>
                                 {inventorySubTab === 'items' && (
                                     <>
                                         <button
                                             onClick={handleLoadSampleInventory}
-                                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 transition-colors flex items-center gap-2"
+                                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-200 transition-colors flex items-center gap-2 cursor-pointer"
                                             title="Populate sample educational, medical, agricultural, and vocational supplies"
                                         >
-                                            <SparklesIcon className="w-5 h-5 text-emerald-200" /> Load Sample Data
+                                            <SparklesIcon className="w-4 h-4 text-emerald-200" /> Load Sample Data
                                         </button>
                                         <button
                                             onClick={() => setShowInventoryImportModal(true)}
-                                            className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 transition-colors flex items-center gap-2"
+                                            className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-slate-200 hover:bg-slate-800 transition-colors flex items-center gap-2 cursor-pointer"
                                         >
-                                            <SparklesIcon className="w-5 h-5 text-indigo-400" /> Bulk Import
+                                            <SparklesIcon className="w-4 h-4 text-indigo-400" /> Bulk Import
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenBatchDispatchModal()}
+                                            className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-200 transition-colors flex items-center gap-2 cursor-pointer"
+                                        >
+                                            <Truck className="w-4 h-4 text-white" /> Multi-Drop Truck Dispatch
                                         </button>
                                         <button
                                             onClick={() => {
@@ -2074,11 +3327,19 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                                 });
                                                 setShowInventoryModal(true);
                                             }}
-                                            className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                            className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2 cursor-pointer"
                                         >
-                                            <PlusIcon className="w-5 h-5 text-white" /> Log HQ Receipt
+                                            <PlusIcon className="w-4 h-4 text-white" /> Log HQ Receipt
                                         </button>
                                     </>
+                                )}
+                                {inventorySubTab === 'dispatch' && (
+                                    <button
+                                        onClick={() => handleOpenBatchDispatchModal()}
+                                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2 cursor-pointer"
+                                    >
+                                        <Truck className="w-4 h-4 text-white" /> + Multi-Drop Truck Dispatch
+                                    </button>
                                 )}
                                 {inventorySubTab === 'categories' && (
                                     <button
@@ -2087,9 +3348,9 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                             setCategoryForm({ name: '', description: '' });
                                             setShowCategoryModal(true);
                                         }}
-                                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
                                     >
-                                        <PlusIcon className="w-5 h-5 text-white" /> New Category
+                                        <PlusIcon className="w-4 h-4 text-white" /> New Category
                                     </button>
                                 )}
                                 {inventorySubTab === 'stores' && (
@@ -2099,195 +3360,292 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                             setStoreForm({ name: '', locationName: '', latitude: 0, longitude: 0, description: '' });
                                             setShowStoreModal(true);
                                         }}
-                                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
                                     >
-                                        <PlusIcon className="w-5 h-5 text-white" /> Add Store/Location
+                                        <PlusIcon className="w-4 h-4 text-white" /> Add Store/Depot
                                     </button>
                                 )}
                             </div>
                         </div>
 
-                        <div className="flex gap-4 p-1.5 bg-slate-100 rounded-2xl w-fit mb-8">
+                        {/* Navigation Subtabs */}
+                        <div className="flex flex-wrap gap-3 p-1.5 bg-slate-100 rounded-2xl w-fit mb-8">
                             <button
                                 onClick={() => setInventorySubTab('items')}
-                                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventorySubTab === 'items'
+                                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${inventorySubTab === 'items'
                                     ? 'bg-white text-indigo-600 shadow-sm'
                                     : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
+                                <Package className="w-4 h-4" />
                                 Inventory Items
-                            </button>
-                            <button
-                                onClick={() => setInventorySubTab('categories')}
-                                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventorySubTab === 'categories'
-                                    ? 'bg-white text-indigo-600 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                            >
-                                Categories
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                                    {myInventory.length}
+                                </span>
                             </button>
                             <button
                                 onClick={() => setInventorySubTab('stores')}
-                                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventorySubTab === 'stores'
+                                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${inventorySubTab === 'stores'
                                     ? 'bg-white text-indigo-600 shadow-sm'
                                     : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
-                                Stores & Locations
+                                <MapPin className="w-4 h-4" />
+                                GIS Radar & Depots
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                                    {myStores.length}
+                                </span>
                             </button>
                             <button
                                 onClick={() => setInventorySubTab('dispatch')}
-                                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventorySubTab === 'dispatch'
+                                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${inventorySubTab === 'dispatch'
                                     ? 'bg-white text-indigo-600 shadow-sm'
                                     : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
+                                <Truck className="w-4 h-4" />
                                 Dispatch Log
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">
+                                    {inventoryAnalytics.inTransitCount} En Route
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => setInventorySubTab('categories')}
+                                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${inventorySubTab === 'categories'
+                                    ? 'bg-white text-indigo-600 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                <Layers className="w-4 h-4" />
+                                Categories
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                                    {myCategories.length}
+                                </span>
                             </button>
                             <button
                                 onClick={() => setInventorySubTab('reports')}
-                                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventorySubTab === 'reports'
+                                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${inventorySubTab === 'reports'
                                     ? 'bg-white text-indigo-600 shadow-sm'
                                     : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
-                                Analytics & Reports
+                                <BarChart3 className="w-4 h-4" />
+                                Analytics & Valuation
                             </button>
                         </div>
 
+                        {/* SUBTAB 1: INVENTORY ITEMS */}
                         {inventorySubTab === 'items' && (
                             <>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                {/* Inventory KPI Overview Cards */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                                    <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
                                         <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-600">
                                             <ArchiveBoxIcon className="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <div className="text-2xl font-black text-slate-900">{myInventory.filter(i => i.status === 'at_hq').length}</div>
+                                            <div className="text-2xl font-black text-slate-900">{inventoryAnalytics.atHqCount}</div>
                                             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">At Headquarters</div>
                                         </div>
                                     </div>
-                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                    <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
                                         <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
                                             <TruckIcon className="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <div className="text-2xl font-black text-slate-900">{myInventory.filter(i => i.status === 'in_transit').length}</div>
+                                            <div className="text-2xl font-black text-slate-900">{inventoryAnalytics.inTransitCount}</div>
                                             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">In Transit</div>
                                         </div>
                                     </div>
-                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                    <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
                                         <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
                                             <CheckCircleIcon className="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <div className="text-2xl font-black text-slate-900">{myInventory.filter(i => i.status === 'received').length}</div>
-                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Delivered</div>
+                                            <div className="text-2xl font-black text-slate-900">{inventoryAnalytics.receivedCount}</div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Delivered ({inventoryAnalytics.deliveryRate}%)</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600">
+                                            <Wallet className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="text-xl font-black text-slate-900">KES {(inventoryAnalytics.totalValuationKES / 1000000).toFixed(2)}M</div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Est. Total Valuation</div>
                                         </div>
                                     </div>
                                 </div>
 
+                                {/* Search & Filter Bar */}
+                                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
+                                    <div className="relative w-full md:w-96">
+                                        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                        <input
+                                            type="text"
+                                            value={inventorySearch}
+                                            onChange={(e) => setInventorySearch(e.target.value)}
+                                            placeholder="Search by item, supplier, driver, or tracking ID..."
+                                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-3 w-full md:w-auto items-center">
+                                        <div className="flex items-center gap-2">
+                                            <Filter className="w-3.5 h-3.5 text-slate-400" />
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Category:</span>
+                                            <select
+                                                value={inventoryCategoryFilter}
+                                                onChange={(e) => setInventoryCategoryFilter(e.target.value)}
+                                                className="bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 px-3 py-2 focus:outline-none focus:border-indigo-500"
+                                            >
+                                                <option value="all">All Categories ({myInventory.length})</option>
+                                                {myCategories.map(c => (
+                                                    <option key={c.id} value={c.name}>{c.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Status:</span>
+                                            <select
+                                                value={inventoryStatusFilter}
+                                                onChange={(e) => setInventoryStatusFilter(e.target.value)}
+                                                className="bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 px-3 py-2 focus:outline-none focus:border-indigo-500"
+                                            >
+                                                <option value="all">All Statuses</option>
+                                                <option value="at_hq">At HQ Warehouse</option>
+                                                <option value="in_transit">In Transit</option>
+                                                <option value="received">Delivered</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Table */}
                                 <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left border-collapse">
                                             <thead>
                                                 <tr className="bg-slate-50/50 border-b border-slate-100">
                                                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Item Detail</th>
-                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status & Path</th>
-                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Logistics</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status & Route</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Logistics & Carrier</th>
                                                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-50">
-                                                {myInventory.map(item => (
-                                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
-                                                                    <ArchiveBoxIcon className="w-5 h-5" />
-                                                                </div>
-                                                                <div>
-                                                                    <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{item.name}</div>
-                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.quantity} {item.unit} • {item.category}</div>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="flex flex-col gap-1">
-                                                                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full w-fit ${item.status === 'at_hq' ? 'bg-slate-100 text-slate-600' :
-                                                                    item.status === 'in_transit' ? 'bg-indigo-100 text-indigo-700' :
-                                                                        'bg-emerald-100 text-emerald-700'
-                                                                    }`}>
-                                                                    {item.status.replace('_', ' ')}
-                                                                </span>
-                                                                <div className="text-[10px] font-medium text-slate-400 flex items-center gap-1 uppercase tracking-tight">
-                                                                    HQ <ChevronRightIcon className="w-3 h-3" /> {institutions.find(inst => inst.id === item.targetInstitutionId)?.name || 'Pending Destination'}
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="flex flex-col gap-1">
-                                                                <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                                                                    {item.deliveryMethod === 'driver' ? <UserIcon className="w-3 h-3" /> : <MapPinIcon className="w-3 h-3" />}
-                                                                    {item.deliveryMethod === 'driver' ? (item.driverName || 'No Driver') : (item.trackingNumber || 'No Parcel ID')}
-                                                                </div>
-                                                                <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">
-                                                                    {item.deliveryMethod} delivery
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                            <div className="flex justify-end gap-2">
-                                                                {item.status === 'at_hq' && (
-                                                                    <button
-                                                                        onClick={() => handleDispatch(item)}
-                                                                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-indigo-700 transition-colors shadow-sm"
-                                                                    >
-                                                                        Dispatch
-                                                                    </button>
-                                                                )}
-                                                                <button
-                                                                    onClick={() => setShowQrModal(item)}
-                                                                    className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                                                                    title="View QR Code"
-                                                                >
-                                                                    <QrCodeIcon className="w-4 h-4" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setEditingInventory(item);
-                                                                        setInventoryForm({
-                                                                            name: item.name,
-                                                                            category: item.category,
-                                                                            quantity: item.quantity,
-                                                                            unit: item.unit,
-                                                                            supplierName: item.supplierName,
-                                                                            targetInstitutionId: item.targetInstitutionId || '',
-                                                                            deliveryMethod: item.deliveryMethod,
-                                                                            driverName: item.driverName || '',
-                                                                            trackingNumber: item.trackingNumber || ''
-                                                                        });
-                                                                        setShowInventoryModal(true);
-                                                                    }}
-                                                                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
-                                                                >
-                                                                    <PencilIcon className="w-4 h-4" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        if (window.confirm("Delete this inventory record?")) {
-                                                                            await onDeleteInventoryItem?.(item.id);
-                                                                            onLogAction?.(`Deleted inventory item: ${item.name}`);
-                                                                        }
-                                                                    }}
-                                                                    className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                                                                >
-                                                                    <CloseIcon className="w-4 h-4" />
-                                                                </button>
-                                                            </div>
+                                                {filteredInventory.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                                            No inventory items match the current filters.
                                                         </td>
                                                     </tr>
-                                                ))}
+                                                ) : (
+                                                    filteredInventory.map(item => (
+                                                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500">
+                                                                        <ArchiveBoxIcon className="w-5 h-5" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{item.name}</div>
+                                                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                                                            <span className="text-indigo-600">{item.quantity} {item.unit}</span>
+                                                                            <span>•</span>
+                                                                            <span>{item.category}</span>
+                                                                            {item.supplierName && <span>• Sup: {item.supplierName}</span>}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full w-fit ${item.status === 'at_hq' ? 'bg-slate-100 text-slate-600' :
+                                                                        item.status === 'in_transit' ? 'bg-amber-100 text-amber-800' :
+                                                                            'bg-emerald-100 text-emerald-800'
+                                                                        }`}>
+                                                                        {item.status.replace('_', ' ')}
+                                                                    </span>
+                                                                    <div className="text-[10px] font-medium text-slate-500 flex items-center gap-1 uppercase tracking-tight">
+                                                                        HQ <ChevronRightIcon className="w-3 h-3 text-slate-400" /> {institutions.find(inst => inst.id === item.targetInstitutionId)?.name || 'Pending Destination'}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <div className="flex flex-col gap-1">
+                                                                    <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                                                        {item.deliveryMethod === 'driver' ? <UserIcon className="w-3 h-3 text-indigo-500" /> : <MapPinIcon className="w-3 h-3 text-emerald-500" />}
+                                                                        {item.deliveryMethod === 'driver' ? (item.driverName || 'Designated Driver') : (item.trackingNumber || 'Registered Parcel')}
+                                                                    </div>
+                                                                    <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">
+                                                                        {item.deliveryMethod} delivery
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                                <div className="flex justify-end items-center gap-1.5">
+                                                                    {item.status === 'at_hq' && (
+                                                                        <button
+                                                                            onClick={() => handleDispatch(item)}
+                                                                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors shadow-xs"
+                                                                        >
+                                                                            Dispatch
+                                                                        </button>
+                                                                    )}
+                                                                    <button
+                                                                        onClick={() => setShowWaybillModal(item)}
+                                                                        className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 hover:bg-white rounded-lg border border-slate-100"
+                                                                        title="Generate Official Dispatch Waybill"
+                                                                    >
+                                                                        <FileText className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setShowQrModal(item)}
+                                                                        className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 hover:bg-white rounded-lg border border-slate-100"
+                                                                        title="View Asset QR Code"
+                                                                    >
+                                                                        <QrCodeIcon className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setEditingInventory(item);
+                                                                            setInventoryForm({
+                                                                                name: item.name,
+                                                                                category: item.category,
+                                                                                quantity: item.quantity,
+                                                                                unit: item.unit,
+                                                                                supplierName: item.supplierName,
+                                                                                targetInstitutionId: item.targetInstitutionId || '',
+                                                                                deliveryMethod: item.deliveryMethod,
+                                                                                driverName: item.driverName || '',
+                                                                                trackingNumber: item.trackingNumber || ''
+                                                                            });
+                                                                            setShowInventoryModal(true);
+                                                                        }}
+                                                                        className="p-2 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-white rounded-lg border border-slate-100"
+                                                                        title="Edit Record"
+                                                                    >
+                                                                        <PencilIcon className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            if (window.confirm("Delete this inventory record?")) {
+                                                                                await onDeleteInventoryItem?.(item.id);
+                                                                                onLogAction?.(`Deleted inventory item: ${item.name}`);
+                                                                            }
+                                                                        }}
+                                                                        className="p-2 text-slate-400 hover:text-red-600 transition-colors bg-slate-50 hover:bg-white rounded-lg border border-slate-100"
+                                                                        title="Delete Record"
+                                                                    >
+                                                                        <CloseIcon className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
@@ -2295,6 +3653,462 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                             </>
                         )}
 
+                        {/* SUBTAB 2: STORES & GIS RADAR */}
+                        {inventorySubTab === 'stores' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setStoreViewMode('radar')}
+                                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                                storeViewMode === 'radar' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <Compass className="w-4 h-4" /> Interactive GIS Radar
+                                        </button>
+                                        <button
+                                            onClick={() => setStoreViewMode('list')}
+                                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                                storeViewMode === 'list' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <Building2 className="w-4 h-4" /> Depot Master List
+                                        </button>
+                                    </div>
+
+                                    <span className="text-xs text-slate-400 font-mono">
+                                        {myStores.length} Storage Depots Configured
+                                    </span>
+                                </div>
+
+                                {storeViewMode === 'radar' ? (
+                                    <CountyInventoryRadar
+                                        stores={myStores}
+                                        institutions={myInstitutions}
+                                        inventoryItems={myInventory}
+                                        countyName={myCounty.name}
+                                    />
+                                ) : (
+                                    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                        {myStores.length === 0 ? (
+                                            <div className="p-12 text-center">
+                                                <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                                                    <Building2 className="w-8 h-8" />
+                                                </div>
+                                                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-1">No Stores / Depots Configured</h3>
+                                                <p className="text-xs text-slate-500 font-medium mb-6 max-w-sm mx-auto">Add central county warehouses, sub-county depots, and distribution centers.</p>
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingStore(null);
+                                                        setStoreForm({ name: '', locationName: '', latitude: 0, longitude: 0, description: '' });
+                                                        setShowStoreModal(true);
+                                                    }}
+                                                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors inline-flex items-center gap-2"
+                                                >
+                                                    <PlusIcon className="w-4 h-4" /> Add First Store
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Store / Depot</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Physical Address</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Coordinates</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-50">
+                                                        {myStores.map(store => (
+                                                            <tr key={store.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                                                                            <MapPinIcon className="w-4 h-4" />
+                                                                        </div>
+                                                                        <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{store.name}</div>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <div className="text-xs font-bold text-slate-700">{store.locationName}</div>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                                                                        {store.latitude ? `${store.latitude}, ${store.longitude}` : 'No GPS Set'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4">
+                                                                    <div className="text-xs text-slate-500 font-medium max-w-xs truncate">{store.description || '—'}</div>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                                    <div className="flex justify-end gap-2">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                            setEditingStore(store);
+                                                                            setStoreForm({
+                                                                                name: store.name,
+                                                                                locationName: store.locationName,
+                                                                                latitude: store.latitude || 0,
+                                                                                longitude: store.longitude || 0,
+                                                                                description: store.description || ''
+                                                                            });
+                                                                            setShowStoreModal(true);
+                                                                        }}
+                                                                        className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                                                                        title="Edit Store"
+                                                                    >
+                                                                        <PencilIcon className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            if (window.confirm(`Delete store location "${store.name}"?`)) {
+                                                                                await onDeleteStore?.(store.id);
+                                                                                onLogAction?.(`Deleted store location: ${store.name}`);
+                                                                            }
+                                                                        }}
+                                                                        className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                                        title="Delete Store"
+                                                                    >
+                                                                        <CloseIcon className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* SUBTAB 3: DISPATCH LOG */}
+                        {inventorySubTab === 'dispatch' && (
+                            <div className="space-y-6">
+                                {/* Mode Switcher & Quick Actions */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-xs">
+                                    <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl w-fit">
+                                        <button
+                                            onClick={() => setDispatchViewMode('manifests')}
+                                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+                                                dispatchViewMode === 'manifests' 
+                                                    ? 'bg-white text-indigo-700 shadow-xs' 
+                                                    : 'text-slate-500 hover:text-slate-800'
+                                            }`}
+                                        >
+                                            <Truck className="w-4 h-4" />
+                                            Truck Consignments (Trip Manifests)
+                                            <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-mono font-bold">
+                                                {dispatchManifests.length}
+                                            </span>
+                                        </button>
+                                        <button
+                                            onClick={() => setDispatchViewMode('items')}
+                                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+                                                dispatchViewMode === 'items' 
+                                                    ? 'bg-white text-indigo-700 shadow-xs' 
+                                                    : 'text-slate-500 hover:text-slate-800'
+                                            }`}
+                                        >
+                                            <Package className="w-4 h-4" />
+                                            All Dispatched Line Items
+                                            <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-mono font-bold">
+                                                {myInventory.filter(i => i.status === 'in_transit' || i.status === 'received').length}
+                                            </span>
+                                        </button>
+                                    </div>
+
+                                    <button
+                                        onClick={() => handleOpenBatchDispatchModal()}
+                                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors flex items-center gap-2 cursor-pointer w-fit"
+                                    >
+                                        <Truck className="w-4 h-4 text-indigo-200" /> + Dispatch New Truck
+                                    </button>
+                                </div>
+
+                                {/* VIEW 1: TRUCK CONSIGNMENT MANIFESTS */}
+                                {dispatchViewMode === 'manifests' && (
+                                    <div className="space-y-6">
+                                        {dispatchManifests.length === 0 ? (
+                                            <div className="bg-white p-12 rounded-[2.5rem] border border-slate-100 text-center shadow-xs">
+                                                <div className="w-16 h-16 rounded-3xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4">
+                                                    <Truck className="w-8 h-8" />
+                                                </div>
+                                                <h4 className="text-base font-black text-slate-900 uppercase">No Active Truck Dispatches</h4>
+                                                <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-6">
+                                                    Consolidate multiple inventory items onto a single truck for multi-school route delivery.
+                                                </p>
+                                                <button
+                                                    onClick={() => handleOpenBatchDispatchModal()}
+                                                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 transition-all cursor-pointer inline-flex items-center gap-2"
+                                                >
+                                                    <Truck className="w-4 h-4" /> Start Multi-Drop Truck Dispatch
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            dispatchManifests.map(manifest => {
+                                                const deliveredCount = manifest.items.filter(i => i.status === 'received').length;
+                                                const totalDrops = manifest.items.length;
+                                                const progressPercent = totalDrops > 0 ? Math.round((deliveredCount / totalDrops) * 100) : 0;
+                                                const distinctSchoolCount = new Set(manifest.items.map(i => i.targetInstitutionId)).size;
+
+                                                return (
+                                                    <div key={manifest.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:border-slate-200">
+                                                        {/* Manifest Card Header */}
+                                                        <div className="p-6 md:p-8 bg-slate-50/50 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                                                            <div className="flex items-start gap-4">
+                                                                <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20 shrink-0">
+                                                                    <Truck className="w-7 h-7" />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex flex-wrap items-center gap-2.5">
+                                                                        <h4 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                                                                            {manifest.vehicleReg}
+                                                                        </h4>
+                                                                        <span className="px-3 py-1 rounded-full bg-slate-900 text-white font-mono text-[10px] font-black uppercase tracking-wider">
+                                                                            {manifest.manifestNumber}
+                                                                        </span>
+                                                                        <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full ${
+                                                                            manifest.status === 'completed'
+                                                                                ? 'bg-emerald-100 text-emerald-800'
+                                                                                : manifest.status === 'partially_delivered'
+                                                                                ? 'bg-blue-100 text-blue-800'
+                                                                                : 'bg-amber-100 text-amber-800'
+                                                                        }`}>
+                                                                            {manifest.status.replace('_', ' ')}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="text-xs text-slate-500 font-medium mt-1">
+                                                                        {manifest.vehicleType || 'County Logistics Carrier'} • Driver: <strong className="text-slate-800">{manifest.driverName}</strong> {manifest.driverPhone && `(${manifest.driverPhone})`}
+                                                                    </p>
+                                                                    {manifest.routeDescription && (
+                                                                        <div className="mt-2 text-xs font-bold text-indigo-700 bg-indigo-50/80 px-3 py-1 rounded-xl border border-indigo-100/80 inline-flex items-center gap-1.5">
+                                                                            <MapPin className="w-3.5 h-3.5" /> Route: {manifest.routeDescription}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Manifest Actions & Progress Bar */}
+                                                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 lg:self-center">
+                                                                <div className="bg-white p-3 rounded-2xl border border-slate-200/80 min-w-[180px]">
+                                                                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 mb-1">
+                                                                        <span>Delivery Progress</span>
+                                                                        <span className="font-mono text-indigo-700">{progressPercent}%</span>
+                                                                    </div>
+                                                                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                        <div 
+                                                                            className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all duration-500"
+                                                                            style={{ width: `${progressPercent}%` }}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="text-[10px] font-bold text-slate-600 mt-1">
+                                                                        {deliveredCount} of {totalDrops} items delivered ({distinctSchoolCount} schools)
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <button
+                                                                        onClick={() => setShowManifestWaybillModal(manifest)}
+                                                                        className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+                                                                        title="Print Consignment Waybill"
+                                                                    >
+                                                                        <FileText className="w-4 h-4 text-indigo-300" />
+                                                                        Print Waybill
+                                                                    </button>
+
+                                                                    {manifest.status !== 'completed' && (
+                                                                        <button
+                                                                            onClick={() => handleMarkManifestDelivered(manifest.id)}
+                                                                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm shadow-emerald-200 cursor-pointer"
+                                                                        >
+                                                                            <Check className="w-4 h-4" />
+                                                                            Mark All Delivered
+                                                                        </button>
+                                                                    )}
+
+                                                                    <button
+                                                                        onClick={() => handleDeleteManifest(manifest.id, manifest.manifestNumber)}
+                                                                        className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                                                                        title="Delete Manifest"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Drops & Cargo Table */}
+                                                        <div className="p-6 md:p-8">
+                                                            <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">
+                                                                Consignment Drops on this Truck Load ({manifest.items.length} Line Items)
+                                                            </h5>
+
+                                                            <div className="overflow-x-auto">
+                                                                <table className="w-full text-left border-collapse">
+                                                                    <thead>
+                                                                        <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                                            <th className="pb-3 pr-4">Drop Target School</th>
+                                                                            <th className="pb-3 px-4">Item & Category</th>
+                                                                            <th className="pb-3 px-4 text-right">Quantity</th>
+                                                                            <th className="pb-3 px-4">Recipient / Notes</th>
+                                                                            <th className="pb-3 px-4">Status</th>
+                                                                            <th className="pb-3 pl-4 text-right">Action</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-slate-100 text-xs">
+                                                                        {manifest.items.map((drop, dropIdx) => {
+                                                                            const inst = institutions.find(i => i.id === drop.targetInstitutionId);
+                                                                            return (
+                                                                                <tr key={drop.id || dropIdx} className="hover:bg-slate-50/50 transition-colors">
+                                                                                    <td className="py-3.5 pr-4 whitespace-nowrap">
+                                                                                        <div className="font-black text-slate-900 uppercase">
+                                                                                            {inst?.name || drop.targetInstitutionName || 'Destination School'}
+                                                                                        </div>
+                                                                                        <div className="text-[10px] font-bold text-slate-400 uppercase">
+                                                                                            {inst?.subCounty || 'County Zone'}
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                                                                        <div className="font-bold text-slate-800">{drop.name}</div>
+                                                                                        <div className="text-[10px] text-slate-400">{drop.category}</div>
+                                                                                    </td>
+                                                                                    <td className="py-3.5 px-4 whitespace-nowrap text-right font-black text-indigo-700">
+                                                                                        {drop.quantity} {drop.unit}
+                                                                                    </td>
+                                                                                    <td className="py-3.5 px-4 text-slate-600 text-[11px]">
+                                                                                        <div>{drop.recipientName || 'School Head'} {drop.recipientPhone ? `(${drop.recipientPhone})` : ''}</div>
+                                                                                        {drop.notes && <div className="text-[10px] text-slate-400 italic">{drop.notes}</div>}
+                                                                                    </td>
+                                                                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                                                                        <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full ${
+                                                                                            drop.status === 'received' 
+                                                                                                ? 'bg-emerald-100 text-emerald-800' 
+                                                                                                : 'bg-amber-100 text-amber-800'
+                                                                                        }`}>
+                                                                                            {drop.status === 'received' ? 'Delivered' : 'In Transit'}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="py-3.5 pl-4 whitespace-nowrap text-right">
+                                                                                        {drop.status !== 'received' ? (
+                                                                                            <button
+                                                                                                onClick={() => handleMarkDropDelivered(manifest.id, drop.id)}
+                                                                                                className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                                                                                            >
+                                                                                                Confirm Delivery
+                                                                                            </button>
+                                                                                        ) : (
+                                                                                            <span className="text-[10px] font-bold text-emerald-600 flex items-center justify-end gap-1">
+                                                                                                <Check className="w-3.5 h-3.5" /> Received
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* VIEW 2: INDIVIDUAL ITEM TABLE */}
+                                {dispatchViewMode === 'items' && (
+                                    <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Dispatched Item</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Destination Facility</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Carrier & Logistics</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Dispatched Time</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-50">
+                                                    {myInventory.filter(i => i.status === 'in_transit' || i.dispatchedAt || i.status === 'received').length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                                                No active dispatches found. Dispatched items will appear here.
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        myInventory.filter(i => i.status === 'in_transit' || i.dispatchedAt || i.status === 'received').map(item => (
+                                                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <div className="text-sm font-black text-slate-900 uppercase">{item.name}</div>
+                                                                    <div className="text-[10px] font-bold text-slate-400">{item.quantity} {item.unit} • {item.category}</div>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <div className="text-xs font-bold text-slate-800">
+                                                                        {institutions.find(inst => inst.id === item.targetInstitutionId)?.name || 'Pending Destination'}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                                                        <TruckIcon className="w-3.5 h-3.5 text-indigo-500" />
+                                                                        {item.vehicleReg ? `${item.vehicleReg} (${item.driverName || 'Carrier'})` : (item.driverName || item.trackingNumber || 'Parcel')}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-medium">
+                                                                    {item.dispatchedAt ? new Date(item.dispatchedAt).toLocaleDateString() : 'Recent'}
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                                                                        item.status === 'received' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                                                    }`}>
+                                                                        {item.status.replace('_', ' ')}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                                    <div className="flex items-center justify-end gap-2">
+                                                                        <button
+                                                                            onClick={() => setShowWaybillModal(item)}
+                                                                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
+                                                                            title="Official Waybill Document"
+                                                                        >
+                                                                            <FileText className="w-3 h-3" /> Waybill
+                                                                        </button>
+                                                                        {item.status === 'in_transit' && (
+                                                                            <button
+                                                                                onClick={async () => {
+                                                                                    await onUpdateInventoryItem?.(item.id, { 
+                                                                                        ...item, 
+                                                                                        status: 'received',
+                                                                                        receivedDate: new Date().toISOString()
+                                                                                    });
+                                                                                    onLogAction?.(`Confirmed delivery of ${item.name}`);
+                                                                                }}
+                                                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors shadow-sm cursor-pointer"
+                                                                            >
+                                                                                Mark Delivered
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* SUBTAB 4: CATEGORIES */}
                         {inventorySubTab === 'categories' && (
                             <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
                                 {myCategories.length === 0 ? (
@@ -2387,194 +4201,118 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                             </div>
                         )}
 
-                        {inventorySubTab === 'stores' && (
-                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-                                {myStores.length === 0 ? (
-                                    <div className="p-12 text-center">
-                                        <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                                            <Building2 className="w-8 h-8" />
-                                        </div>
-                                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-1">No Stores / Locations Configured</h3>
-                                        <p className="text-xs text-slate-500 font-medium mb-6 max-w-sm mx-auto">Add central county warehouses, sub-county depots, and distribution centers.</p>
-                                        <button
-                                            onClick={() => {
-                                                setEditingStore(null);
-                                                setStoreForm({ name: '', locationName: '', latitude: 0, longitude: 0, description: '' });
-                                                setShowStoreModal(true);
-                                            }}
-                                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors inline-flex items-center gap-2"
-                                        >
-                                            <PlusIcon className="w-4 h-4" /> Add First Store
-                                        </button>
+                        {/* SUBTAB 5: ADVANCED ANALYTICS & FINANCIAL VALUATION */}
+                        {inventorySubTab === 'reports' && (
+                            <div className="space-y-8">
+                                {/* Valuation Summary Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Stock Items</div>
+                                        <div className="text-3xl font-black text-slate-900">{myInventory.length}</div>
+                                        <div className="text-xs text-slate-500 font-medium mt-1">Across all registered depots</div>
                                     </div>
-                                ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead>
-                                                <tr className="bg-slate-50/50 border-b border-slate-100">
-                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Store / Depot</th>
-                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Physical Address</th>
-                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Coordinates</th>
-                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</th>
-                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-50">
-                                                {myStores.map(store => (
-                                                    <tr key={store.id} className="hover:bg-slate-50/50 transition-colors group">
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
-                                                                    <MapPinIcon className="w-4 h-4" />
-                                                                </div>
-                                                                <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{store.name}</div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="text-xs font-bold text-slate-700">{store.locationName}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                                                                {store.latitude ? `${store.latitude}, ${store.longitude}` : 'No GPS Set'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="text-xs text-slate-500 font-medium max-w-xs truncate">{store.description || '—'}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                            <div className="flex justify-end gap-2">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setEditingStore(store);
-                                                                        setStoreForm({
-                                                                            name: store.name,
-                                                                            locationName: store.locationName,
-                                                                            latitude: store.latitude || 0,
-                                                                            longitude: store.longitude || 0,
-                                                                            description: store.description || ''
-                                                                        });
-                                                                        setShowStoreModal(true);
-                                                                    }}
-                                                                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
-                                                                    title="Edit Store"
-                                                                >
-                                                                    <PencilIcon className="w-4 h-4" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        if (window.confirm(`Delete store location "${store.name}"?`)) {
-                                                                            await onDeleteStore?.(store.id);
-                                                                            onLogAction?.(`Deleted store location: ${store.name}`);
-                                                                        }
-                                                                    }}
-                                                                    className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                                                                    title="Delete Store"
-                                                                >
-                                                                    <CloseIcon className="w-4 h-4" />
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Est. Inventory Valuation</div>
+                                        <div className="text-3xl font-black text-indigo-600">KES {inventoryAnalytics.totalValuationKES.toLocaleString()}</div>
+                                        <div className="text-xs text-slate-500 font-medium mt-1">Valued at standard government rate</div>
                                     </div>
-                                )}
-                            </div>
-                        )}
+                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Supply Turnaround Rate</div>
+                                        <div className="text-3xl font-black text-emerald-600">{inventoryAnalytics.deliveryRate}%</div>
+                                        <div className="text-xs text-slate-500 font-medium mt-1">Consignments confirmed delivered</div>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Storage Depots</div>
+                                        <div className="text-3xl font-black text-slate-900">{myStores.length}</div>
+                                        <div className="text-xs text-slate-500 font-medium mt-1">Central & Sub-County Points</div>
+                                    </div>
+                                </div>
 
-                        {inventorySubTab === 'dispatch' && (
-                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-50/50 border-b border-slate-100">
-                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Dispatched Item</th>
-                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Destination Facility</th>
-                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Logistics & Driver</th>
-                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Dispatched Time</th>
-                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {myInventory.filter(i => i.status === 'in_transit' || i.dispatchedAt).length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
-                                                        No active dispatches found. Dispatched items will appear here.
-                                                    </td>
-                                                </tr>
+                                {/* Category Allocation & Valuation Breakdown */}
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                    <div className="lg:col-span-7 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Category Distribution & Valuation</h3>
+                                                <p className="text-xs text-slate-500 font-medium">Supply breakdown by classification</p>
+                                            </div>
+                                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
+                                                {Object.keys(inventoryAnalytics.categoryTotals).length} Active Categories
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            {Object.entries(inventoryAnalytics.categoryTotals).map(([catName, stats]) => {
+                                                const sharePercent = inventoryAnalytics.totalValuationKES > 0 
+                                                    ? Math.round((stats.valueKES / inventoryAnalytics.totalValuationKES) * 100)
+                                                    : 0;
+
+                                                return (
+                                                    <div key={catName} className="space-y-1.5 p-3 rounded-2xl bg-slate-50/70 border border-slate-100">
+                                                        <div className="flex items-center justify-between text-xs">
+                                                            <span className="font-black text-slate-900 uppercase">{catName}</span>
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="text-slate-500 font-bold">{stats.totalQty.toLocaleString()} units</span>
+                                                                <span className="font-mono font-black text-indigo-700">KES {stats.valueKES.toLocaleString()}</span>
+                                                                <span className="text-[10px] font-black bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{sharePercent}%</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                                                            <div 
+                                                                className="bg-indigo-600 h-2 rounded-full transition-all duration-500"
+                                                                style={{ width: `${Math.max(sharePercent, 4)}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Facility Allocation Matrix */}
+                                    <div className="lg:col-span-5 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Top Recipient Facilities</h3>
+                                                <p className="text-xs text-slate-500 font-medium">Ranked by units dispatched</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto pr-1">
+                                            {inventoryAnalytics.facilityTotals.length === 0 ? (
+                                                <div className="text-center py-8 text-xs text-slate-400 font-bold uppercase">
+                                                    No facility dispatches logged yet.
+                                                </div>
                                             ) : (
-                                                myInventory.filter(i => i.status === 'in_transit' || i.dispatchedAt).map(item => (
-                                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="text-sm font-black text-slate-900 uppercase">{item.name}</div>
-                                                            <div className="text-[10px] font-bold text-slate-400">{item.quantity} {item.unit}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="text-xs font-bold text-slate-800">
-                                                                {institutions.find(inst => inst.id === item.targetInstitutionId)?.name || 'Pending Destination'}
+                                                inventoryAnalytics.facilityTotals.slice(0, 8).map((fac, idx) => (
+                                                    <div key={idx} className="py-3 flex items-center justify-between hover:bg-slate-50/50 rounded-xl px-2 transition-colors">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 font-black text-xs flex items-center justify-center">
+                                                                {idx + 1}
                                                             </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                                                                <TruckIcon className="w-3.5 h-3.5 text-indigo-500" />
-                                                                {item.deliveryMethod === 'driver' ? (item.driverName || 'Driver Dispatched') : (item.trackingNumber || 'Parcel')}
+                                                            <div>
+                                                                <div className="text-xs font-black text-slate-900 uppercase truncate max-w-[180px]">
+                                                                    {fac.institution?.name || 'Assigned School'}
+                                                                </div>
+                                                                <div className="text-[10px] text-slate-400">
+                                                                    {fac.totalItems} consignment line{fac.totalItems === 1 ? '' : 's'}
+                                                                </div>
                                                             </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-medium">
-                                                            {item.dispatchedAt ? new Date(item.dispatchedAt).toLocaleDateString() : 'Recent'}
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${
-                                                                item.status === 'received' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
-                                                            }`}>
-                                                                {item.status.replace('_', ' ')}
+                                                        </div>
+
+                                                        <div className="text-right">
+                                                            <div className="text-xs font-black text-slate-900 font-mono">
+                                                                {fac.totalQty.toLocaleString()} units
+                                                            </div>
+                                                            <span className="text-[9px] font-bold text-emerald-600">
+                                                                {fac.receivedQty} verified delivered
                                                             </span>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                            {item.status === 'in_transit' && (
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        await onUpdateInventoryItem?.(item.id, { ...item, status: 'received' });
-                                                                        onLogAction?.(`Confirmed delivery of ${item.name}`);
-                                                                    }}
-                                                                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors shadow-sm"
-                                                                >
-                                                                    Mark Delivered
-                                                                </button>
-                                                            )}
-                                                        </td>
-                                                    </tr>
+                                                        </div>
+                                                    </div>
                                                 ))
                                             )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-
-                        {inventorySubTab === 'reports' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Stock Items</div>
-                                    <div className="text-3xl font-black text-slate-900">{myInventory.length}</div>
-                                    <div className="text-xs text-slate-500 font-medium mt-1">Across all facilities</div>
-                                </div>
-                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Configured Categories</div>
-                                    <div className="text-3xl font-black text-indigo-600">{myCategories.length}</div>
-                                    <div className="text-xs text-slate-500 font-medium mt-1">Supply classifications</div>
-                                </div>
-                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">County Store Depots</div>
-                                    <div className="text-3xl font-black text-emerald-600">{myStores.length}</div>
-                                    <div className="text-xs text-slate-500 font-medium mt-1">Active storage points</div>
-                                </div>
-                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Delivered Shipments</div>
-                                    <div className="text-3xl font-black text-slate-900">{myInventory.filter(i => i.status === 'received').length}</div>
-                                    <div className="text-xs text-slate-500 font-medium mt-1">Confirmed at school/facility</div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -2773,6 +4511,21 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                         }`}
                                     >
                                         <Building className="w-4 h-4" /> Contact & Location
+                                    </button>
+                                    <button
+                                        onClick={() => setSettingsSubTab('fleet')}
+                                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                            settingsSubTab === 'fleet'
+                                                ? 'bg-slate-900 text-white shadow-md'
+                                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                        }`}
+                                    >
+                                        <TruckIcon className="w-4 h-4" /> Fleet Registry
+                                        <span className={`text-[10px] py-0.5 px-2 rounded-full font-bold ${
+                                            settingsSubTab === 'fleet' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                                        }`}>
+                                            {activeFleetVehicles.length}
+                                        </span>
                                     </button>
                                     <button
                                         onClick={() => setSettingsSubTab('preview')}
@@ -3433,6 +5186,465 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                         </div>
                                     </div>
                                 )}
+
+                                {/* TAB: COUNTY FLEET REGISTRY */}
+                                {settingsSubTab === 'fleet' && (
+                                    <div className="space-y-8 animate-fade-in-up">
+                                        {/* Top Banner & Quick Actions */}
+                                        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/20 p-8 rounded-[2.5rem] text-white shadow-xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 text-[10px] font-black rounded-full border border-indigo-500/30 uppercase tracking-widest flex items-center gap-1.5">
+                                                        <TruckIcon className="w-3.5 h-3.5" /> County Logistics & Fleet Directorate
+                                                    </span>
+                                                    <span className="text-[10px] font-mono text-slate-400">
+                                                        Code: {myCounty?.code || '047'}
+                                                    </span>
+                                                </div>
+                                                <h3 className="text-2xl lg:text-3xl font-black uppercase tracking-tight text-white">
+                                                    Official Fleet Registry
+                                                </h3>
+                                                <p className="text-xs font-medium text-slate-300 max-w-2xl mt-1 leading-relaxed">
+                                                    Unified asset ledger for official county governor escorts, CBC school transit buses, emergency ambulances, agricultural extension trucks, fire tenders, and assigned county drivers.
+                                                </p>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleOpenAddVehicle}
+                                                    className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer"
+                                                >
+                                                    <Plus className="w-4 h-4" /> Register Vehicle
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleLoadSampleFleet}
+                                                    className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl text-xs font-black uppercase tracking-wider border border-slate-700 transition-all flex items-center gap-2 cursor-pointer"
+                                                    title="Load pre-configured standard County fleet vehicles"
+                                                >
+                                                    <RefreshCw className="w-4 h-4" /> Load Sample Fleet
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleExportFleetCsv}
+                                                    className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-2xl text-xs font-black uppercase tracking-wider border border-slate-700 transition-all flex items-center gap-2 cursor-pointer"
+                                                    title="Export Fleet Database as CSV spreadsheet"
+                                                >
+                                                    <Download className="w-4 h-4" /> Export CSV
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* 4 Metric Statistics Cards */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                                            {/* Total Fleet */}
+                                            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                                                        <Car className="w-6 h-6" />
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
+                                                        Total Assets
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-3xl font-black text-slate-900">{fleetStats.total}</h4>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
+                                                        Registered County Vehicles
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Operational Vehicles */}
+                                            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+                                                        <ShieldCheck className="w-6 h-6" />
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                        {fleetStats.readinessPct}% Ready
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-3xl font-black text-emerald-600">{fleetStats.operational}</h4>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
+                                                        Active On Road
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Service / Repairs Due */}
+                                            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
+                                                        <Wrench className="w-6 h-6" />
+                                                    </div>
+                                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                                                        fleetStats.serviceDue > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'
+                                                    }`}>
+                                                        {fleetStats.serviceDue > 0 ? 'Action Required' : 'All Clear'}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-3xl font-black text-amber-600">
+                                                        {fleetStats.serviceDue + fleetStats.inRepair}
+                                                    </h4>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
+                                                        Service Due / In Maintenance
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Driver Assignments */}
+                                            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                                                        <UserGroupIcon className="w-6 h-6" />
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
+                                                        Crew
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-3xl font-black text-slate-900">{fleetStats.assignedDrivers}</h4>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
+                                                        Assigned Official Drivers
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Search, Filter & Quick Controls Bar */}
+                                        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm space-y-4">
+                                            <div className="flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
+                                                {/* Search Box */}
+                                                <div className="relative flex-1">
+                                                    <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                                    <input
+                                                        type="text"
+                                                        value={vehicleSearch}
+                                                        onChange={e => setVehicleSearch(e.target.value)}
+                                                        placeholder="Search vehicle plate, make, model, driver, fuel card, tracker ID..."
+                                                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-600 outline-none transition-all"
+                                                    />
+                                                    {vehicleSearch && (
+                                                        <button
+                                                            onClick={() => setVehicleSearch('')}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                                        >
+                                                            <CloseIcon className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Dropdown Filters */}
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    {/* Category Filter */}
+                                                    <select
+                                                        value={vehicleTypeFilter}
+                                                        onChange={e => setVehicleTypeFilter(e.target.value)}
+                                                        className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-600 cursor-pointer"
+                                                    >
+                                                        <option value="all">All Vehicle Types</option>
+                                                        <option value="Executive SUV / Sedan">Executive SUV / Sedan</option>
+                                                        <option value="School Transit Bus">School Transit Bus</option>
+                                                        <option value="Ambulance / Emergency EMS">Ambulance / Emergency EMS</option>
+                                                        <option value="Agricultural Extension 4x4">Agricultural Extension 4x4</option>
+                                                        <option value="Fire & Rescue Engine">Fire & Rescue Engine</option>
+                                                        <option value="Public Works / Tipper & Grader">Public Works / Tipper & Grader</option>
+                                                        <option value="Water Bowser / Waste Compactor">Water Bowser / Waste Compactor</option>
+                                                        <option value="Motorcycle / Dispatch Courier">Motorcycle / Dispatch Courier</option>
+                                                    </select>
+
+                                                    {/* Department Filter */}
+                                                    <select
+                                                        value={vehicleDeptFilter}
+                                                        onChange={e => setVehicleDeptFilter(e.target.value)}
+                                                        className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-600 cursor-pointer"
+                                                    >
+                                                        <option value="all">All County Departments</option>
+                                                        <option value="Executive Office of the Governor">Executive Office of the Governor</option>
+                                                        <option value="Education, Science & ICT">Education, Science & ICT</option>
+                                                        <option value="Health & Sanitation Services">Health & Sanitation Services</option>
+                                                        <option value="Agriculture, Livestock & Fisheries">Agriculture, Livestock & Fisheries</option>
+                                                        <option value="Transport, Roads & Public Works">Transport, Roads & Public Works</option>
+                                                        <option value="Environment, Water & Natural Resources">Environment, Water & Natural Resources</option>
+                                                        <option value="Finance & Economic Planning">Finance & Economic Planning</option>
+                                                        <option value="County Inspectorate & Enforcement">County Inspectorate & Enforcement</option>
+                                                    </select>
+
+                                                    {/* Status Filter */}
+                                                    <select
+                                                        value={vehicleStatusFilter}
+                                                        onChange={e => setVehicleStatusFilter(e.target.value)}
+                                                        className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-600 cursor-pointer"
+                                                    >
+                                                        <option value="all">All Statuses</option>
+                                                        <option value="operational">Operational</option>
+                                                        <option value="service_due">Service Due</option>
+                                                        <option value="in_maintenance">In Maintenance</option>
+                                                        <option value="grounded">Grounded</option>
+                                                    </select>
+
+                                                    {(vehicleSearch || vehicleTypeFilter !== 'all' || vehicleStatusFilter !== 'all' || vehicleDeptFilter !== 'all') && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setVehicleSearch('');
+                                                                setVehicleTypeFilter('all');
+                                                                setVehicleStatusFilter('all');
+                                                                setVehicleDeptFilter('all');
+                                                            }}
+                                                            className="px-3.5 py-3 text-xs font-black text-rose-600 hover:bg-rose-50 rounded-2xl transition-colors cursor-pointer"
+                                                        >
+                                                            Reset Filters
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Fleet Ledger Table */}
+                                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-sm">
+                                                        <TruckIcon className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-base font-black uppercase tracking-tight text-slate-900">
+                                                            Active County Fleet Ledger
+                                                        </h4>
+                                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                                            Showing {filteredFleet.length} of {activeFleetVehicles.length} vehicles
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl">
+                                                    {myCounty?.name || 'County Government'} Fleet
+                                                </span>
+                                            </div>
+
+                                            {filteredFleet.length === 0 ? (
+                                                <div className="p-16 text-center space-y-4">
+                                                    <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-3xl flex items-center justify-center mx-auto">
+                                                        <Car className="w-8 h-8" />
+                                                    </div>
+                                                    <h5 className="text-lg font-black uppercase tracking-tight text-slate-800">
+                                                        No Fleet Vehicles Found
+                                                    </h5>
+                                                    <p className="text-xs text-slate-500 font-medium max-w-sm mx-auto">
+                                                        No vehicles match your current search or filter criteria. Register a new vehicle or load sample county records.
+                                                    </p>
+                                                    <div className="flex justify-center gap-3 pt-2">
+                                                        <button
+                                                            onClick={handleOpenAddVehicle}
+                                                            className="px-6 py-2.5 bg-indigo-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-indigo-100 hover:bg-indigo-700 transition-colors cursor-pointer"
+                                                        >
+                                                            Register Vehicle
+                                                        </button>
+                                                        <button
+                                                            onClick={handleLoadSampleFleet}
+                                                            className="px-6 py-2.5 bg-slate-100 text-slate-700 font-black text-xs uppercase tracking-wider rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
+                                                        >
+                                                            Load Sample Fleet
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead>
+                                                            <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50/70">
+                                                                <th className="py-4 px-6">Vehicle / Plate</th>
+                                                                <th className="py-4 px-6">Ministry & Station</th>
+                                                                <th className="py-4 px-6">Assigned Driver</th>
+                                                                <th className="py-4 px-6 font-mono">Mileage & Next Service</th>
+                                                                <th className="py-4 px-6">Compliance & Fuel</th>
+                                                                <th className="py-4 px-6 text-center">Status</th>
+                                                                <th className="py-4 px-6 text-right">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 text-xs">
+                                                            {filteredFleet.map((veh) => {
+                                                                const isServiceOverdue = veh.currentOdometerKm >= veh.nextServiceDueKm;
+                                                                const kmUntilService = veh.nextServiceDueKm - veh.currentOdometerKm;
+                                                                const isInsuranceNear = veh.insuranceExpiryDate ? 
+                                                                    (new Date(veh.insuranceExpiryDate).getTime() - Date.now() < 30 * 86400000) : false;
+
+                                                                return (
+                                                                    <tr key={veh.id} className="hover:bg-slate-50/80 transition-colors group">
+                                                                        {/* Vehicle Plate & Type */}
+                                                                        <td className="py-4 px-6">
+                                                                            <div className="flex items-center gap-3">
+                                                                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm shadow-sm ${
+                                                                                    veh.status === 'operational' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                                                                    veh.status === 'service_due' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                                                                                    veh.status === 'in_maintenance' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                                                                                    'bg-slate-100 text-slate-700 border border-slate-200'
+                                                                                }`}>
+                                                                                    <Car className="w-5 h-5" />
+                                                                                </div>
+                                                                                <div>
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <span className="font-mono font-black text-sm text-slate-900 tracking-wider">
+                                                                                            {veh.vehicleReg}
+                                                                                        </span>
+                                                                                        {veh.purchaseYear && (
+                                                                                            <span className="text-[9px] font-mono text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded">
+                                                                                                '{String(veh.purchaseYear).slice(-2)}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <p className="text-xs font-bold text-slate-700 leading-tight">
+                                                                                        {veh.makeModel}
+                                                                                    </p>
+                                                                                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600">
+                                                                                        {veh.vehicleType}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+
+                                                                        {/* Department & Sub-County */}
+                                                                        <td className="py-4 px-6">
+                                                                            <div className="space-y-1">
+                                                                                <span className="inline-block px-2.5 py-1 bg-slate-100 text-slate-800 text-[10px] font-black rounded-lg uppercase tracking-wider">
+                                                                                    {veh.department}
+                                                                                </span>
+                                                                                {veh.assignedSubCounty && (
+                                                                                    <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                                                                                        <MapPinIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                                                        <span>{veh.assignedSubCounty}</span>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </td>
+
+                                                                        {/* Assigned Driver */}
+                                                                        <td className="py-4 px-6">
+                                                                            {veh.assignedDriverName ? (
+                                                                                <div className="space-y-0.5">
+                                                                                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                                                                        <UserIcon className="w-3.5 h-3.5 text-indigo-500" />
+                                                                                        {veh.assignedDriverName}
+                                                                                    </div>
+                                                                                    {veh.assignedDriverPhone && (
+                                                                                        <a 
+                                                                                            href={`tel:${veh.assignedDriverPhone}`}
+                                                                                            className="text-[11px] font-mono font-bold text-indigo-600 hover:underline block"
+                                                                                        >
+                                                                                            {veh.assignedDriverPhone}
+                                                                                        </a>
+                                                                                    )}
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-slate-400 italic text-[11px]">
+                                                                                    Pool / Unassigned
+                                                                                </span>
+                                                                            )}
+                                                                        </td>
+
+                                                                        {/* Mileage & Service */}
+                                                                        <td className="py-4 px-6 font-mono">
+                                                                            <div className="space-y-1">
+                                                                                <div className="flex items-center justify-between text-xs">
+                                                                                    <span className="font-black text-slate-900">{veh.currentOdometerKm.toLocaleString()} KM</span>
+                                                                                    <span className="text-[10px] text-slate-400 font-bold">Target: {veh.nextServiceDueKm.toLocaleString()} KM</span>
+                                                                                </div>
+                                                                                {isServiceOverdue ? (
+                                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[10px] font-black uppercase tracking-wider border border-rose-200 animate-pulse">
+                                                                                        <AlertTriangle className="w-3 h-3" /> Service Overdue
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                                            <div 
+                                                                                                className="h-full bg-indigo-600 rounded-full" 
+                                                                                                style={{ width: `${Math.min(100, Math.max(5, (veh.currentOdometerKm / veh.nextServiceDueKm) * 100))}%` }}
+                                                                                            />
+                                                                                        </div>
+                                                                                        <span className="text-[10px] text-slate-500 font-bold">
+                                                                                            in {kmUntilService.toLocaleString()} KM
+                                                                                        </span>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </td>
+
+                                                                        {/* Compliance & Fuel */}
+                                                                        <td className="py-4 px-6 text-[11px]">
+                                                                            <div className="space-y-1">
+                                                                                <div className="flex items-center gap-1.5 text-slate-700">
+                                                                                    <Fuel className="w-3.5 h-3.5 text-amber-500" />
+                                                                                    <span className="font-bold">{veh.fuelType || 'Diesel'}</span>
+                                                                                    {veh.fuelCardNumber && (
+                                                                                        <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded">
+                                                                                            {veh.fuelCardNumber}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                                {veh.insuranceExpiryDate && (
+                                                                                    <div className={`text-[10px] font-mono ${isInsuranceNear ? 'text-rose-600 font-black' : 'text-slate-400'}`}>
+                                                                                        Ins: {veh.insuranceExpiryDate}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </td>
+
+                                                                        {/* Status Badge */}
+                                                                        <td className="py-4 px-6 text-center">
+                                                                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                                                                veh.status === 'operational' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                                                veh.status === 'service_due' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                                                veh.status === 'in_maintenance' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                                                                'bg-slate-100 text-slate-600 border border-slate-200'
+                                                                            }`}>
+                                                                                {veh.status === 'operational' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                                                                                {veh.status.replace('_', ' ')}
+                                                                            </span>
+                                                                        </td>
+
+                                                                        {/* Action Buttons */}
+                                                                        <td className="py-4 px-6 text-right">
+                                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleLogServiceDone(veh)}
+                                                                                    className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl transition-colors cursor-pointer"
+                                                                                    title="Log 5,000 KM service maintenance completed"
+                                                                                >
+                                                                                    <Wrench className="w-4 h-4" />
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleOpenEditVehicle(veh)}
+                                                                                    className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors cursor-pointer"
+                                                                                    title="Edit vehicle details"
+                                                                                >
+                                                                                    <Edit className="w-4 h-4" />
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleDeleteVehicleConfirm(veh.id, veh.vehicleReg)}
+                                                                                    className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-colors cursor-pointer"
+                                                                                    title="Decommission vehicle from fleet"
+                                                                                >
+                                                                                    <Trash2 className="w-4 h-4" />
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         {activeTab === 'broadcaster' && (
@@ -3905,6 +6117,347 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                 </div>
             )}
 
+            {/* Official County Dispatch Waybill Modal (Single Item) */}
+            {showWaybillModal && (
+                <CountyWaybillModal
+                    item={showWaybillModal}
+                    county={myCounty}
+                    destinationInstitution={institutions.find(i => i.id === showWaybillModal.targetInstitutionId)}
+                    institutions={institutions}
+                    onClose={() => setShowWaybillModal(null)}
+                    onMarkDelivered={async (item) => {
+                        await onUpdateInventoryItem?.(item.id, { 
+                            ...item, 
+                            status: 'received',
+                            receivedDate: new Date().toISOString()
+                        });
+                        onLogAction?.(`Confirmed delivery of ${item.name} via Waybill`);
+                    }}
+                />
+            )}
+
+            {/* Official Multi-School Consignment Waybill Modal (Batch Manifest) */}
+            {showManifestWaybillModal && (
+                <CountyWaybillModal
+                    manifest={showManifestWaybillModal}
+                    county={myCounty}
+                    institutions={institutions}
+                    onClose={() => setShowManifestWaybillModal(null)}
+                    onMarkManifestDelivered={handleMarkManifestDelivered}
+                    onMarkDropDelivered={handleMarkDropDelivered}
+                />
+            )}
+
+            {/* Multi-Drop Truck Consignment Dispatch Modal */}
+            {showBatchDispatchModal && (
+                <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-5xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100 my-8">
+                        {/* Modal Header */}
+                        <div className="p-6 md:p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
+                                    <Truck className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                        Multi-Drop Truck Dispatch
+                                    </h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                                        Consolidated Multi-School Consignment · {myCounty.name}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowBatchDispatchModal(false)}
+                                className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors cursor-pointer"
+                            >
+                                <CloseIcon className="w-5 h-5 text-slate-600" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveBatchDispatchSubmit} className="p-6 md:p-8 space-y-8 max-h-[80vh] overflow-y-auto">
+                            {/* SECTION 1: CARRIER VEHICLE & ROUTE */}
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-400">
+                                    <Truck className="w-4 h-4 text-indigo-600" />
+                                    Step 1: Carrier Vehicle, Driver & Route Assignment
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 rounded-3xl bg-slate-50 border border-slate-200/80">
+                                    {/* Carrier Plate */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Vehicle Plate / Truck
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                required
+                                                value={batchDispatchForm.vehicleReg}
+                                                onChange={e => setBatchDispatchForm({ ...batchDispatchForm, vehicleReg: e.target.value })}
+                                                placeholder="e.g. 47 CG 018 B"
+                                                list="county-fleet-datalist"
+                                                className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-mono font-black text-sm outline-none uppercase bg-white"
+                                            />
+                                            <datalist id="county-fleet-datalist">
+                                                {activeFleetVehicles.map(v => (
+                                                    <option key={v.id} value={v.vehicleReg}>
+                                                        {v.makeModel} - {v.assignedDriverName || 'No driver assigned'}
+                                                    </option>
+                                                ))}
+                                            </datalist>
+                                        </div>
+                                    </div>
+
+                                    {/* Make / Model */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Truck Type / Make
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={batchDispatchForm.vehicleType}
+                                            onChange={e => setBatchDispatchForm({ ...batchDispatchForm, vehicleType: e.target.value })}
+                                            placeholder="e.g. Isuzu FRR 10-Tonne"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                        />
+                                    </div>
+
+                                    {/* Driver Name */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Assigned Driver Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={batchDispatchForm.driverName}
+                                            onChange={e => setBatchDispatchForm({ ...batchDispatchForm, driverName: e.target.value })}
+                                            placeholder="e.g. Corporal David Ochieng"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                        />
+                                    </div>
+
+                                    {/* Driver Phone */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Driver Phone Number
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={batchDispatchForm.driverPhone}
+                                            onChange={e => setBatchDispatchForm({ ...batchDispatchForm, driverPhone: e.target.value })}
+                                            placeholder="+254 711 000 000"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                        />
+                                    </div>
+
+                                    {/* Origin Depot */}
+                                    <div className="sm:col-span-2">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Origin Dispatch Depot
+                                        </label>
+                                        <select
+                                            value={batchDispatchForm.departureDepot}
+                                            onChange={e => setBatchDispatchForm({ ...batchDispatchForm, departureDepot: e.target.value })}
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                        >
+                                            <option value="Central County HQ Logistics Warehouse">Central County HQ Logistics Warehouse</option>
+                                            {myStores.map(store => (
+                                                <option key={store.id} value={store.name}>{store.name} ({store.locationName})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Planned Route */}
+                                    <div className="sm:col-span-2">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Planned Route Description / Corridor
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={batchDispatchForm.routeDescription}
+                                            onChange={e => setBatchDispatchForm({ ...batchDispatchForm, routeDescription: e.target.value })}
+                                            placeholder="e.g. Central Depot → Sub-County North Route (School A → School B → School C)"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* SECTION 2: MULTI-ITEM MULTI-SCHOOL CARGO DROPS */}
+                            <div className="space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-400">
+                                        <Package className="w-4 h-4 text-indigo-600" />
+                                        Step 2: Consignment Line Items & Destination Schools ({batchDispatchForm.items.length} Items)
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleAddBatchDropRow}
+                                        className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer w-fit"
+                                    >
+                                        <Plus className="w-4 h-4" /> + Add Another Item / School Drop
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {batchDispatchForm.items.map((dropRow, index) => {
+                                        const hqStockOptions = myInventory.filter(i => i.status === 'at_hq');
+
+                                        return (
+                                            <div key={dropRow.id} className="p-4 sm:p-5 rounded-3xl bg-slate-50/70 border border-slate-200 space-y-4">
+                                                <div className="flex justify-between items-center border-b border-slate-200/60 pb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-6 h-6 rounded-lg bg-slate-900 text-white font-black text-xs flex items-center justify-center">
+                                                            #{index + 1}
+                                                        </span>
+                                                        <span className="text-xs font-black text-slate-800 uppercase tracking-tight">
+                                                            Consignment Cargo Drop
+                                                        </span>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveBatchDropRow(index)}
+                                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                                        title="Remove this item"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+                                                    {/* Select Existing Stock or Custom */}
+                                                    <div className="lg:col-span-4">
+                                                        <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 ml-1">
+                                                            Select Stock Item (HQ Stock)
+                                                        </label>
+                                                        <select
+                                                            value={dropRow.inventoryItemId || ''}
+                                                            onChange={e => handleBatchDropItemChange(index, 'inventoryItemId', e.target.value)}
+                                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-xs outline-none bg-white mb-2"
+                                                        >
+                                                            <option value="">-- Custom Consignment Item --</option>
+                                                            {hqStockOptions.map(stock => (
+                                                                <option key={stock.id} value={stock.id}>
+                                                                    {stock.name} ({stock.quantity} {stock.unit} available)
+                                                                </option>
+                                                            ))}
+                                                        </select>
+
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            value={dropRow.name}
+                                                            onChange={e => handleBatchDropItemChange(index, 'name', e.target.value)}
+                                                            placeholder="Item Name / Description"
+                                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 font-bold text-xs outline-none bg-white"
+                                                        />
+                                                    </div>
+
+                                                    {/* Category & Unit */}
+                                                    <div className="lg:col-span-2">
+                                                        <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 ml-1">
+                                                            Category
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={dropRow.category}
+                                                            onChange={e => handleBatchDropItemChange(index, 'category', e.target.value)}
+                                                            placeholder="e.g. Education, Health"
+                                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 font-bold text-xs outline-none bg-white mb-2"
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            value={dropRow.unit}
+                                                            onChange={e => handleBatchDropItemChange(index, 'unit', e.target.value)}
+                                                            placeholder="Packaging (Cartons, Kits)"
+                                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 font-bold text-xs outline-none bg-white"
+                                                        />
+                                                    </div>
+
+                                                    {/* Quantity */}
+                                                    <div className="lg:col-span-2">
+                                                        <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 ml-1">
+                                                            Quantity Loaded
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            required
+                                                            min="1"
+                                                            value={dropRow.quantity}
+                                                            onChange={e => handleBatchDropItemChange(index, 'quantity', Number(e.target.value))}
+                                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 font-black text-sm text-indigo-700 outline-none bg-white"
+                                                        />
+                                                    </div>
+
+                                                    {/* Destination School */}
+                                                    <div className="lg:col-span-4">
+                                                        <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 ml-1">
+                                                            Destination School / Facility *
+                                                        </label>
+                                                        <select
+                                                            required
+                                                            value={dropRow.targetInstitutionId}
+                                                            onChange={e => handleBatchDropItemChange(index, 'targetInstitutionId', e.target.value)}
+                                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 font-black text-xs outline-none bg-white mb-2"
+                                                        >
+                                                            <option value="">-- Choose Destination School --</option>
+                                                            {myInstitutions.map(inst => (
+                                                                <option key={inst.id} value={inst.id}>
+                                                                    {inst.name} ({inst.subCounty || 'County HQ'})
+                                                                </option>
+                                                            ))}
+                                                        </select>
+
+                                                        <input
+                                                            type="text"
+                                                            value={dropRow.recipientName}
+                                                            onChange={e => handleBatchDropItemChange(index, 'recipientName', e.target.value)}
+                                                            placeholder="Recipient Contact / Head Name"
+                                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 font-bold text-xs outline-none bg-white"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Consignment Overview Banner */}
+                            <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-indigo-900">
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                                    <span>
+                                        Ready to dispatch: <strong>{batchDispatchForm.items.reduce((s, i) => s + Number(i.quantity || 0), 0)} total units</strong> across <strong>{new Set(batchDispatchForm.items.map(i => i.targetInstitutionId)).size} destination schools</strong> on truck <strong>{batchDispatchForm.vehicleReg || 'Pending Plate'}</strong>.
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Modal Actions */}
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowBatchDispatchModal(false)}
+                                    className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors flex items-center gap-2 cursor-pointer"
+                                >
+                                    <Truck className="w-4 h-4" /> Dispatch Truck & Generate Waybill
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* QR Asset Code Modal */}
             {showQrModal && (
                 <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -4238,6 +6791,656 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+            {/* Edit Institution Modal */}
+            {showEditInstitutionModal && editingInstitution && (
+                <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full">
+                                        Update Registry
+                                    </span>
+                                    <span className="text-[10px] font-mono text-slate-400">• ID: {editingInstitution.id}</span>
+                                </div>
+                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                    Edit Institution Details
+                                </h3>
+                                <p className="text-xs text-slate-500 font-medium">
+                                    Modify information for {editingInstitution.name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setShowEditInstitutionModal(false);
+                                    setEditingInstitution(null);
+                                }}
+                                className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <CloseIcon className="w-5 h-5 text-slate-600" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveInstitutionSubmit} className="p-8 overflow-y-auto space-y-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="sm:col-span-2">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Institution Name *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={institutionEditForm.name}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, name: e.target.value })}
+                                        placeholder="e.g. St. Joseph Technical Academy"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Sector Type
+                                    </label>
+                                    <select
+                                        value={institutionEditForm.institutionType}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, institutionType: e.target.value })}
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                    >
+                                        <option value="Education">Education Sector (School/College)</option>
+                                        <option value="HIS">Health Sector (Hospital/Clinic)</option>
+                                        <option value="Cooperative">Agriculture / Cooperative</option>
+                                        <option value="Business">County Business / Enterprise</option>
+                                        <option value="Law">Legal / Law Practice</option>
+                                        <option value="DrivingSchool">Driving School / Transport</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Category / Level
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={institutionEditForm.category}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, category: e.target.value })}
+                                        placeholder="e.g. Secondary School, Level 4 Hospital"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Official Email *
+                                    </label>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={institutionEditForm.email}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, email: e.target.value })}
+                                        placeholder="admin@institution.eduai.io"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Phone Number *
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        required
+                                        value={institutionEditForm.phoneNumber}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, phoneNumber: e.target.value })}
+                                        placeholder="+254700000000"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Sub-County / Zone
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={institutionEditForm.subCounty}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, subCounty: e.target.value })}
+                                        placeholder="e.g. Westlands, Central Sub-County"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Constituency
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={institutionEditForm.constituency}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, constituency: e.target.value })}
+                                        placeholder="e.g. Dagoretti North"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Ward
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={institutionEditForm.ward}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, ward: e.target.value })}
+                                        placeholder="e.g. Kilimani Ward"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Operating Status
+                                    </label>
+                                    <select
+                                        value={institutionEditForm.status}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, status: e.target.value as any })}
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                    >
+                                        <option value="active">Active (Operational)</option>
+                                        <option value="trial">Trial Period</option>
+                                        <option value="suspended">Suspended</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Institution Code
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={institutionEditForm.institutionCode}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, institutionCode: e.target.value })}
+                                        placeholder="e.g. INST-0091-KE"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm font-mono outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Website URL
+                                    </label>
+                                    <input
+                                        type="url"
+                                        value={institutionEditForm.website}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, website: e.target.value })}
+                                        placeholder="https://institution.co.ke"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+
+                                <div className="sm:col-span-2">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                        Physical Address & Location
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={institutionEditForm.address}
+                                        onChange={e => setInstitutionEditForm({ ...institutionEditForm, address: e.target.value })}
+                                        placeholder="e.g. Off Waiyaki Way, Nairobi"
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowEditInstitutionModal(false);
+                                        setEditingInstitution(null);
+                                    }}
+                                    className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSavingInstitution}
+                                    className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors flex items-center gap-2"
+                                >
+                                    {isSavingInstitution ? (
+                                        <>
+                                            <RefreshCw className="w-4 h-4 animate-spin" /> Saving Changes...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="w-4 h-4" /> Save Changes
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Institution Confirmation Modal */}
+            {deletingInstitution && (
+                <div className="fixed inset-0 z-[120] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl border border-rose-100">
+                        <div className="p-8 text-center space-y-4">
+                            <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-3xl flex items-center justify-center mx-auto shadow-sm border border-rose-100">
+                                <Trash2 className="w-8 h-8" />
+                            </div>
+                            <div className="space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-rose-600 bg-rose-50 px-3 py-1 rounded-full">
+                                    Permanent Action
+                                </span>
+                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mt-2">
+                                    Delete Institution?
+                                </h3>
+                                <p className="text-slate-500 text-xs font-medium max-w-sm mx-auto">
+                                    Are you sure you want to delete <strong className="text-slate-900">{deletingInstitution.name}</strong> ({deletingInstitution.institutionCode || deletingInstitution.id})? This will remove the institution and its associations from the county registry.
+                                </p>
+                            </div>
+
+                            <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-100 text-left space-y-1 text-xs">
+                                <div className="text-[10px] font-black uppercase text-rose-700 tracking-wider">Warning</div>
+                                <p className="text-rose-900 font-medium text-[11px]">
+                                    This action cannot be undone. Any active portal sessions and mapped records will be deregistered.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50/80 border-t border-slate-100 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setDeletingInstitution(null)}
+                                className="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-black text-xs uppercase tracking-wider transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmDeleteInstitution}
+                                disabled={isDeletingInstitution}
+                                className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-rose-200 transition-colors flex items-center gap-2"
+                            >
+                                {isDeletingInstitution ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" /> Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-4 h-4" /> Yes, Delete Institution
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Register / Edit Fleet Vehicle Modal */}
+            {showVehicleModal && (
+                <div className="fixed inset-0 z-[115] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                        <TruckIcon className="w-3 h-3" /> Fleet Directorate
+                                    </span>
+                                    {editingVehicle && (
+                                        <span className="text-[10px] font-mono text-slate-400">• ID: {editingVehicle.id}</span>
+                                    )}
+                                </div>
+                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                    {editingVehicle ? 'Edit Fleet Vehicle' : 'Register New Fleet Vehicle'}
+                                </h3>
+                                <p className="text-xs text-slate-500 font-medium">
+                                    {editingVehicle ? `Update details for ${editingVehicle.vehicleReg}` : `Add a government asset under ${myCounty?.name || 'County'} logistics ledger`}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setShowVehicleModal(false);
+                                    setEditingVehicle(null);
+                                }}
+                                className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors cursor-pointer"
+                            >
+                                <CloseIcon className="w-5 h-5 text-slate-600" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveVehicleSubmit} className="p-8 overflow-y-auto space-y-6">
+                            {/* Section 1: Identity & Classification */}
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
+                                    <Car className="w-4 h-4 text-indigo-600" /> Vehicle Identification & Classification
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Registration Plate Number *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={vehicleForm.vehicleReg || ''}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, vehicleReg: e.target.value.toUpperCase() })}
+                                            placeholder="e.g. 47 CG 001 A / KDA 489X"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-black text-sm font-mono uppercase outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Make & Model *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={vehicleForm.makeModel || ''}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, makeModel: e.target.value })}
+                                            placeholder="e.g. Toyota Land Cruiser Prado TX / Isuzu FRR 33-Seater"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Vehicle Category / Role
+                                        </label>
+                                        <select
+                                            value={vehicleForm.vehicleType || 'Executive SUV / Sedan'}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, vehicleType: e.target.value })}
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white cursor-pointer"
+                                        >
+                                            <option value="Executive SUV / Sedan">Executive SUV / Sedan (Governor & VIP Escort)</option>
+                                            <option value="School Transit Bus">School Transit Bus (CBC Student Shuttle)</option>
+                                            <option value="Ambulance / Emergency EMS">Ambulance / Emergency EMS (Hospital Referral)</option>
+                                            <option value="Agricultural Extension 4x4">Agricultural Extension 4x4 (Field Officer Pickup)</option>
+                                            <option value="Fire & Rescue Engine">Fire & Rescue Engine (Emergency Response)</option>
+                                            <option value="Public Works / Tipper & Grader">Public Works / Tipper & Grader (Roads & Mechanical)</option>
+                                            <option value="Water Bowser / Waste Compactor">Water Bowser / Waste Compactor (Sanitation)</option>
+                                            <option value="Motorcycle / Dispatch Courier">Motorcycle / Dispatch Courier (Memos & Field)</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Assigned County Ministry / Department
+                                        </label>
+                                        <select
+                                            value={vehicleForm.department || 'Executive Office of the Governor'}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, department: e.target.value })}
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white cursor-pointer"
+                                        >
+                                            <option value="Executive Office of the Governor">Executive Office of the Governor</option>
+                                            <option value="Education, Science & ICT">Education, Science & ICT</option>
+                                            <option value="Health & Sanitation Services">Health & Sanitation Services</option>
+                                            <option value="Agriculture, Livestock & Fisheries">Agriculture, Livestock & Fisheries</option>
+                                            <option value="Transport, Roads & Public Works">Transport, Roads & Public Works</option>
+                                            <option value="Environment, Water & Natural Resources">Environment, Water & Natural Resources</option>
+                                            <option value="Finance & Economic Planning">Finance & Economic Planning</option>
+                                            <option value="County Inspectorate & Enforcement">County Inspectorate & Enforcement</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 2: Driver & Station Location */}
+                            <div className="pt-2 border-t border-slate-100">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
+                                    <UserIcon className="w-4 h-4 text-indigo-600" /> Driver Assignment & Depot Location
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Assigned Driver Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            list="county-drivers-datalist"
+                                            value={vehicleForm.assignedDriverName || ''}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, assignedDriverName: e.target.value })}
+                                            placeholder="e.g. Major John Kiprotich"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                        />
+                                        <datalist id="county-drivers-datalist">
+                                            {myStaff.map(s => (
+                                                <option key={s.id} value={s.name}>{s.name} ({s.role})</option>
+                                            ))}
+                                        </datalist>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Driver Phone Number
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            value={vehicleForm.assignedDriverPhone || ''}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, assignedDriverPhone: e.target.value })}
+                                            placeholder="+254700000000"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-mono text-sm outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Station / Sub-County Depot
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={vehicleForm.assignedSubCounty || ''}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, assignedSubCounty: e.target.value })}
+                                            placeholder="e.g. County HQ / Central Depot"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 3: Mileage, Maintenance & Operational Status */}
+                            <div className="pt-2 border-t border-slate-100">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
+                                    <Wrench className="w-4 h-4 text-indigo-600" /> Mileage & Service Parameters
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Current Odometer (KM) *
+                                        </label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="0"
+                                            value={vehicleForm.currentOdometerKm || 0}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, currentOdometerKm: Number(e.target.value) })}
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-mono font-bold text-sm outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Next Service Target (KM) *
+                                        </label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="0"
+                                            value={vehicleForm.nextServiceDueKm || 5000}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, nextServiceDueKm: Number(e.target.value) })}
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-mono font-bold text-sm outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Tire Health (%)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={vehicleForm.tireHealthPct || 90}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, tireHealthPct: Number(e.target.value) })}
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-mono font-bold text-sm outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Operating Status
+                                        </label>
+                                        <select
+                                            value={vehicleForm.status || 'operational'}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, status: e.target.value as any })}
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white cursor-pointer"
+                                        >
+                                            <option value="operational">Operational (Roadworthy)</option>
+                                            <option value="service_due">Service Due (Maintenance Pending)</option>
+                                            <option value="in_maintenance">In Maintenance (In Garage)</option>
+                                            <option value="grounded">Grounded (Decommissioned)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 4: Fuel, Insurance & GPS Telemetry */}
+                            <div className="pt-2 border-t border-slate-100">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
+                                    <Fuel className="w-4 h-4 text-indigo-600" /> Fuel, Insurance & GPS Telemetry
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Fuel Type & Tank (L)
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <select
+                                                value={vehicleForm.fuelType || 'Diesel'}
+                                                onChange={e => setVehicleForm({ ...vehicleForm, fuelType: e.target.value as any })}
+                                                className="w-2/3 px-3 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-xs outline-none bg-white cursor-pointer"
+                                            >
+                                                <option value="Diesel">Diesel</option>
+                                                <option value="Petrol">Petrol</option>
+                                                <option value="Electric">Electric</option>
+                                                <option value="Hybrid">Hybrid</option>
+                                            </select>
+                                            <input
+                                                type="number"
+                                                placeholder="Liters"
+                                                value={vehicleForm.tankCapacityLiters || 80}
+                                                onChange={e => setVehicleForm({ ...vehicleForm, tankCapacityLiters: Number(e.target.value) })}
+                                                className="w-1/3 px-2 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-mono text-xs outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Fuel Fleet Card Number
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={vehicleForm.fuelCardNumber || ''}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, fuelCardNumber: e.target.value })}
+                                            placeholder="e.g. FC-NRB-8801"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-mono text-sm outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            GPS Telemetry Unit ID
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={vehicleForm.gpsTrackerId || ''}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, gpsTrackerId: e.target.value })}
+                                            placeholder="e.g. GPS-TRK-9901-X"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-mono text-sm outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Insurance Policy Number
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={vehicleForm.insurancePolicyNumber || ''}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, insurancePolicyNumber: e.target.value })}
+                                            placeholder="e.g. CIC-GOV-99201-A"
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-mono text-sm outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            Insurance Expiry Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={vehicleForm.insuranceExpiryDate || ''}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, insuranceExpiryDate: e.target.value })}
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                            NTSA Inspection Expiry Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={vehicleForm.inspectionExpiryDate || ''}
+                                            onChange={e => setVehicleForm({ ...vehicleForm, inspectionExpiryDate: e.target.value })}
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 5: Notes & Equipment Specs */}
+                            <div className="pt-2 border-t border-slate-100">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
+                                    Notes & Equipment Specs
+                                </label>
+                                <textarea
+                                    rows={2}
+                                    value={vehicleForm.notes || ''}
+                                    onChange={e => setVehicleForm({ ...vehicleForm, notes: e.target.value })}
+                                    placeholder="Special fittings, siren, refrigeration, CBC transit permit, etc."
+                                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-medium text-xs outline-none resize-none"
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowVehicleModal(false);
+                                        setEditingVehicle(null);
+                                    }}
+                                    className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-200 transition-colors flex items-center gap-2 cursor-pointer"
+                                >
+                                    <Save className="w-4 h-4" />
+                                    {editingVehicle ? 'Save Vehicle Changes' : 'Register Vehicle Asset'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
