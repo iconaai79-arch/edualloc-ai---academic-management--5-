@@ -19,7 +19,7 @@ import {
     Upload, Image as ImageIcon, FileText, Palette, Globe, Building, Save, Award,
     PenTool, Check, Sparkles, Printer, Copy, CheckCheck, RefreshCw, Megaphone, Radio, Send,
     UserCheck, Clock, AlertTriangle, TrendingUp, BarChart2, FileSpreadsheet,
-    Fuel, Car, Wrench, Gauge, ShieldCheck, Key
+    Fuel, Car, Wrench, Gauge, ShieldCheck, Key, Truck, Layers, MapPin
 } from 'lucide-react';
 
 import { 
