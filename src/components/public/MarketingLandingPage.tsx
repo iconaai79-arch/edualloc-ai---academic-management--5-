@@ -27,6 +27,7 @@ import './MarketingLanding.css';
 import { apiService } from '../../services/apiService';
 import { CompanyDetails } from '../../types';
 import { MODULES, ModuleTutorial } from '../../constants';
+import { AiSalesAgentWidget } from './AiSalesAgentWidget';
 
 import { CheckIcon } from '../icons/CheckIcon';
 import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
@@ -783,6 +784,39 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Interactive AI Solutions Consultant & Advisor */}
+      <AiSalesAgentWidget
+        institution={{
+          id: 'platform_showcase',
+          name: companyDetails?.name || 'EduAI Global Cloud OS',
+          institutionType: 'Enterprise Cloud ERP & Multi-Industry SaaS',
+          currency: 'KES',
+          phone: companyDetails?.phone || '+254 700 000 000',
+          email: companyDetails?.email || 'sales@eduai.co.ke',
+          address: 'Nairobi, Kenya',
+          themeColor: '#6366f1'
+        } as any}
+        agentName="EduAI Solutions Advisor"
+        welcomeMessage="Welcome to EduAI Platform Showcase! 🌟 I am your digital solutions consultant. I can explain module features, recommend the best ERP setup for your business (Schools, Hospitals, Saccos, Retail, Real Estate & more), or help you schedule a live interactive demo. How can I help you today?"
+        services={MODULES.map(m => ({
+          id: m.id,
+          name: m.title,
+          price: 0,
+          duration: 'Instant Cloud Setup',
+          description: m.description
+        }))}
+        contactPhone={companyDetails?.phone}
+        contactEmail={companyDetails?.email}
+        whatsappNumber={companyDetails?.phone}
+        onBookService={(service) => {
+          if (onBookDemo) {
+            onBookDemo();
+          } else if (onLaunchSimulator && service?.id) {
+            onLaunchSimulator('admin', service.id);
+          }
+        }}
+      />
     </div>
   );
 };
