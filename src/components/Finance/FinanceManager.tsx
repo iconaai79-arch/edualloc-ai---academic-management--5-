@@ -6025,6 +6025,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 <SubscriptionExpiryBanner
                     institution={props.institution}
                     isCollapsed={!isSidebarOpen}
+                    subscriptionLabel="Student Subscription"
+                    renewButtonText="Student Subscription"
+                    onRenew={() => setActiveTab('student_subscriptions')}
                 />
 
                 <nav className="space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
