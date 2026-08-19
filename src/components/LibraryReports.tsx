@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import type {
     Book, LibraryTransaction, LibraryFine, User,
@@ -45,6 +44,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     const [fines, setFines] = useState<LibraryFine[]>([]);
     const [reservations, setReservations] = useState<BookReservation[]>([]);
     const [stockReceipts, setStockReceipts] = useState<BookStockReceipt[]>([]);
+    const [enrollments, setEnrollments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchUserTerm, setSearchUserTerm] = useState('');
     const [selectedStatementUser, setSelectedStatementUser] = useState<User | null>(null);
@@ -60,24 +60,143 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [booksData, transData, finesData, resData, stockData] = await Promise.all([
+            const [booksData, transData, finesData, resData, stockData, enrollmentsData] = await Promise.all([
                 apiService.fetchModuleRecords<Book>('books', institution.id),
                 apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institution.id),
                 apiService.fetchModuleRecords<LibraryFine>('library_fines', institution.id),
                 apiService.fetchModuleRecords<BookReservation>('book_reservations', institution.id),
-                apiService.fetchModuleRecords<BookStockReceipt>('book_stock_receipts', institution.id)
+                apiService.fetchModuleRecords<BookStockReceipt>('book_stock_receipts', institution.id),
+                apiService.fetchModuleRecords<any>('student_enrollments', institution.id).catch(() => [])
             ]);
             setBooks(booksData);
             setTransactions(transData);
             setFines(finesData);
             setReservations(resData);
             setStockReceipts(stockData);
+            setEnrollments(enrollmentsData || []);
         } catch (error) {
             console.error('Error loading report data:', error);
         } finally {
             setLoading(false);
         }
     };
+
+    // Robust student / member placement resolver
+    const getMemberDetails = (user?: User | null) => {
+        if (!user) return { admissionNumber: 'No ID', gradeLevel: '', stream: '', classDisplay: '' };
+        
+        const en = enrollments.find(e => 
+            (e.userId && e.userId === user.id) || 
+            (e.user_id && e.user_id === user.id) || 
+            (e.student_id && e.student_id === user.id) || 
+            (e.id && e.id === user.id) ||
+            (e.admissionNumber && user.admissionNumber && String(e.admissionNumber).trim().toLowerCase() === String(user.admissionNumber).trim().toLowerCase())
+        );
+
+        const userCourse = (courses || []).find(c => c.id === user.courseId || c.id === (user as any).course_id || c.id === en?.courseId || c.id === en?.course_id);
+        const userLevel = userCourse?.levels?.find((l: any) => l.id === user.courseLevelId || l.id === (user as any).course_level_id || l.id === en?.courseLevelId || l.id === en?.course_level_id);
+
+        const adm = en?.admissionNumber || 
+                    en?.admission_number || 
+                    en?.admNo || 
+                    user.admissionNumber || 
+                    (user as any).admission_number || 
+                    (user as any).admNumber || 
+                    user.staffId || 
+                    (user as any).studentId || 
+                    'No ID';
+
+        const gradeLevel = (
+            en?.metadata?.gradeLevel || 
+            en?.gradeLevel || 
+            en?.metadata?.classLevel || 
+            en?.metadata?.className || 
+            (en as any)?.studentClass || 
+            user.studentClass || 
+            (user as any)?.classLevel || 
+            (user as any)?.class_name || 
+            (user as any)?.class || 
+            user.metadata?.gradeLevel || 
+            userCourse?.name || 
+            ''
+        ).toString().trim();
+
+        const stream = (
+            en?.metadata?.stream || 
+            en?.stream || 
+            en?.streamName || 
+            (user as any)?.stream || 
+            (user as any)?.streamName || 
+            (user as any)?.stream_name || 
+            user.metadata?.stream || 
+            userLevel?.name || 
+            ''
+        ).toString().trim();
+
+        const classDisplay = gradeLevel && stream 
+            ? (gradeLevel.toLowerCase().includes(stream.toLowerCase()) ? gradeLevel : `${gradeLevel} - ${stream}`)
+            : (gradeLevel || stream);
+
+        return { admissionNumber: adm, gradeLevel, stream, classDisplay };
+    };
+
+    // Class and Stream Options
+    const classOptions = useMemo(() => {
+        const set = new Set<string>();
+        courses.forEach(c => { if (c.name && c.name.trim()) set.add(c.name.trim()); });
+        enrollments.forEach(e => {
+            const g = (e.metadata?.gradeLevel || e.gradeLevel || e.metadata?.classLevel || '').toString().trim();
+            if (g) set.add(g);
+        });
+        users.filter(u => u.role === 'student').forEach(u => {
+            const details = getMemberDetails(u);
+            if (details.gradeLevel) set.add(details.gradeLevel);
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [courses, enrollments, users]);
+
+    const streamOptions = useMemo(() => {
+        const set = new Set<string>();
+        if (selectedClassId) {
+            const matchedCourse = courses.find(c => c.id === selectedClassId || c.name.trim().toLowerCase() === selectedClassId.trim().toLowerCase());
+            matchedCourse?.levels?.forEach(l => { if (l.name && l.name.trim()) set.add(l.name.trim()); });
+
+            enrollments.filter(e => {
+                const g = (e.metadata?.gradeLevel || e.gradeLevel || '').toString().trim().toLowerCase();
+                return g === selectedClassId.trim().toLowerCase() || (matchedCourse && g === matchedCourse.name.trim().toLowerCase());
+            }).forEach(e => {
+                const s = (e.metadata?.stream || e.stream || '').toString().trim();
+                if (s) set.add(s);
+            });
+
+            users.filter(u => u.role === 'student').forEach(u => {
+                const details = getMemberDetails(u);
+                if (details.gradeLevel.toLowerCase() === selectedClassId.trim().toLowerCase() || (matchedCourse && details.gradeLevel.toLowerCase() === matchedCourse.name.trim().toLowerCase())) {
+                    if (details.stream) set.add(details.stream);
+                }
+            });
+        } else {
+            courses.flatMap(c => c.levels || []).forEach(l => { if (l.name && l.name.trim()) set.add(l.name.trim()); });
+            enrollments.forEach(e => {
+                const s = (e.metadata?.stream || e.stream || '').toString().trim();
+                if (s) set.add(s);
+            });
+            users.forEach(u => {
+                const details = getMemberDetails(u);
+                if (details.stream) set.add(details.stream);
+            });
+        }
+
+        if (institution?.streamDefinitions && institution.streamDefinitions.length > 0) {
+            institution.streamDefinitions.forEach(sd => { if (sd && sd.trim()) set.add(sd.trim()); });
+        }
+
+        if (set.size === 0) {
+            return ['East', 'West', 'North', 'South', 'Central'];
+        }
+
+        return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [selectedClassId, courses, enrollments, users, institution]);
 
     // Analytics Logic
     const analytics = useMemo(() => {
@@ -138,47 +257,64 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         // 6. Peak Activity Audit
         const peakAudit = transactions.reduce((acc: any, t) => {
             const hour = new Date(t.issueDate).getHours();
-            const slot = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening';
+            let slot = 'Morning (8-12)';
+            if (hour >= 12 && hour < 16) slot = 'Afternoon (12-4)';
+            else if (hour >= 16) slot = 'Evening (4-8)';
             acc[slot] = (acc[slot] || 0) + 1;
             return acc;
-        }, { Morning: 0, Afternoon: 0, Evening: 0 });
+        }, { 'Morning (8-12)': 0, 'Afternoon (12-4)': 0, 'Evening (4-8)': 0 });
 
-        // 7. Asset Risk (Estimated at 1500 KES average per book)
-        const unreturnedBooks = transactions.filter(t => t.status === 'issued' || t.status === 'overdue').length;
-        const totalAssetRisk = unreturnedBooks * 1500;
-
-        const overdueCount = transactions.filter(t => t.status === 'issued' && new Date(t.dueDate) < new Date()).length;
+        const totalAssetRisk = transactions
+            .filter(t => t.status === 'overdue')
+            .reduce((acc, t) => {
+                const book = books.find(b => b.id === t.bookId);
+                return acc + (book?.price || 1500);
+            }, 0);
 
         return {
-            topBorrowed, categoryCounts, overdueCount, totalFineAmount, collectedFineAmount,
-            demandIntel, deadStock, fineLeakage, segments, categoryTurnover, peakAudit, totalAssetRisk
+            topBorrowed,
+            categoryCounts,
+            demandIntel,
+            deadStock,
+            fineLeakage,
+            totalFineAmount,
+            collectedFineAmount,
+            segments,
+            categoryTurnover,
+            peakAudit,
+            totalAssetRisk,
+            overdueCount: transactions.filter(t => t.status === 'overdue').length
         };
-    }, [books, transactions, fines, reservations, stockReceipts, users]);
+    }, [books, transactions, reservations, fines, users]);
 
+    // Member Statement Logic
     const filteredUsers = useMemo(() => {
         if (!searchUserTerm) return [];
-        return users.filter(u =>
-            u.name.toLowerCase().includes(searchUserTerm.toLowerCase()) ||
-            u.staffId?.toLowerCase().includes(searchUserTerm.toLowerCase())
-        ).slice(0, 5);
-    }, [users, searchUserTerm]);
-
-    const userStatementData = useMemo(() => {
-        if (!selectedStatementUser) return null;
-        const userTrans = transactions.filter(t => t.userId === selectedStatementUser.id);
-        const userFines = fines.filter(f => f.userId === selectedStatementUser.id);
-        return { transactions: userTrans, fines: userFines };
-    }, [selectedStatementUser, transactions, fines]);
+        const term = searchUserTerm.toLowerCase();
+        return users.filter(u => {
+            const details = getMemberDetails(u);
+            return u.name.toLowerCase().includes(term) ||
+                   (u.staffId && u.staffId.toLowerCase().includes(term)) ||
+                   details.admissionNumber.toLowerCase().includes(term) ||
+                   details.classDisplay.toLowerCase().includes(term);
+        }).slice(0, 5);
+    }, [users, searchUserTerm, enrollments, courses]);
 
     const handlePrintStatement = async () => {
-        if (!selectedStatementUser || !userStatementData) return;
+        if (!selectedStatementUser) return;
         setIsPrintingStatement(true);
         try {
+            const userTrans = transactions.filter(t => t.userId === selectedStatementUser.id);
+            const userFines = fines.filter(f => f.userId === selectedStatementUser.id);
+            const activeLoans = userTrans.filter(t => t.status === 'issued' || t.status === 'overdue');
+            const history = userTrans.filter(t => t.status === 'returned');
+
             const dataUri = await generateMemberLibraryHistoryPdf(
                 selectedStatementUser,
-                userStatementData.transactions,
-                userStatementData.fines,
-                getBookTitle,
+                activeLoans,
+                history,
+                userFines,
+                books,
                 institution,
                 companyDetails,
                 institution.logoUrl || null,
@@ -207,18 +343,33 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             .filter(t => t.status === 'issued' || t.status === 'overdue')
             .map(t => {
                 const user = users.find(u => u.id === t.userId);
-                return { ...t, user };
+                const details = getMemberDetails(user);
+                return { ...t, user, memberDetails: details };
             })
             .filter(item => {
-                if (selectedClassId && item.user?.courseId !== selectedClassId) return false;
-                if (selectedStreamId && item.user?.courseLevelId !== selectedStreamId) return false;
+                if (!selectedClassId && !selectedStreamId) return true;
+                const matchedCourse = courses.find(c => c.id === selectedClassId || c.name.trim().toLowerCase() === selectedClassId.trim().toLowerCase());
+                
+                if (selectedClassId) {
+                    const matchesCourseId = item.user?.courseId === selectedClassId;
+                    const matchesGradeName = item.memberDetails.gradeLevel.toLowerCase() === selectedClassId.trim().toLowerCase();
+                    const matchesCourseObjName = matchedCourse ? item.memberDetails.gradeLevel.toLowerCase() === matchedCourse.name.trim().toLowerCase() : false;
+                    if (!matchesCourseId && !matchesGradeName && !matchesCourseObjName) return false;
+                }
+
+                if (selectedStreamId) {
+                    const matchesLevelId = item.user?.courseLevelId === selectedStreamId;
+                    const matchesStreamName = item.memberDetails.stream.toLowerCase() === selectedStreamId.trim().toLowerCase();
+                    if (!matchesLevelId && !matchesStreamName) return false;
+                }
+
                 return true;
             });
-    }, [transactions, users, selectedClassId, selectedStreamId]);
+    }, [transactions, users, enrollments, courses, selectedClassId, selectedStreamId]);
 
     const handlePrintUnreturnedReport = async () => {
-        const className = courses.find(c => c.id === selectedClassId)?.name || 'All Classes';
-        const streamName = courses.find(c => c.id === selectedClassId)?.levels.find(l => l.id === selectedStreamId)?.name || 'All Streams';
+        const className = courses.find(c => c.id === selectedClassId)?.name || selectedClassId || 'All Classes';
+        const streamName = courses.find(c => c.id === selectedClassId)?.levels?.find(l => l.id === selectedStreamId)?.name || selectedStreamId || 'All Streams';
 
         try {
             const dataUri = await generateLibraryUnreturnedReportPdf(
@@ -517,7 +668,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                     <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400" />
                                     <input
                                         type="text"
-                                        placeholder="Search by Student Name or Staff ID..."
+                                        placeholder="Search by Student Name, ADM No, Class, or Staff ID..."
                                         value={searchUserTerm}
                                         onChange={(e) => setSearchUserTerm(e.target.value)}
                                         className="w-full pl-16 pr-6 py-6 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-3xl text-sm font-black transition-all shadow-sm"
@@ -525,146 +676,85 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                     {/* Search Results Dropdown */}
                                     {filteredUsers.length > 0 && (
                                         <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-[2rem] shadow-2xl z-50 overflow-hidden animate-fade-in">
-                                            {filteredUsers.map(u => (
-                                                <button
-                                                    key={u.id}
-                                                    onClick={() => { setSelectedStatementUser(u); setSearchUserTerm(''); }}
-                                                    className="w-full p-5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors border-b last:border-none border-slate-50 dark:border-slate-700"
-                                                >
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl flex items-center justify-center font-black">
-                                                            {u.name.charAt(0)}
+                                            {filteredUsers.map(u => {
+                                                const details = getMemberDetails(u);
+                                                return (
+                                                    <button
+                                                        key={u.id}
+                                                        onClick={() => { setSelectedStatementUser(u); setSearchUserTerm(''); }}
+                                                        className="w-full p-5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors border-b last:border-none border-slate-50 dark:border-slate-700 text-left"
+                                                    >
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-sm">
+                                                                {u.name.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{u.name}</p>
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                                    {details.admissionNumber} {details.classDisplay ? `• ${details.classDisplay}` : ''}
+                                                                </p>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-left">
-                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{u.name}</p>
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{u.staffId || 'No ID'}</p>
-                                                        </div>
-                                                    </div>
-                                                    <ArrowRightIcon className="w-4 h-4 text-slate-300" />
-                                                </button>
-                                            ))}
+                                                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-xl">Select</span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
                             </div>
 
                             {selectedStatementUser && (
-                                <div className="space-y-8 animate-fade-in pt-10 border-t border-slate-100 dark:border-slate-700">
-                                    {/* User Profile Header */}
-                                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-8 bg-slate-50 dark:bg-slate-900 rounded-[2.5rem]">
-                                        <div className="flex items-center gap-6">
-                                            <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-[2rem] shadow-sm flex items-center justify-center border-2 border-indigo-100 dark:border-slate-700">
-                                                <UserIcon className="w-10 h-10 text-indigo-500" />
+                                <div className="max-w-4xl mx-auto bg-slate-50 dark:bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-scale-up space-y-8">
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-8 border-b border-slate-200 dark:border-slate-700">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-16 h-16 rounded-3xl bg-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-200 dark:shadow-none">
+                                                {selectedStatementUser.name.charAt(0)}
                                             </div>
                                             <div>
-                                                <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{selectedStatementUser.name}</h4>
-                                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Registry ID: {selectedStatementUser.staffId || 'N/A'}</p>
-                                                <div className="flex gap-4 mt-3">
-                                                    <span className="text-[10px] font-black uppercase text-indigo-600 bg-white dark:bg-slate-800 px-3 py-1 rounded-full shadow-xs border border-indigo-50 dark:border-slate-700">
-                                                        {userStatementData?.transactions.length || 0} Total History
-                                                    </span>
-                                                    <span className="text-[10px] font-black uppercase text-rose-600 bg-white dark:bg-slate-800 px-3 py-1 rounded-full shadow-xs border border-rose-50 dark:border-slate-700">
-                                                        KES {userStatementData?.fines.reduce((acc, f) => acc + (f.amount - f.paidAmount), 0).toFixed(2)} Total Due
-                                                    </span>
-                                                </div>
+                                                <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase">{selectedStatementUser.name}</h4>
+                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                                    ID: {getMemberDetails(selectedStatementUser).admissionNumber} {getMemberDetails(selectedStatementUser).classDisplay ? `• ${getMemberDetails(selectedStatementUser).classDisplay}` : ''}
+                                                </p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-3">
+                                        <div className="flex items-center gap-3 w-full md:w-auto">
                                             <button
                                                 onClick={() => setSelectedStatementUser(null)}
-                                                className="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-500 hover:text-indigo-600 transition-all"
-                                                title="Clear Selection"
+                                                className="px-6 py-4 rounded-2xl bg-white dark:bg-slate-800 text-slate-400 font-black uppercase text-[10px] tracking-widest border border-slate-200 dark:border-slate-700 flex-1 md:flex-initial"
                                             >
-                                                <XCircleIcon className="w-6 h-6" />
+                                                Deselect
                                             </button>
                                             <button
                                                 onClick={handlePrintStatement}
                                                 disabled={isPrintingStatement}
-                                                className="h-14 px-8 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 shadow-xl shadow-indigo-100 dark:shadow-none transition-all hover:translate-y-[-2px] disabled:opacity-50 disabled:translate-y-0"
+                                                className="px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 dark:shadow-none flex-1 md:flex-initial transition-all disabled:opacity-50"
                                             >
-                                                {isPrintingStatement ? (
-                                                    <>
-                                                        <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                                                        Preparing...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <PrinterIcon className="w-5 h-5" />
-                                                        Print Statement
-                                                    </>
-                                                )}
+                                                <PrinterIcon className="w-4 h-4" />
+                                                {isPrintingStatement ? 'Generating PDF...' : 'Print Statement'}
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Statement Details */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="space-y-6">
-                                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2 px-2">
-                                                <ArrowPathIcon className="w-3.5 h-3.5" />
-                                                Borrowing History
-                                            </h4>
-                                            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-[2rem] overflow-hidden">
-                                                <table className="w-full text-left">
-                                                    <thead>
-                                                        <tr className="bg-slate-50 dark:bg-slate-900/50">
-                                                            <th className="px-6 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Date</th>
-                                                            <th className="px-6 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Item</th>
-                                                            <th className="px-6 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                                                        {userStatementData?.transactions.map(t => (
-                                                            <tr key={t.id}>
-                                                                <td className="px-6 py-4 text-[10px] font-bold text-slate-500">{new Date(t.issueDate).toLocaleDateString()}</td>
-                                                                <td className="px-6 py-4 text-[10px] font-black text-slate-900 dark:text-white uppercase">{getBookTitle(t.bookId)}</td>
-                                                                <td className="px-6 py-4">
-                                                                    <span className={`text-[8px] font-black uppercase tracking-widest ${t.status === 'returned' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                                                                        {t.status}
-                                                                    </span>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                        {userStatementData?.transactions.length === 0 && (
-                                                            <tr><td colSpan={3} className="px-6 py-10 text-center text-[9px] font-black text-slate-300 uppercase tracking-widest">No activity found</td></tr>
-                                                        )}
-                                                    </tbody>
-                                                </table>
-                                            </div>
+                                    {/* Member Metrics Overview */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Loans</p>
+                                            <p className="text-2xl font-black text-indigo-600">
+                                                {transactions.filter(t => t.userId === selectedStatementUser.id && (t.status === 'issued' || t.status === 'overdue')).length}
+                                            </p>
                                         </div>
-
-                                        <div className="space-y-6">
-                                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2 px-2">
-                                                <ClipboardListIcon className="w-3.5 h-3.5" />
-                                                Penalty/Fine Ledger
-                                            </h4>
-                                            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-[2rem] overflow-hidden">
-                                                <table className="w-full text-left">
-                                                    <thead>
-                                                        <tr className="bg-slate-50 dark:bg-slate-900/50">
-                                                            <th className="px-6 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Description</th>
-                                                            <th className="px-6 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Amount</th>
-                                                            <th className="px-6 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Due</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                                                        {userStatementData?.fines.map(f => (
-                                                            <tr key={f.id}>
-                                                                <td className="px-6 py-4 text-[10px] font-bold text-slate-500 truncate max-w-[150px]">{f.description}</td>
-                                                                <td className="px-6 py-4 text-[10px] font-black text-slate-900 dark:text-white">KES {f.amount.toFixed(2)}</td>
-                                                                <td className="px-6 py-4">
-                                                                    <span className={`text-[10px] font-black ${f.status === 'paid' ? 'text-emerald-500' : 'text-rose-600'}`}>
-                                                                        KES {(f.amount - f.paidAmount).toFixed(2)}
-                                                                    </span>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                        {userStatementData?.fines.length === 0 && (
-                                                            <tr><td colSpan={3} className="px-6 py-10 text-center text-[9px] font-black text-slate-300 uppercase tracking-widest">No fines issued</td></tr>
-                                                        )}
-                                                    </tbody>
-                                                </table>
-                                            </div>
+                                        <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Returns</p>
+                                            <p className="text-2xl font-black text-emerald-600">
+                                                {transactions.filter(t => t.userId === selectedStatementUser.id && t.status === 'returned').length}
+                                            </p>
+                                        </div>
+                                        <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Unpaid Penalties</p>
+                                            <p className="text-2xl font-black text-rose-600">
+                                                KES {fines.filter(f => f.userId === selectedStatementUser.id).reduce((acc, f) => acc + (f.amount - f.paidAmount), 0).toFixed(0)}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -672,10 +762,10 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                         </div>
                     </div>
 
-                    {/* Unreturned Books Registry Report */}
+                    {/* Defaulter Class & Stream Segment */}
                     <div className="bg-white dark:bg-slate-800 rounded-[3.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
                         <div className="p-10 lg:p-14">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                                 <div>
                                     <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Defaulter & Active Circulation List</h3>
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Filter by Class and Stream for efficient retrieval</p>
@@ -685,7 +775,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                     className="h-12 px-6 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center gap-3 transition-all hover:bg-slate-800"
                                 >
                                     <PrinterIcon className="w-4 h-4" />
-                                    Print defauter list
+                                    Print defaulter list
                                 </button>
                             </div>
 
@@ -695,10 +785,10 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                     <select
                                         value={selectedClassId}
                                         onChange={(e) => { setSelectedClassId(e.target.value); setSelectedStreamId(''); }}
-                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-xs font-black uppercase tracking-tight transition-all"
+                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-xs font-black uppercase tracking-tight transition-all text-slate-800 dark:text-white"
                                     >
                                         <option value="">-- All Classes --</option>
-                                        {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
@@ -706,12 +796,11 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                     <select
                                         value={selectedStreamId}
                                         onChange={(e) => setSelectedStreamId(e.target.value)}
-                                        disabled={!selectedClassId}
-                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-xs font-black uppercase tracking-tight transition-all disabled:opacity-50"
+                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-xs font-black uppercase tracking-tight transition-all text-slate-800 dark:text-white"
                                     >
                                         <option value="">-- All Streams --</option>
-                                        {courses.find(c => c.id === selectedClassId)?.levels.map(l => (
-                                            <option key={l.id} value={l.id}>{l.name}</option>
+                                        {streamOptions.map(s => (
+                                            <option key={s} value={s}>{s}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -728,6 +817,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                     <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
                                         <tr>
                                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
+                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Class / Stream</th>
                                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Resource (ID)</th>
                                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Deadline</th>
                                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
@@ -745,9 +835,14 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                                             </div>
                                                             <div>
                                                                 <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{item.user?.name || 'Unknown User'}</p>
-                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.user?.staffId || 'No ID'}</p>
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.memberDetails?.admissionNumber || item.user?.staffId || 'No ID'}</p>
                                                             </div>
                                                         </div>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg uppercase">
+                                                            {item.memberDetails?.classDisplay || '—'}
+                                                        </span>
                                                     </td>
                                                     <td className="px-8 py-5">
                                                         <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{getBookTitle(item.bookId)}</p>
@@ -768,7 +863,9 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                         })}
                                         {unreturnedReportData.length === 0 && (
                                             <tr>
-                                                <td colSpan={4} className="px-8 py-20 text-center text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">No unreturned books match these filters</td>
+                                                <td colSpan={5} className="py-12 text-center text-xs font-black uppercase text-slate-400">
+                                                    No active unreturned records matching criteria
+                                                </td>
                                             </tr>
                                         )}
                                     </tbody>
@@ -781,4 +878,3 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         </div>
     );
 };
-

@@ -22,6 +22,7 @@ interface LibraryMemberManagerProps {
     institution: Institution;
     companyDetails: CompanyDetails;
     users: User[];
+    courses?: Course[];
     onLogAction: (action: string) => Promise<void>;
 }
 
@@ -30,6 +31,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     institution,
     companyDetails,
     users,
+    courses = [],
     onLogAction
 }) => {
     const [transactions, setTransactions] = useState<LibraryTransaction[]>([]);
@@ -53,16 +55,6 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     const [classFilter, setClassFilter] = useState('all');
     const [streamFilter, setStreamFilter] = useState('all');
 
-    const classOptions = useMemo(() => {
-        const levels = enrollments.map(e => e.metadata?.gradeLevel || '').filter(Boolean);
-        return [...new Set(levels)].sort();
-    }, [enrollments]);
-
-    const streamOptions = useMemo(() => {
-        const streams = enrollments.map(e => e.metadata?.stream || '').filter(Boolean);
-        return [...new Set(streams)].sort();
-    }, [enrollments]);
-
     useEffect(() => {
         loadData();
     }, [institutionId]);
@@ -74,7 +66,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institutionId),
                 apiService.fetchModuleRecords<LibraryFine>('library_fines', institutionId),
                 apiService.fetchModuleRecords<Book>('books', institutionId),
-                apiService.fetchModuleRecords<any>('student_enrollments', institutionId)
+                apiService.fetchModuleRecords<any>('student_enrollments', institutionId).catch(() => [])
             ]);
             setTransactions(transData);
             setFines(finesData);
@@ -87,25 +79,163 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
         }
     };
 
-    const groupedMembers = useMemo(() => {
-        const eligibleStaff = users.filter(u => u.role !== 'super_admin' && u.role !== 'student');
-        const enrolledStudents = enrollments.map(enr => {
-            const user = users.find(u => u.id === enr.userId);
-            if (!user) return null;
-            const adm = enr.admissionNumber || enr.admission_number || user.admissionNumber || (user as any).admission_number || (user as any).admNumber || (user as any).adm_number || 'No ADM';
-            const gradeLevel = enr.metadata?.gradeLevel || user.metadata?.gradeLevel || '';
-            const stream = enr.metadata?.stream || user.metadata?.stream || '';
+    // Resolved list of all student users mapped with enrollment & course/stream metadata
+    const studentUserList = useMemo(() => {
+        const studentUsers = users.filter(u => u.role === 'student');
+
+        return studentUsers.map(user => {
+            const enrollment = enrollments.find(e => 
+                (e.userId && e.userId === user.id) || 
+                (e.user_id && e.user_id === user.id) || 
+                (e.student_id && e.student_id === user.id)
+            );
+            const userCourse = courses.find(c => c.id === user.courseId || c.id === (user as any).course_id);
+            const userLevel = userCourse?.levels?.find((l: any) => l.id === user.courseLevelId || l.id === (user as any).course_level_id);
+
+            const adm = enrollment?.admissionNumber || 
+                        enrollment?.admission_number || 
+                        enrollment?.admNo || 
+                        user.admissionNumber || 
+                        (user as any).admission_number || 
+                        (user as any).admNumber || 
+                        (user as any).adm_number || 
+                        user.staffId || 
+                        (user as any).studentId || 
+                        'No ADM';
+
+            const gradeLevel = (
+                enrollment?.metadata?.gradeLevel || 
+                enrollment?.gradeLevel || 
+                enrollment?.classLevel || 
+                (enrollment as any)?.studentClass || 
+                user.studentClass || 
+                (user as any)?.classLevel || 
+                (user as any)?.class_name || 
+                (user as any)?.class || 
+                user.metadata?.gradeLevel || 
+                userCourse?.name || 
+                ''
+            ).trim();
+
+            const stream = (
+                enrollment?.metadata?.stream || 
+                enrollment?.stream || 
+                enrollment?.streamName || 
+                (user as any)?.stream || 
+                (user as any)?.streamName || 
+                (user as any)?.stream_name || 
+                user.metadata?.stream || 
+                userLevel?.name || 
+                ''
+            ).trim();
+
             return {
                 ...user,
-                role: 'student',
+                role: 'student' as const,
                 admissionNumber: adm,
                 admission_number: adm,
                 gradeLevel,
                 stream
             };
-        }).filter((u): u is any => u !== null);
+        });
+    }, [users, enrollments, courses]);
 
-        const eligibleUsers = [...eligibleStaff, ...enrolledStudents];
+    const classOptions = useMemo(() => {
+        const rawGrades: string[] = [];
+
+        // 1. From courses
+        courses.forEach(c => {
+            if (c.name && c.name.trim()) rawGrades.push(c.name.trim());
+        });
+
+        // 2. From resolved student users
+        studentUserList.forEach(s => {
+            if (s.gradeLevel && s.gradeLevel.trim()) rawGrades.push(s.gradeLevel.trim());
+        });
+
+        // 3. From enrollments
+        enrollments.forEach(e => {
+            const g = e.metadata?.gradeLevel || e.gradeLevel || e.classLevel || '';
+            if (g && g.trim()) rawGrades.push(g.trim());
+        });
+
+        // 4. From institution classes
+        const instClasses = (institution as any)?.classes || (institution as any)?.courses;
+        if (Array.isArray(instClasses)) {
+            instClasses.forEach((c: any) => {
+                const name = typeof c === 'string' ? c : (c.name || c.title);
+                if (name && name.trim()) rawGrades.push(name.trim());
+            });
+        }
+
+        const seen = new Map<string, string>();
+        rawGrades.forEach(g => {
+            const key = g.toLowerCase();
+            if (!seen.has(key)) seen.set(key, g);
+        });
+
+        if (seen.size === 0) {
+            return ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
+        }
+
+        return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [courses, studentUserList, enrollments, institution]);
+
+    const streamOptions = useMemo(() => {
+        const rawStreams: string[] = [];
+
+        if (classFilter !== 'all') {
+            const matchedCourse = courses.find(c => c.name.trim().toLowerCase() === classFilter.trim().toLowerCase());
+            if (matchedCourse?.levels && matchedCourse.levels.length > 0) {
+                matchedCourse.levels.forEach(l => {
+                    if (l.name && l.name.trim()) rawStreams.push(l.name.trim());
+                });
+            }
+            studentUserList.filter(s => s.gradeLevel.trim().toLowerCase() === classFilter.trim().toLowerCase()).forEach(s => {
+                if (s.stream && s.stream.trim()) rawStreams.push(s.stream.trim());
+            });
+            enrollments.filter(e => {
+                const g = (e.metadata?.gradeLevel || e.gradeLevel || e.classLevel || '').trim().toLowerCase();
+                return g === classFilter.trim().toLowerCase();
+            }).forEach(e => {
+                const st = e.metadata?.stream || e.stream || e.streamName || '';
+                if (st && st.trim()) rawStreams.push(st.trim());
+            });
+        } else {
+            courses.flatMap(c => c.levels || []).forEach(l => {
+                if (l.name && l.name.trim()) rawStreams.push(l.name.trim());
+            });
+            studentUserList.forEach(s => {
+                if (s.stream && s.stream.trim()) rawStreams.push(s.stream.trim());
+            });
+            enrollments.forEach(e => {
+                const st = e.metadata?.stream || e.stream || e.streamName || '';
+                if (st && st.trim()) rawStreams.push(st.trim());
+            });
+        }
+
+        if (institution?.streamDefinitions && institution.streamDefinitions.length > 0) {
+            institution.streamDefinitions.forEach(sd => {
+                if (sd && sd.trim()) rawStreams.push(sd.trim());
+            });
+        }
+
+        const seen = new Map<string, string>();
+        rawStreams.forEach(s => {
+            const key = s.toLowerCase();
+            if (!seen.has(key)) seen.set(key, s);
+        });
+
+        if (seen.size === 0) {
+            return ['East', 'West', 'North', 'South', 'Central', 'Main Stream'];
+        }
+
+        return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [classFilter, courses, studentUserList, enrollments, institution]);
+
+    const groupedMembers = useMemo(() => {
+        const eligibleStaff = users.filter(u => u.role !== 'super_admin' && u.role !== 'student');
+        const eligibleUsers = [...eligibleStaff, ...studentUserList];
 
         const processed = eligibleUsers.map(user => {
             const userTrans = transactions.filter(t => t.userId === user.id);
@@ -117,16 +247,24 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 overdueCount: userTrans.filter(t => t.status === 'overdue').length,
                 totalFines: userFines.reduce((acc, f) => acc + (f.amount - f.paidAmount), 0)
             };
-        }).filter(u =>
-            u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (u.staffId && u.staffId.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (u.admissionNumber && u.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (u.admission_number && u.admission_number.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
+        }).filter(u => {
+            if (!searchTerm.trim()) return true;
+            const term = searchTerm.toLowerCase();
+            const adm = (u.admissionNumber || (u as any).admission_number || u.staffId || '').toLowerCase();
+            const sClass = ((u as any).gradeLevel || '').toLowerCase();
+            const sStream = ((u as any).stream || '').toLowerCase();
+            return u.name.toLowerCase().includes(term) ||
+                   adm.includes(term) ||
+                   (u.staffId && u.staffId.toLowerCase().includes(term)) ||
+                   sClass.includes(term) ||
+                   sStream.includes(term);
+        });
 
         const filteredStudents = processed.filter(u => u.role === 'student').filter(s => {
-            const matchesClass = classFilter === 'all' || (s as any).gradeLevel === classFilter;
-            const matchesStream = streamFilter === 'all' || (s as any).stream === streamFilter;
+            const sGrade = ((s as any).gradeLevel || '').trim().toLowerCase();
+            const sStream = ((s as any).stream || '').trim().toLowerCase();
+            const matchesClass = classFilter === 'all' || sGrade === classFilter.trim().toLowerCase();
+            const matchesStream = streamFilter === 'all' || sStream === streamFilter.trim().toLowerCase();
             return matchesClass && matchesStream;
         });
 
@@ -134,7 +272,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             staff: processed.filter(u => u.role !== 'student'),
             students: filteredStudents
         };
-    }, [users, transactions, fines, searchTerm, enrollments, classFilter, streamFilter]);
+    }, [users, studentUserList, transactions, fines, searchTerm, classFilter, streamFilter]);
 
     const handleClearFine = async (fine: LibraryFine) => {
         if (!confirm(`Confirm full payment of KES ${fine.amount - fine.paidAmount}?`)) return;

@@ -345,6 +345,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let finalResponseText = '';
         let lastErrorMsg = '';
 
+        let effectiveMessage = message || prompt || text || '';
+        if (!effectiveMessage && Array.isArray(contents) && contents.length > 0) {
+            const lastPart = contents[contents.length - 1];
+            if (Array.isArray(lastPart?.parts)) {
+                effectiveMessage = lastPart.parts.map((p: any) => p.text || '').join('\n');
+            } else if (typeof lastPart === 'string') {
+                effectiveMessage = lastPart;
+            }
+        }
+
         // Helper to format messages for OpenAI
         const buildOpenAiMessages = () => {
             const msgs: Array<{ role: string; content: string }> = [];
@@ -355,8 +365,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (textContent) msgs.push({ role, content: textContent });
                 });
             }
-            if (message) {
-                msgs.push({ role: 'user', content: message });
+            if (effectiveMessage) {
+                msgs.push({ role: 'user', content: effectiveMessage });
             } else if (contents) {
                 const textContent = Array.isArray(contents)
                     ? contents.map((c: any) => Array.isArray(c.parts) ? c.parts.map((p: any) => p.text || '').join('\n') : (c.text || JSON.stringify(c))).join('\n')
@@ -377,9 +387,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     try {
                         const model = genAI.getGenerativeModel({ model: targetModel });
 
-                        if (history && message) {
+                        if (history && Array.isArray(history) && history.length > 0 && effectiveMessage) {
                             const chat = model.startChat({ history, generationConfig: genConfig });
-                            const result = await chat.sendMessage(message);
+                            const result = await chat.sendMessage(effectiveMessage);
                             const response = await result.response;
                             finalResponseText = response.text();
                             executionSuccess = true;
@@ -389,6 +399,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (contents) {
                             const promptContent = Array.isArray(contents) ? contents : [{ role: 'user', parts: [{ text: typeof contents === 'string' ? contents : JSON.stringify(contents) }] }];
                             const result = await model.generateContent({ contents: promptContent, generationConfig: genConfig });
+                            const response = await result.response;
+                            finalResponseText = response.text();
+                            executionSuccess = true;
+                            return res.status(200).json({ text: finalResponseText, provider: 'gemini', model: targetModel });
+                        }
+
+                        if (effectiveMessage) {
+                            const result = await model.generateContent({ contents: [{ role: 'user', parts: [{ text: effectiveMessage }] }], generationConfig: genConfig });
                             const response = await result.response;
                             finalResponseText = response.text();
                             executionSuccess = true;

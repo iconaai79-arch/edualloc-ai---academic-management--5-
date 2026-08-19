@@ -144,7 +144,14 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
         }
     };
 
-    const quickChips = [
+    const isSchool = !institution.institutionType || ['Education', 'Primary', 'Secondary', 'Tertiary', 'Higher Education', 'TVET', 'College', 'University'].includes(institution.institutionType);
+
+    const quickChips = isSchool ? [
+        { label: '🎓 Courses & Levels', query: 'What academic programs and grade levels do you offer?' },
+        { label: '📋 Admissions & Intake', query: 'What are the admission requirements and intake dates?' },
+        { label: '💰 Fee Schedules', query: 'Can you provide the fee structure and tuition costs?' },
+        { label: '📍 Location & Visits', query: 'Where is the campus located and what are your visiting hours?' }
+    ] : [
         { label: '🔥 Popular Products', query: 'What are your most popular products and prices?' },
         { label: '💼 Available Services', query: 'What services or packages do you offer?' },
         { label: '📅 Book an Appointment', query: 'I would like to book a service or appointment.' },
@@ -159,13 +166,15 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
                     <button
                         onClick={() => setIsOpen(true)}
                         className="flex items-center gap-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:to-purple-600 text-white px-5 py-4 rounded-full shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 group-hover:shadow-indigo-500/40"
-                        aria-label="Open AI Sales Assistant"
+                        aria-label="Open AI Assistant"
                     >
                         <div className="relative">
                             <SparklesIcon className="w-6 h-6 animate-pulse" />
                             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-white dark:border-slate-900 rounded-full"></span>
                         </div>
-                        <span className="font-bold text-sm tracking-wide hidden sm:inline">Ask Sales AI</span>
+                        <span className="font-bold text-sm tracking-wide hidden sm:inline">
+                            {isSchool ? 'Ask Campus AI' : 'Ask Sales AI'}
+                        </span>
                     </button>
                 </div>
             )}

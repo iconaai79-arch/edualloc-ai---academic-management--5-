@@ -20,6 +20,7 @@ import { apiService } from '../services/apiService';
 interface BookLendingManagerProps {
     institutionId: string;
     users: User[];
+    courses?: any[];
     onLogAction: (action: string) => Promise<void>;
     onDataChange: () => void;
 }
@@ -27,6 +28,7 @@ interface BookLendingManagerProps {
 export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     institutionId,
     users,
+    courses: passedCourses = [],
     onLogAction,
     onDataChange
 }) => {
@@ -61,7 +63,13 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const [bulkDueDate, setBulkDueDate] = useState(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
     const [bulkAllocations, setBulkAllocations] = useState<Record<string, string>>({}); // studentId -> copyId
-    const [courses, setCourses] = useState<any[]>([]);
+    const [courses, setCourses] = useState<any[]>(passedCourses);
+
+    useEffect(() => {
+        if (passedCourses.length > 0) {
+            setCourses(passedCourses);
+        }
+    }, [passedCourses]);
 
     useEffect(() => {
         loadData();
@@ -81,7 +89,8 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             setTransactions(transData.sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()));
             if (configData.length > 0) setSettings(configData[0]);
             setEnrollments(enrollmentsData || []);
-            setCourses(coursesData || []);
+            if (coursesData && coursesData.length > 0) setCourses(coursesData);
+            else if (passedCourses.length > 0) setCourses(passedCourses);
         } catch (error) {
             console.error('Error loading circulation data:', error);
         } finally {
@@ -103,15 +112,90 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         return list.sort((a, b) => a.title.localeCompare(b.title));
     }, [books]);
 
+    // Helper to extract student class and stream across all metadata formats
+    const getStudentClassString = (u: User, enr?: any): string => {
+        const en = enr || enrollments.find(e => 
+            (e.userId && e.userId === u.id) || 
+            (e.student_id && e.student_id === u.id) || 
+            (e.user_id && e.user_id === u.id) || 
+            (e.id && e.id === u.id) ||
+            (e.admissionNumber && u.admissionNumber && String(e.admissionNumber).trim().toLowerCase() === String(u.admissionNumber).trim().toLowerCase())
+        );
+
+        const userCourse = (courses || []).find(c => c.id === u.courseId || c.id === (u as any).course_id || c.id === en?.courseId || c.id === en?.course_id);
+        const userLevel = userCourse?.levels?.find((l: any) => l.id === u.courseLevelId || l.id === (u as any).course_level_id || l.id === en?.courseLevelId || l.id === en?.course_level_id);
+
+        const grade = (
+            en?.metadata?.gradeLevel || 
+            en?.gradeLevel || 
+            en?.metadata?.classLevel || 
+            en?.metadata?.className || 
+            (en as any)?.studentClass || 
+            u.studentClass || 
+            (u as any).classLevel || 
+            (u as any).class_name || 
+            (u as any).class || 
+            u.metadata?.gradeLevel || 
+            userCourse?.name || 
+            ''
+        ).toString().trim();
+
+        const stream = (
+            en?.metadata?.stream || 
+            en?.stream || 
+            en?.streamName || 
+            (u as any).stream || 
+            (u as any).streamName || 
+            (u as any).stream_name || 
+            u.metadata?.stream || 
+            userLevel?.name || 
+            ''
+        ).toString().trim();
+
+        if (!grade && !stream) return '';
+        if (grade && stream) {
+            if (grade.toLowerCase().includes(stream.toLowerCase())) return grade;
+            return `${grade} - ${stream}`;
+        }
+        return grade || stream;
+    };
+
     const classOptions = useMemo(() => {
-        const list = enrollments.map(e => {
-            const gradeLevel = e.metadata?.gradeLevel || e.gradeLevel || '';
-            const stream = e.metadata?.stream || e.stream || '';
-            if (!gradeLevel) return '';
-            return stream ? `${gradeLevel} - ${stream}` : gradeLevel;
-        }).filter(Boolean);
-        return [...new Set(list)].sort();
-    }, [enrollments]);
+        const set = new Set<string>();
+
+        // 1. From enrollments
+        enrollments.forEach(e => {
+            const gradeLevel = (e.metadata?.gradeLevel || e.gradeLevel || e.metadata?.classLevel || e.metadata?.className || '').toString().trim();
+            const stream = (e.metadata?.stream || e.stream || '').toString().trim();
+            if (gradeLevel && stream) {
+                if (gradeLevel.toLowerCase().includes(stream.toLowerCase())) set.add(gradeLevel);
+                else set.add(`${gradeLevel} - ${stream}`);
+            } else if (gradeLevel) {
+                set.add(gradeLevel);
+            } else if (stream) {
+                set.add(stream);
+            }
+        });
+
+        // 2. From users directly
+        users.filter(u => u.role === 'student').forEach(u => {
+            const clStr = getStudentClassString(u);
+            if (clStr) set.add(clStr);
+        });
+
+        // 3. From courses and academic levels
+        courses.forEach((c: any) => {
+            if (c.levels && Array.isArray(c.levels) && c.levels.length > 0) {
+                c.levels.forEach((l: any) => {
+                    if (l.name) set.add(`${c.name} - ${l.name}`);
+                });
+            } else if (c.name) {
+                set.add(c.name);
+            }
+        });
+
+        return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [enrollments, users, courses]);
 
     const availableCopies = useMemo(() => {
         if (!bulkBookTitle) return [];
@@ -119,29 +203,46 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     }, [books, bulkBookTitle]);
 
     const filteredStudentsList = useMemo(() => {
-        if (!isBulkIssuing || !bulkBookTitle) return [];
+        if (!isBulkIssuing) return [];
         
         let list = users.filter(u => u.role === 'student');
         
         if (bulkCriteria === 'class' && selectedClass) {
+            const targetClean = selectedClass.trim().toLowerCase();
             list = list.filter(u => {
-                const enrollment = enrollments.find(e => e.userId === u.id || e.student_id === u.id);
-                if (!enrollment) return false;
-                const gradeLevel = enrollment.metadata?.gradeLevel || enrollment.gradeLevel || '';
-                const stream = enrollment.metadata?.stream || enrollment.stream || '';
-                const classString = stream ? `${gradeLevel} - ${stream}` : gradeLevel;
-                return classString === selectedClass;
+                const enrollment = enrollments.find(e => 
+                    (e.userId && e.userId === u.id) || 
+                    (e.student_id && e.student_id === u.id) || 
+                    (e.user_id && e.user_id === u.id) || 
+                    (e.id && e.id === u.id) ||
+                    (e.admissionNumber && u.admissionNumber && String(e.admissionNumber).trim().toLowerCase() === String(u.admissionNumber).trim().toLowerCase())
+                );
+                const classString = getStudentClassString(u, enrollment).toLowerCase();
+                if (classString === targetClean) return true;
+
+                // Also check partial matching
+                const grade = (enrollment?.metadata?.gradeLevel || enrollment?.gradeLevel || u.studentClass || (u as any).classLevel || u.metadata?.gradeLevel || '').toString().trim().toLowerCase();
+                const stream = (enrollment?.metadata?.stream || enrollment?.stream || u.metadata?.stream || '').toString().trim().toLowerCase();
+                if (grade === targetClean || stream === targetClean) return true;
+                if (grade && stream && `${grade} - ${stream}` === targetClean) return true;
+
+                return false;
             });
         } else if (bulkCriteria === 'course' && selectedCourse) {
             list = list.filter(u => {
-                const enrollment = enrollments.find(e => e.userId === u.id || e.student_id === u.id);
-                if (!enrollment) return false;
-                return enrollment.courseId === selectedCourse || enrollment.course_id === selectedCourse;
+                const enrollment = enrollments.find(e => 
+                    (e.userId && e.userId === u.id) || 
+                    (e.student_id && e.student_id === u.id) || 
+                    (e.user_id && e.user_id === u.id) || 
+                    (e.id && e.id === u.id)
+                );
+                const userCourse = enrollment?.courseId || enrollment?.course_id || u.courseId || (u as any).course_id;
+                return userCourse === selectedCourse;
             });
         }
         
         return list;
-    }, [users, enrollments, bulkCriteria, selectedClass, selectedCourse, isBulkIssuing, bulkBookTitle]);
+    }, [users, enrollments, bulkCriteria, selectedClass, selectedCourse, isBulkIssuing]);
 
     const handleAutoAllocate = () => {
         const checkedStudents = filteredStudentsList.filter(s => selectedStudentIds.includes(s.id));
@@ -777,10 +878,16 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                         const trimmed = memberSearch.trim().toLowerCase();
                                         const suggestions = users.filter(u => {
                                             if (u.role === 'super_admin') return false;
-                                            const enrollment = enrollments.find(en => en.userId === u.id || en.student_id === en.id);
+                                            const enrollment = enrollments.find(en => 
+                                                (en.userId && en.userId === u.id) || 
+                                                (en.student_id && en.student_id === u.id) || 
+                                                (en.user_id && en.user_id === u.id) ||
+                                                (en.id && en.id === u.id)
+                                            );
                                             const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
                                             const idCode = (admissionNo || u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '').toLowerCase();
-                                            return u.name.toLowerCase().includes(trimmed) || idCode.includes(trimmed);
+                                            const classStr = getStudentClassString(u, enrollment).toLowerCase();
+                                            return u.name.toLowerCase().includes(trimmed) || idCode.includes(trimmed) || classStr.includes(trimmed);
                                         }).slice(0, 5);
 
                                         if (suggestions.length === 0) return null;
@@ -788,9 +895,15 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                             <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1 shadow-md animate-fade-in">
                                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 px-2 py-1">Matching Members — Click to select:</p>
                                                 {suggestions.map(s => {
-                                                    const enrollment = enrollments.find(en => en.userId === s.id || en.student_id === en.id);
+                                                    const enrollment = enrollments.find(en => 
+                                                        (en.userId && en.userId === s.id) || 
+                                                        (en.student_id && en.student_id === s.id) || 
+                                                        (en.user_id && en.user_id === s.id) ||
+                                                        (en.id && en.id === s.id)
+                                                    );
                                                     const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
                                                     const idCode = admissionNo || s.admissionNumber || s.admission_number || s.staffId || (s as any).studentId || (s as any).admNo;
+                                                    const classStr = getStudentClassString(s, enrollment);
                                                     return (
                                                         <div
                                                             key={s.id}
@@ -800,16 +913,18 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                             }}
                                                             className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl cursor-pointer transition-all border border-transparent hover:border-indigo-200"
                                                         >
-                                                            <div className="flex items-center gap-2.5">
-                                                                <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-black">
+                                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                                <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-black shrink-0">
                                                                     {s.name.charAt(0).toUpperCase()}
                                                                 </div>
-                                                                <div>
-                                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-none">{s.name}</p>
-                                                                    <p className="text-[10px] font-mono font-bold text-slate-500 mt-0.5">{idCode || 'No ID'}</p>
+                                                                <div className="min-w-0">
+                                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-none truncate">{s.name}</p>
+                                                                    <p className="text-[10px] font-mono font-bold text-slate-500 mt-0.5 truncate">
+                                                                        {idCode || 'No ID'} {classStr ? `• ${classStr}` : ''}
+                                                                    </p>
                                                                 </div>
                                                             </div>
-                                                            <span className="text-[9px] font-black text-indigo-600 uppercase bg-indigo-50 dark:bg-indigo-900/40 px-2 py-1 rounded-md">
+                                                            <span className="text-[9px] font-black text-indigo-600 uppercase bg-indigo-50 dark:bg-indigo-900/40 px-2 py-1 rounded-md shrink-0">
                                                                 Select
                                                             </span>
                                                         </div>
@@ -833,20 +948,35 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                         {users.filter(u => {
                                             if (u.id === newLoan.userId) return true;
                                             const search = memberSearch.toLowerCase();
-                                            const enrollment = enrollments.find(e => e.userId === u.id || e.student_id === u.id);
+                                            const enrollment = enrollments.find(e => 
+                                                (e.userId && e.userId === u.id) || 
+                                                (e.student_id && e.student_id === u.id) || 
+                                                (e.user_id && e.user_id === u.id) ||
+                                                (e.id && e.id === u.id)
+                                            );
                                             const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
                                             const idCode = (admissionNo || u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '').toLowerCase();
+                                            const classStr = getStudentClassString(u, enrollment).toLowerCase();
                                             return u.role !== 'super_admin' && (
                                                 !search ||
                                                 u.name.toLowerCase().includes(search) ||
-                                                idCode.includes(search)
+                                                idCode.includes(search) ||
+                                                classStr.includes(search)
                                             );
                                         }).map(user => {
-                                            const enrollment = enrollments.find(e => e.userId === user.id || e.student_id === user.id);
+                                            const enrollment = enrollments.find(e => 
+                                                (e.userId && e.userId === user.id) || 
+                                                (e.student_id && e.student_id === user.id) || 
+                                                (e.user_id && e.user_id === user.id) ||
+                                                (e.id && e.id === user.id)
+                                            );
                                             const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
                                             const idCode = admissionNo || user.admissionNumber || user.admission_number || user.staffId || (user as any).studentId || (user as any).admNo;
+                                            const classStr = getStudentClassString(user, enrollment);
                                             return (
-                                                <option key={user.id} value={user.id}>{user.name} ({idCode || 'No ID'})</option>
+                                                <option key={user.id} value={user.id}>
+                                                    {user.name} ({idCode || 'No ID'}{classStr ? ` · ${classStr}` : ''})
+                                                </option>
                                             );
                                         })}
                                     </select>
@@ -1292,7 +1422,9 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                                 </td>
                                                                 <td className="p-4">
                                                                     <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{student.name}</p>
-                                                                    <p className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{admissionNo}</p>
+                                                                    <p className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">
+                                                                        {admissionNo} {getStudentClassString(student, enrollment) ? `• ${getStudentClassString(student, enrollment)}` : ''}
+                                                                    </p>
                                                                     {hasActiveLoan && (
                                                                         <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest block mt-1">⚠️ Already has an active copy</span>
                                                                     )}
