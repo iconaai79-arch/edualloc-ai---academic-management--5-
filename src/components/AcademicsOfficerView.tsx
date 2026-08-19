@@ -297,8 +297,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         { id: 'students', label: 'Students Registry', icon: UserPlusIcon },
         { id: 'teachers', label: 'Teachers Registry', icon: UserGroupIcon },
         { id: 'lessons', label: 'Lessons & Allocations', icon: RectangleStackIcon },
-        { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
-        { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
+        { id: 'reports', label: 'Reports', icon: ChartBarIcon },
     ] as const;
 
     return (
