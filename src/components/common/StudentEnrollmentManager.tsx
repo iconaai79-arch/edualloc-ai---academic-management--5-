@@ -641,6 +641,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         { key: 'email', label: 'Student Email Address' },
         { key: 'phoneNumber', label: 'Student Phone Number' },
         { key: 'admissionNumber', label: 'Admission Number' },
+        { key: 'assessmentNo', label: 'Assessment Number / Assessment No' },
         { key: 'gender', label: 'Gender (Male/Female)' },
         ...(context === 'driving_school'
             ? [{ key: 'licenseCategory', label: 'License Class / Category' }]
@@ -657,6 +658,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     const secondaryPhoneFields = useMemo(() => [
         { key: 'admissionNumber', label: 'Admission Number' },
+        { key: 'assessmentNo', label: 'Assessment Number / Assessment No' },
         { key: 'name', label: 'Student Full Name' },
         { key: 'parentPhone', label: 'Parent / Guardian Phone Number' },
         { key: 'secondaryPhone', label: 'Secondary / Alternative Phone Number' },
@@ -686,6 +688,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         email: '',
         phoneNumber: '',
         admissionNumber: '',
+        assessmentNo: '',
         status: 'Enrolled' as StudentEnrollment['status'],
         enrollmentDate: new Date().toISOString().split('T')[0],
         gender: '' as 'Male' | 'Female' | 'Other' | '',
@@ -702,6 +705,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             stream: '',
             boardingStatus: 'day_scholar',
             subjects: [] as string[],
+            assessmentNo: '',
             parentName: '',
             parentPhone: '',
             parentEmail: '',
@@ -1031,7 +1035,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         webauthnCredentials: formData.biometricCredentials || existingUser.metadata?.webauthnCredentials,
                         fingerprintTemplate: formData.biometricTemplate || existingUser.metadata?.fingerprintTemplate,
                         boardingStatus: formData.metadata.boardingStatus,
-                        residenceType: formData.metadata.boardingStatus
+                        residenceType: formData.metadata.boardingStatus,
+                        assessmentNo: formData.metadata.assessmentNo || (formData as any).assessmentNo || existingUser.metadata?.assessmentNo
                     }
                 };
                 if (formData.gender && existingUser.gender !== formData.gender) {
@@ -1064,7 +1069,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         webauthnCredentials: formData.biometricCredentials,
                         fingerprintTemplate: formData.biometricTemplate,
                         boardingStatus: formData.metadata.boardingStatus,
-                        residenceType: formData.metadata.boardingStatus
+                        residenceType: formData.metadata.boardingStatus,
+                        assessmentNo: formData.metadata.assessmentNo || (formData as any).assessmentNo || ''
                     }
                 };
                 if (formData.gender) {
@@ -1077,8 +1083,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             
             // 2. Save Enrollment record
             const primaryParent = formData.metadata.parents?.[0] || { name: '', phone: '', email: '', relation: 'Father' };
+            const finalAssessmentNo = formData.metadata.assessmentNo || (formData as any).assessmentNo || '';
             const metadataToSave = {
                 ...formData.metadata,
+                assessmentNo: finalAssessmentNo,
                 parentName: primaryParent.name,
                 parentPhone: primaryParent.phone,
                 parentEmail: primaryParent.email,
@@ -1091,6 +1099,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const updated: StudentEnrollment = {
                     ...editingEnrollment,
                     admissionNumber: formData.admissionNumber,
+                    assessmentNo: finalAssessmentNo,
                     status: formData.status,
                     enrollmentDate: formData.enrollmentDate,
                     metadata: metadataToSave,
@@ -1114,6 +1123,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     userId: userId,
                     enrollmentType: context,
                     admissionNumber: finalAdmNo,
+                    assessmentNo: finalAssessmentNo,
                     status: formData.status,
                     enrollmentDate: formData.enrollmentDate,
                     metadata: metadataToSave,
@@ -1133,6 +1143,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 email: '',
                 phoneNumber: '',
                 admissionNumber: '',
+                assessmentNo: '',
                 status: 'Enrolled',
                 enrollmentDate: new Date().toISOString().split('T')[0],
                 gender: '',
@@ -1148,6 +1159,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     stream: '',
                     boardingStatus: 'day_scholar',
                     subjects: [],
+                    assessmentNo: '',
                     parentName: '',
                     parentPhone: '',
                     parentEmail: '',
@@ -1191,11 +1203,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             });
         }
 
+        const assessmentNoVal = enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || associatedUser?.metadata?.assessmentNo || associatedUser?.metadata?.assessmentNumber || (enr as any).assessmentNo || (associatedUser as any)?.assessmentNo || '';
+
         setFormData({
             fullName: associatedUser?.name || 'Unknown',
             email: associatedUser?.email || '',
             phoneNumber: associatedUser?.phoneNumber || '',
             admissionNumber: enr.admissionNumber || '',
+            assessmentNo: assessmentNoVal,
             status: enr.status,
             enrollmentDate: enr.enrollmentDate,
             gender: (associatedUser?.gender || enr.metadata?.gender || '') as any,
@@ -1208,6 +1223,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 preferredLessonHours: enr.metadata?.preferredLessonHours || 'Morning',
                 priorAttendedDays: enr.metadata?.priorAttendedDays || 0,
                 gradeLevel: enr.metadata?.gradeLevel || '',
+                assessmentNo: assessmentNoVal,
                 stream: (() => {
                     const currentStream = enr.metadata?.stream || '';
                     const gradeVal = enr.metadata?.gradeLevel || '';
@@ -1515,6 +1531,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         }
 
                         const secondaryPhoneVal = item.secondaryPhone || existingEnrollment?.metadata?.secondaryPhone || '';
+                        const assessmentNoVal = item.assessmentNo || item.assessmentNumber || item.assessment_no || item.knecAssessmentNo || item.upi || item.nemba || existingEnrollment?.metadata?.assessmentNo || (existingEnrollment as any)?.assessmentNo || '';
 
                         const metadataObj = {
                             ...(existingEnrollment?.metadata || {}),
@@ -1522,6 +1539,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             licenseCategory: item.licenseCategory || existingEnrollment?.metadata?.licenseCategory || '',
                             gradeLevel: item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '',
                             stream: item.stream || importStream || existingEnrollment?.metadata?.stream || '',
+                            assessmentNo: assessmentNoVal,
                             parentName: parentNameVal,
                             parentPhone: parentPhoneVal,
                             parentEmail: parentEmailVal,
@@ -1534,6 +1552,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             const updated: StudentEnrollment = {
                                 ...existingEnrollment,
                                 admissionNumber: admissionNumberValue,
+                                assessmentNo: assessmentNoVal,
                                 metadata: metadataObj,
                                 updatedAt: new Date().toISOString()
                             };
@@ -1546,6 +1565,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 userId: userId,
                                 enrollmentType: context,
                                 admissionNumber: admissionNumberValue,
+                                assessmentNo: assessmentNoVal,
                                 status: 'Enrolled',
                                 enrollmentDate: new Date().toISOString().split('T')[0],
                                 metadata: metadataObj,
@@ -4323,9 +4343,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const filteredEnrollments = useMemo(() => {
         return enrollments.filter(enr => {
             const associatedUser = users.find(u => u.id === enr.userId);
+            const assessmentNo = enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || associatedUser?.metadata?.assessmentNo || associatedUser?.metadata?.assessmentNumber || (enr as any).assessmentNo || (associatedUser as any)?.assessmentNo || '';
             const matchesSearch = 
                 (associatedUser?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (enr.admissionNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (assessmentNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (associatedUser?.phoneNumber || '').includes(searchTerm);
             
             const matchesStatus = statusFilter === 'All' || enr.status === statusFilter;
@@ -5543,12 +5565,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                      </div>
                                                 </div>
 
-                                                {/* ── Admission # ── */}
-                                                <div className="shrink-0 flex flex-col items-center gap-0.5">
-                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Admission No.</span>
-                                                    <span className="font-mono font-black text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 px-3 py-1 rounded-lg tracking-wider whitespace-nowrap">
-                                                        {enr.admissionNumber || '—'}
-                                                    </span>
+                                                {/* ── Admission & Assessment # ── */}
+                                                <div className="shrink-0 flex flex-col items-center gap-1">
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Admission No.</span>
+                                                        <span className="font-mono font-black text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 px-3 py-0.5 rounded-lg tracking-wider whitespace-nowrap">
+                                                            {enr.admissionNumber || '—'}
+                                                        </span>
+                                                    </div>
+                                                    {(enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || user?.metadata?.assessmentNo || (user as any)?.assessmentNo) && (
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-[7.5px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Assess No.</span>
+                                                            <span className="font-mono font-bold text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 px-2 py-0.5 rounded-md whitespace-nowrap" title="Assessment Number">
+                                                                {enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || user?.metadata?.assessmentNo || (user as any)?.assessmentNo}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* ── Details (Grade/Stream or Licence) ── */}
@@ -7359,6 +7391,26 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         placeholder="Leave blank to auto-generate"
                                         value={formData.admissionNumber}
                                         onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
+                                        className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1 flex items-center justify-between">
+                                        <span>Assessment Number</span>
+                                        <span className="text-[9px] font-bold text-indigo-500 lowercase">(Assessment No / UPI)</span>
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. ASS-00123 / NEMIS / UPI"
+                                        value={formData.metadata.assessmentNo || (formData as any).assessmentNo || ''}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setFormData({ 
+                                                ...formData, 
+                                                assessmentNo: val,
+                                                metadata: { ...formData.metadata, assessmentNo: val } 
+                                            });
+                                        }}
                                         className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     />
                                 </div>

@@ -78,6 +78,9 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                         if (f.key === 'admissionNumber') {
                             return hLow.includes('adm') || hLow.includes('reg') || hLow.includes('student id') || hLow.includes('index');
                         }
+                        if (f.key === 'assessmentNo') {
+                            return hLow.includes('assess') || hLow.includes('knec') || hLow.includes('cbe') || hLow.includes('kpsea') || hLow.includes('upi') || hLow.includes('nemis') || hLow.includes('nemba');
+                        }
                         return false;
                     });
                     if (match) initialMapping[f.key] = match;
