@@ -731,13 +731,39 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                     }
                                                 } catch (e) { }
 
-                                                // Partial Matching for ID or Name
-                                                const found = users.find(u => {
-                                                    const idCode = u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '';
-                                                    return idCode.toLowerCase() === val.toLowerCase() ||
-                                                        u.name.toLowerCase() === val.toLowerCase();
+                                                const trimmed = val.trim().toLowerCase();
+                                                if (!trimmed) {
+                                                    setNewLoan(prev => ({ ...prev, userId: '' }));
+                                                    return;
+                                                }
+
+                                                // Exact or Unique Partial Matching for ID or Name
+                                                const matches = users.filter(u => {
+                                                    if (u.role === 'super_admin') return false;
+                                                    const enrollment = enrollments.find(en => en.userId === u.id || en.student_id === en.id);
+                                                    const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
+                                                    const idCode = (admissionNo || u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '').toLowerCase();
+                                                    return (
+                                                        u.name.toLowerCase() === trimmed ||
+                                                        idCode === trimmed ||
+                                                        u.name.toLowerCase().includes(trimmed) ||
+                                                        idCode.includes(trimmed)
+                                                    );
                                                 });
-                                                if (found) setNewLoan(prev => ({ ...prev, userId: found.id }));
+
+                                                // Auto-select if exact match or single unique match with >= 2 characters
+                                                const exact = matches.find(u => {
+                                                    const enrollment = enrollments.find(en => en.userId === u.id || en.student_id === en.id);
+                                                    const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
+                                                    const idCode = (admissionNo || u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '').toLowerCase();
+                                                    return u.name.toLowerCase() === trimmed || idCode === trimmed;
+                                                });
+
+                                                if (exact) {
+                                                    setNewLoan(prev => ({ ...prev, userId: exact.id }));
+                                                } else if (matches.length === 1 && trimmed.length >= 2) {
+                                                    setNewLoan(prev => ({ ...prev, userId: matches[0].id }));
+                                                }
                                             }}
                                             className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none"
                                         />
@@ -745,6 +771,54 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                             <SearchIcon className="w-5 h-5" />
                                         </div>
                                     </div>
+
+                                    {/* Instant Search Suggestions for Member */}
+                                    {memberSearch.trim().length > 0 && !newLoan.userId && (() => {
+                                        const trimmed = memberSearch.trim().toLowerCase();
+                                        const suggestions = users.filter(u => {
+                                            if (u.role === 'super_admin') return false;
+                                            const enrollment = enrollments.find(en => en.userId === u.id || en.student_id === en.id);
+                                            const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
+                                            const idCode = (admissionNo || u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '').toLowerCase();
+                                            return u.name.toLowerCase().includes(trimmed) || idCode.includes(trimmed);
+                                        }).slice(0, 5);
+
+                                        if (suggestions.length === 0) return null;
+                                        return (
+                                            <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1 shadow-md animate-fade-in">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 px-2 py-1">Matching Members — Click to select:</p>
+                                                {suggestions.map(s => {
+                                                    const enrollment = enrollments.find(en => en.userId === s.id || en.student_id === en.id);
+                                                    const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
+                                                    const idCode = admissionNo || s.admissionNumber || s.admission_number || s.staffId || (s as any).studentId || (s as any).admNo;
+                                                    return (
+                                                        <div
+                                                            key={s.id}
+                                                            onClick={() => {
+                                                                setNewLoan(prev => ({ ...prev, userId: s.id }));
+                                                                setMemberSearch(s.name);
+                                                            }}
+                                                            className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl cursor-pointer transition-all border border-transparent hover:border-indigo-200"
+                                                        >
+                                                            <div className="flex items-center gap-2.5">
+                                                                <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-black">
+                                                                    {s.name.charAt(0).toUpperCase()}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-none">{s.name}</p>
+                                                                    <p className="text-[10px] font-mono font-bold text-slate-500 mt-0.5">{idCode || 'No ID'}</p>
+                                                                </div>
+                                                            </div>
+                                                            <span className="text-[9px] font-black text-indigo-600 uppercase bg-indigo-50 dark:bg-indigo-900/40 px-2 py-1 rounded-md">
+                                                                Select
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()}
+
                                     <select
                                         required
                                         value={newLoan.userId}
@@ -763,6 +837,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                             const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
                                             const idCode = (admissionNo || u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || '').toLowerCase();
                                             return u.role !== 'super_admin' && (
+                                                !search ||
                                                 u.name.toLowerCase().includes(search) ||
                                                 idCode.includes(search)
                                             );
@@ -804,9 +879,39 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                         if (found) {
                                                             setNewLoan(prev => ({ ...prev, bookId: found.id }));
                                                             setBookSearch(`[${found.accessionNumber}] ${found.title}`);
+                                                            return;
                                                         }
                                                     }
                                                 } catch (e) { }
+
+                                                const trimmed = val.trim().toLowerCase();
+                                                if (!trimmed) {
+                                                    setNewLoan(prev => ({ ...prev, bookId: '' }));
+                                                    return;
+                                                }
+
+                                                // Partial or Single match for book
+                                                const availableMatches = books.filter(b => {
+                                                    if (b.available < 1) return false;
+                                                    return (
+                                                        b.title.toLowerCase().includes(trimmed) ||
+                                                        b.author.toLowerCase().includes(trimmed) ||
+                                                        (b.isbn || '').toLowerCase().includes(trimmed) ||
+                                                        (b.accessionNumber || '').toLowerCase().includes(trimmed)
+                                                    );
+                                                });
+
+                                                const exactMatch = availableMatches.find(b => 
+                                                    b.title.toLowerCase() === trimmed || 
+                                                    (b.accessionNumber || '').toLowerCase() === trimmed || 
+                                                    (b.isbn || '').toLowerCase() === trimmed
+                                                );
+
+                                                if (exactMatch) {
+                                                    setNewLoan(prev => ({ ...prev, bookId: exactMatch.id }));
+                                                } else if (availableMatches.length === 1 && trimmed.length >= 3) {
+                                                    setNewLoan(prev => ({ ...prev, bookId: availableMatches[0].id }));
+                                                }
                                             }}
                                             className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none"
                                         />
@@ -814,6 +919,51 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                             <SearchIcon className="w-5 h-5" />
                                         </div>
                                     </div>
+
+                                    {/* Instant Search Suggestions for Book */}
+                                    {bookSearch.trim().length > 0 && !newLoan.bookId && (() => {
+                                        const trimmed = bookSearch.trim().toLowerCase();
+                                        const suggestions = books.filter(b => {
+                                            if (b.available < 1) return false;
+                                            return (
+                                                b.title.toLowerCase().includes(trimmed) ||
+                                                b.author.toLowerCase().includes(trimmed) ||
+                                                (b.isbn || '').toLowerCase().includes(trimmed) ||
+                                                (b.accessionNumber || '').toLowerCase().includes(trimmed)
+                                            );
+                                        }).slice(0, 5);
+
+                                        if (suggestions.length === 0) return null;
+                                        return (
+                                            <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1 shadow-md animate-fade-in">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 px-2 py-1">Available Copies — Click to select:</p>
+                                                {suggestions.map(bk => (
+                                                    <div
+                                                        key={bk.id}
+                                                        onClick={() => {
+                                                            setNewLoan(prev => ({ ...prev, bookId: bk.id }));
+                                                            setBookSearch(`[${bk.accessionNumber}] ${bk.title}`);
+                                                        }}
+                                                        className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl cursor-pointer transition-all border border-transparent hover:border-indigo-200"
+                                                    >
+                                                        <div className="flex items-center gap-2.5 min-w-0">
+                                                            <div className="w-7 h-8 bg-indigo-600 rounded flex items-center justify-center flex-shrink-0 text-white">
+                                                                <BookOpenIcon className="w-4 h-4" />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">{bk.title}</p>
+                                                                <p className="text-[10px] text-slate-500 truncate">by {bk.author} • [{bk.accessionNumber}]</p>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 rounded-md flex-shrink-0">
+                                                            {bk.available} In Stock
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
+
                                     <select
                                         required
                                         value={newLoan.bookId}
