@@ -87,7 +87,7 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
         if (!contentType.includes('application/json')) {
             const rawText = await response.text();
             console.error("[System Debug] Expected JSON but got:", rawText.substring(0, 200));
-            throw new Error("Gemini 3.0 Pro: The response returned an invalid format. This usually occurs during server-side timeouts.");
+            throw new Error("AI Core: The response returned an invalid format. This usually occurs during server-side timeouts.");
         }
 
         const data = await response.json();
@@ -95,8 +95,37 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
 
     } catch (error: any) {
         if (error.name === 'AbortError') {
-            throw new Error("Gemini 3.0 Pro: Connection timed out. Please try again with fewer data points.");
+            throw new Error("AI Core: Connection timed out. Please try again with fewer data points.");
         }
+
+        // Direct Client-side OpenAI Fallback
+        const clientOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || localStorage.getItem('openai_api_key') || (import.meta as any).env?.VITE_OPENAI_API_KEY || '';
+        if (clientOpenAiKey) {
+            try {
+                console.log("[AI Service] Gateway failed, attempting direct client OpenAI fallback...");
+                const oaRes = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${clientOpenAiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o-mini',
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: config?.temperature || 0.7,
+                        response_format: config?.responseMimeType === 'application/json' ? { type: 'json_object' } : undefined
+                    })
+                });
+                if (oaRes.ok) {
+                    const oaData = await oaRes.json();
+                    const text = oaData?.choices?.[0]?.message?.content || '';
+                    if (text) return { text, provider: 'openai_direct_fallback' };
+                }
+            } catch (oaClientErr) {
+                console.warn("[AI Service] Direct client OpenAI fallback failed:", oaClientErr);
+            }
+        }
+
         console.error("[System Debug] Engine Error details:", error);
         throw sanitizeAiError(error);
     }

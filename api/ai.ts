@@ -340,7 +340,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        let primaryProvider = provider || (geminiApiKey ? 'gemini' : 'openai');
+        let primaryProvider = provider;
+        if (!primaryProvider) {
+            if (requestedModel?.startsWith('gpt-') || requestedModel?.includes('openai') || requestedModel?.includes('o3') || requestedModel?.includes('o1')) {
+                primaryProvider = 'openai';
+            } else if (requestedModel?.startsWith('gemini')) {
+                primaryProvider = 'gemini';
+            } else if (openAiApiKey && !geminiApiKey) {
+                primaryProvider = 'openai';
+            } else if (geminiApiKey) {
+                primaryProvider = 'gemini';
+            } else {
+                primaryProvider = 'openai';
+            }
+        }
+
         let executionSuccess = false;
         let finalResponseText = '';
         let lastErrorMsg = '';
@@ -376,79 +390,110 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return msgs;
         };
 
-        // --- ATTEMPT 1: Primary Provider ---
-        if (primaryProvider === 'gemini' && geminiApiKey) {
-            try {
-                const genAI = new GoogleGenerativeAI(geminiApiKey);
-                const primaryModel = requestedModel === 'gemini-pro' ? 'gemini-2.0-flash' : (requestedModel || 'gemini-2.0-flash');
-                const fallbackModels = [primaryModel, 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash', 'gemini-1.5-pro'].filter((v, i, a) => a.indexOf(v) === i);
+        // Helper function for OpenAI Chat Execution
+        const executeOpenAi = async () => {
+            if (!openAiApiKey) return false;
+            const openAiMsgs = buildOpenAiMessages();
+            if (openAiMsgs.length === 0) return false;
 
-                for (const targetModel of fallbackModels) {
-                    try {
-                        const model = genAI.getGenerativeModel({ model: targetModel });
+            const targetOpenAiModel = requestedModel?.startsWith('gpt-') ? requestedModel : 'gpt-4o-mini';
+            const openAiResult = await runOpenAiChat({
+                apiKey: openAiApiKey,
+                messages: openAiMsgs,
+                model: targetOpenAiModel,
+                temperature: genConfig?.temperature || 0.7
+            });
+            finalResponseText = openAiResult;
+            executionSuccess = true;
+            return res.status(200).json({
+                text: openAiResult,
+                provider: 'openai',
+                model: targetOpenAiModel,
+                failover: primaryProvider !== 'openai'
+            });
+        };
 
-                        if (history && Array.isArray(history) && history.length > 0 && effectiveMessage) {
-                            const chat = model.startChat({ history, generationConfig: genConfig });
-                            const result = await chat.sendMessage(effectiveMessage);
-                            const response = await result.response;
-                            finalResponseText = response.text();
-                            executionSuccess = true;
-                            return res.status(200).json({ text: finalResponseText, provider: 'gemini', model: targetModel });
-                        }
+        // Helper function for Gemini Execution
+        const executeGemini = async () => {
+            if (!geminiApiKey) return false;
+            const genAI = new GoogleGenerativeAI(geminiApiKey);
+            const primaryModel = requestedModel === 'gemini-pro' ? 'gemini-2.0-flash' : (requestedModel?.startsWith('gemini') ? requestedModel : 'gemini-2.0-flash');
+            const fallbackModels = [primaryModel, 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash', 'gemini-1.5-pro'].filter((v, i, a) => a.indexOf(v) === i);
 
-                        if (contents) {
-                            const promptContent = Array.isArray(contents) ? contents : [{ role: 'user', parts: [{ text: typeof contents === 'string' ? contents : JSON.stringify(contents) }] }];
-                            const result = await model.generateContent({ contents: promptContent, generationConfig: genConfig });
-                            const response = await result.response;
-                            finalResponseText = response.text();
-                            executionSuccess = true;
-                            return res.status(200).json({ text: finalResponseText, provider: 'gemini', model: targetModel });
-                        }
+            for (const targetModel of fallbackModels) {
+                try {
+                    const model = genAI.getGenerativeModel({ model: targetModel });
 
-                        if (effectiveMessage) {
-                            const result = await model.generateContent({ contents: [{ role: 'user', parts: [{ text: effectiveMessage }] }], generationConfig: genConfig });
-                            const response = await result.response;
-                            finalResponseText = response.text();
-                            executionSuccess = true;
-                            return res.status(200).json({ text: finalResponseText, provider: 'gemini', model: targetModel });
-                        }
-                    } catch (mErr: any) {
-                        lastErrorMsg = mErr?.message || String(mErr);
-                        console.warn(`[AI API] Gemini model ${targetModel} issue:`, lastErrorMsg);
+                    if (history && Array.isArray(history) && history.length > 0 && effectiveMessage) {
+                        const chat = model.startChat({ history, generationConfig: genConfig });
+                        const result = await chat.sendMessage(effectiveMessage);
+                        const response = await result.response;
+                        finalResponseText = response.text();
+                        executionSuccess = true;
+                        return res.status(200).json({ text: finalResponseText, provider: 'gemini', model: targetModel, failover: primaryProvider !== 'gemini' });
                     }
+
+                    if (contents) {
+                        const promptContent = Array.isArray(contents) ? contents : [{ role: 'user', parts: [{ text: typeof contents === 'string' ? contents : JSON.stringify(contents) }] }];
+                        const result = await model.generateContent({ contents: promptContent, generationConfig: genConfig });
+                        const response = await result.response;
+                        finalResponseText = response.text();
+                        executionSuccess = true;
+                        return res.status(200).json({ text: finalResponseText, provider: 'gemini', model: targetModel, failover: primaryProvider !== 'gemini' });
+                    }
+
+                    if (effectiveMessage) {
+                        const result = await model.generateContent({ contents: [{ role: 'user', parts: [{ text: effectiveMessage }] }], generationConfig: genConfig });
+                        const response = await result.response;
+                        finalResponseText = response.text();
+                        executionSuccess = true;
+                        return res.status(200).json({ text: finalResponseText, provider: 'gemini', model: targetModel, failover: primaryProvider !== 'gemini' });
+                    }
+                } catch (mErr: any) {
+                    lastErrorMsg = mErr?.message || String(mErr);
+                    console.warn(`[AI API] Gemini model ${targetModel} issue:`, lastErrorMsg);
                 }
+            }
+            return false;
+        };
+
+        // --- ATTEMPT 1: Primary Provider ---
+        if (primaryProvider === 'openai' && openAiApiKey) {
+            try {
+                await executeOpenAi();
+                if (executionSuccess) return;
+            } catch (oaErr: any) {
+                lastErrorMsg = `OpenAI: ${oaErr.message || oaErr}`;
+                console.warn("[AI API] Primary OpenAI failed, attempting Gemini fallback:", lastErrorMsg);
+            }
+        } else if (primaryProvider === 'gemini' && geminiApiKey) {
+            try {
+                await executeGemini();
+                if (executionSuccess) return;
             } catch (geminiErr: any) {
-                lastErrorMsg = geminiErr?.message || String(geminiErr);
-                console.warn("[AI API] Gemini primary failed:", lastErrorMsg);
+                lastErrorMsg = `Gemini: ${geminiErr.message || geminiErr}`;
+                console.warn("[AI API] Primary Gemini failed, attempting OpenAI fallback:", lastErrorMsg);
             }
         }
 
-        // --- ATTEMPT 2: OpenAI Execution (or Failover from Gemini) ---
-        if (!executionSuccess && openAiApiKey) {
-            console.log("[AI API] Routing request to OpenAI engine (failover/direct)...");
-            try {
-                const openAiMsgs = buildOpenAiMessages();
-                if (openAiMsgs.length === 0) {
-                    return res.status(400).json({ error: "Invalid Request", message: "No prompt content found." });
+        // --- ATTEMPT 2: Secondary Failover ---
+        if (!executionSuccess) {
+            if (primaryProvider === 'openai' && geminiApiKey) {
+                console.log("[AI API] Failover: Routing request to Gemini engine...");
+                try {
+                    await executeGemini();
+                    if (executionSuccess) return;
+                } catch (gErr: any) {
+                    lastErrorMsg = `Gemini Failover: ${gErr.message} | Previous: ${lastErrorMsg}`;
                 }
-
-                const targetOpenAiModel = requestedModel?.startsWith('gpt-') ? requestedModel : 'gpt-4o-mini';
-                const openAiResult = await runOpenAiChat({
-                    apiKey: openAiApiKey,
-                    messages: openAiMsgs,
-                    model: targetOpenAiModel,
-                    temperature: genConfig?.temperature || 0.7
-                });
-
-                return res.status(200).json({
-                    text: openAiResult,
-                    provider: 'openai',
-                    model: targetOpenAiModel,
-                    failover: primaryProvider === 'gemini'
-                });
-            } catch (oaErr: any) {
-                console.error("[AI API] OpenAI execution error:", oaErr);
-                lastErrorMsg = `OpenAI: ${oaErr.message} | Previous: ${lastErrorMsg}`;
+            } else if (primaryProvider === 'gemini' && openAiApiKey) {
+                console.log("[AI API] Failover: Routing request to OpenAI engine...");
+                try {
+                    await executeOpenAi();
+                    if (executionSuccess) return;
+                } catch (oaErr: any) {
+                    lastErrorMsg = `OpenAI Failover: ${oaErr.message} | Previous: ${lastErrorMsg}`;
+                }
             }
         }
 

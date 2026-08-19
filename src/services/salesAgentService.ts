@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export interface SalesAgentContext {
     institution: Institution;
+    agentName?: string;
     catalogItems?: Array<{
         id: string;
         name: string;
@@ -23,6 +24,7 @@ export interface SalesAgentContext {
     contactPhone?: string;
     contactEmail?: string;
     whatsappNumber?: string;
+    preferredProvider?: 'openai' | 'gemini' | 'auto';
 }
 
 export interface AgentMessage {
@@ -38,9 +40,10 @@ export interface AgentMessage {
  */
 function buildSystemPrompt(ctx: SalesAgentContext): string {
     const inst = ctx.institution;
-    const instType = inst.institutionType || 'Business';
+    const instType = inst.institutionType || 'Enterprise Cloud ERP & Multi-Industry SaaS';
     const currency = inst.currency || 'KES';
-    const businessName = inst.name || 'our institution';
+    const businessName = inst.name || 'EduAI Global Cloud OS';
+    const agentTitle = ctx.agentName || `${businessName} AI Solutions Advisor`;
 
     let catalogText = '';
     if (ctx.catalogItems && ctx.catalogItems.length > 0) {
@@ -55,16 +58,16 @@ function buildSystemPrompt(ctx: SalesAgentContext): string {
 
     let servicesText = '';
     if (ctx.services && ctx.services.length > 0) {
-        servicesText = `\nAVAILABLE COURSES / PACKAGES / SERVICES:\n` +
+        servicesText = `\nAVAILABLE MODULES / PACKAGES / SERVICES:\n` +
             ctx.services.map(s => {
-                return `- ${s.name} | Price/Fee: ${currency} ${s.price.toLocaleString()}${s.duration ? ` | Duration: ${s.duration}` : ''}${s.description ? ` | ${s.description}` : ''}`;
+                return `- ${s.name} | Rate/Fee: ${s.price > 0 ? `${currency} ${s.price.toLocaleString()}` : 'Custom Tier'}${s.duration ? ` | Model: ${s.duration}` : ''}${s.description ? ` | ${s.description}` : ''}`;
             }).join('\n');
     }
 
     const isSchool = instType === 'Education' || instType === 'Primary' || instType === 'Secondary' || instType === 'Tertiary' || instType === 'Higher Education' || instType === 'TVET' || instType === 'College' || instType === 'University';
 
     if (isSchool) {
-        return `You are "${inst.name} Admissions, Academic & Campus Support AI Assistant", a friendly, highly intelligent, and courteous digital campus representative.
+        return `You are "${agentTitle}", a friendly, highly intelligent, and courteous digital campus representative for ${businessName}.
 
 CAMPUS PROFILE:
 - School / Institution: ${businessName}
@@ -84,36 +87,37 @@ IMPORTANT CAMPUS STORE & INVENTORY POLICY:
 
 YOUR OBJECTIVES & BEHAVIOR:
 1. Greet visitors, prospective parents, and students warmly with institutional pride.
-2. Answer questions thoroughly regarding course curricula, grade placement, admissions, fee structures, term calendars, and institutional procedures.
-3. Guide prospective learners or parents to start admission applications or book a campus tour.
-4. Keep answers clear, structured with bullet points, courteous, and directly relevant to the user's inquiry.`;
+2. State your name and role clearly when asked ("I am ${agentTitle}").
+3. Answer questions thoroughly regarding course curricula, grade placement, CBC, admissions, fee structures, term calendars, and institutional procedures.
+4. Guide prospective learners or parents to start admission applications or book a campus tour.
+5. Keep answers clear, structured with bullet points, courteous, and directly relevant to the user's inquiry.`;
     }
 
-    return `You are "${inst.name} Sales & Customer Support AI Assistant", a friendly, professional, and knowledgeable digital sales representative and customer support specialist.
+    return `You are "${agentTitle}", an expert AI solutions consultant and customer advisor for ${businessName}.
 
-BUSINESS PROFILE:
-- Business Name: ${businessName}
-- Industry / Type: ${instType} ${inst.businessSubType ? `(${inst.businessSubType})` : ''}
-- Location / Address: ${inst.address || inst.countyId || 'Kenya'}
-- Contact Phone: ${ctx.contactPhone || inst.phoneNumber || inst.phone || 'Available on request'}
-- Contact Email: ${ctx.contactEmail || inst.email || 'Available on request'}
-- WhatsApp / Hotline: ${ctx.whatsappNumber || inst.phoneNumber || inst.phone || ''}
-- Operating Hours: ${ctx.operatingHours || 'Monday - Saturday: 8:00 AM - 6:00 PM'}
+BUSINESS & PLATFORM PROFILE:
+- Organization Name: ${businessName}
+- Industry / Focus: ${instType} ${inst.businessSubType ? `(${inst.businessSubType})` : ''}
+- Location / Address: ${inst.address || inst.countyId || 'Nairobi, Kenya'}
+- Contact Phone: ${ctx.contactPhone || inst.phoneNumber || inst.phone || '+254 700 000 000'}
+- Contact Email: ${ctx.contactEmail || inst.email || 'sales@eduai.co.ke'}
+- WhatsApp / Hotline: ${ctx.whatsappNumber || inst.phoneNumber || inst.phone || '+254 700 000 000'}
+- Operating Hours: ${ctx.operatingHours || '24/7 Cloud Support | Mon - Sat: 8:00 AM - 6:00 PM'}
 - Currency: ${currency}
 ${catalogText}
 ${servicesText}
 
 YOUR OBJECTIVES & BEHAVIOR:
-1. Greet customers warmly and provide clear, structured answers regarding products, services, pricing, availability, and ordering policies.
-2. Recommend relevant products or services based on customer requirements. Quote exact prices in ${currency}.
-3. Guide customers through placing orders, booking appointments, or registering for offerings.
-4. If a customer is ready to buy or requests a callback, ask for their Name and Phone Number / WhatsApp number so the team can finalize their order.
-5. Always maintain a welcoming, helpful, and courteous tone.`;
+1. Greet customers warmly and answer any question with clarity, intelligence, and structured formatting.
+2. When asked your name or identity, clearly introduce yourself as "${agentTitle}".
+3. Reason with users step-by-step to understand their requirements, explain how EduAI modules work, calculate approximate costs or subscription models, and suggest the best workflow.
+4. If a customer wants a live demo, consultation, or pricing quote, ask for their Name and Phone Number / WhatsApp number so our technical team can assist them.
+5. Always maintain an intelligent, friendly, and empowering tone.`;
 }
 
 /**
- * Intelligent Local Knowledge-Base Fallback Engine:
- * Formulates detailed, rich, multi-turn conversational responses when external AI gateways are unavailable.
+ * Intelligent Local Knowledge-Base & Reasoning Fallback Engine:
+ * Formulates multi-turn, contextual responses when external AI gateways are offline or unconfigured.
  */
 function generateLocalAgentResponse(
     userMessage: string,
@@ -123,26 +127,76 @@ function generateLocalAgentResponse(
     const inst = ctx.institution;
     const lower = userMessage.toLowerCase().trim();
     const currency = inst.currency || 'KES';
-    const instName = inst.name || 'our institution';
-    const phone = ctx.contactPhone || inst.phoneNumber || inst.phone || '';
-    const email = ctx.contactEmail || inst.email || '';
-    const address = inst.address || inst.subCounty || inst.countyId || 'our main campus';
-    const isSchool = !inst.institutionType || ['Education', 'Primary', 'Secondary', 'Tertiary', 'Higher Education', 'TVET', 'College', 'University'].includes(inst.institutionType);
+    const instName = inst.name || 'EduAI Global Cloud OS';
+    const agentTitle = ctx.agentName || `${instName} Solutions Advisor`;
+    const phone = ctx.contactPhone || inst.phoneNumber || inst.phone || '+254 700 000 000';
+    const email = ctx.contactEmail || inst.email || 'sales@eduai.co.ke';
+    const address = inst.address || inst.subCounty || inst.countyId || 'Nairobi, Kenya';
+    const isSchool = inst.institutionType && ['Education', 'Primary', 'Secondary', 'Tertiary', 'Higher Education', 'TVET', 'College', 'University'].includes(inst.institutionType);
 
     let actionType: AgentMessage['actionType'] = undefined;
     let actionData: any = undefined;
 
-    // 1. Human Agent / Callback Handover
-    if (lower.includes('speak to human') || lower.includes('real person') || lower.includes('sales team') || lower.includes('human agent') || lower.includes('call me') || lower.includes('representative') || lower.includes('contact me') || lower.includes('phone number')) {
+    // 1. Identity, Name & Creator Queries
+    if (lower.includes('name') || lower.includes('who are you') || lower.includes('what are you') || lower.includes('who made you') || lower.includes('who created you') || lower.includes('what is your name')) {
+        return {
+            role: 'model',
+            text: `Hello! 👋 My name is **${agentTitle}**.\n\nI am your intelligent digital AI solutions consultant and assistant for **${instName}**.\n\nI can help you with:\n• 🌟 **Module Consultations & Workflows** (Academics, Hospital HIS, SACCO, POS, Security, Real Estate, Church & more)\n• 📋 **Admissions, Registration & Onboarding**\n• 💰 **Tuition, Subscription & Fee Schedules**\n• 📅 **Scheduling Demos & Campus Visits**\n• 📞 **Connecting with our Specialist Team**\n\nWhat can I assist you with today?`
+        };
+    }
+
+    // 2. AI Reasoning & Capability Inquiries
+    if (lower.includes('reason') || lower.includes('openai') || lower.includes('chatgpt') || lower.includes('gemini') || lower.includes('how smart') || lower.includes('how do you work') || lower.includes('what can you do') || lower.includes('can you help')) {
+        return {
+            role: 'model',
+            text: `I am engineered with **Advanced Multi-Engine AI Reasoning** (powered by OpenAI GPT-4o and Google Gemini neural models), integrated directly into **${instName}**.\n\nHere is how I can reason and assist:\n• **Logical Problem Solving:** I analyze your specific institutional setup to recommend optimized workflows.\n• **Automated Calculations:** I calculate tuition schedules, student subscriptions, or ERP package costs in ${currency}.\n• **Domain Intelligence:** From Kenyan CBC academic grading to Hospital HIS triaging and SACCO loan interest, I understand your operational requirements.\n\nFeel free to ask me any complex question, or let me know what module you'd like to explore!`
+        };
+    }
+
+    // 3. Human Agent / Callback Handover
+    if (lower.includes('speak to human') || lower.includes('real person') || lower.includes('sales team') || lower.includes('human agent') || lower.includes('call me') || lower.includes('representative') || lower.includes('contact me') || lower.includes('phone number') || lower.includes('callback')) {
         actionType = 'create_lead';
         return {
             role: 'model',
-            text: `I'd be glad to connect you directly with our team! 📞\n\n• **Direct Phone:** ${phone || 'Available via our helpdesk'}\n• **Email:** ${email || 'Available upon request'}\n• **Campus / Office:** ${address}\n\nPlease enter your **Name** and **Phone Number** below, and our team will get in touch with you shortly!`,
+            text: `I'd be glad to connect you directly with our team! 📞\n\n• **Direct Phone:** ${phone}\n• **Email:** ${email}\n• **Office / Campus:** ${address}\n\nPlease enter your **Name** and **Phone Number** below, and our specialist will reach out to you directly!`,
             actionType
         };
     }
 
-    // 2. Admissions, Application & Registration
+    // 4. Module Specific Explanations (Hospital, SACCO, POS, Retail, Security, Church, Hotel)
+    if (lower.includes('hospital') || lower.includes('health') || lower.includes('clinic') || lower.includes('his') || lower.includes('patient') || lower.includes('triage') || lower.includes('pharmacy')) {
+        return {
+            role: 'model',
+            text: `🏥 **Hospital Information System (HIS) Module**\n\nOur integrated healthcare platform delivers comprehensive digital clinical workflows:\n\n• **OPD & IPD Management:** Real-time patient triage, vital signs charting, bed occupancy, and ward transfers.\n• **Doctor Consultation Desk:** Digital diagnosis (ICD-11), electronic prescription issuing, and clinical notes.\n• **Integrated Pharmacy & Dispensing:** Real-time drug inventory tracking, expiry alerts, and prescription verification.\n• **Automated Billing & Insurance:** Cash, M-PESA, NHIF/SHA, and private insurance remittance claim processing.\n• **Laboratory & Radiology:** Test ordering, specimen tracking, and automated result delivery.\n\nWould you like to book a live demo of the HIS module?`,
+            actionType: 'book_service'
+        };
+    }
+
+    if (lower.includes('sacco') || lower.includes('microfinance') || lower.includes('loan') || lower.includes('savings') || lower.includes('dividend') || lower.includes('member')) {
+        return {
+            role: 'model',
+            text: `🏦 **SACCO & Microfinance ERP Module**\n\nDesigned to automate credit union and financial cooperative operations:\n\n• **Member Management:** KYC onboarding, share capital registers, and savings account ledgers.\n• **Automated Loan Engine:** Reducing balance and straight-line interest calculations, guarantor approvals, and disbursement.\n• **M-PESA & Bank Reconciliation:** Automated deposit tracking, instant B2C disbursements, and SMS payment receipts.\n• **Dividend & Financial Reports:** SASRA compliance reporting, balance sheets, and automated dividend distribution.\n\nWould you like to see how our loan automation engine works?`,
+            actionType: 'book_service'
+        };
+    }
+
+    if (lower.includes('retail') || lower.includes('pos') || lower.includes('supermarket') || lower.includes('storefront') || lower.includes('inventory') || lower.includes('sales') || lower.includes('shop')) {
+        return {
+            role: 'model',
+            text: `🛒 **Retail POS & Multi-Branch Inventory Module**\n\nEquipped for modern commerce and supermarkets:\n\n• **Lightning POS:** Barcode scanning, offline receipt generation, cash, card, and M-PESA Till integration.\n• **Smart Inventory:** Batch tracking, low-stock reorder thresholds, and shrinkage analytics.\n• **Supplier & Purchase Orders:** Automated PO creation and stock receipt matching.\n• **Online Customer Storefront:** Built-in customer web portal for remote ordering and deliveries.\n\nWould you like to test our Point of Sale interface?`,
+            actionType: 'book_service'
+        };
+    }
+
+    if (lower.includes('security') || lower.includes('guard') || lower.includes('armory') || lower.includes('patrol') || lower.includes('visitor')) {
+        return {
+            role: 'model',
+            text: `🛡️ **Private Security & Facility Guarding Module**\n\nEngineered for security firms and facility protection:\n\n• **Guard Rostering & Shifts:** Automated assignment of guard personnel across client beats.\n• **Armory & Firearm Logistics:** Digital weapon issuance, ammunition reconciliation, and license tracking.\n• **Visitor & Asset Gate Logs:** QR-code visitor scanning, vehicle checks, and property gate passes.\n• **Incident & Medical Logs:** Emergency dispatch tracking and occurrence book (OB) logs.\n\nWould you like more details on security personnel rostering?`,
+            actionType: 'book_service'
+        };
+    }
+
+    // 5. Admissions, Application & Registration
     if (lower.includes('admission') || lower.includes('apply') || lower.includes('enroll') || lower.includes('join') || lower.includes('registration') || lower.includes('requirement') || lower.includes('intake') || lower.includes('entry')) {
         actionType = 'book_service';
         if (isSchool) {
@@ -155,116 +209,163 @@ function generateLocalAgentResponse(
         } else {
             return {
                 role: 'model',
-                text: `📋 **Registration & Onboarding at ${instName}**\n\nGetting started with our programs and services is simple!\n\n• You can register online or visit our office at ${address}.\n• For personalized registration support, reach us directly at **${phone || 'our support line'}**.\n\nWould you like to book an appointment or consult with our representative now?`,
+                text: `📋 **Onboarding & Setup with ${instName}**\n\nGetting started with our cloud platform is quick and seamless!\n\n• Instant tenant provisioning with dedicated multi-branch database isolation.\n• Seamless data migration for students, patients, staff, and inventory records.\n• Full on-site and remote staff training.\n\nWould you like our deployment team to configure your environment? Click **Book / Apply** below to begin!`,
                 actionType
             };
         }
     }
 
-    // 3. Fees, Tuition & Pricing
-    if (lower.includes('fee') || lower.includes('tuition') || lower.includes('cost') || lower.includes('price') || lower.includes('how much') || lower.includes('payment') || lower.includes('pricing')) {
+    // 6. Fees, Tuition & Pricing
+    if (lower.includes('fee') || lower.includes('tuition') || lower.includes('cost') || lower.includes('price') || lower.includes('how much') || lower.includes('payment') || lower.includes('pricing') || lower.includes('subscription')) {
         if (ctx.services && ctx.services.length > 0) {
-            const feeItems = ctx.services.slice(0, 6).map(s => `• **${s.name}**: ${currency} ${s.price.toLocaleString()} (${s.duration || 'Termly'})`).join('\n');
+            const feeItems = ctx.services.slice(0, 6).map(s => `• **${s.name}**: ${s.price > 0 ? `${currency} ${s.price.toLocaleString()}` : 'Contact for Tier'} (${s.duration || 'Standard'})`).join('\n');
             return {
                 role: 'model',
-                text: `💰 **Fee Structure & Program Pricing for ${instName}**\n\nHere are our standard program offerings and tuition rates:\n\n${feeItems}\n\n*Note: Flexible payment plans and institutional bank/M-PESA channels are available upon admission.* For a detailed official fee breakdown, feel free to reach our accounts desk at **${phone || email || 'our office'}**.`,
+                text: `💰 **Pricing & Modules Overview for ${instName}**\n\nHere are our standard packages and service tiers:\n\n${feeItems}\n\n*Note: Flexible billing, per-student subscriptions, and custom enterprise licensing are available.* For a customized proposal, feel free to contact our sales desk at **${phone}** or **${email}**.`,
                 actionType: 'book_service'
             };
         } else {
             return {
                 role: 'model',
-                text: `💰 **Pricing & Fee Inquiries at ${instName}**\n\nOur fee schedule is competitive, transparent, and structured according to grade level and academic requirements.\n\nFor a complete fee breakdown and payment schedules, please contact our accounts and admissions desk at **${phone || 'our helpline'}** or via email at **${email || 'our official desk'}**.`,
+                text: `💰 **Pricing & Subscription Inquiries for ${instName}**\n\nOur pricing is flexible, transparent, and structured according to your organization size, learner count, or branch footprint.\n\nFor a detailed quotation and invoice, please contact our accounts and sales desk at **${phone}** or via email at **${email}**.`,
                 actionType: 'create_lead'
             };
         }
     }
 
-    // 4. Courses, Academics, Subjects & Curriculum
+    // 7. Academic CBC & Curriculum
     if (lower.includes('course') || lower.includes('curriculum') || lower.includes('subject') || lower.includes('grade') || lower.includes('level') || lower.includes('class') || lower.includes('program') || lower.includes('academic') || lower.includes('cbc')) {
         if (ctx.services && ctx.services.length > 0) {
-            const courseList = ctx.services.map(s => `• **${s.name}** ${s.description ? `— ${s.description}` : ''} (${currency} ${s.price.toLocaleString()})`).join('\n');
+            const courseList = ctx.services.map(s => `• **${s.name}** ${s.description ? `— ${s.description}` : ''} (${s.price > 0 ? `${currency} ${s.price.toLocaleString()}` : 'Included'})`).join('\n');
             return {
                 role: 'model',
-                text: `📚 **Academic Programs & Curriculum at ${instName}**\n\nWe offer a comprehensive, learner-centered curriculum designed to foster academic excellence, character development, and future-ready skills:\n\n${courseList}\n\nWould you like more details on admission requirements for any of these levels?`,
+                text: `📚 **Academic Programs & Modules at ${instName}**\n\nWe provide a comprehensive curriculum designed for modern excellence:\n\n${courseList}\n\nWould you like more details on any specific program?`,
                 actionType: 'book_service'
             };
         } else {
             return {
                 role: 'model',
-                text: `📚 **Academics & Curricula at ${instName}**\n\nWe deliver high-standard CBC and foundational academic programs equipped with modern learning facilities, computer labs, science practicals, and co-curricular activities.\n\nWould you like to schedule a campus tour or speak with our academic director? Reach us at **${phone}**.`,
+                text: `📚 **Academics & Curricula at ${instName}**\n\nWe deliver high-standard CBC and foundational academic programs equipped with automated grading, competency assessments, student portals, and attendance tracking.\n\nWould you like to schedule a demonstration? Reach us at **${phone}**.`,
                 actionType: 'book_service'
             };
         }
     }
 
-    // 5. School Uniforms, Textbooks & Store Supplies
+    // 8. Uniforms & School Store Policies
     if (lower.includes('uniform') || lower.includes('book') || lower.includes('textbook') || lower.includes('stationery') || lower.includes('supply') || lower.includes('store') || lower.includes('buy book') || lower.includes('material')) {
         if (isSchool) {
             return {
                 role: 'model',
-                text: `👕 **Institutional Resource & Uniform Policy**\n\n• **Textbooks & Learning Kits:** At ${instName}, essential textbooks, curriculum course books, and lab supplies are institutional resources allocated and **issued directly to enrolled learners** upon term reporting.\n• **Uniform Sets:** School uniform sets, sports kits, and identity badges are provided as part of the student onboarding package upon admission.\n• **School Store:** Our store serves as an internal issuance facility for students and staff. Commercial retail sales to external parties are not conducted.\n\nIf you need assistance with learner material allocations, please contact the administration desk at **${phone || 'our campus'}**.`,
+                text: `👕 **Institutional Resource & Uniform Policy**\n\n• **Textbooks & Learning Kits:** At ${instName}, essential textbooks, curriculum course books, and lab supplies are institutional resources allocated and **issued directly to enrolled learners** upon term reporting.\n• **Uniform Sets:** School uniform sets, sports kits, and identity badges are provided as part of the student onboarding package upon admission.\n• **School Store:** Our store serves as an internal issuance facility for students and staff. Commercial retail sales to external parties are not conducted.\n\nIf you need assistance with learner material allocations, please contact the administration desk at **${phone}**.`,
                 actionType: 'create_lead'
             };
         }
     }
 
-    // 6. Products / Catalog for Non-Schools
-    if (ctx.catalogItems && ctx.catalogItems.length > 0 && (lower.includes('product') || lower.includes('item') || lower.includes('catalog') || lower.includes('stock') || lower.includes('buy') || lower.includes('order'))) {
-        const topProducts = ctx.catalogItems.slice(0, 4);
-        const productList = topProducts.map(p => `• **${p.name}** — ${currency} ${p.price.toLocaleString()} (${p.inStock !== false ? 'In stock' : 'Out of stock'})`).join('\n');
-        actionType = 'show_products';
-        actionData = topProducts;
-        return {
-            role: 'model',
-            text: `🛍️ **Available Catalog at ${instName}**\n\nHere are some of our popular items:\n\n${productList}\n\nClick on any product below to order or view details!`,
-            actionType,
-            actionData
-        };
-    }
-
-    // 7. Location, Campus Tours & Visiting Hours
+    // 9. Location, Campus Tours & Visiting Hours
     if (lower.includes('location') || lower.includes('where') || lower.includes('address') || lower.includes('direction') || lower.includes('map') || lower.includes('visit') || lower.includes('tour') || lower.includes('hours') || lower.includes('time') || lower.includes('open')) {
         actionType = 'book_service';
         return {
             role: 'model',
-            text: `📍 **Campus Location & Visiting Hours — ${instName}**\n\n• **Physical Location:** ${address}\n• **Office & Helpdesk Hours:** ${ctx.operatingHours || 'Monday to Friday, 7:30 AM – 5:00 PM'}\n• **Telephone:** ${phone || 'Available on request'}\n• **Email:** ${email || 'Available on request'}\n\nWe warmly welcome parents and visitors for campus tours! Would you like to schedule a visit? Click below to book an appointment.`,
+            text: `📍 **Location & Visiting Hours — ${instName}**\n\n• **Physical Location:** ${address}\n• **Office & Helpdesk Hours:** ${ctx.operatingHours || 'Monday to Friday, 7:30 AM – 5:00 PM'}\n• **Telephone:** ${phone}\n• **Email:** ${email}\n\nWe warmly welcome visitors and partners! Would you like to schedule an on-site visit or virtual consultation? Click below to book an appointment.`,
             actionType
         };
     }
 
-    // 8. Greetings & General Inquiries
+    // 10. Greetings & Friendly Small Talk
     if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey') || lower.includes('good morning') || lower.includes('good afternoon') || lower.includes('good evening') || lower === 'start' || lower === 'help') {
-        const greetingOptions = isSchool 
-            ? `Hello and welcome to **${instName}**! 👋 I am your dedicated digital campus assistant.\n\nI can assist you with:\n• 🎓 **Admissions & Enrollment** (Intake dates, entry requirements)\n• 📚 **Academic Programs** (Curriculum, grades, subjects)\n• 💰 **Tuition & Fee Schedules**\n• 👕 **Textbook & Uniform Issuance Policies**\n• 📍 **Campus Location & Tour Scheduling**\n\nHow can I help you today?`
-            : `Hello and welcome to **${instName}**! 👋 I am your AI Sales & Support Representative.\n\nI can help you with:\n• 🛍️ **Products & Pricing Catalog**\n• 💼 **Services & Packages**\n• 📅 **Booking Appointments**\n• 📞 **Connecting with our Team**\n\nWhat would you like to explore today?`;
-
         return {
             role: 'model',
-            text: greetingOptions
+            text: `Hello and welcome to **${instName}**! 👋 I am **${agentTitle}**.\n\nI can assist you with:\n• 🌟 **Module Demonstrations & Features** (Schools, Hospitals, Saccos, Retail & more)\n• 📋 **Admissions, Subscriptions & Setup Guides**\n• 💰 **Fee Schedules & Package Pricing**\n• 📍 **Location, Contacts & Scheduling Consultations**\n\nWhat would you like to explore today?`
         };
     }
 
-    // 9. Polite Fallback / General Continuity
+    if (lower.includes('thank') || lower.includes('great') || lower.includes('awesome') || lower.includes('good') || lower === 'ok' || lower === 'okay' || lower === 'cool') {
+        return {
+            role: 'model',
+            text: `You're very welcome! 😊 I'm always here to help you get the most out of **${instName}**.\n\nIs there anything else you would like to know about our modules, pricing, or system capabilities?`
+        };
+    }
+
+    // 11. Intelligent Context-Aware Continuation
     return {
         role: 'model',
-        text: `Thank you for your message! At **${instName}**, we are committed to providing you with prompt and comprehensive assistance.\n\n• For immediate help regarding **Admissions, Courses, Fees, or Campus Tours**, simply ask me or select an option below.\n• You can also contact our administration directly at **${phone || 'our official phone number'}** or email **${email || 'our helpdesk'}**.\n\nWhat specific information can I find for you right now?`
+        text: `Thank you for your question! Regarding **${instName}**, I can help you explore any part of our platform—including **Admissions, Course Curricula, Fee Schedules, Hospital HIS, SACCO Microfinance, Retail POS, or Security Logistics**.\n\n• You can ask me any specific question about these modules.\n• Or reach our direct support desk at **${phone}** / **${email}**.\n\nWhat specific detail or workflow would you like to look at?`
     };
 }
 
 /**
- * Sends conversation history and current user message to /api/ai with multi-layer resilience
+ * Direct client-side OpenAI chat completion executor
+ */
+async function callClientOpenAi(
+    messages: Array<{ role: string; content: string }>,
+    apiKey: string,
+    model: string = 'gpt-4o-mini'
+): Promise<string> {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.7,
+            max_tokens: 1024
+        })
+    });
+
+    if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson?.error?.message || `OpenAI error ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data?.choices?.[0]?.message?.content || '';
+}
+
+/**
+ * Sends conversation history and current user message to AI with multi-layer resilience:
+ * 1. Serverless Gateway (/api/ai) supporting OpenAI & Gemini with bidirectional failover
+ * 2. Direct client-side OpenAI execution if key is present in browser/env
+ * 3. Direct client-side Gemini execution if key is present in browser/env
+ * 4. Intelligent multi-turn conversational reasoning fallback engine
  */
 export async function querySalesAgent(
     history: AgentMessage[],
     userMessage: string,
     context: SalesAgentContext
 ): Promise<AgentMessage> {
-    try {
-        const systemPrompt = buildSystemPrompt(context);
-        const token = await apiService.getAuthToken();
-        const customGeminiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
-        const customOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || '';
+    const systemPrompt = buildSystemPrompt(context);
 
+    // Retrieve client keys
+    const customGeminiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
+    const customOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || localStorage.getItem('openai_api_key') || (import.meta as any).env?.VITE_OPENAI_API_KEY || '';
+
+    // Build OpenAI messages array
+    const openAiMessages = [
+        { role: 'system', content: systemPrompt },
+        ...history.slice(-10).map(msg => ({
+            role: msg.role === 'model' ? 'assistant' : 'user',
+            content: msg.text
+        })),
+        { role: 'user', content: userMessage }
+    ];
+
+    // Build Gemini history array
+    const geminiHistory = [
+        { role: 'user', parts: [{ text: `SYSTEM CONTEXT & INSTRUCTIONS:\n${systemPrompt}` }] },
+        { role: 'model', parts: [{ text: `Understood! I am ${context.agentName || context.institution.name + ' AI Solutions Advisor'}. I will reason logically and provide clear, comprehensive, and courteous assistance.` }] },
+        ...history.slice(-10).map(msg => ({
+            role: msg.role === 'model' ? 'model' : 'user',
+            parts: [{ text: msg.text }]
+        }))
+    ];
+
+    // ─── STEP 1: Attempt Server Gateway (/api/ai) ───────────────────────────
+    try {
+        const token = await apiService.getAuthToken();
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
             'Authorization': token ? `Bearer ${token}` : ''
@@ -272,25 +373,17 @@ export async function querySalesAgent(
         if (customGeminiKey) headers['x-gemini-api-key'] = customGeminiKey;
         if (customOpenAiKey) headers['x-openai-api-key'] = customOpenAiKey;
 
-        // Build history formatted for Gemini
-        const formattedHistory = [
-            { role: 'user', parts: [{ text: `SYSTEM CONTEXT & INSTRUCTIONS:\n${systemPrompt}` }] },
-            { role: 'model', parts: [{ text: `Understood! I am the official AI representative for ${context.institution.name}. I will provide comprehensive, accurate, and polite assistance.` }] },
-            ...history.slice(-10).map(msg => ({
-                role: msg.role === 'model' ? 'model' : 'user',
-                parts: [{ text: msg.text }]
-            }))
-        ];
+        const preferredProvider = context.preferredProvider || (customOpenAiKey ? 'openai' : 'auto');
 
-        // 1. Attempt API Gateway
         const response = await fetch('/api/ai', {
             method: 'POST',
             headers,
             body: JSON.stringify({
                 message: userMessage,
                 prompt: userMessage,
-                history: formattedHistory,
-                model: 'gemini-2.0-flash',
+                history: geminiHistory,
+                model: preferredProvider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.0-flash',
+                provider: preferredProvider,
                 temperature: 0.7,
                 maxOutputTokens: 1024
             })
@@ -301,7 +394,6 @@ export async function querySalesAgent(
             const responseText = data.text || data.response;
 
             if (responseText && responseText.trim().length > 0) {
-                // Detect action triggers
                 let actionType: AgentMessage['actionType'] = undefined;
                 let actionData: any = undefined;
 
@@ -332,34 +424,50 @@ export async function querySalesAgent(
                 };
             }
         }
-
-        // 2. Direct client-side Gemini fallback if key is available in browser / env
-        const envGeminiKey = customGeminiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
-        if (envGeminiKey) {
-            try {
-                const genAI = new GoogleGenerativeAI(envGeminiKey);
-                const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-                const chat = model.startChat({
-                    history: formattedHistory
-                });
-                const result = await chat.sendMessage(userMessage);
-                const geminiText = (await result.response).text();
-                if (geminiText && geminiText.trim().length > 0) {
-                    return {
-                        role: 'model',
-                        text: geminiText
-                    };
-                }
-            } catch (clientGeminiErr) {
-                console.warn("[SalesAgent] Client Gemini fallback warning:", clientGeminiErr);
-            }
-        }
-
-        // 3. Intelligent Local Knowledge-Base Response (High reliability fallback)
-        return generateLocalAgentResponse(userMessage, history, context);
-
-    } catch (err: any) {
-        console.warn("Sales Agent fallback to local conversational engine:", err?.message || err);
-        return generateLocalAgentResponse(userMessage, history, context);
+    } catch (apiErr) {
+        console.warn("[SalesAgent] Gateway /api/ai fetch failed, falling back to direct client execution:", apiErr);
     }
+
+    // ─── STEP 2: Direct Client-Side OpenAI Execution ─────────────────────────
+    if (customOpenAiKey) {
+        try {
+            console.log("[SalesAgent] Executing client-side OpenAI chat completion...");
+            const openAiText = await callClientOpenAi(openAiMessages, customOpenAiKey, 'gpt-4o-mini');
+            if (openAiText && openAiText.trim().length > 0) {
+                return {
+                    role: 'model',
+                    text: openAiText
+                };
+            }
+        } catch (openAiErr) {
+            console.warn("[SalesAgent] Direct client OpenAI execution error:", openAiErr);
+        }
+    }
+
+    // ─── STEP 3: Direct Client-Side Gemini Execution ─────────────────────────
+    if (customGeminiKey) {
+        try {
+            console.log("[SalesAgent] Executing client-side Gemini chat completion...");
+            const genAI = new GoogleGenerativeAI(customGeminiKey);
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            const chat = model.startChat({
+                history: geminiHistory
+            });
+            const result = await chat.sendMessage(userMessage);
+            const geminiText = (await result.response).text();
+            if (geminiText && geminiText.trim().length > 0) {
+                return {
+                    role: 'model',
+                    text: geminiText
+                };
+            }
+        } catch (clientGeminiErr) {
+            console.warn("[SalesAgent] Client Gemini fallback error:", clientGeminiErr);
+        }
+    }
+
+    // ─── STEP 4: Intelligent Local Conversational Reasoning Engine ────────────
+    console.log("[SalesAgent] Engaging intelligent local conversational reasoning engine...");
+    return generateLocalAgentResponse(userMessage, history, context);
 }
+

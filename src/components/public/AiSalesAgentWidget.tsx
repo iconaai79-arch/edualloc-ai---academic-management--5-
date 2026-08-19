@@ -82,6 +82,7 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
 
     const context: SalesAgentContext = {
         institution,
+        agentName,
         catalogItems,
         services,
         contactPhone: contactPhone || institution.phone,
