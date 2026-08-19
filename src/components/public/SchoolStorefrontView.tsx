@@ -14,6 +14,7 @@ import { PhoneIcon } from '../icons/PhoneIcon';
 import { MapPinIcon } from '../icons/MapPinIcon';
 import { CheckBadgeIcon } from '../icons/CheckBadgeIcon';
 import { ImageIcon } from '../icons/ImageIcon';
+import { AiSalesAgentWidget } from './AiSalesAgentWidget';
 
 interface SchoolStorefrontViewProps {
     institutionId: string;
@@ -558,6 +559,27 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                     </div>
                 </div>
             </footer>
+
+            {/* AI Admissions & Support Assistant */}
+            {school && (
+                <AiSalesAgentWidget
+                    institution={school}
+                    services={courses.map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        price: (c as any).baseFee || (c as any).tuitionFee || 0,
+                        duration: (c as any).duration || 'Termly',
+                        description: c.code ? `Course Code: ${c.code}` : undefined
+                    }))}
+                    agentName={`${school.name} Admissions AI`}
+                    welcomeMessage={`Welcome to ${school.name}! 👋 I can help you with admissions, course requirements, fee structures, or campus inquiries. How may I assist you?`}
+                    contactPhone={school.phoneNumber}
+                    contactEmail={school.email}
+                    onBookService={() => {
+                        if (onEnrollmentClick) onEnrollmentClick();
+                    }}
+                />
+            )}
         </div>
     );
 };

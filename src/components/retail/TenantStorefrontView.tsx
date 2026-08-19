@@ -19,6 +19,7 @@ import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
 import { GlobeAltIcon } from '../icons/GlobeAltIcon';
 import { CarIcon } from '../icons/CarIcon';
 import { VehicleMarketplaceView } from '../VehicleMarketplaceView';
+import { AiSalesAgentWidget } from '../public/AiSalesAgentWidget';
 
 interface TenantStorefrontViewProps {
     institutionId: string;
@@ -740,6 +741,29 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* AI Sales & Customer Support Assistant */}
+            {tenant && (
+                <AiSalesAgentWidget
+                    institution={tenant}
+                    catalogItems={retailProducts.map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        price: p.sellingPrice || p.price || 0,
+                        category: p.category,
+                        inStock: p.currentStock || p.quantity || true,
+                        description: p.description
+                    }))}
+                    agentName={`${tenant.name} AI Assistant`}
+                    welcomeMessage={`Hello! Welcome to ${tenant.name}. Looking for anything in our catalog or need assistance with prices and orders? Ask me anything!`}
+                    contactPhone={tenant.phone}
+                    contactEmail={tenant.email}
+                    onOrderProduct={(item) => {
+                        setSelectedProduct(retailProducts.find(p => p.id === item.id) || null);
+                        setInquiryProduct(retailProducts.find(p => p.id === item.id) || null);
+                    }}
+                />
             )}
         </div>
     );

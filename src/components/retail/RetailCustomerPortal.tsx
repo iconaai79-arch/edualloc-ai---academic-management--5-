@@ -24,6 +24,7 @@ import { ArrowUpRightIcon as ArrowUpRight } from '../icons/ArrowUpRightIcon';
 
 import { User, ServiceBooking, Institution, RetailSale, CarInvoice, CarPayment } from '../../types';
 import { apiService } from '../../services/apiService';
+import { AiSalesAgentWidget } from '../public/AiSalesAgentWidget';
 
 interface RetailCustomerPortalProps {
     currentUser: User;
@@ -579,6 +580,17 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* AI Assistant for Customer Portal */}
+            {currentInstitution && (
+                <AiSalesAgentWidget
+                    institution={currentInstitution}
+                    agentName={`${currentInstitution.name} Assistant`}
+                    welcomeMessage={`Hello ${currentUser.name || 'there'}! Need assistance with your records, payments, or booking a new order? Let me know!`}
+                    contactPhone={currentInstitution.phone}
+                    contactEmail={currentInstitution.email}
+                />
             )}
         </div>
     );
