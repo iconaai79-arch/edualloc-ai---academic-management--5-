@@ -281,7 +281,6 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
-        { id: 'tools', label: 'Tools', icon: WrenchIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
         { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CommandLineIcon },
         { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
@@ -289,6 +288,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         { id: 'lessons', label: 'Lessons & Allocations', icon: RectangleStackIcon },
         { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
         { id: 'discipline', label: 'Discipline', icon: ShieldExclamationIcon },
+        { id: 'tools', label: 'Tools', icon: WrenchIcon },
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
     ] as const;
 
