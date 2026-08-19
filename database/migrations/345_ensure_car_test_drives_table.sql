@@ -41,19 +41,33 @@ CREATE INDEX IF NOT EXISTS idx_car_test_drives_listing ON public.car_test_drives
 -- Enable RLS
 ALTER TABLE public.car_test_drives ENABLE ROW LEVEL SECURITY;
 
--- Allow public test drive booking submissions
+-- Drop existing policies
 DROP POLICY IF EXISTS "Public Test Drive Request" ON public.car_test_drives;
-CREATE POLICY "Public Test Drive Request" ON public.car_test_drives
-    FOR INSERT WITH CHECK (true);
-
--- Allow authenticated showroom admins and staff to view and manage test drives
 DROP POLICY IF EXISTS "Test Drive Manage Policy" ON public.car_test_drives;
-CREATE POLICY "Test Drive Manage Policy" ON public.car_test_drives
-    FOR ALL USING (
-        institution_id = public.get_curr_user_inst_id() 
-        OR public.get_curr_user_role() = 'super_admin'
-        OR institution_id IS NULL
-    );
+DROP POLICY IF EXISTS "car_test_drives_select" ON public.car_test_drives;
+DROP POLICY IF EXISTS "car_test_drives_insert" ON public.car_test_drives;
+DROP POLICY IF EXISTS "car_test_drives_update" ON public.car_test_drives;
+DROP POLICY IF EXISTS "car_test_drives_delete" ON public.car_test_drives;
+
+-- Granular scoped policies
+CREATE POLICY "car_test_drives_select" ON public.car_test_drives
+    FOR SELECT TO authenticated, anon
+    USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin' OR institution_id IS NULL OR auth.role() = 'anon');
+
+CREATE POLICY "car_test_drives_insert" ON public.car_test_drives
+    FOR INSERT TO authenticated, anon
+    WITH CHECK (id IS NOT NULL);
+
+CREATE POLICY "car_test_drives_update" ON public.car_test_drives
+    FOR UPDATE TO authenticated, anon
+    USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin' OR institution_id IS NULL)
+    WITH CHECK (id IS NOT NULL);
+
+CREATE POLICY "car_test_drives_delete" ON public.car_test_drives
+    FOR DELETE TO authenticated
+    USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin');
+
+GRANT ALL ON public.car_test_drives TO anon, authenticated, service_role;
 
 -- Refresh PostgREST schema cache
 NOTIFY pgrst, 'reload schema';

@@ -582,6 +582,7 @@ CREATE TABLE IF NOT EXISTS feedback_submissions (
 
 CREATE TABLE IF NOT EXISTS lesson_ratings (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     lecturer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     timetable_entry_id TEXT NOT NULL REFERENCES timetable_entries(id) ON DELETE CASCADE,

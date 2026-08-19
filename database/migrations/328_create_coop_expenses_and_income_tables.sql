@@ -41,22 +41,27 @@ CREATE INDEX IF NOT EXISTS idx_coop_income_date ON public.coop_income(date DESC)
 ALTER TABLE public.coop_expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.coop_income ENABLE ROW LEVEL SECURITY;
 
--- Permissive RLS Policies
-DROP POLICY IF EXISTS "coop_expenses_all_access" ON public.coop_expenses;
-CREATE POLICY "coop_expenses_all_access" ON public.coop_expenses
-    FOR ALL
-    USING (true)
-    WITH CHECK (true);
+-- Scoped Institutional Tenancy RLS Policies
+DO $$
+DECLARE
+    t text;
+    tables text[] := ARRAY['coop_expenses', 'coop_income'];
+BEGIN
+    FOREACH t IN ARRAY tables LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "%s_all_access" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_select" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_insert" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_update" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_delete" ON public.%I', t, t);
 
-DROP POLICY IF EXISTS "coop_income_all_access" ON public.coop_income;
-CREATE POLICY "coop_income_all_access" ON public.coop_income
-    FOR ALL
-    USING (true)
-    WITH CHECK (true);
+        EXECUTE format('CREATE POLICY "%s_select" ON public.%I FOR SELECT TO authenticated, anon USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_insert" ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_update" ON public.%I FOR UPDATE TO authenticated, anon USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL) WITH CHECK (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_delete" ON public.%I FOR DELETE TO authenticated USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'')', t, t);
 
--- Grant privileges
-GRANT ALL ON public.coop_expenses TO anon, authenticated, service_role;
-GRANT ALL ON public.coop_income TO anon, authenticated, service_role;
+        EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
+    END LOOP;
+END $$;
 
 -- Reload schema cache
 NOTIFY pgrst, 'reload schema';

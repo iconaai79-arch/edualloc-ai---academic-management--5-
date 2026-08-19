@@ -159,7 +159,6 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({
                 const timeB = new Date(b.created_at || b.createdAt || 0).getTime();
                 return timeB - timeA;
             });
-            setSentBroadcasts(sortedBroadcasts);
 
             // Sort SMS logs by date descending
             const sortedSms = (smsRes || []).sort((a: any, b: any) => {
@@ -168,6 +167,49 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({
                 return timeB - timeA;
             });
             setSmsLogs(sortedSms);
+
+            // Synthesize broadcasts from sms_logs if broadcaster_messages is empty or to complement individual/bulk logs
+            let combinedBroadcasts = [...sortedBroadcasts];
+            if (sortedBroadcasts.length === 0 && sortedSms.length > 0) {
+                const fromSms = sortedSms.map((log: any) => ({
+                    id: log.id,
+                    institutionId: log.institution_id || log.institutionId || currentInstitution.id,
+                    target: log.recipient?.includes('recipients') ? log.recipient : (log.recipient || 'Direct Recipient'),
+                    channel: log.provider || 'SMS Gateway',
+                    subject: log.message?.length > 40 ? log.message.substring(0, 40) + '...' : (log.subject || 'SMS Transmission'),
+                    body: log.message || '',
+                    recipientsCount: log.units || 1,
+                    recipients_count: log.units || 1,
+                    createdAt: log.created_at || log.createdAt || log.sentAt || log.sent_at || new Date().toISOString(),
+                    created_at: log.created_at || log.createdAt || log.sentAt || log.sent_at || new Date().toISOString(),
+                    fromSmsLog: true
+                }));
+                combinedBroadcasts = fromSms;
+            } else if (sortedSms.length > 0) {
+                const existingMsgTexts = new Set(sortedBroadcasts.map((b: any) => (b.body || '').trim()));
+                const extraSms = sortedSms
+                    .filter((log: any) => log.message && !existingMsgTexts.has((log.message || '').trim()))
+                    .map((log: any) => ({
+                        id: log.id,
+                        institutionId: log.institution_id || log.institutionId || currentInstitution.id,
+                        target: log.recipient?.includes('recipients') ? log.recipient : (log.recipient || 'Direct Recipient'),
+                        channel: log.provider || 'SMS Gateway',
+                        subject: log.message?.length > 40 ? log.message.substring(0, 40) + '...' : 'SMS Transmission',
+                        body: log.message || '',
+                        recipientsCount: log.units || 1,
+                        recipients_count: log.units || 1,
+                        createdAt: log.created_at || log.createdAt || log.sentAt || log.sent_at || new Date().toISOString(),
+                        created_at: log.created_at || log.createdAt || log.sentAt || log.sent_at || new Date().toISOString(),
+                        fromSmsLog: true
+                    }));
+                combinedBroadcasts = [...combinedBroadcasts, ...extraSms].sort((a: any, b: any) => {
+                    const timeA = new Date(a.created_at || a.createdAt || 0).getTime();
+                    const timeB = new Date(b.created_at || b.createdAt || 0).getTime();
+                    return timeB - timeA;
+                });
+            }
+
+            setSentBroadcasts(combinedBroadcasts);
         } catch (e) {
             console.error("Failed to load sent messages and SMS logs:", e);
         } finally {

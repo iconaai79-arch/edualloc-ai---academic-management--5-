@@ -234,32 +234,169 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     connectionTimeoutMillis: 10000 
                 });
 
-                let client;
+                // Helper to split multi-statement SQL without breaking DO $$ blocks or quotes
+                const splitStatements = (rawSql: string): string[] => {
+                    const stmts: string[] = [];
+                    let current = '';
+                    let inSingleQuote = false;
+                    let inDoubleQuote = false;
+                    let inDollarQuote: string | null = null;
+                    let inLineComment = false;
+                    let inBlockComment = false;
+
+                    for (let i = 0; i < rawSql.length; i++) {
+                        const char = rawSql[i];
+                        const nextChar = rawSql[i + 1] || '';
+
+                        // Line comments
+                        if (!inSingleQuote && !inDoubleQuote && !inDollarQuote && !inBlockComment && char === '-' && nextChar === '-') {
+                            inLineComment = true;
+                            current += char;
+                            continue;
+                        }
+                        if (inLineComment) {
+                            current += char;
+                            if (char === '\n') inLineComment = false;
+                            continue;
+                        }
+
+                        // Block comments
+                        if (!inSingleQuote && !inDoubleQuote && !inDollarQuote && !inLineComment && char === '/' && nextChar === '*') {
+                            inBlockComment = true;
+                            current += char;
+                            continue;
+                        }
+                        if (inBlockComment) {
+                            current += char;
+                            if (char === '*' && nextChar === '/') {
+                                current += nextChar;
+                                i++;
+                                inBlockComment = false;
+                            }
+                            continue;
+                        }
+
+                        // Dollar quotes (e.g. $$ or $tag$)
+                        if (!inSingleQuote && !inDoubleQuote && !inLineComment && !inBlockComment) {
+                            if (!inDollarQuote && char === '$') {
+                                const match = rawSql.substring(i).match(/^\$[a-zA-Z0-9_]*\$/);
+                                if (match) {
+                                    inDollarQuote = match[0];
+                                    current += inDollarQuote;
+                                    i += inDollarQuote.length - 1;
+                                    continue;
+                                }
+                            } else if (inDollarQuote && char === '$') {
+                                if (rawSql.substring(i).startsWith(inDollarQuote)) {
+                                    current += inDollarQuote;
+                                    i += inDollarQuote.length - 1;
+                                    inDollarQuote = null;
+                                    continue;
+                                }
+                            }
+                        }
+
+                        // Quotes
+                        if (!inDoubleQuote && !inDollarQuote && !inLineComment && !inBlockComment && char === "'" && rawSql[i - 1] !== '\\') {
+                            inSingleQuote = !inSingleQuote;
+                        }
+                        if (!inSingleQuote && !inDollarQuote && !inLineComment && !inBlockComment && char === '"' && rawSql[i - 1] !== '\\') {
+                            inDoubleQuote = !inDoubleQuote;
+                        }
+
+                        // Semicolon statement boundary
+                        if (char === ';' && !inSingleQuote && !inDoubleQuote && !inDollarQuote && !inLineComment && !inBlockComment) {
+                            const trimmed = current.trim();
+                            if (trimmed) stmts.push(trimmed);
+                            current = '';
+                            continue;
+                        }
+
+                        current += char;
+                    }
+
+                    const remaining = current.trim();
+                    if (remaining) stmts.push(remaining);
+                    return stmts;
+                };
+
+                const statements = splitStatements(sql);
+                const statementsToRun = statements.length > 0 ? statements : [sql];
+                const MAX_RETRIES = 5;
+                let lastError: any = null;
+                let lastResult: any = null;
+                const accumulatedRows: any[] = [];
+
+                for (const singleStmt of statementsToRun) {
+                    let stmtSuccess = false;
+
+                    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                        let client;
+                        try {
+                            client = await pool.connect();
+                            
+                            // Configure timeouts per-session to detect and resolve lock contention quickly
+                            await client.query("SET lock_timeout = '6000ms'; SET statement_timeout = '30000ms'; SET deadlock_timeout = '500ms';").catch(() => {});
+
+                            lastResult = await client.query(singleStmt);
+                            if (lastResult?.rows && Array.isArray(lastResult.rows)) {
+                                accumulatedRows.push(...lastResult.rows);
+                            }
+                            lastError = null;
+                            stmtSuccess = true;
+                            if (client) client.release();
+                            break;
+                        } catch (err: any) {
+                            if (client) {
+                                try { client.release(); } catch {}
+                            }
+                            lastError = err;
+
+                            const isTransientLockError = 
+                                err?.code === '40P01' || // deadlock_detected
+                                err?.code === '55P03' || // lock_not_available
+                                err?.code === '40001' || // serialization_failure
+                                err?.code === '57014';   // query_canceled / statement_timeout
+
+                            if (isTransientLockError && attempt < MAX_RETRIES) {
+                                // Exponential backoff with jitter (e.g. 250ms, 500ms, 1000ms, 2000ms...)
+                                const delayMs = Math.min(250 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 250), 3000);
+                                console.warn(`[SQL Engine] Transient lock conflict (code: ${err.code} - ${err.message}). Retrying statement ${attempt + 1}/${MAX_RETRIES} in ${delayMs}ms...`);
+                                await new Promise(res => setTimeout(res, delayMs));
+                                continue;
+                            }
+                            break;
+                        }
+                    }
+
+                    if (!stmtSuccess && lastError) {
+                        console.error(`[SQL Engine Statement Failed]:`, singleStmt.substring(0, 100), lastError);
+                        break;
+                    }
+                }
+
                 try {
-                    console.log("[SQL Engine] Connecting to client...");
-                    client = await pool.connect();
-                    console.log("[SQL Engine] Executing query...");
-                    const result = await client.query(sql);
-                    console.log("[SQL Engine] Success!");
-                    return res.status(200).json({
-                        success: true,
-                        data: result.rows,
-                        command: result.command,
-                        rowCount: result.rowCount
-                    });
-                } catch (err: any) {
-                    console.error("[SQL Engine Error]:", err);
+                    await pool.end().catch(() => {});
+                } catch {}
+
+                if (lastError) {
+                    console.error("[SQL Engine Error]:", lastError);
                     return res.status(200).json({
                         success: false,
-                        error: err.message || "SQL Execution Error",
-                        detail: err.detail,
-                        hint: err.hint,
+                        error: lastError.message || "SQL Execution Error",
+                        detail: lastError.detail,
+                        hint: lastError.hint,
+                        code: lastError.code,
                         env: getEnvInfo()
                     });
-                } finally {
-                    if (client) client.release();
-                    await pool.end().catch(() => {});
                 }
+
+                return res.status(200).json({
+                    success: true,
+                    data: accumulatedRows.length > 0 ? accumulatedRows : (lastResult?.rows || []),
+                    command: lastResult?.command,
+                    rowCount: lastResult?.rowCount
+                });
             }
 
             if (action === 'sendEmail') {

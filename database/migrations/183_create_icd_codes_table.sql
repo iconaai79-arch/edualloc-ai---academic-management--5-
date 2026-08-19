@@ -1,5 +1,6 @@
--- Create pg_trgm extension for fuzzy searching if not exists
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- Create pg_trgm extension in extensions schema for fuzzy searching if not exists
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions;
 
 -- Create ICD Codes for HIS
 CREATE TABLE IF NOT EXISTS icd_codes (

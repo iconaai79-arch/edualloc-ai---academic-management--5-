@@ -8809,6 +8809,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
+                {activeTab === 'student_subscriptions' && (
+                    <div className="space-y-6 text-left animate-in fade-in duration-300">
+                        <StudentSubscriptionPlanManager
+                            currentInstitution={props.institution}
+                            currentUser={props.currentUser}
+                            users={props.students || props.users || []}
+                            courses={props.courses || []}
+                            companyDetails={props.companyDetails}
+                            moduleContext="finance"
+                        />
+                    </div>
+                )}
+
                 {activeTab === 'expenses' && (
                     <div className="space-y-6 animate-in fade-in duration-300">
                         {/* Expenditure Log takes full width */}

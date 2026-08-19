@@ -122,16 +122,25 @@ ALTER TABLE public.his_cwc_immunizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.his_nbu_admissions ENABLE ROW LEVEL SECURITY;
 
 DO $$
+DECLARE
+    t text;
+    tables text[] := ARRAY[
+        'his_anc_records', 'his_delivery_records', 
+        'his_cwc_immunizations', 'his_nbu_admissions'
+    ];
 BEGIN
-    DROP POLICY IF EXISTS "Public access to his_anc_records" ON public.his_anc_records;
-    CREATE POLICY "Public access to his_anc_records" ON public.his_anc_records FOR ALL USING (true) WITH CHECK (true);
+    FOREACH t IN ARRAY tables LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "Public access to %s" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_select" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_insert" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_update" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_delete" ON public.%I', t, t);
 
-    DROP POLICY IF EXISTS "Public access to his_delivery_records" ON public.his_delivery_records;
-    CREATE POLICY "Public access to his_delivery_records" ON public.his_delivery_records FOR ALL USING (true) WITH CHECK (true);
+        EXECUTE format('CREATE POLICY "%s_select" ON public.%I FOR SELECT TO authenticated, anon USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_insert" ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_update" ON public.%I FOR UPDATE TO authenticated, anon USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL) WITH CHECK (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_delete" ON public.%I FOR DELETE TO authenticated USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'')', t, t);
 
-    DROP POLICY IF EXISTS "Public access to his_cwc_immunizations" ON public.his_cwc_immunizations;
-    CREATE POLICY "Public access to his_cwc_immunizations" ON public.his_cwc_immunizations FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Public access to his_nbu_admissions" ON public.his_nbu_admissions;
-    CREATE POLICY "Public access to his_nbu_admissions" ON public.his_nbu_admissions FOR ALL USING (true) WITH CHECK (true);
+        EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
+    END LOOP;
 END $$;

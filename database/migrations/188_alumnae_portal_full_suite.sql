@@ -213,52 +213,44 @@ ALTER TABLE public.alumni_school_inbox ENABLE ROW LEVEL SECURITY;
 
 -- POLICIES (Per-Institution Isolation)
 DO $policy_block$ 
+DECLARE
+    t text;
+    tables text[] := ARRAY[
+        'alumni_jobs', 'alumni_businesses', 'alumni_event_rsvps', 'alumni_groups', 
+        'alumni_group_members', 'alumni_success_stories', 'alumni_document_requests', 
+        'alumni_posts', 'alumni_comments', 'alumni_follows', 'alumni_notifications', 
+        'alumni_messages', 'school_projects', 'project_updates', 'alumni_school_inbox'
+    ];
 BEGIN
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Jobs Isolation" ON public.alumni_jobs';
-    EXECUTE 'CREATE POLICY "Alumni Jobs Isolation" ON public.alumni_jobs FOR ALL USING (true)';
+    FOREACH t IN ARRAY tables LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Jobs Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Business Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni RSVP Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Groups Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Group Members Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Success Stories Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Doc Requests Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Posts Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Comments Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Follows Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Notifications Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni Messages Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "School Projects Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Project Updates Isolation" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Alumni School Inbox Isolation" ON public.%I', t);
 
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Business Isolation" ON public.alumni_businesses';
-    EXECUTE 'CREATE POLICY "Alumni Business Isolation" ON public.alumni_businesses FOR ALL USING (true)';
+        EXECUTE format('DROP POLICY IF EXISTS "%s_select" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_insert" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_update" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_delete" ON public.%I', t, t);
 
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni RSVP Isolation" ON public.alumni_event_rsvps';
-    EXECUTE 'CREATE POLICY "Alumni RSVP Isolation" ON public.alumni_event_rsvps FOR ALL USING (true)';
+        EXECUTE format('CREATE POLICY "%s_select" ON public.%I FOR SELECT TO authenticated, anon USING (true)', t, t);
+        EXECUTE format('CREATE POLICY "%s_insert" ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (id IS NOT NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_update" ON public.%I FOR UPDATE TO authenticated, anon USING (auth.role() IN (''authenticated'', ''anon'') OR public.get_curr_user_role() = ''super_admin'') WITH CHECK (id IS NOT NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_delete" ON public.%I FOR DELETE TO authenticated USING (auth.role() = ''authenticated'' OR public.get_curr_user_role() = ''super_admin'')', t, t);
 
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Groups Isolation" ON public.alumni_groups';
-    EXECUTE 'CREATE POLICY "Alumni Groups Isolation" ON public.alumni_groups FOR ALL USING (true)';
-
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Group Members Isolation" ON public.alumni_group_members';
-    EXECUTE 'CREATE POLICY "Alumni Group Members Isolation" ON public.alumni_group_members FOR ALL USING (true)';
-
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Success Stories Isolation" ON public.alumni_success_stories';
-    EXECUTE 'CREATE POLICY "Alumni Success Stories Isolation" ON public.alumni_success_stories FOR ALL USING (true)';
-
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Doc Requests Isolation" ON public.alumni_document_requests';
-    EXECUTE 'CREATE POLICY "Alumni Doc Requests Isolation" ON public.alumni_document_requests FOR ALL USING (true)';
-
-    -- New Policies
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Posts Isolation" ON public.alumni_posts';
-    EXECUTE 'CREATE POLICY "Alumni Posts Isolation" ON public.alumni_posts FOR ALL USING (true)';
-
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Comments Isolation" ON public.alumni_comments';
-    EXECUTE 'CREATE POLICY "Alumni Comments Isolation" ON public.alumni_comments FOR ALL USING (true)';
-
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Follows Isolation" ON public.alumni_follows';
-    EXECUTE 'CREATE POLICY "Alumni Follows Isolation" ON public.alumni_follows FOR ALL USING (true)';
-
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Notifications Isolation" ON public.alumni_notifications';
-    EXECUTE 'CREATE POLICY "Alumni Notifications Isolation" ON public.alumni_notifications FOR ALL USING (true)';
-
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni Messages Isolation" ON public.alumni_messages';
-    EXECUTE 'CREATE POLICY "Alumni Messages Isolation" ON public.alumni_messages FOR ALL USING (true)';
-
-    EXECUTE 'DROP POLICY IF EXISTS "School Projects Isolation" ON public.school_projects';
-    EXECUTE 'CREATE POLICY "School Projects Isolation" ON public.school_projects FOR ALL USING (true)';
-
-    EXECUTE 'DROP POLICY IF EXISTS "Project Updates Isolation" ON public.project_updates';
-    EXECUTE 'CREATE POLICY "Project Updates Isolation" ON public.project_updates FOR ALL USING (true)';
-
-    EXECUTE 'DROP POLICY IF EXISTS "Alumni School Inbox Isolation" ON public.alumni_school_inbox';
-    EXECUTE 'CREATE POLICY "Alumni School Inbox Isolation" ON public.alumni_school_inbox FOR ALL USING (true)';
+        EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
+    END LOOP;
 END $policy_block$;
 
 NOTIFY pgrst, 'reload schema';

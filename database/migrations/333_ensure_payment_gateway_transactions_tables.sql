@@ -193,15 +193,25 @@ ALTER TABLE public.airtel_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.intasend_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ncba_transactions ENABLE ROW LEVEL SECURITY;
 
--- Permissive RLS Policies
-DROP POLICY IF EXISTS "airtel_transactions_all_access" ON public.airtel_transactions;
-CREATE POLICY "airtel_transactions_all_access" ON public.airtel_transactions FOR ALL USING (true) WITH CHECK (true);
+-- Scoped Institutional Tenancy RLS Policies
+DO $$
+DECLARE
+    t text;
+    tables text[] := ARRAY['airtel_transactions', 'intasend_transactions', 'ncba_transactions'];
+BEGIN
+    FOREACH t IN ARRAY tables LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "%s_all_access" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %s" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy insert: %s" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy update: %s" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy delete: %s" ON public.%I', t, t);
 
-DROP POLICY IF EXISTS "intasend_transactions_all_access" ON public.intasend_transactions;
-CREATE POLICY "intasend_transactions_all_access" ON public.intasend_transactions FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "ncba_transactions_all_access" ON public.ncba_transactions;
-CREATE POLICY "ncba_transactions_all_access" ON public.ncba_transactions FOR ALL USING (true) WITH CHECK (true);
+        EXECUTE format('CREATE POLICY "Institutional tenancy select: %s" ON public.%I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "Institutional tenancy insert: %s" ON public.%I FOR INSERT WITH CHECK (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "Institutional tenancy update: %s" ON public.%I FOR UPDATE USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL) WITH CHECK (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "Institutional tenancy delete: %s" ON public.%I FOR DELETE USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+    END LOOP;
+END $$;
 
 -- Grant privileges
 GRANT ALL ON public.airtel_transactions TO anon, authenticated, service_role;

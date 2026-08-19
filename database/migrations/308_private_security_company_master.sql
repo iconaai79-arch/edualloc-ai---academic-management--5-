@@ -103,27 +103,28 @@ CREATE INDEX IF NOT EXISTS idx_armory_equipment_inst ON public.armory_equipment(
 CREATE INDEX IF NOT EXISTS idx_client_site_contracts_inst ON public.client_site_contracts(institution_id, payment_status);
 
 -- 8. ROW LEVEL SECURITY (RLS) POLICIES
-ALTER TABLE public.security_guards ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.security_patrol_scans ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.rapid_response_units ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.occurrence_book ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.armory_equipment ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.client_site_contracts ENABLE ROW LEVEL SECURITY;
+DO $$
+DECLARE
+    t text;
+    tables text[] := ARRAY[
+        'security_guards', 'security_patrol_scans', 'rapid_response_units', 
+        'occurrence_book', 'armory_equipment', 'client_site_contracts'
+    ];
+BEGIN
+    FOREACH t IN ARRAY tables LOOP
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
 
-DROP POLICY IF EXISTS security_guards_policy ON public.security_guards;
-CREATE POLICY security_guards_policy ON public.security_guards FOR ALL USING (true) WITH CHECK (true);
+        EXECUTE format('DROP POLICY IF EXISTS %s_policy ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_select" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_insert" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_update" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_delete" ON public.%I', t, t);
 
-DROP POLICY IF EXISTS security_patrol_scans_policy ON public.security_patrol_scans;
-CREATE POLICY security_patrol_scans_policy ON public.security_patrol_scans FOR ALL USING (true) WITH CHECK (true);
+        EXECUTE format('CREATE POLICY "%s_select" ON public.%I FOR SELECT TO authenticated, anon USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_insert" ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_update" ON public.%I FOR UPDATE TO authenticated, anon USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL) WITH CHECK (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_delete" ON public.%I FOR DELETE TO authenticated USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
 
-DROP POLICY IF EXISTS rapid_response_units_policy ON public.rapid_response_units;
-CREATE POLICY rapid_response_units_policy ON public.rapid_response_units FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS occurrence_book_policy ON public.occurrence_book;
-CREATE POLICY occurrence_book_policy ON public.occurrence_book FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS armory_equipment_policy ON public.armory_equipment;
-CREATE POLICY armory_equipment_policy ON public.armory_equipment FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS client_site_contracts_policy ON public.client_site_contracts;
-CREATE POLICY client_site_contracts_policy ON public.client_site_contracts FOR ALL USING (true) WITH CHECK (true);
+        EXECUTE format('GRANT ALL ON public.%I TO authenticated, anon, service_role', t);
+    END LOOP;
+END $$;

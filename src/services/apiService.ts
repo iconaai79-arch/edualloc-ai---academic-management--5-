@@ -38,6 +38,8 @@ let _supabase: SupabaseClient | null = null;
 let _activeUrl: string | null = null;
 let _activeKey: string | null = null;
 let _rpcGetNextDocFailed = false;
+let _migrationQueue: Promise<any> = Promise.resolve();
+const _executedMigrations = new Set<string>();
 
 export const initSupabaseClient = (url?: string, key?: string) => {
     const finalUrl = url || (typeof process !== 'undefined' && process.env?.SUPABASE_URL) || getSafeEnv('SUPABASE_URL');
@@ -795,29 +797,49 @@ export const apiService = {
         }
     },
     async runMigration(sql: string): Promise<any> {
-        try {
-            const response = await fetch('/api/system?action=execute_sql', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sql })
-            });
-            
-            // Handle non-JSON or empty responses gracefully
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-                return await response.json();
-            } else {
-                const text = await response.text();
-                console.error(`[SQL Engine] Server Error (${response.status}):`, text.substring(0, 500));
-                return { 
-                    success: response.ok, 
-                    message: text.substring(0, 200) || (response.ok ? "Operation completed successfully" : `Server Error (${response.status}) - The execution engine returned an invalid response.`)
-                };
-            }
-        } catch (e: any) {
-            console.error("Migration Error:", e);
-            return { success: false, message: e.message || "Execution engine failure." };
+        const trimmedSql = sql.trim();
+        const isDdl = /^(CREATE|DROP|ALTER|GRANT|REVOKE|DO\s+\$\$)/i.test(trimmedSql);
+
+        // Avoid re-running identical static DDL migrations in the same session
+        if (isDdl && _executedMigrations.has(trimmedSql)) {
+            return { success: true, cached: true };
         }
+
+        // Serialize migration execution to avoid concurrent lock deadlocks in Postgres
+        const task = _migrationQueue.then(async () => {
+            try {
+                const response = await fetch('/api/system?action=execute_sql', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql: trimmedSql })
+                });
+                
+                const contentType = response.headers.get("content-type");
+                let result: any;
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    result = await response.json();
+                } else {
+                    const text = await response.text();
+                    console.error(`[SQL Engine] Server Error (${response.status}):`, text.substring(0, 500));
+                    result = { 
+                        success: response.ok, 
+                        message: text.substring(0, 200) || (response.ok ? "Operation completed successfully" : `Server Error (${response.status}) - The execution engine returned an invalid response.`)
+                    };
+                }
+
+                if (result?.success && isDdl) {
+                    _executedMigrations.add(trimmedSql);
+                }
+
+                return result;
+            } catch (e: any) {
+                console.error("Migration Error:", e);
+                return { success: false, message: e.message || "Execution engine failure." };
+            }
+        });
+
+        _migrationQueue = task.catch(() => {});
+        return task;
     },
     async debugRLSSession(): Promise<any> {
         const sql = `

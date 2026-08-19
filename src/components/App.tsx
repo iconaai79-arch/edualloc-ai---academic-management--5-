@@ -964,8 +964,12 @@ export const App: React.FC = () => {
                 if (health.status !== 'offline') {
                     // Idempotent setup of PM subscription bonus trigger
                     apiService.runMigration(`
-CREATE OR REPLACE FUNCTION allocate_tenant_sms_bonus()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.allocate_tenant_sms_bonus()
+RETURNS TRIGGER 
+LANGUAGE plpgsql 
+SECURITY DEFINER 
+SET search_path = public, pg_temp
+AS $$
 DECLARE
     days_diff INTEGER;
     months_diff INTEGER;
@@ -1013,7 +1017,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS trg_allocate_tenant_sms_bonus ON institutions;
 CREATE TRIGGER trg_allocate_tenant_sms_bonus

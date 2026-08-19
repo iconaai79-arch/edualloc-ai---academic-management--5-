@@ -24,6 +24,9 @@ CREATE TRIGGER tr_update_alumni_post_comment_count
 AFTER INSERT OR DELETE ON public.alumni_comments
 FOR EACH ROW EXECUTE FUNCTION public.update_alumni_post_comment_count();
 
+REVOKE EXECUTE ON FUNCTION public.update_alumni_post_comment_count() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.update_alumni_post_comment_count() TO postgres, service_role;
+
 -- 2. Ensure all existing counts are correct
 UPDATE public.alumni_posts p
 SET comments_count = (

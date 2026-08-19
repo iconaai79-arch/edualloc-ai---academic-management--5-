@@ -103,18 +103,18 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone, dsLeadsStandalone, dsExpendituresStandalone] = await Promise.all([
                 apiService.fetchModuleRecords<DSInstructor>('ds_instructors', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<DSStudent>('ds_students', institutionId, undefined, { limit: 100000 }).catch(() => []),
-                apiService.fetchModuleRecords<DSLesson>('ds_lessons', institutionId, undefined, { limit: 100000 }).catch(() => []),
-                apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', institutionId, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<DSStudent>('ds_students', institutionId, undefined, { limit: 5000 }).catch(() => []),
+                apiService.fetchModuleRecords<DSLesson>('ds_lessons', institutionId, undefined, { limit: 5000 }).catch(() => []),
+                apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', institutionId, undefined, { limit: 5000 }).catch(() => []),
                 apiService.fetchModuleRecords<DSSettings>('ds_settings', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institutionId, undefined, { limit: 100000 }).catch(() => []),
-                apiService.fetchModuleRecords<DSPayment>('ds_payments', institutionId, undefined, { limit: 100000 }).catch(() => []),
-                apiService.fetchModuleRecords<MpesaTransaction>('mpesa_transactions', institutionId, undefined, { limit: 100000 }).catch(() => []),
-                apiService.fetchModuleRecords<BankTransaction>('bank_transactions', institutionId, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institutionId, undefined, { limit: 5000 }).catch(() => []),
+                apiService.fetchModuleRecords<DSPayment>('ds_payments', institutionId, undefined, { limit: 5000 }).catch(() => []),
+                apiService.fetchModuleRecords<MpesaTransaction>('mpesa_transactions', institutionId, undefined, { limit: 5000 }).catch(() => []),
+                apiService.fetchModuleRecords<BankTransaction>('bank_transactions', institutionId, undefined, { limit: 5000 }).catch(() => []),
                 apiService.fetchModuleRecords<any>('ds_votes', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<any>('ds_license_categories', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<DSLead>('ds_leads', institutionId, undefined, { limit: 100000 }).catch(() => []),
-                apiService.fetchModuleRecords<DSExpenditure>('ds_expenditures', institutionId, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<DSLead>('ds_leads', institutionId, undefined, { limit: 5000 }).catch(() => []),
+                apiService.fetchModuleRecords<DSExpenditure>('ds_expenditures', institutionId, undefined, { limit: 5000 }).catch(() => []),
             ]);
 
             console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons, ${dsLeadsStandalone.length} leads`);

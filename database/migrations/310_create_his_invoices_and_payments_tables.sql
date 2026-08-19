@@ -75,17 +75,25 @@ ALTER TABLE public.his_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.his_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.his_insurance_remittances ENABLE ROW LEVEL SECURITY;
 
--- Permissive public & institutional policies
-DROP POLICY IF EXISTS "Public and auth access for his_invoices" ON public.his_invoices;
-CREATE POLICY "Public and auth access for his_invoices" ON public.his_invoices FOR ALL USING (true) WITH CHECK (true);
+-- Scoped Institutional Tenancy RLS Policies
+DO $$
+DECLARE
+    t text;
+    tables text[] := ARRAY['his_invoices', 'his_payments', 'his_insurance_remittances'];
+BEGIN
+    FOREACH t IN ARRAY tables LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "Public and auth access for %s" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_all" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_select" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_insert" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_update" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_delete" ON public.%I', t, t);
 
-DROP POLICY IF EXISTS "Public and auth access for his_payments" ON public.his_payments;
-CREATE POLICY "Public and auth access for his_payments" ON public.his_payments FOR ALL USING (true) WITH CHECK (true);
+        EXECUTE format('CREATE POLICY "%s_select" ON public.%I FOR SELECT TO authenticated, anon USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_insert" ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_update" ON public.%I FOR UPDATE TO authenticated, anon USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL) WITH CHECK (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_delete" ON public.%I FOR DELETE TO authenticated USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = ''super_admin'')', t, t);
 
-DROP POLICY IF EXISTS "Public and auth access for his_insurance_remittances" ON public.his_insurance_remittances;
-CREATE POLICY "Public and auth access for his_insurance_remittances" ON public.his_insurance_remittances FOR ALL USING (true) WITH CHECK (true);
-
--- Permissions
-GRANT ALL ON public.his_invoices TO anon, authenticated, service_role;
-GRANT ALL ON public.his_payments TO anon, authenticated, service_role;
-GRANT ALL ON public.his_insurance_remittances TO anon, authenticated, service_role;
+        EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
+    END LOOP;
+END $$;

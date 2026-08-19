@@ -1149,6 +1149,7 @@ CREATE TABLE IF NOT EXISTS feedback_submissions (
 
 CREATE TABLE IF NOT EXISTS lesson_ratings (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     lecturer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     timetable_entry_id TEXT NOT NULL REFERENCES timetable_entries(id) ON DELETE CASCADE,
@@ -3129,8 +3130,12 @@ CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expens
 `;
 
     sql += `\n\n-- PM Tenant SMS Bonus Trigger\n`;
-    sql += `CREATE OR REPLACE FUNCTION allocate_tenant_sms_bonus()\n`;
-    sql += `RETURNS TRIGGER AS $$\n`;
+    sql += `CREATE OR REPLACE FUNCTION public.allocate_tenant_sms_bonus()\n`;
+    sql += `RETURNS TRIGGER \n`;
+    sql += `LANGUAGE plpgsql \n`;
+    sql += `SECURITY DEFINER \n`;
+    sql += `SET search_path = public, pg_temp\n`;
+    sql += `AS $$\n`;
     sql += `DECLARE\n`;
     sql += `    days_diff INTEGER;\n`;
     sql += `    months_diff INTEGER;\n`;
@@ -3178,7 +3183,7 @@ CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expens
     sql += `\n`;
     sql += `    RETURN NEW;\n`;
     sql += `END;\n`;
-    sql += `$$ LANGUAGE plpgsql;\n`;
+    sql += `$$;\n`;
     sql += `\n`;
     sql += `DROP TRIGGER IF EXISTS trg_allocate_tenant_sms_bonus ON institutions;\n`;
     sql += `CREATE TRIGGER trg_allocate_tenant_sms_bonus\n`;

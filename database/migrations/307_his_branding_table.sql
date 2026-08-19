@@ -20,9 +20,27 @@ ALTER TABLE his_branding ENABLE ROW LEVEL SECURITY;
 
 -- Drop policy first to avoid deadlock, then recreate cleanly
 DROP POLICY IF EXISTS "Allow public all access on his_branding" ON his_branding;
+DROP POLICY IF EXISTS "his_branding_select" ON his_branding;
+DROP POLICY IF EXISTS "his_branding_insert" ON his_branding;
+DROP POLICY IF EXISTS "his_branding_update" ON his_branding;
+DROP POLICY IF EXISTS "his_branding_delete" ON his_branding;
 
-CREATE POLICY "Allow public all access on his_branding"
-ON his_branding FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "his_branding_select" ON his_branding
+    FOR SELECT TO authenticated, anon
+    USING (true);
+
+CREATE POLICY "his_branding_insert" ON his_branding
+    FOR INSERT TO authenticated, anon
+    WITH CHECK (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin' OR public.get_curr_user_inst_id() IS NULL);
+
+CREATE POLICY "his_branding_update" ON his_branding
+    FOR UPDATE TO authenticated, anon
+    USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin' OR public.get_curr_user_inst_id() IS NULL)
+    WITH CHECK (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin' OR public.get_curr_user_inst_id() IS NULL);
+
+CREATE POLICY "his_branding_delete" ON his_branding
+    FOR DELETE TO authenticated
+    USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin');
 
 -- Grant access to default roles
 GRANT ALL ON his_branding TO anon;

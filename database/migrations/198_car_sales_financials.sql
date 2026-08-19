@@ -49,14 +49,28 @@ CREATE TABLE IF NOT EXISTS public.car_sales_payments (
 ALTER TABLE public.car_sales_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.car_sales_payments ENABLE ROW LEVEL SECURITY;
 
--- Management Policy: Staff/Admins can manage their institution's financials
-DROP POLICY IF EXISTS "Invoices Manage Policy" ON public.car_sales_invoices;
-CREATE POLICY "Invoices Manage Policy" ON public.car_sales_invoices
-    FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+DO $$
+DECLARE
+    t text;
+    tables text[] := ARRAY['car_sales_invoices', 'car_sales_payments'];
+BEGIN
+    FOREACH t IN ARRAY tables LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "Invoices Manage Policy" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Payments Manage Policy" ON public.%I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Allow all on %s" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_select" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_insert" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_update" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_delete" ON public.%I', t, t);
 
-DROP POLICY IF EXISTS "Payments Manage Policy" ON public.car_sales_payments;
-CREATE POLICY "Payments Manage Policy" ON public.car_sales_payments
-    FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+        EXECUTE format('CREATE POLICY "%s_select" ON public.%I FOR SELECT TO authenticated, anon USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_insert" ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_update" ON public.%I FOR UPDATE TO authenticated, anon USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL) WITH CHECK (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_delete" ON public.%I FOR DELETE TO authenticated USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+
+        EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
+    END LOOP;
+END $$;
 
 -- Trigger to update invoice balance and status when a payment is added
 CREATE OR REPLACE FUNCTION public.update_car_invoice_on_payment()
@@ -81,3 +95,6 @@ DROP TRIGGER IF EXISTS trg_update_car_invoice_on_payment ON public.car_sales_pay
 CREATE TRIGGER trg_update_car_invoice_on_payment
 AFTER INSERT ON public.car_sales_payments
 FOR EACH ROW EXECUTE FUNCTION public.update_car_invoice_on_payment();
+
+REVOKE EXECUTE ON FUNCTION public.update_car_invoice_on_payment() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.update_car_invoice_on_payment() TO postgres, service_role;

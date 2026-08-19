@@ -358,33 +358,28 @@ ALTER TABLE public.flour_packaging_shifts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.animal_feed_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grain_sale_orders ENABLE ROW LEVEL SECURITY;
 
--- Permissive RLS Policies
-DROP POLICY IF EXISTS "Allow public access to weighbridge_intake_tickets" ON public.weighbridge_intake_tickets;
-CREATE POLICY "Allow public access to weighbridge_intake_tickets" ON public.weighbridge_intake_tickets FOR ALL USING (true) WITH CHECK (true);
+-- Scoped Institutional Tenancy RLS Policies
+DO $$
+DECLARE
+    t text;
+    tables text[] := ARRAY[
+        'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 
+        'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 
+        'grain_sale_orders'
+    ];
+BEGIN
+    FOREACH t IN ARRAY tables LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "Allow public access to %s" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_select" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_insert" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_update" ON public.%I', t, t);
+        EXECUTE format('DROP POLICY IF EXISTS "%s_delete" ON public.%I', t, t);
 
-DROP POLICY IF EXISTS "Allow public access to grain_suppliers" ON public.grain_suppliers;
-CREATE POLICY "Allow public access to grain_suppliers" ON public.grain_suppliers FOR ALL USING (true) WITH CHECK (true);
+        EXECUTE format('CREATE POLICY "%s_select" ON public.%I FOR SELECT TO authenticated, anon USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_insert" ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_update" ON public.%I FOR UPDATE TO authenticated, anon USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL) WITH CHECK (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'' OR public.get_curr_user_inst_id() IS NULL)', t, t);
+        EXECUTE format('CREATE POLICY "%s_delete" ON public.%I FOR DELETE TO authenticated USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
 
-DROP POLICY IF EXISTS "Allow public access to milling_silos" ON public.milling_silos;
-CREATE POLICY "Allow public access to milling_silos" ON public.milling_silos FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow public access to milling_batch_runs" ON public.milling_batch_runs;
-CREATE POLICY "Allow public access to milling_batch_runs" ON public.milling_batch_runs FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow public access to flour_packaging_shifts" ON public.flour_packaging_shifts;
-CREATE POLICY "Allow public access to flour_packaging_shifts" ON public.flour_packaging_shifts FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow public access to animal_feed_batches" ON public.animal_feed_batches;
-CREATE POLICY "Allow public access to animal_feed_batches" ON public.animal_feed_batches FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow public access to grain_sale_orders" ON public.grain_sale_orders;
-CREATE POLICY "Allow public access to grain_sale_orders" ON public.grain_sale_orders FOR ALL USING (true) WITH CHECK (true);
-
--- Grant Table Permissions
-GRANT ALL ON public.weighbridge_intake_tickets TO authenticated, anon, service_role;
-GRANT ALL ON public.grain_suppliers TO authenticated, anon, service_role;
-GRANT ALL ON public.milling_silos TO authenticated, anon, service_role;
-GRANT ALL ON public.milling_batch_runs TO authenticated, anon, service_role;
-GRANT ALL ON public.flour_packaging_shifts TO authenticated, anon, service_role;
-GRANT ALL ON public.animal_feed_batches TO authenticated, anon, service_role;
-GRANT ALL ON public.grain_sale_orders TO authenticated, anon, service_role;
+        EXECUTE format('GRANT ALL ON public.%I TO authenticated, anon, service_role', t);
+    END LOOP;
+END $$;

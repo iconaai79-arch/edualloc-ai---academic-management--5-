@@ -53,27 +53,53 @@ interface StudentSubscriptionPlanManagerProps {
 
 const GLOBAL_DEFAULT_PLANS: StudentSubscriptionPlan[] = [
     {
-        id: 'plan_basic_term',
-        name: 'Basic Academic Plan (Per Term)',
-        description: 'Covers termly CBC/8-4-4 academic records, report cards, and student attendance tracking.',
+        id: 'plan_basic_academic_term',
+        name: 'CBC Academic & Report Cards Plan (Per Term)',
+        description: 'Covers termly CBC/8-4-4 academic records, report cards, exam marks, and student attendance tracking.',
         billingCycle: 'per_term',
         amount: 150,
         smsAllocatedPerStudent: 10,
         smsUsageType: 'academic_results_only',
-        features: ['Report Cards & Transcripts', 'Attendance Tracking', 'Basic Subject Mark Entry', '10 Academic Results SMS / Student'],
+        features: ['CBC & 8-4-4 Report Cards & Transcripts', 'Daily Student Attendance Tracking', 'Basic Subject Mark Entry', '10 Academic Results SMS / Student'],
         applicableClasses: ['All Classes'],
         isActive: true,
         institutionId: 'SYSTEM'
     },
     {
-        id: 'plan_pro_term',
-        name: 'Pro Exam & Broadsheet Suite (Per Term)',
-        description: 'Includes automated conflict-free timetable, exam broadsheets, SpeechBuddy AI, and parent SMS alerts.',
+        id: 'plan_pro_academic_term',
+        name: 'Pro Exam, Timetable & Broadsheet Suite (Per Term)',
+        description: 'Includes automated conflict-free timetable wizard, exam broadsheets, SpeechBuddy AI revision, and parent exam alerts.',
         billingCycle: 'per_term',
-        amount: 350,
+        amount: 250,
+        smsAllocatedPerStudent: 20,
+        smsUsageType: 'academic_results_only',
+        features: ['All Academic Features', 'Automated Conflict-Free Timetable', 'Exam Units & Broadsheets', 'SpeechBuddy AI Access', '20 Academic Results SMS / Student'],
+        applicableClasses: ['All Classes'],
+        isActive: true,
+        institutionId: 'SYSTEM'
+    },
+    {
+        id: 'plan_basic_finance_term',
+        name: 'Finance Ledger & Fee Receipts Plan (Per Term)',
+        description: 'Includes automated student fee invoicing, real-time M-Pesa/Bank reconciliation, EPOS receipts, and parent fee balance alerts.',
+        billingCycle: 'per_term',
+        amount: 200,
         smsAllocatedPerStudent: 15,
-        smsUsageType: 'all',
-        features: ['All Basic Features', 'Exam Units & Broadsheets', 'SpeechBuddy AI Access', '15 Parent Results & Fee SMS / Student'],
+        smsUsageType: 'finance_receipts_only',
+        features: ['Automated Student Fee Invoicing', 'M-Pesa & Bank Fee Reconciliation', 'EPOS & A4 Thermal Receipts', 'Promise to Pay (PTP) Tracker', '15 Finance Receipts SMS / Student'],
+        applicableClasses: ['All Classes'],
+        isActive: true,
+        institutionId: 'SYSTEM'
+    },
+    {
+        id: 'plan_pro_finance_year',
+        name: 'Corporate Fee Collection & Audit Suite (Per Year)',
+        description: 'Full-year complete financial ledger, digital exam permits, bursary disbursement manager, and automated parent fee balance SMS broadcasts.',
+        billingCycle: 'per_year',
+        amount: 500,
+        smsAllocatedPerStudent: 50,
+        smsUsageType: 'finance_receipts_only',
+        features: ['Full Year Financial Governance', 'Digital Exam Permits & QR Verification', 'Bulk NG-CDF Bursary Disbursal', 'Votehead Spreadsheets & Inter-Bank Transfers', '50 Finance Receipts & Balance SMS / Student'],
         applicableClasses: ['All Classes'],
         isActive: true,
         institutionId: 'SYSTEM'
@@ -81,12 +107,12 @@ const GLOBAL_DEFAULT_PLANS: StudentSubscriptionPlan[] = [
     {
         id: 'plan_enterprise_year',
         name: 'Annual All-Access Student Pass (Per Year)',
-        description: 'Full-year unlimited access across Academics, Exams, SpeechBuddy AI, and automated fee receipts.',
+        description: 'Full-year unlimited access across Academics, Exams, SpeechBuddy AI, automated fee invoicing, and all parent SMS alerts.',
         billingCycle: 'per_year',
         amount: 1000,
-        smsAllocatedPerStudent: 30,
+        smsAllocatedPerStudent: 60,
         smsUsageType: 'all',
-        features: ['Full Year Unlimited Access', 'AI Revision Marketplace', 'Automated Receipts', '30 Results & Finance SMS / Student'],
+        features: ['Full Year Unlimited Platform Access', 'All Academic & Broadsheet Tools', 'Complete Financial Ledger & Receipts', 'SpeechBuddy AI Revision Marketplace', '60 Results & Finance SMS / Student'],
         applicableClasses: ['All Classes'],
         isActive: true,
         institutionId: 'SYSTEM'
@@ -120,6 +146,28 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         } catch (e) { }
         return GLOBAL_DEFAULT_PLANS;
     });
+
+    const [superAdminFilter, setSuperAdminFilter] = useState<'all' | 'academic' | 'finance' | 'combo'>('all');
+
+    // Service-specific Plan Filtering:
+    // - In Finance module: Only show packages with finance SMS or all-access
+    // - In Academics module: Only show packages with academic results SMS or all-access
+    // - In Super Admin mode: Allow tabbed filtering across All / Academic / Finance / Combo
+    const filteredPlans = useMemo(() => {
+        if (isSuperAdminMode || moduleContext === 'superadmin') {
+            if (superAdminFilter === 'academic') return plans.filter(p => p.smsUsageType === 'academic_results_only');
+            if (superAdminFilter === 'finance') return plans.filter(p => p.smsUsageType === 'finance_receipts_only');
+            if (superAdminFilter === 'combo') return plans.filter(p => p.smsUsageType === 'all');
+            return plans;
+        }
+        if (moduleContext === 'finance') {
+            return plans.filter(p => p.isActive && (p.smsUsageType === 'finance_receipts_only' || p.smsUsageType === 'all'));
+        }
+        if (moduleContext === 'academics') {
+            return plans.filter(p => p.isActive && (p.smsUsageType === 'academic_results_only' || p.smsUsageType === 'all'));
+        }
+        return plans.filter(p => p.isActive);
+    }, [plans, moduleContext, isSuperAdminMode, superAdminFilter]);
 
     const [subscriptions, setSubscriptions] = useState<StudentSubscriptionRecord[]>(() => {
         try {
@@ -166,7 +214,9 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
     const [newPlanCycle, setNewPlanCycle] = useState<'per_term' | 'per_year' | 'monthly'>('per_term');
     const [newPlanAmount, setNewPlanAmount] = useState<number>(150);
     const [newPlanSms, setNewPlanSms] = useState<number>(10);
-    const [newPlanSmsType, setNewPlanSmsType] = useState<'academic_results_only' | 'finance_receipts_only' | 'all'>('academic_results_only');
+    const [newPlanSmsType, setNewPlanSmsType] = useState<'academic_results_only' | 'finance_receipts_only' | 'all'>(
+        moduleContext === 'finance' ? 'finance_receipts_only' : 'academic_results_only'
+    );
     const [newPlanFeatures, setNewPlanFeatures] = useState<string>('Report Cards & Transcripts\nAttendance Tracking\nBasic Subject Mark Entry');
 
     // Tenant Selection & Calculation State
@@ -174,7 +224,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         return users.filter(u => u.role === 'student');
     }, [users]);
 
-    const [selectedPackageId, setSelectedPackageId] = useState<string>(plans[0]?.id || 'plan_basic_term');
+    const [selectedPackageId, setSelectedPackageId] = useState<string>(() => filteredPlans[0]?.id || plans[0]?.id || 'plan_basic_academic_term');
     const [customStudentCount, setCustomStudentCount] = useState<number>(studentsList.length || 100);
 
     useEffect(() => {
@@ -183,9 +233,16 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         }
     }, [studentsList.length]);
 
+    // Keep selectedPackageId synchronized when filteredPlans change
+    useEffect(() => {
+        if (filteredPlans.length > 0 && !filteredPlans.some(p => p.id === selectedPackageId)) {
+            setSelectedPackageId(filteredPlans[0].id);
+        }
+    }, [filteredPlans, selectedPackageId]);
+
     const selectedPackage = useMemo(() => {
-        return plans.find(p => p.id === selectedPackageId) || plans[0] || GLOBAL_DEFAULT_PLANS[0];
-    }, [plans, selectedPackageId]);
+        return filteredPlans.find(p => p.id === selectedPackageId) || plans.find(p => p.id === selectedPackageId) || filteredPlans[0] || plans[0] || GLOBAL_DEFAULT_PLANS[0];
+    }, [filteredPlans, plans, selectedPackageId]);
 
     // Live Auto-Calculation
     const autoCalculatedTotal = useMemo(() => {
@@ -438,26 +495,58 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                 </div>
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex border-b border-slate-200 dark:border-slate-700 gap-6 text-xs font-black uppercase tracking-wider">
-                <button
-                    onClick={() => setActiveTab('plans')}
-                    className={`pb-3 transition-colors cursor-pointer ${activeTab === 'plans' ? 'border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                    📋 Subscription Packages ({plans.length})
-                </button>
-                <button
-                    onClick={() => setActiveTab('roster')}
-                    className={`pb-3 transition-colors cursor-pointer ${activeTab === 'roster' ? 'border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                    🎓 Enrolled Learner Roster ({subscriptions.length})
-                </button>
+            {/* Navigation Tabs & Super Admin Filters */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-slate-700 pb-2">
+                <div className="flex gap-6 text-xs font-black uppercase tracking-wider">
+                    <button
+                        onClick={() => setActiveTab('plans')}
+                        className={`pb-3 transition-colors cursor-pointer ${activeTab === 'plans' ? 'border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        📋 Subscription Packages ({filteredPlans.length})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('roster')}
+                        className={`pb-3 transition-colors cursor-pointer ${activeTab === 'roster' ? 'border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        🎓 Enrolled Learner Roster ({subscriptions.length})
+                    </button>
+                </div>
+
+                {isSuperAdminMode ? (
+                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl">
+                        {[
+                            { id: 'all', label: 'All Packages' },
+                            { id: 'academic', label: '📚 Academic SMS' },
+                            { id: 'finance', label: '💼 Finance SMS' },
+                            { id: 'combo', label: '🌟 All-Access' }
+                        ].map(f => (
+                            <button
+                                key={f.id}
+                                onClick={() => setSuperAdminFilter(f.id as any)}
+                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    superAdminFilter === f.id
+                                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                                }`}
+                            >
+                                {f.label}
+                            </button>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        {moduleContext === 'finance' 
+                            ? '💼 Showing Packages with Finance & Fee Receipts SMS'
+                            : '📚 Showing Packages with Academic CBC & Results SMS'}
+                    </div>
+                )}
             </div>
 
             {/* PACKAGES SHOWCASE */}
             {activeTab === 'plans' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {plans.map(plan => (
+                    {filteredPlans.map(plan => (
                         <div
                             key={plan.id}
                             className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200/80 dark:border-slate-700 shadow-md hover:shadow-xl transition-all flex flex-col justify-between space-y-4 relative group"
@@ -484,7 +573,19 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                     )}
                                 </div>
 
-                                <h3 className="text-base font-black text-slate-900 dark:text-white">{plan.name}</h3>
+                                <div className="space-y-1">
+                                    <h3 className="text-base font-black text-slate-900 dark:text-white">{plan.name}</h3>
+                                    <span className={`inline-block px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${
+                                        plan.smsUsageType === 'finance_receipts_only'
+                                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40'
+                                            : plan.smsUsageType === 'academic_results_only'
+                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40'
+                                            : 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40'
+                                    }`}>
+                                        {plan.smsUsageType === 'finance_receipts_only' ? '💼 Finance Receipts SMS Only' : plan.smsUsageType === 'academic_results_only' ? '📚 Academic Results SMS Only' : '🌟 All-Access (Academic + Finance SMS)'}
+                                    </span>
+                                </div>
+                                
                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{plan.description}</p>
 
                                 <div className="py-2 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -605,7 +706,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                 1. Select Subscription Tier
                             </label>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                {plans.map(p => (
+                                {filteredPlans.map(p => (
                                     <div
                                         key={p.id}
                                         onClick={() => setSelectedPackageId(p.id)}
@@ -617,6 +718,9 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                     >
                                         <div>
                                             <span className="text-xs font-black text-slate-900 dark:text-white block">{p.name}</span>
+                                            <span className="text-[9px] font-black uppercase tracking-wider text-indigo-500 block mt-0.5">
+                                                {p.smsUsageType === 'finance_receipts_only' ? '💼 Finance SMS' : p.smsUsageType === 'academic_results_only' ? '📚 Academic SMS' : '🌟 All-Access SMS'}
+                                            </span>
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
                                                 {p.billingCycle.replace('_', ' ')}
                                             </span>

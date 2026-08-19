@@ -124,7 +124,7 @@ const PUBLIC_MODULES = [
   'student_absence_requests', 'time_off_requests', 'teacher_check_ins', 'leave_requests', 'financial_goals',
   'payroll_records', 'building_floors', 'building_offices', 'building_visitor_logs', 'building_visitor_assets',
   'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'bank_transactions',
-  'feedback_submissions', 'guest_feedback', 'guest_feedbacks',
+  'feedback_submissions', 'guest_feedback', 'guest_feedbacks', 'lesson_ratings',
   'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
   'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
   'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions'
@@ -304,10 +304,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
                 ['school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments'].includes(moduleName)
-                    ? 100000
+                    ? 5000
                     : 1000
             );
             if (isNaN(finalLimit)) finalLimit = 1000;
+            if (finalLimit > 10000 && !['school_registry'].includes(moduleName)) {
+                finalLimit = 10000;
+            }
             
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
             if (isNaN(offset)) offset = 0;
@@ -329,6 +332,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        error.message?.includes('invalid input syntax for type uuid');
                 if (isUuidMismatch) {
                     console.warn(`[API GET] UUID type mismatch for '${moduleName}' (DB column expects UUID, received string ID), returning empty list fallback.`);
+                    return res.status(200).json([]);
+                }
+                const isTimeout = error.code === '57014' || 
+                                  error.message?.includes('statement timeout') ||
+                                  error.message?.includes('timeout') ||
+                                  error.message?.includes('canceling statement');
+                if (isTimeout) {
+                    console.warn(`[API GET Timeout] Query timed out for '${moduleName}' (code: 57014). Attempting fallback retry with limited window...`);
+                    try {
+                        let retryQ = supabase.from(moduleName).select(getStrParam(select) || '*');
+                        if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
+                            retryQ = retryQ.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
+                        } else if (user?.institutionId && !isTableWithoutInstitutionId(moduleName)) {
+                            retryQ = retryQ.eq('institution_id', user.institutionId);
+                        }
+                        retryQ = retryQ.range(0, 499);
+                        const { data: retryData, error: retryErr } = await retryQ;
+                        if (!retryErr && retryData) {
+                            console.info(`[API GET Timeout] Fallback query recovered ${retryData.length} records for '${moduleName}'.`);
+                            return res.status(200).json(retryData);
+                        }
+                    } catch (retryEx) {
+                        console.warn(`[API GET Timeout] Fallback query retry error for '${moduleName}':`, retryEx);
+                    }
+                    console.warn(`[API GET Timeout] Returning empty list fallback for '${moduleName}' to keep client operational.`);
                     return res.status(200).json([]);
                 }
                 console.error(`[API GET Error] ${moduleName}:`, error);

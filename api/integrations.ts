@@ -891,10 +891,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     .eq('id', institutionId);
                             }
                         }
-
-                        if (user?.role === 'super_admin') {
-                            await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral }).catch(() => {});
-                        }
                     }
 
                     try {
@@ -1034,10 +1030,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         .update({ sms_balance: newBal, smsBalance: newBal })
                                         .eq('id', institutionId);
                                 }
-                            }
-
-                            if (user?.role === 'super_admin') {
-                                await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral }).catch(() => {});
                             }
                         }
 

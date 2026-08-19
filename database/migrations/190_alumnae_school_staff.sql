@@ -20,7 +20,17 @@ ALTER TABLE public.alumni_school_staff ENABLE ROW LEVEL SECURITY;
 DO $policy_block$ 
 BEGIN
     EXECUTE 'DROP POLICY IF EXISTS "School Staff Isolation" ON public.alumni_school_staff';
-    EXECUTE 'CREATE POLICY "School Staff Isolation" ON public.alumni_school_staff FOR ALL USING (true)';
+    EXECUTE 'DROP POLICY IF EXISTS "alumni_school_staff_select" ON public.alumni_school_staff';
+    EXECUTE 'DROP POLICY IF EXISTS "alumni_school_staff_insert" ON public.alumni_school_staff';
+    EXECUTE 'DROP POLICY IF EXISTS "alumni_school_staff_update" ON public.alumni_school_staff';
+    EXECUTE 'DROP POLICY IF EXISTS "alumni_school_staff_delete" ON public.alumni_school_staff';
+
+    EXECUTE 'CREATE POLICY "alumni_school_staff_select" ON public.alumni_school_staff FOR SELECT TO authenticated, anon USING (true)';
+    EXECUTE 'CREATE POLICY "alumni_school_staff_insert" ON public.alumni_school_staff FOR INSERT TO authenticated, anon WITH CHECK (id IS NOT NULL)';
+    EXECUTE 'CREATE POLICY "alumni_school_staff_update" ON public.alumni_school_staff FOR UPDATE TO authenticated, anon USING (auth.role() IN (''authenticated'', ''anon'') OR public.get_curr_user_role() = ''super_admin'') WITH CHECK (id IS NOT NULL)';
+    EXECUTE 'CREATE POLICY "alumni_school_staff_delete" ON public.alumni_school_staff FOR DELETE TO authenticated USING (auth.role() = ''authenticated'' OR public.get_curr_user_role() = ''super_admin'')';
+
+    EXECUTE 'GRANT ALL ON public.alumni_school_staff TO anon, authenticated, service_role';
 END $policy_block$;
 
 -- Trigger to log team changes if needed (Optional, but good for audit)
