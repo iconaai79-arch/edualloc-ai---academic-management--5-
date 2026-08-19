@@ -9137,9 +9137,17 @@ export const generateStaffP9Pdf = async (
 /**
  * Generates a monthly Statutory Deductions compliance report PDF.
  */
-export const generateStatutoryDeductionsPdf = async (
+export type StatutoryReportType = 'consolidated' | 'nssf' | 'shif' | 'housing_levy' | 'paye';
+
+/**
+ * Generates a comprehensive or category-specific Statutory Deductions Report PDF
+ * Supports Consolidated, NSSF By-Product, SHIF/SHA, Affordable Housing Levy (AHL), and PAYE.
+ */
+export const generateBulkStatutoryReportPdf = async (
     month: string,
     records: PayrollRecord[],
+    staffList: User[] = [],
+    reportType: StatutoryReportType = 'consolidated',
     institution: Institution,
     letterheadConfig?: LetterheadConfig,
     footerImageUrl?: string | null
@@ -9155,96 +9163,406 @@ export const generateStatutoryDeductionsPdf = async (
     let yPos = setupPdfHeader(doc, headerImg);
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    doc.setFontSize(20);
+    const titleMap: Record<StatutoryReportType, string> = {
+        consolidated: "STATUTORY DEDUCTIONS COMPLIANCE REPORT",
+        nssf: "NATIONAL SOCIAL SECURITY FUND (NSSF) STATUTORY RETURN",
+        shif: "SOCIAL HEALTH INSURANCE FUND (SHIF/SHA) REMITTANCE",
+        housing_levy: "AFFORDABLE HOUSING LEVY (AHL) COMPLIANCE SCHEDULE",
+        paye: "KRA PAYE TAX DEDUCTION & REMITTANCE SCHEDULE"
+    };
+
+    const colorMap: Record<StatutoryReportType, number[]> = {
+        consolidated: [45, 55, 72],
+        nssf: [217, 119, 6], // Amber-600
+        shif: [13, 148, 136], // Teal-600
+        housing_levy: [225, 29, 72], // Rose-600
+        paye: [79, 70, 229] // Indigo-600
+    };
+
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text("STATUTORY DEDUCTIONS COMPLIANCE REPORT", 14, yPos);
-    yPos += 8;
+    doc.text(titleMap[reportType] || titleMap.consolidated, 14, yPos);
+    yPos += 7;
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Filing Month: ${month}`, 14, yPos);
+    doc.text(`Filing Period: ${month}`, 14, yPos);
     doc.text(`Employer: ${institution.name}`, pageWidth / 2, yPos);
-    yPos += 12;
+    yPos += 5;
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, yPos);
+    doc.text(`Active Personnel: ${records.length}`, pageWidth / 2, yPos);
+    yPos += 10;
 
-    const head = [['Employee', 'Gross Pay', 'NSSF', 'SHIF', 'Housing Levy', 'PAYE', 'Net Pay']];
-
+    let head: string[][] = [];
+    let body: any[] = [];
     let grandGross = 0, grandNssf = 0, grandShif = 0, grandLevy = 0, grandPaye = 0, grandNet = 0;
+    let grandTier1 = 0, grandTier2 = 0;
 
-    const body = records.map((rec: PayrollRecord) => {
-        const basic = rec.basicSalary || rec.basicPay || 0;
-        const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
-        const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
-        const gross = basic + allowances;
+    const findStaffMeta = (staffId: string) => {
+        const s = staffList.find(u => u.id === staffId);
+        let m = s?.metadata || {};
+        if (typeof m === 'string') {
+            try { m = JSON.parse(m); } catch (e) { m = {}; }
+        }
+        return {
+            kraPin: m.kraPin || (s as any)?.kraPin || 'A000000000X',
+            nssfNo: m.nssfNo || (s as any)?.nssfNo || 'NSSF-001',
+            shifNo: m.shifNumber || m.nhifNo || (s as any)?.shifNumber || 'SHIF-001',
+            nationalId: m.nationalId || (s as any)?.nationalId || '00000000',
+            name: s?.name || 'Staff Member'
+        };
+    };
 
-        const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
-        const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
-        const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
-        const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
-        const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
-        const net = rec.netSalary || rec.netPay || 0;
+    if (reportType === 'nssf') {
+        head = [['Staff Member', 'NSSF No', 'National ID', 'KRA PIN', 'Gross Pay', 'Tier I (EE+ER)', 'Tier II (EE+ER)', 'Total NSSF']];
+        body = records.map(rec => {
+            const meta = findStaffMeta(rec.staffId);
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const gross = basic + allowances;
 
-        grandGross += gross;
-        grandNssf += nssf;
-        grandShif += shif;
-        grandLevy += housingLevy;
-        grandPaye += paye;
-        grandNet += net;
+            const tier1 = Math.min(gross, 9000) * 0.06 * 2; // EE + ER
+            const tier2 = Math.max(0, Math.min(gross, 108000) - 9000) * 0.06 * 2;
+            const totalNssf = tier1 + tier2;
 
-        return [
-            rec.staffName || 'Staff Member',
-            `KES ${gross.toLocaleString()}`,
-            `KES ${nssf.toLocaleString()}`,
-            `KES ${shif.toLocaleString()}`,
-            `KES ${housingLevy.toLocaleString()}`,
-            `KES ${paye.toLocaleString()}`,
-            `KES ${net.toLocaleString()}`
-        ];
-    });
+            grandGross += gross;
+            grandTier1 += tier1;
+            grandTier2 += tier2;
+            grandNssf += totalNssf;
 
-    body.push([
-        'GRAND TOTALS',
-        `KES ${grandGross.toLocaleString()}`,
-        `KES ${grandNssf.toLocaleString()}`,
-        `KES ${grandShif.toLocaleString()}`,
-        `KES ${grandLevy.toLocaleString()}`,
-        `KES ${grandPaye.toLocaleString()}`,
-        `KES ${grandNet.toLocaleString()}`
-    ]);
+            return [
+                rec.staffName || meta.name,
+                meta.nssfNo,
+                meta.nationalId,
+                meta.kraPin,
+                `KES ${gross.toLocaleString()}`,
+                `KES ${Math.round(tier1).toLocaleString()}`,
+                `KES ${Math.round(tier2).toLocaleString()}`,
+                `KES ${Math.round(totalNssf).toLocaleString()}`
+            ];
+        });
+
+        body.push([
+            'GRAND TOTALS',
+            '-',
+            '-',
+            '-',
+            `KES ${grandGross.toLocaleString()}`,
+            `KES ${Math.round(grandTier1).toLocaleString()}`,
+            `KES ${Math.round(grandTier2).toLocaleString()}`,
+            `KES ${Math.round(grandNssf).toLocaleString()}`
+        ]);
+    } else if (reportType === 'shif') {
+        head = [['Staff Member', 'SHIF / NHIF No', 'National ID', 'KRA PIN', 'Gross Salary', 'Rate', 'Total SHIF (2.75%)']];
+        body = records.map(rec => {
+            const meta = findStaffMeta(rec.staffId);
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const gross = basic + allowances;
+
+            const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+            const shif = deductionsList.find((d: any) => d.name === 'SHIF' || d.name?.includes('SHIF'))?.amount || (gross > 0 ? Math.max(300, gross * 0.0275) : 0);
+
+            grandGross += gross;
+            grandShif += shif;
+
+            return [
+                rec.staffName || meta.name,
+                meta.shifNo,
+                meta.nationalId,
+                meta.kraPin,
+                `KES ${gross.toLocaleString()}`,
+                '2.75%',
+                `KES ${Math.round(shif).toLocaleString()}`
+            ];
+        });
+
+        body.push([
+            'GRAND TOTALS',
+            '-',
+            '-',
+            '-',
+            `KES ${grandGross.toLocaleString()}`,
+            '2.75%',
+            `KES ${Math.round(grandShif).toLocaleString()}`
+        ]);
+    } else if (reportType === 'housing_levy') {
+        head = [['Staff Member', 'KRA PIN', 'National ID', 'Gross Salary', 'Employee (1.5%)', 'Employer (1.5%)', 'Total AHL (3.0%)']];
+        body = records.map(rec => {
+            const meta = findStaffMeta(rec.staffId);
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const gross = basic + allowances;
+
+            const eeLevy = gross * 0.015;
+            const erLevy = gross * 0.015;
+            const totalLevy = eeLevy + erLevy;
+
+            grandGross += gross;
+            grandLevy += totalLevy;
+
+            return [
+                rec.staffName || meta.name,
+                meta.kraPin,
+                meta.nationalId,
+                `KES ${gross.toLocaleString()}`,
+                `KES ${Math.round(eeLevy).toLocaleString()}`,
+                `KES ${Math.round(erLevy).toLocaleString()}`,
+                `KES ${Math.round(totalLevy).toLocaleString()}`
+            ];
+        });
+
+        body.push([
+            'GRAND TOTALS',
+            '-',
+            '-',
+            `KES ${grandGross.toLocaleString()}`,
+            `KES ${Math.round(grandLevy / 2).toLocaleString()}`,
+            `KES ${Math.round(grandLevy / 2).toLocaleString()}`,
+            `KES ${Math.round(grandLevy).toLocaleString()}`
+        ]);
+    } else if (reportType === 'paye') {
+        head = [['Staff Member', 'KRA PIN', 'Gross Salary', 'Statutory Relief', 'Taxable Pay', 'Gross Tax', 'Relief', 'Net PAYE']];
+        body = records.map(rec => {
+            const meta = findStaffMeta(rec.staffId);
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const gross = basic + allowances;
+
+            const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+            const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
+            const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
+            const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
+            const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
+            const allowable = nssf + shif + housingLevy;
+            const taxable = Math.max(0, gross - allowable);
+
+            grandGross += gross;
+            grandPaye += paye;
+
+            return [
+                rec.staffName || meta.name,
+                meta.kraPin,
+                `KES ${gross.toLocaleString()}`,
+                `KES ${Math.round(allowable).toLocaleString()}`,
+                `KES ${Math.round(taxable).toLocaleString()}`,
+                `KES ${Math.round(paye + (gross > 0 ? 2400 : 0)).toLocaleString()}`,
+                `KES ${gross > 0 ? '2,400' : '0'}`,
+                `KES ${Math.round(paye).toLocaleString()}`
+            ];
+        });
+
+        body.push([
+            'GRAND TOTALS',
+            '-',
+            `KES ${grandGross.toLocaleString()}`,
+            '-',
+            '-',
+            '-',
+            '-',
+            `KES ${Math.round(grandPaye).toLocaleString()}`
+        ]);
+    } else {
+        // Consolidated
+        head = [['Employee', 'Gross Pay', 'NSSF', 'SHIF', 'Housing Levy', 'PAYE', 'Net Pay']];
+        body = records.map((rec: PayrollRecord) => {
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const gross = basic + allowances;
+
+            const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+            const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
+            const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
+            const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
+            const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
+            const net = rec.netSalary || rec.netPay || 0;
+
+            grandGross += gross;
+            grandNssf += nssf;
+            grandShif += shif;
+            grandLevy += housingLevy;
+            grandPaye += paye;
+            grandNet += net;
+
+            return [
+                rec.staffName || 'Staff Member',
+                `KES ${gross.toLocaleString()}`,
+                `KES ${nssf.toLocaleString()}`,
+                `KES ${shif.toLocaleString()}`,
+                `KES ${housingLevy.toLocaleString()}`,
+                `KES ${paye.toLocaleString()}`,
+                `KES ${net.toLocaleString()}`
+            ];
+        });
+
+        body.push([
+            'GRAND TOTALS',
+            `KES ${grandGross.toLocaleString()}`,
+            `KES ${grandNssf.toLocaleString()}`,
+            `KES ${grandShif.toLocaleString()}`,
+            `KES ${grandLevy.toLocaleString()}`,
+            `KES ${grandPaye.toLocaleString()}`,
+            `KES ${grandNet.toLocaleString()}`
+        ]);
+    }
 
     doc.autoTable({
         startY: yPos,
         head,
         body,
         theme: 'striped',
-        headStyles: { fillColor: [45, 55, 72] },
+        headStyles: { fillColor: colorMap[reportType] || [45, 55, 72] },
         styles: { fontSize: 8 },
         columnStyles: {
-            1: { halign: 'right' },
-            2: { halign: 'right' },
-            3: { halign: 'right' },
-            4: { halign: 'right' },
-            5: { halign: 'right' },
-            6: { halign: 'right', fontStyle: 'bold' }
+            [head[0].length - 1]: { halign: 'right', fontStyle: 'bold' }
         }
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 15;
+    yPos = (doc as any).lastAutoTable.finalY + 12;
     doc.setFillColor(240, 253, 250); 
-    doc.roundedRect(14, yPos, pageWidth - 28, 30, 2, 2, 'F');
+    doc.roundedRect(14, yPos, pageWidth - 28, 28, 2, 2, 'F');
 
-    let complianceY = yPos + 8;
+    let complianceY = yPos + 7;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.text("STATUTORY REMITTANCE ACCOUNTING", 20, complianceY);
-    complianceY += 8;
+    doc.text("STATUTORY REMITTANCE ACCOUNTING & DISBURSEMENT", 20, complianceY);
+    complianceY += 7;
     doc.setFont('helvetica', 'normal');
     doc.text(`KRA PAYE + Housing Levy Remittance: KES ${(grandPaye + grandLevy).toLocaleString()}`, 20, complianceY);
     doc.text(`NSSF Board Remittance: KES ${grandNssf.toLocaleString()}`, pageWidth / 2, complianceY);
-    complianceY += 6;
+    complianceY += 5;
     doc.text(`Social Health Authority (SHA/SHIF) Remittance: KES ${grandShif.toLocaleString()}`, 20, complianceY);
 
-    setupPdfFooter(doc, footerImg, `${institution.name} — Statutory Remittance Report`);
+    setupPdfFooter(doc, footerImg, `${institution.name} — Statutory Remittance Report (${reportType.toUpperCase()})`);
     return doc.output('datauristring');
+};
+
+/**
+ * Backward compatible alias for generateStatutoryDeductionsPdf
+ */
+export const generateStatutoryDeductionsPdf = async (
+    month: string,
+    records: PayrollRecord[],
+    institution: Institution,
+    letterheadConfig?: LetterheadConfig,
+    footerImageUrl?: string | null,
+    staffList?: User[],
+    reportType: StatutoryReportType = 'consolidated'
+): Promise<string> => {
+    return generateBulkStatutoryReportPdf(month, records, staffList || [], reportType, institution, letterheadConfig, footerImageUrl);
+};
+
+/**
+ * Downloads a structured statutory CSV file formatted for direct upload to NSSF, SHIF, or KRA portals.
+ */
+export const downloadStatutoryCsv = (
+    month: string,
+    records: PayrollRecord[],
+    staffList: User[] = [],
+    reportType: StatutoryReportType = 'consolidated',
+    institutionName: string = 'Institution'
+) => {
+    const findStaffMeta = (staffId: string) => {
+        const s = staffList.find(u => u.id === staffId);
+        let m = s?.metadata || {};
+        if (typeof m === 'string') {
+            try { m = JSON.parse(m); } catch (e) { m = {}; }
+        }
+        return {
+            kraPin: m.kraPin || (s as any)?.kraPin || 'A000000000X',
+            nssfNo: m.nssfNo || (s as any)?.nssfNo || 'NSSF-001',
+            shifNo: m.shifNumber || m.nhifNo || (s as any)?.shifNumber || 'SHIF-001',
+            nationalId: m.nationalId || (s as any)?.nationalId || '00000000',
+            name: s?.name || 'Staff Member'
+        };
+    };
+
+    let headers: string[] = [];
+    let rows: string[][] = [];
+
+    if (reportType === 'nssf') {
+        headers = ['Payroll Month', 'Staff Name', 'NSSF Number', 'National ID', 'KRA PIN', 'Gross Salary (KES)', 'Tier I (KES)', 'Tier II (KES)', 'Total NSSF (KES)'];
+        rows = records.map(rec => {
+            const meta = findStaffMeta(rec.staffId);
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const gross = basic + allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const tier1 = Math.min(gross, 9000) * 0.06 * 2;
+            const tier2 = Math.max(0, Math.min(gross, 108000) - 9000) * 0.06 * 2;
+            return [month, rec.staffName || meta.name, meta.nssfNo, meta.nationalId, meta.kraPin, String(gross), String(Math.round(tier1)), String(Math.round(tier2)), String(Math.round(tier1 + tier2))];
+        });
+    } else if (reportType === 'shif') {
+        headers = ['Payroll Month', 'Staff Name', 'SHIF Number', 'National ID', 'KRA PIN', 'Gross Salary (KES)', 'SHIF Deduction (KES)'];
+        rows = records.map(rec => {
+            const meta = findStaffMeta(rec.staffId);
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const gross = basic + allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+            const shif = deductionsList.find((d: any) => d.name === 'SHIF' || d.name?.includes('SHIF'))?.amount || Math.max(300, gross * 0.0275);
+            return [month, rec.staffName || meta.name, meta.shifNo, meta.nationalId, meta.kraPin, String(gross), String(Math.round(shif))];
+        });
+    } else if (reportType === 'housing_levy') {
+        headers = ['Payroll Month', 'Staff Name', 'KRA PIN', 'National ID', 'Gross Salary (KES)', 'Employee (1.5%)', 'Employer (1.5%)', 'Total AHL (KES)'];
+        rows = records.map(rec => {
+            const meta = findStaffMeta(rec.staffId);
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const gross = basic + allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const eeLevy = gross * 0.015;
+            const erLevy = gross * 0.015;
+            return [month, rec.staffName || meta.name, meta.kraPin, meta.nationalId, String(gross), String(Math.round(eeLevy)), String(Math.round(erLevy)), String(Math.round(eeLevy + erLevy))];
+        });
+    } else if (reportType === 'paye') {
+        headers = ['Payroll Month', 'Staff Name', 'KRA PIN', 'Gross Salary (KES)', 'Allowable Deductions (KES)', 'Taxable Pay (KES)', 'Gross Tax (KES)', 'Personal Relief (KES)', 'Net PAYE (KES)'];
+        rows = records.map(rec => {
+            const meta = findStaffMeta(rec.staffId);
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const gross = basic + allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+            const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
+            const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
+            const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
+            const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
+            const allowable = nssf + shif + housingLevy;
+            const taxable = Math.max(0, gross - allowable);
+            return [month, rec.staffName || meta.name, meta.kraPin, String(gross), String(Math.round(allowable)), String(Math.round(taxable)), String(Math.round(paye + 2400)), '2400', String(Math.round(paye))];
+        });
+    } else {
+        headers = ['Payroll Month', 'Staff Name', 'National ID', 'KRA PIN', 'Gross Pay (KES)', 'NSSF (KES)', 'SHIF (KES)', 'Housing Levy (KES)', 'PAYE (KES)', 'Net Pay (KES)'];
+        rows = records.map(rec => {
+            const meta = findStaffMeta(rec.staffId);
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const gross = basic + allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+            const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
+            const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
+            const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
+            const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
+            const net = rec.netSalary || rec.netPay || 0;
+            return [month, rec.staffName || meta.name, meta.nationalId, meta.kraPin, String(gross), String(nssf), String(shif), String(housingLevy), String(paye), String(net)];
+        });
+    }
+
+    const csvContent = [
+        headers.join(','),
+        ...rows.map(r => r.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${institutionName.replace(/\s+/g, '_')}_Statutory_${reportType.toUpperCase()}_${month.replace(/\s+/g, '_')}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
 };
 
 export const generatePMInspectionPdf = async (

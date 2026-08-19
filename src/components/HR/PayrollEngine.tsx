@@ -8,7 +8,10 @@ import { ChevronDownIcon } from '../icons/ChevronDownIcon';
 import { XIcon } from '../icons/XIcon';
 import { 
     generateBulkStaffPayslipsPdf, 
-    generateStaffPayslipPdf 
+    generateStaffPayslipPdf,
+    generateBulkStatutoryReportPdf,
+    downloadStatutoryCsv,
+    type StatutoryReportType
 } from '../../services/pdfService';
 
 interface PayrollEngineProps {
@@ -352,6 +355,111 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         }
     };
 
+    const [statutoryScheduleType, setStatutoryScheduleType] = useState<StatutoryReportType>('consolidated');
+
+    const handleGenerateEngineStatutoryPdf = async () => {
+        setIsGeneratingPdf(true);
+        try {
+            const currentMonthRecords = localRecords.filter(r => r.month === selectedMonth);
+            let recordsToUse: PayrollRecord[] = currentMonthRecords;
+
+            if (recordsToUse.length === 0) {
+                recordsToUse = activeStaffCalculations.map(c => {
+                    const allowances = [{ name: 'House Allowance', amount: c.houseAllowance }];
+                    const deductions = [
+                        { name: 'NSSF', amount: Math.round(c.payroll.nssf) },
+                        { name: 'SHIF', amount: Math.round(c.payroll.shif) },
+                        { name: 'Housing Levy', amount: Math.round(c.payroll.housingLevy) },
+                        { name: 'PAYE', amount: Math.round(c.payroll.netPaye) }
+                    ];
+                    return {
+                        id: `stat_${Date.now()}_${c.staffId}`,
+                        institutionId: institution.id,
+                        staffId: c.staffId,
+                        staffName: c.name,
+                        month: selectedMonth,
+                        basicSalary: c.basicSalary,
+                        allowances,
+                        deductions,
+                        netSalary: Math.round(c.payroll.netSalary * 100) / 100,
+                        status: 'paid',
+                        recordedBy: 'Kenyan Payroll Engine',
+                        paymentDate: new Date().toISOString()
+                    } as PayrollRecord;
+                });
+            }
+
+            if (recordsToUse.length === 0) {
+                alert('No staff records available for statutory schedule.');
+                return;
+            }
+
+            const dataUri = await generateBulkStatutoryReportPdf(
+                selectedMonth,
+                recordsToUse,
+                staff,
+                statutoryScheduleType,
+                institution,
+                designerConfig
+            );
+            const typeLabels: Record<StatutoryReportType, string> = {
+                consolidated: 'Master Statutory Deductions',
+                nssf: 'NSSF By-Product Return',
+                shif: 'SHIF Medical Fund Remittance',
+                housing_levy: 'Affordable Housing Levy (AHL)',
+                paye: 'KRA PAYE Tax Return'
+            };
+            setPdfPreviewModal({
+                url: dataUri,
+                title: `${typeLabels[statutoryScheduleType]} - ${selectedMonth} (${recordsToUse.length} Staff)`
+            });
+        } catch (error: any) {
+            console.error(error);
+            alert('Failed to generate statutory report: ' + (error?.message || error));
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
+    const handleDownloadEngineStatutoryCsv = () => {
+        const currentMonthRecords = localRecords.filter(r => r.month === selectedMonth);
+        let recordsToUse: PayrollRecord[] = currentMonthRecords;
+
+        if (recordsToUse.length === 0) {
+            recordsToUse = activeStaffCalculations.map(c => {
+                const allowances = [{ name: 'House Allowance', amount: c.houseAllowance }];
+                const deductions = [
+                    { name: 'NSSF', amount: Math.round(c.payroll.nssf) },
+                    { name: 'SHIF', amount: Math.round(c.payroll.shif) },
+                    { name: 'Housing Levy', amount: Math.round(c.payroll.housingLevy) },
+                    { name: 'PAYE', amount: Math.round(c.payroll.netPaye) }
+                ];
+                return {
+                    id: `stat_${Date.now()}_${c.staffId}`,
+                    institutionId: institution.id,
+                    staffId: c.staffId,
+                    staffName: c.name,
+                    month: selectedMonth,
+                    basicSalary: c.basicSalary,
+                    allowances,
+                    deductions,
+                    netSalary: Math.round(c.payroll.netSalary * 100) / 100,
+                    status: 'paid',
+                    recordedBy: 'Kenyan Payroll Engine',
+                    paymentDate: new Date().toISOString()
+                } as PayrollRecord;
+            });
+        }
+
+        downloadStatutoryCsv(
+            selectedMonth,
+            recordsToUse,
+            staff,
+            statutoryScheduleType,
+            institution.name
+        );
+    };
+
     const toggleRow = (staffId: string) => setExpandedStaffId(expandedStaffId === staffId ? null : staffId);
 
     return (
@@ -581,6 +689,41 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                     </div>
                                 </div>
                             )}
+                        </div>
+
+                        {/* Quick Statutory Export Tools */}
+                        <div className="pt-4 border-t border-white/10 space-y-3">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Statutory Schedule Export</label>
+                            <select
+                                value={statutoryScheduleType}
+                                onChange={e => setStatutoryScheduleType(e.target.value as StatutoryReportType)}
+                                className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-indigo-400"
+                            >
+                                <option value="consolidated">📊 Master Statutory Return</option>
+                                <option value="nssf">🛡️ NSSF Return (Tier I & II)</option>
+                                <option value="shif">🏥 SHIF Medical Fund</option>
+                                <option value="housing_levy">🏠 Housing Levy (AHL)</option>
+                                <option value="paye">📑 KRA PAYE Return</option>
+                            </select>
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleGenerateEngineStatutoryPdf}
+                                    disabled={isGeneratingPdf || staff.length === 0}
+                                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                                >
+                                    <DocumentTextIcon className="w-3.5 h-3.5" />
+                                    <span>Schedule (PDF)</span>
+                                </button>
+                                <button
+                                    onClick={handleDownloadEngineStatutoryCsv}
+                                    disabled={staff.length === 0}
+                                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-1"
+                                    title="Export Portal CSV"
+                                >
+                                    <span>📥 CSV</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
