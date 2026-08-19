@@ -6552,6 +6552,9 @@ Please change it after login.`;
                                     (updated as any)[key] = newSettings[key];
                                 } else {
                                     portalSettingsUpdates[key] = newSettings[key];
+                                    if (key === 'alumnaeRegistrationFeeEnabled') {
+                                        portalSettingsUpdates['alumnae_registration_fee_enabled'] = newSettings[key];
+                                    }
                                 }
                             });
 

@@ -970,24 +970,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         }
 
         if (isEdu && activeScope === 'inventory') {
-            return [
-                { id: 'inv_dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_inventory', label: 'Inventory', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_stock_inwards', label: 'Receive Stock', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_pos', label: 'Issue Desk', icon: <SmartphoneIcon className="w-5 h-5 mr-2" /> },
-                ...(props.currentInstitution?.countyId ? [{ id: 'inv_shipments', label: 'County Shipments', icon: <TruckIcon className="w-5 h-5 mr-2" /> }] : []),
-                { id: 'inv_teachers', label: 'Teachers', icon: <UserIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_support_staff', label: 'Support Staff', icon: <BriefcaseIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_students', label: 'Students', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_logistics', label: 'Logistics', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_stores', label: 'Departments', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_expenses', label: 'Expenses', icon: <DocumentTextIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_requisitions', label: 'Requests', icon: <DocumentTextIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_vendors', label: 'Suppliers', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_transfers', label: 'Transfers', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
-                { id: 'inv_config', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
-            ];
+            return [];
         }
 
         let filteredTabs = baseTabs.filter(tab => {
@@ -3268,11 +3251,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     allCourses={props.courses || []}
                                     currentInstitution={props.currentInstitution}
                                     activeTab={mappedTab}
-                                    onTabChange={mappedTab ? (tab) => {
+                                    onTabChange={(tab) => {
                                         const reverseMap = Object.entries(retailTabMap).find(([_, value]) => value === tab)?.[0];
                                         if (reverseMap) setActiveTab(reverseMap as any);
-                                    } : undefined}
-                                    hideNavigation={!!mappedTab}
+                                    }}
+                                    hideNavigation={false}
                                     countyInventory={props.countyInventory}
                                     onMarkInventoryReceived={props.onMarkInventoryReceived}
                                     onEditUser={props.onEditUser}

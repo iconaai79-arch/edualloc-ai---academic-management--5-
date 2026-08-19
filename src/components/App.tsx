@@ -7579,8 +7579,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                 onBackToPortal={() => {
                                     window.location.href = '/?view=community';
                                 }}
-                                joiningFee={companyDetails?.alumnaeJoiningFee || 0}
-                                feeEnabled={companyDetails?.portalSettings?.alumnaeRegistrationFeeEnabled !== false}
+                                joiningFee={Number(companyDetails?.alumnaeJoiningFee ?? (companyDetails as any)?.alumnae_joining_fee ?? 0)}
+                                feeEnabled={
+                                    ((companyDetails?.portalSettings?.alumnaeRegistrationFeeEnabled ?? 
+                                      (companyDetails?.portalSettings as any)?.alumnae_registration_fee_enabled ?? 
+                                      (companyDetails as any)?.alumnae_registration_fee_enabled ?? 
+                                      true) !== false) &&
+                                    Number(companyDetails?.alumnaeJoiningFee ?? (companyDetails as any)?.alumnae_joining_fee ?? 0) > 0
+                                }
                                 onInitiatePayment={async (amount, phone, reference, schoolId) => {
                                     try {
                                         const school = schoolRegistry.find(s => s.id === schoolId);
@@ -7627,6 +7633,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             if (uploadRes.success) profilePhotoUrl = (uploadRes.url as string) || '';
                                         }
 
+                                        const isAlumnaeBillingActive = (
+                                            (companyDetails?.portalSettings?.alumnaeRegistrationFeeEnabled ?? 
+                                             (companyDetails?.portalSettings as any)?.alumnae_registration_fee_enabled ?? 
+                                             true) !== false &&
+                                            Number(companyDetails?.alumnaeJoiningFee ?? (companyDetails as any)?.alumnae_joining_fee ?? 0) > 0
+                                        );
+                                        const effectiveJoiningFee = isAlumnaeBillingActive ? Number(companyDetails?.alumnaeJoiningFee || 0) : 0;
+
                                         const registrationPayload: any = {
                                             ...data,
                                             fullName: (data.fullName || '').trim(),
@@ -7637,8 +7651,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             schoolId: data.schoolId || null,
                                             status: 'verified', // Auto-approve
                                             profilePhotoUrl: profilePhotoUrl,
-                                            paymentId: data.paymentId || null,
-                                            registrationFee: companyDetails?.alumnaeJoiningFee || 0,
+                                            paymentId: effectiveJoiningFee > 0 ? (data.paymentId || null) : null,
+                                            registrationFee: effectiveJoiningFee,
                                             joinedAt: new Date().toISOString(),
                                             // Implement Auto-Featured status for 30 days as a welcome gift
                                             isFeatured: true,
@@ -7650,8 +7664,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
                                         await apiService.saveModuleRecord('alumnae_members', registrationPayload);
                                         
-                                        // Generate Invoice and Receipt for the payment
-                                        const amount = companyDetails?.alumnaeJoiningFee || 0;
+                                        // Generate Invoice and Receipt for the payment only if billing is enabled and positive
+                                        const amount = effectiveJoiningFee;
                                         if (amount > 0 && data.paymentId) {
                                             const invoiceId = `INV_AL_${Date.now()}`;
                                             const receiptId = `REC_AL_${Date.now()}`;

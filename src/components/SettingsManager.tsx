@@ -803,9 +803,25 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 password: (localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim()
             };
 
+            const isFeeEnabled = (localCompanyInfo as any).alumnaeRegistrationFeeEnabled !== undefined
+                ? (localCompanyInfo as any).alumnaeRegistrationFeeEnabled
+                : (Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0);
+
             await props.onUpdateCompanyDetails({
                 ...props.companyDetails,
                 ...localCompanyInfo,
+                portalSettings: {
+                    ...(props.companyDetails?.portalSettings || {
+                        showAlumnaeHub: true,
+                        showTouristHub: true,
+                        showMarketplace: true,
+                        showCommunityHub: true,
+                        showTransportHub: true,
+                        publicRegistrationEnabled: true
+                    }),
+                    alumnaeRegistrationFeeEnabled: isFeeEnabled && Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0,
+                    alumnae_registration_fee_enabled: isFeeEnabled && Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0
+                },
                 smsConfig: localSmsConfig,
                 emailConfig: localEmailConfig,
                 mpesaConfig: localMpesaConfig,
@@ -1079,6 +1095,33 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <p className="text-[10px] font-bold text-slate-400 uppercase">System Logo</p>
                                         <div className="space-y-6">
                                             <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Alumnae Network Billing Status</label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const currentEnabled = ((localCompanyInfo as any).alumnaeRegistrationFeeEnabled ?? (props.companyDetails?.portalSettings?.alumnaeRegistrationFeeEnabled !== false)) && Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0;
+                                                        const nextEnabled = !currentEnabled;
+                                                        setLocalCompanyInfo({
+                                                            ...localCompanyInfo,
+                                                            alumnaeRegistrationFeeEnabled: nextEnabled,
+                                                            alumnaeJoiningFee: nextEnabled ? ((localCompanyInfo as any).alumnaeJoiningFee || 500) : 0
+                                                        } as any);
+                                                    }}
+                                                    className={`w-full py-3 px-4 rounded-2xl font-black uppercase text-xs tracking-wider transition-all flex items-center justify-between border ${
+                                                        (((localCompanyInfo as any).alumnaeRegistrationFeeEnabled ?? (props.companyDetails?.portalSettings?.alumnaeRegistrationFeeEnabled !== false)) && Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0)
+                                                            ? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-700 dark:text-emerald-300'
+                                                            : 'bg-rose-50 border-rose-300 text-rose-700 dark:bg-rose-950/40 dark:border-rose-700 dark:text-rose-300'
+                                                    }`}
+                                                >
+                                                    <span>
+                                                        {(((localCompanyInfo as any).alumnaeRegistrationFeeEnabled ?? (props.companyDetails?.portalSettings?.alumnaeRegistrationFeeEnabled !== false)) && Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0)
+                                                            ? '🟢 Billing Active (Paid Registration)'
+                                                            : '🔴 Billing Disabled (Free Registration)'}
+                                                    </span>
+                                                    <span className="text-[10px] underline">Click to Toggle</span>
+                                                </button>
+                                            </div>
+                                            <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Alumnae Joining Fee (KES)</label>
                                                 <div className="relative">
                                                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -1087,7 +1130,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     <input 
                                                         type="number" 
                                                         value={(localCompanyInfo as any).alumnaeJoiningFee} 
-                                                        onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, alumnaeJoiningFee: Number(e.target.value) } as any)}
+                                                        onChange={e => {
+                                                            const val = Number(e.target.value);
+                                                            setLocalCompanyInfo({ 
+                                                                ...localCompanyInfo, 
+                                                                alumnaeJoiningFee: val,
+                                                                alumnaeRegistrationFeeEnabled: val > 0
+                                                            } as any);
+                                                        }}
                                                         className="form-input pl-10" 
                                                         placeholder="0.00" 
                                                     />

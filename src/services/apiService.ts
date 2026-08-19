@@ -2471,7 +2471,16 @@ export const apiService = {
             const data = await response.json();
             // Store as cache for handle ERR_NAME_NOT_RESOLVED type failures
             localStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
-            return toCamelCase(data) || null;
+            const rawSettings = toCamelCase(data) || null;
+            if (rawSettings) {
+                const ps = rawSettings.portalSettings || (rawSettings as any).portal_settings || {};
+                const feeFlag = ps.alumnaeRegistrationFeeEnabled ?? ps.alumnae_registration_fee_enabled ?? (rawSettings as any).alumnae_registration_fee_enabled;
+                rawSettings.portalSettings = {
+                    ...ps,
+                    alumnaeRegistrationFeeEnabled: feeFlag !== undefined ? (feeFlag === true || feeFlag === 'true' || feeFlag === 1) : true
+                };
+            }
+            return rawSettings;
         } catch (e) {
             console.error("[apiService] Error fetching company settings:", e);
             // Try to recover from cache
@@ -2479,7 +2488,16 @@ export const apiService = {
                 const cachedData = localStorage.getItem('eduai_system_settings_cache');
                 if (cachedData) {
                     console.warn("[apiService] Recovered system settings from cache after fetch failure");
-                    return toCamelCase(JSON.parse(cachedData));
+                    const rawSettings = toCamelCase(JSON.parse(cachedData));
+                    if (rawSettings) {
+                        const ps = rawSettings.portalSettings || (rawSettings as any).portal_settings || {};
+                        const feeFlag = ps.alumnaeRegistrationFeeEnabled ?? ps.alumnae_registration_fee_enabled ?? (rawSettings as any).alumnae_registration_fee_enabled;
+                        rawSettings.portalSettings = {
+                            ...ps,
+                            alumnaeRegistrationFeeEnabled: feeFlag !== undefined ? (feeFlag === true || feeFlag === 'true' || feeFlag === 1) : true
+                        };
+                    }
+                    return rawSettings;
                 }
             } catch (cacheErr) {}
             return null;

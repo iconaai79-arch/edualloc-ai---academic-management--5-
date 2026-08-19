@@ -238,10 +238,23 @@ export const PortalLinksManager: React.FC<PortalLinksManagerProps> = ({ companyD
                         </div>
                         <div className="flex flex-col gap-4">
                             <button 
-                                onClick={() => onUpdateSettings({ alumnaeRegistrationFeeEnabled: !(settings.alumnaeRegistrationFeeEnabled !== false) })}
-                                className={`w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border ${ (settings.alumnaeRegistrationFeeEnabled !== false) ? 'bg-indigo-700 border-indigo-400 text-white' : 'bg-white/10 border-white/20 text-indigo-100' }`}
+                                onClick={() => {
+                                    const isFeeActive = ((settings.alumnaeRegistrationFeeEnabled ?? (settings as any).alumnae_registration_fee_enabled ?? true) !== false) && Number(companyDetails?.alumnaeJoiningFee ?? 0) > 0;
+                                    const nextState = !isFeeActive;
+                                    onUpdateSettings({ 
+                                        alumnaeRegistrationFeeEnabled: nextState,
+                                        alumnae_registration_fee_enabled: nextState,
+                                        alumnaeJoiningFee: nextState ? (Number(localJoiningFee) || 500) : 0
+                                    });
+                                    if (!nextState) setLocalJoiningFee('0');
+                                }}
+                                className={`w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border ${ 
+                                    (((settings.alumnaeRegistrationFeeEnabled ?? (settings as any).alumnae_registration_fee_enabled ?? true) !== false) && Number(companyDetails?.alumnaeJoiningFee ?? 0) > 0) 
+                                        ? 'bg-indigo-700 border-indigo-400 text-white' 
+                                        : 'bg-rose-500/30 border-rose-400 text-rose-100' 
+                                }`}
                             >
-                                {(settings.alumnaeRegistrationFeeEnabled !== false) ? 'Fee Enabled' : 'Fee Disabled'}
+                                {(((settings.alumnaeRegistrationFeeEnabled ?? (settings as any).alumnae_registration_fee_enabled ?? true) !== false) && Number(companyDetails?.alumnaeJoiningFee ?? 0) > 0) ? 'Billing Active (Paid Access)' : 'Billing Disabled (Free Access)'}
                             </button>
                             <button 
                                 onClick={() => onUpdateSettings({ publicRegistrationEnabled: !settings.publicRegistrationEnabled })}

@@ -373,13 +373,24 @@ export function RetailManager(props: RetailManagerProps) {
     }, [navItems, searchQuery]);
 
     // Categories mapping
-    const categoryLabels: Record<string, string> = {
-        commerce: 'Core Commerce',
-        operations: 'Operations & Agents',
-        financials: 'Financials & Orders',
-        directory: 'Roster Directory',
-        system: 'Intelligence & Config'
-    };
+    const categoryLabels: Record<string, string> = useMemo(() => {
+        if (isEducation) {
+            return {
+                commerce: 'Store & Stock',
+                directory: 'Campus Quotas',
+                operations: 'Operations & Supply',
+                financials: 'Financials & Expenses',
+                system: 'Reports & Config'
+            };
+        }
+        return {
+            commerce: 'Core Commerce',
+            operations: 'Operations & Agents',
+            financials: 'Financials & Orders',
+            directory: 'Roster Directory',
+            system: 'Intelligence & Config'
+        };
+    }, [isEducation]);
 
     const groupedNavItems = useMemo(() => {
         const groups: Record<string, RetailNavItem[]> = {};
@@ -631,11 +642,11 @@ export function RetailManager(props: RetailManagerProps) {
                                         <div className="flex items-center gap-1.5">
                                             <span className={`w-2 h-2 rounded-full ${themeStyles.accentGlow} animate-pulse`}></span>
                                             <h2 className="font-black text-sm text-white uppercase tracking-tight truncate">
-                                                {currentInstitution?.name || 'Retail Agency'}
+                                                {currentInstitution?.name || (isEducation ? 'School Store' : 'Retail Agency')}
                                             </h2>
                                         </div>
                                         <p className={`text-[10px] font-black uppercase tracking-[0.2em] mt-0.5 ${themeStyles.tagColor}`}>
-                                            Terminal & Catalog
+                                            {isEducation ? 'School Inventory Suite' : 'Terminal & Catalog'}
                                         </p>
                                     </div>
                                 </div>

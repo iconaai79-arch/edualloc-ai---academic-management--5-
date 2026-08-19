@@ -48,7 +48,14 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
     const [paymentStatus, setPaymentStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
     const [paymentMessage, setPaymentMessage] = useState('');
 
-    const isBillingEnabled = useMemo(() => feeEnabled && joiningFee > 0, [feeEnabled, joiningFee]);
+    const isBillingEnabled = useMemo(() => {
+        const isFeeExplicitlyDisabled = feeEnabled === false || 
+            (feeEnabled as any) === 'false' || 
+            (feeEnabled as any) === 0;
+        if (isFeeExplicitlyDisabled) return false;
+        const numericFee = Number(joiningFee);
+        return !isNaN(numericFee) && numericFee > 0;
+    }, [feeEnabled, joiningFee]);
 
     React.useEffect(() => {
         if (initialSchool) {
@@ -128,11 +135,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
     }, [registry, searchTerm, selectedSchool]);
 
     const handleNext = () => {
-        if (step === 3 && !isBillingEnabled) {
-            handleFinalize();
-        } else {
-            setStep(step + 1);
-        }
+        setStep(prev => prev + 1);
     };
     const handlePrev = () => setStep(step - 1);
 
@@ -307,8 +310,14 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                     <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600">Institution</span>
                     <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 2 ? 'text-indigo-600' : 'text-slate-400'}`}>Identity</span>
                     <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 3 ? 'text-indigo-600' : 'text-slate-400'}`}>Career</span>
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 4 ? 'text-indigo-600' : 'text-slate-400'}`}>{isBillingEnabled ? 'Billing' : 'Verify'}</span>
-                    {isBillingEnabled && <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 5 ? 'text-indigo-600' : 'text-slate-400'}`}>Verify</span>}
+                    {isBillingEnabled ? (
+                        <>
+                            <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 4 ? 'text-indigo-600' : 'text-slate-400'}`}>Billing</span>
+                            <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 5 ? 'text-indigo-600' : 'text-slate-400'}`}>Verify</span>
+                        </>
+                    ) : (
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 4 ? 'text-indigo-600' : 'text-slate-400'}`}>Verify</span>
+                    )}
                 </div>
             </div>
 
