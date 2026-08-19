@@ -114,59 +114,53 @@ interface AcademicsOfficerViewProps {
     currentInstitution?: Institution | null;
     onUpdateInstitution?: (institutionId: string, data: Partial<Omit<Institution, 'id'>>) => void;
     smsConfig?: SmsConfig;
-    themeColor?: string;
-    examTimetableSettings?: ExamTimetableSettings;
-    onSaveExamTimetableSettings?: (config: ExamTimetableSettings) => void;
-    companyDetails?: any; // Using any here for simplicity or can import CompanyDetails if available
-    // Added for Wizard
-    onTimetableGenerated?: (timetable: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[], academicYearId: string, semesterId: string) => Promise<void>;
-    allocations?: AllocationRequest[];
-    timeOffRequests?: TimeOffRequest[];
-    onLogAction?: (action: string) => Promise<void>;
-    onImportStudents?: (students: any[]) => Promise<void>;
-    onWithdrawRequest?: (requestId: string) => Promise<void>;
-    onAddExtensionRequest?: (reason: string) => void;
-    // Assessment props
-    onAddAssessment?: (data: any) => Promise<void>;
-    onDeleteAssessment?: (id: string) => Promise<void>;
-    onSaveAssessmentMarks?: (id: string, marks: any[]) => Promise<void>;
-    onAccessAlumnaPortal?: (school?: any) => void;
-    schoolRegistry?: any[];
+    logoUrl?: string;
+    footerImageUrl?: string;
     studentAttendances?: any[];
-    onSaveAttendance?: (lessonId: string, data: any[]) => Promise<void>;
+    onSaveAttendance?: (attendances: any[]) => Promise<void>;
+    assessments?: Assessment[];
+    marks?: AssessmentMark[];
+    activityLog?: ActivityLog[];
+    incidents?: DisciplineIncident[];
+    onAddIncident?: (incident: DisciplineIncident) => Promise<void>;
+    onAddAssessment?: (assessment: Assessment) => Promise<void>;
+    onDeleteAssessment?: (assessmentId: string) => Promise<void>;
+    onSaveAssessmentMarks?: (assessmentId: string, marks: AssessmentMark[]) => Promise<void>;
+    onAccessAlumnaPortal?: () => void;
+    schoolRegistry?: any[];
+    onTimetableGenerated?: (entries: TimetableEntry[]) => Promise<void>;
+    academicLevels?: AcademicLevel[];
+    allocations?: any[];
 }
 
 export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props) => {
     const {
-        currentUser, 
-        subjects = [], 
-        courses = [], 
-        users = [], 
-        rooms = [], 
+        currentInstitution,
+        currentUser,
+        companyDetails,
+        subjects = [],
+        courses = [],
+        rooms = [],
+        users = [],
         departments = [],
-        activeAcademicYear, 
-        activeSemester, 
-        onExamTimetableGenerated = async () => {}, 
         examTimetable = [],
-        getSubjectById = () => undefined, 
-        getLecturerById = () => undefined, 
-        getRoomById = () => undefined, 
-        courseSizes = new Map(), 
-        letterheadConfig = {} as any,
-        logoUrl, 
-        footerImageUrl, 
-        currentInstitution, 
-        timetableSettings = {} as any,
-        onUpdateSubject = () => {}, 
-        examTimetableSettings = {} as any, 
-        buildings = [], 
-        academicYears = [],
-        onLogAction = async () => {}, 
-        onAssociateSubjectToCourseLevel = () => {}, 
-        onDisassociateSubjectFromCourseLevel = () => {},
-        companyDetails = {} as any, 
-        assessments = [], 
-        marks = [], 
+        activeAcademicYear,
+        activeSemester,
+        courseSizes = new Map(),
+        examTimetableSettings,
+        buildings = [],
+        onExamTimetableGenerated,
+        getSubjectById,
+        getLecturerById,
+        getRoomById,
+        onLogAction,
+        letterheadConfig,
+        emailConfig,
+        smsConfig,
+        logoUrl,
+        footerImageUrl,
+        assessments = [],
+        marks = [],
         activityLog = [],
         incidents = [], 
         onAddIncident = async () => {}, 
@@ -180,7 +174,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         allocations = []
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline' | 'revision_marketplace' | 'student_subscriptions' | 'lesson_plans'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline' | 'revision_marketplace' | 'student_subscriptions' | 'lesson_plans' | 'tools'>('home');
+    const [toolsSubTab, setToolsSubTab] = useState<'lesson_plans' | 'revision_marketplace'>('lesson_plans');
     const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands' | 'cbe_competencies' | 'cbe_portfolio'>('summative');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
@@ -282,9 +277,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
-        { id: 'lesson_plans', label: 'Lesson Plans & Schemes', icon: BookOpenIcon },
+        { id: 'tools', label: 'Tools', icon: WrenchIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
-        { id: 'revision_marketplace', label: 'AI Revision Generator', icon: SparklesIcon },
         { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CommandLineIcon },
         { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
@@ -296,9 +290,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const horizontalTabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
-        { id: 'lesson_plans', label: 'Lesson Plans & Schemes', icon: BookOpenIcon },
+        { id: 'tools', label: 'Tools', icon: WrenchIcon },
         { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
-        { id: 'revision_marketplace', label: 'AI Revision Generator', icon: SparklesIcon },
         { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CommandLineIcon },
         { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
@@ -734,13 +727,80 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 </div>
             )}
 
-            {activeTab === 'revision_marketplace' && (
+            {(activeTab === 'tools' || activeTab === 'lesson_plans' || activeTab === 'revision_marketplace') && (
                 <div className="animate-fade-in space-y-6 w-full">
-                    <RevisionMarketplaceManager
-                        currentInstitution={currentInstitution}
-                        currentUser={currentUser}
-                        subjects={subjects}
-                    />
+                    {/* Subtabs Header Switcher */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 p-4 rounded-3xl shadow-sm flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                                <WrenchIcon className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                    Academic AI & Pedagogical Tools
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                    Lesson planning, schemes of work & AI automated revision test generator
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Subtab Navigation Pills */}
+                        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                            <button
+                                onClick={() => {
+                                    setActiveTab('tools');
+                                    setToolsSubTab('lesson_plans');
+                                }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                                    (activeTab === 'lesson_plans' || (activeTab === 'tools' && toolsSubTab === 'lesson_plans'))
+                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20 scale-105'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                                }`}
+                            >
+                                <BookOpenIcon className="w-4 h-4" />
+                                <span>Lesson Plans & Schemes</span>
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setActiveTab('tools');
+                                    setToolsSubTab('revision_marketplace');
+                                }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                                    (activeTab === 'revision_marketplace' || (activeTab === 'tools' && toolsSubTab === 'revision_marketplace'))
+                                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20 scale-105'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                                }`}
+                            >
+                                <SparklesIcon className="w-4 h-4" />
+                                <span>AI Revision Generator</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Subtab 1: Lesson Plans & Schemes */}
+                    {(activeTab === 'lesson_plans' || (activeTab === 'tools' && toolsSubTab === 'lesson_plans')) && (
+                        <div className="animate-fade-in space-y-6 w-full">
+                            <TeacherLessonPlanManager
+                                currentInstitution={currentInstitution}
+                                currentUser={currentUser}
+                                subjects={subjects}
+                                courses={courses}
+                            />
+                        </div>
+                    )}
+
+                    {/* Subtab 2: AI Revision Generator */}
+                    {(activeTab === 'revision_marketplace' || (activeTab === 'tools' && toolsSubTab === 'revision_marketplace')) && (
+                        <div className="animate-fade-in space-y-6 w-full">
+                            <RevisionMarketplaceManager
+                                currentInstitution={currentInstitution}
+                                currentUser={currentUser}
+                                subjects={subjects}
+                            />
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -752,17 +812,6 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         users={users}
                         courses={courses}
                         moduleContext="academics"
-                    />
-                </div>
-            )}
-
-            {activeTab === 'lesson_plans' && (
-                <div className="animate-fade-in space-y-6 w-full">
-                    <TeacherLessonPlanManager
-                        currentInstitution={currentInstitution}
-                        currentUser={currentUser}
-                        subjects={subjects}
-                        courses={courses}
                     />
                 </div>
             )}
