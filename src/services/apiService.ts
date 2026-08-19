@@ -1941,9 +1941,22 @@ export const apiService = {
         if (module === 'institution_module_states') {
             if (_supabase) {
                 try {
-                    const { data: imsData, error: imsErr } = await _supabase.from('institution_module_states').upsert(payload).select();
+                    const { data: imsData, error: imsErr } = await _supabase
+                        .from('institution_module_states')
+                        .upsert(payload, { onConflict: 'id' })
+                        .select();
                     if (!imsErr && imsData && imsData.length > 0) {
                         return toCamelCase(imsData[0]);
+                    }
+                    if (imsErr && payload.id) {
+                        const { data: updData, error: updErr } = await _supabase
+                            .from('institution_module_states')
+                            .update(payload)
+                            .eq('id', payload.id)
+                            .select();
+                        if (!updErr && updData && updData.length > 0) {
+                            return toCamelCase(updData[0]);
+                        }
                     }
                 } catch (imsErr) {
                     console.warn('[apiService] Supabase upsert for institution_module_states failed, saved locally:', imsErr);
