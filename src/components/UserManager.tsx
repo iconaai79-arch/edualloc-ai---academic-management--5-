@@ -1315,7 +1315,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     }
 
                     if (isRetailAgency && isCustomer && props.onSendSms && userData.phoneNumber) {
-                        const smsMessage = `Welcome to ${currentInstitution?.name}! Access your Customer Portal to track records & more.\nLogin: ${userData.phoneNumber}\nPass: ${generatedPassword}`;
+                        const portalUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                        const smsMessage = `Welcome to ${currentInstitution?.name || 'our platform'}! Access your Customer Portal to track records & more.\nLink: ${portalUrl}\nLogin: ${userData.phoneNumber}\nPass: ${generatedPassword}`;
                         try {
                             await props.onSendSms(userData.phoneNumber, smsMessage, props.smsConfig, 1, currentInstitution?.id || '');
                         } catch (e) {

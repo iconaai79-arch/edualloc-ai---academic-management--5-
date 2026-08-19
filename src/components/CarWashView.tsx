@@ -1290,7 +1290,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
                         // Dispatch SMS with Credentials
                         if (cust.phoneNumber) {
-                            const smsMessage = `Welcome to ${currentInstitution.name}! Access your Customer Portal to track washes & download receipts.\nLogin: ${cust.phoneNumber}\nPass: ${generatedPassword}`;
+                            const portalUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                            const smsMessage = `Welcome to ${currentInstitution.name}! Access your Customer Portal to track washes & download receipts.\nLink: ${portalUrl}\nLogin: ${cust.phoneNumber}\nPass: ${generatedPassword}`;
                             try {
                                 await onSendSms(cust.phoneNumber, smsMessage, smsConfig, 1, institutionId);
                             } catch (e) {
