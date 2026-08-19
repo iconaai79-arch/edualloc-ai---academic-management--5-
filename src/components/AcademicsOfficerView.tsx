@@ -25,6 +25,7 @@ import { UserGroupIcon } from './icons/UserGroupIcon';
 import { UserPlusIcon } from './icons/UserPlusIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 import { HomeIcon } from './icons/HomeIcon';
+import { WrenchIcon } from './icons/WrenchIcon';
 
 import { generateStandardExamTimetable } from '../utils/examUtils';
 import { TimetableWizard } from './TimetableWizard';
