@@ -403,12 +403,12 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
 
     return (
         <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 flex flex-col lg:flex-row transition-all duration-500">
-            {/* ── COLLAPSIBLE VERTICAL SIDEBAR MENU ── */}
+            {/* ── COLLAPSIBLE VERTICAL SIDEBAR MENU (Desktop) ── */}
             {layoutNavMode === 'vertical' && (
                 <aside
                     className={`${
-                        isSidebarOpen ? 'w-full lg:w-72' : 'w-full lg:w-24'
-                    } bg-slate-900 text-white border-r border-slate-800 transition-all duration-500 flex flex-col p-4 shrink-0 z-30`}
+                        isSidebarOpen ? 'w-72' : 'w-24'
+                    } hidden lg:flex bg-slate-900 text-white border-r border-slate-800 transition-all duration-500 flex-col p-4 shrink-0 sticky top-0 h-screen z-30`}
                 >
                     {/* Sidebar Header */}
                     <div className="flex items-center justify-between pb-6 mb-4 border-b border-slate-800">
@@ -524,65 +524,68 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
             )}
 
             {/* ── MAIN CONTENT AREA ── */}
-            <main className="flex-1 p-4 md:p-8 space-y-6 overflow-x-hidden">
-                {/* Horizontal Nav Bar (if user switches layout mode) */}
-                {layoutNavMode === 'horizontal' && (
-                    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl sticky top-4 z-[40] p-2 rounded-[2.5rem] border border-white dark:border-slate-800 shadow-xl flex flex-wrap gap-1 items-center justify-between">
-                        <div className="flex flex-wrap gap-1 p-1 items-center">
-                            {onSwitchPerspective && (
-                                <button
-                                    onClick={() => onSwitchPerspective(null)}
-                                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all bg-indigo-50 dark:bg-indigo-950 text-indigo-600 mr-2"
-                                >
-                                    Portal Hub
-                                </button>
-                            )}
-                            {navSections.flatMap(s => s.items).map(tab => (
+            <main className="flex-1 p-3 sm:p-6 md:p-8 space-y-5 overflow-x-hidden">
+                {/* ── ALL TABS UNIVERSAL NAVIGATION BAR ── */}
+                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl sticky top-2 z-40 p-2 sm:p-2.5 rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-xl space-y-2">
+                    <div className="flex items-center justify-between gap-2 px-2 pt-1">
+                        <div className="flex items-center gap-2">
+                            <div className="p-2 bg-indigo-50 dark:bg-indigo-950 rounded-xl text-indigo-600">
+                                <BookMarked className="w-4 h-4" />
+                            </div>
+                            <span className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">
+                                Library Management
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setIsRfidModalOpen(true)}
+                                className="px-3 py-1.5 bg-cyan-950/40 hover:bg-cyan-900/50 border border-cyan-700/50 rounded-xl text-[9px] font-black uppercase tracking-wider text-cyan-400 flex items-center gap-1.5 transition-all"
+                            >
+                                <Zap className="w-3 h-3" />
+                                ⚡ Express RFID
+                            </button>
+                            <span className="hidden sm:inline-block text-[10px] font-bold uppercase text-slate-400">
+                                Institution: <strong className="text-slate-700 dark:text-slate-200">{currentInstitution.name}</strong>
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Scrollable Tabs Pill Strip */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 pt-1 px-1">
+                        {onSwitchPerspective && (
+                            <button
+                                onClick={() => onSwitchPerspective(null)}
+                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-indigo-50 dark:bg-indigo-950 text-indigo-600 shrink-0 border border-indigo-200 dark:border-indigo-800"
+                            >
+                                Portal Hub
+                            </button>
+                        )}
+                        {navSections.flatMap(s => s.items).map(tab => {
+                            const isActive = activeTab === tab.id;
+                            const IconComp = tab.icon;
+                            return (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as LibraryTab)}
-                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                        activeTab === tab.id
-                                            ? 'bg-indigo-600 text-white shadow-lg'
-                                            : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 ${
+                                        isActive
+                                            ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-600/30'
+                                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50'
                                     }`}
                                 >
-                                    <tab.icon className="w-4 h-4" />
+                                    <IconComp className={`w-3.5 h-3.5 ${isActive ? 'text-white' : tab.color}`} />
                                     <span>{tab.label}</span>
+                                    {tab.badge && (
+                                        <span className={`px-1.5 py-0.2 text-[8px] font-black rounded-full ${
+                                            isActive ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                        }`}>
+                                            {tab.badge}
+                                        </span>
+                                    )}
                                 </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Layout Mode Switcher Top Bar */}
-                <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 ml-2">Navigation View:</span>
-                        <button
-                            onClick={() => setLayoutNavMode('vertical')}
-                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                                layoutNavMode === 'vertical'
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                            }`}
-                        >
-                            📊 Vertical Sidebar
-                        </button>
-                        <button
-                            onClick={() => setLayoutNavMode('horizontal')}
-                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                                layoutNavMode === 'horizontal'
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                            }`}
-                        >
-                            📑 Horizontal Bar
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase text-slate-400">Institution: <strong className="text-slate-700 dark:text-slate-200">{currentInstitution.name}</strong></span>
+                            );
+                        })}
                     </div>
                 </div>
 

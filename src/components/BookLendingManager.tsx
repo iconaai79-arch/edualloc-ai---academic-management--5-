@@ -554,14 +554,33 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         }
     };
 
+    const getUserObject = (id: string) => {
+        let u = users.find(user => user.id === id || user.staffId === id || user.admissionNumber === id || (user as any).admission_number === id);
+        if (!u) {
+            const en = enrollments.find(e => e.id === id || e.userId === id || e.user_id === id || e.student_id === id || e.admissionNumber === id);
+            if (en) {
+                u = users.find(user => user.id === en.userId || user.id === en.user_id || user.id === en.student_id);
+                if (!u && en.name) {
+                    return { name: en.name, admissionNumber: en.admissionNumber || en.admNo || '', role: 'student' } as any;
+                }
+            }
+        }
+        return u;
+    };
+
     const getBookTitle = (id: string) => books.find(b => b.id === id)?.title || 'Unknown Resource';
-    const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Unknown User';
+    const getUserName = (id: string) => {
+        const u = getUserObject(id);
+        return u?.name || 'Unknown User';
+    };
     const getUserStaffId = (id: string) => {
-        const u = users.find(user => user.id === id);
+        const u = getUserObject(id);
         if (!u) return 'N/A';
-        const enrollment = enrollments.find(e => e.userId === u.id || e.student_id === u.id);
+        const enrollment = enrollments.find(e => e.userId === u.id || e.user_id === u.id || e.student_id === u.id || e.id === id);
         const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
-        return admissionNo || u.admissionNumber || u.admission_number || u.staffId || (u as any).studentId || (u as any).admNo || 'N/A';
+        const idCode = admissionNo || u.admissionNumber || (u as any).admission_number || u.staffId || (u as any).studentId || (u as any).admNo || 'N/A';
+        const classStr = getStudentClassString(u as User, enrollment);
+        return idCode + (classStr ? ` • ${classStr}` : '');
     };
 
     return (
@@ -570,32 +589,32 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             <div className="flex flex-col lg:flex-row gap-8">
                 {/* Active Issues Table */}
                 <div className="flex-grow space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
                             <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Active Circulation</h3>
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Lent items awaiting retrieval</p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                             <button
                                 onClick={handleBulkReminders}
                                 disabled={isProcessing}
-                                className="bg-amber-100 hover:bg-amber-200 text-amber-600 px-5 h-14 rounded-[1.5rem] flex items-center gap-2 transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50"
+                                className="bg-amber-100 hover:bg-amber-200 text-amber-700 px-5 h-12 rounded-2xl flex items-center gap-2 transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50 border border-amber-300/60"
                             >
-                                <BellIcon className="w-5 h-5" />
+                                <BellIcon className="w-4 h-4 text-amber-600" />
                                 Bulk Prompt Overdue
                             </button>
                             <button
                                 onClick={() => setIsBulkIssuing(true)}
-                                className="bg-indigo-650 hover:bg-indigo-750 text-white px-5 h-14 rounded-[1.5rem] flex items-center gap-3 shadow-lg shadow-indigo-100 dark:shadow-none transition-all font-black uppercase text-[10px] tracking-widest"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 h-12 rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all font-black uppercase text-[10px] tracking-widest"
                             >
-                                <PlusIcon className="w-5 h-5" />
+                                <PlusIcon className="w-4 h-4" />
                                 Bulk Issuance
                             </button>
                             <button
                                 onClick={() => setIsIssuing(true)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white p-4 h-14 rounded-[1.5rem] flex items-center gap-3 shadow-lg shadow-emerald-100 transition-all font-black uppercase text-[10px] tracking-widest"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 h-12 rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all font-black uppercase text-[10px] tracking-widest"
                             >
-                                <PlusIcon className="w-5 h-5" />
+                                <PlusIcon className="w-4 h-4" />
                                 Launch Issuance Registry
                             </button>
                         </div>
