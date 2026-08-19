@@ -9,6 +9,17 @@ import { BarChart3Icon } from '../icons/BarChart3Icon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { XIcon } from '../icons/XIcon';
 import { ClockIcon } from '../icons/ClockIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { GridIcon } from '../icons/GridIcon';
+import { ListIcon } from '../icons/ListIcon';
+import { PencilIcon } from '../icons/PencilIcon';
+import { TrashIcon } from '../icons/TrashIcon';
+import { PhoneIcon } from '../icons/PhoneIcon';
+import { EnvelopeIcon } from '../icons/EnvelopeIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { FunnelIcon } from '../icons/FunnelIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
 import TeacherCheckInAdminView from '../TeacherCheckInAdminView';
 import { BiometricAttendanceDashboard } from './BiometricAttendanceDashboard';
 import { apiService } from '../../services/apiService';
@@ -171,6 +182,77 @@ export const HRManager: React.FC<HRManagerProps> = ({
         bankBranch: '',
         bankAccountNumber: ''
     });
+
+    // Roster List View & Pagination State
+    const [rosterSearch, setRosterSearch] = useState('');
+    const [rosterRoleFilter, setRosterRoleFilter] = useState('all');
+    const [rosterViewMode, setRosterViewMode] = useState<'list' | 'grid'>('list');
+    const [rosterCurrentPage, setRosterCurrentPage] = useState(1);
+    const [rosterItemsPerPage, setRosterItemsPerPage] = useState(10);
+
+    const getStaffSalary = (member: User) => {
+        let m = member.metadata || {};
+        if (typeof m === 'string') {
+            try { m = JSON.parse(m); } catch (e) { m = {}; }
+        }
+        return Number(m.basicSalary || m.basic_salary || (member as any).basicSalary || (member as any).basic_salary || (member as any).basic) || 0;
+    };
+
+    const getStaffTerms = (member: User) => {
+        let m = member.metadata || {};
+        if (typeof m === 'string') {
+            try { m = JSON.parse(m); } catch (e) { m = {}; }
+        }
+        return m.employmentTerms || (member as any).employmentTerms || 'Permanent & Pensionable';
+    };
+
+    const getStaffIdCode = (member: User) => {
+        let m = member.metadata || {};
+        if (typeof m === 'string') {
+            try { m = JSON.parse(m); } catch (e) { m = {}; }
+        }
+        return member.staffId || (member as any).staff_id || m.staffId || m.nationalId || (member as any).nationalId || `STF-${(member.id || '').replace(/^usr_/, '').slice(-4).toUpperCase()}`;
+    };
+
+    const filteredStaff = useMemo(() => {
+        return staff.filter(member => {
+            const sQuery = rosterSearch.trim().toLowerCase();
+            const staffId = getStaffIdCode(member).toLowerCase();
+            const terms = getStaffTerms(member).toLowerCase();
+
+            const matchesSearch = !sQuery ||
+                (member.name && member.name.toLowerCase().includes(sQuery)) ||
+                (member.email && member.email.toLowerCase().includes(sQuery)) ||
+                (member.phoneNumber && member.phoneNumber.includes(sQuery)) ||
+                staffId.includes(sQuery) ||
+                terms.includes(sQuery) ||
+                (member.role && member.role.toLowerCase().includes(sQuery));
+
+            const matchesRole = rosterRoleFilter === 'all' || member.role === rosterRoleFilter;
+
+            return matchesSearch && matchesRole;
+        });
+    }, [staff, rosterSearch, rosterRoleFilter]);
+
+    const totalRosterPages = Math.max(1, Math.ceil(filteredStaff.length / rosterItemsPerPage));
+    const paginatedStaff = useMemo(() => {
+        const start = (rosterCurrentPage - 1) * rosterItemsPerPage;
+        return filteredStaff.slice(start, start + rosterItemsPerPage);
+    }, [filteredStaff, rosterCurrentPage, rosterItemsPerPage]);
+
+    const handleDeleteStaff = async (member: User) => {
+        if (!window.confirm(`Are you sure you want to remove staff member "${member.name}"?`)) return;
+        try {
+            if (onDeleteUser) {
+                await onDeleteUser(member.id);
+            } else {
+                await apiService.deleteModuleRecord('users', member.id);
+            }
+            alert(`Staff record for ${member.name} deleted successfully.`);
+        } catch (e: any) {
+            alert(`Failed to delete staff record: ${e?.message || e}`);
+        }
+    };
 
     const handleOpenEditStaff = (member: User) => {
         setEditingStaff(member);
@@ -450,60 +532,371 @@ export const HRManager: React.FC<HRManagerProps> = ({
             {/* Dynamic View Engine */}
             <div>
                 {activeTab === 'roster' && (
-                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
-                        <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center">
-                            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase tracking-widest text-sm">Personnel Directory</h3>
-                            <button 
-                                onClick={() => {
-                                    setEditingStaff(null);
-                                    setOnboardForm({
-                                        name: '', email: '', phoneNumber: '', role: defaultInitialRole, password: '',
-                                        employmentDate: '', nationalId: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0,
-                                        kraPin: '', nssfNo: '', shifNumber: '', bankName: 'Equity Bank', bankBranch: '', bankAccountNumber: ''
-                                    });
-                                    setShowOnboardModal(true);
-                                }}
-                                className="px-6 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
-                            >
-                                Onboard Staff
-                            </button>
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 space-y-6 p-6 sm:p-8">
+                        {/* Header & Controls Bar */}
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-6 border-b border-slate-100 dark:border-slate-700">
+                            <div>
+                                <div className="flex items-center gap-3">
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Staff Roster Directory</h3>
+                                    <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[10px] font-black uppercase tracking-widest rounded-full border border-indigo-200 dark:border-indigo-800">
+                                        {filteredStaff.length} Active Records
+                                    </span>
+                                </div>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Institutional Human Capital & Designation Registry</p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                                {/* Search Bar */}
+                                <div className="relative flex-1 sm:w-64">
+                                    <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search Name, Email, Phone, ID..."
+                                        value={rosterSearch}
+                                        onChange={e => {
+                                            setRosterSearch(e.target.value);
+                                            setRosterCurrentPage(1);
+                                        }}
+                                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                    />
+                                </div>
+
+                                {/* Role Filter */}
+                                <div className="flex items-center gap-2">
+                                    <FunnelIcon className="w-4 h-4 text-slate-400 hidden sm:block" />
+                                    <select
+                                        value={rosterRoleFilter}
+                                        onChange={e => {
+                                            setRosterRoleFilter(e.target.value);
+                                            setRosterCurrentPage(1);
+                                        }}
+                                        className="px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="all">All Designations</option>
+                                        {staffRoleOptions.map(opt => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* View Switcher: List vs Grid */}
+                                <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                                    <button
+                                        onClick={() => setRosterViewMode('list')}
+                                        className={`p-2 rounded-lg transition-all ${
+                                            rosterViewMode === 'list'
+                                                ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm'
+                                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                                        }`}
+                                        title="List View"
+                                    >
+                                        <ListIcon className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => setRosterViewMode('grid')}
+                                        className={`p-2 rounded-lg transition-all ${
+                                            rosterViewMode === 'grid'
+                                                ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm'
+                                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                                        }`}
+                                        title="Grid Cards View"
+                                    >
+                                        <GridIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                {/* Onboard Staff Action */}
+                                <button
+                                    onClick={() => {
+                                        setEditingStaff(null);
+                                        setOnboardForm({
+                                            name: '', email: '', phoneNumber: '', role: defaultInitialRole, password: '',
+                                            employmentDate: '', nationalId: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0,
+                                            kraPin: '', nssfNo: '', shifNumber: '', bankName: 'Equity Bank', bankBranch: '', bankAccountNumber: ''
+                                        });
+                                        setShowOnboardModal(true);
+                                    }}
+                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center gap-2"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    <span>Onboard Staff</span>
+                                </button>
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-8 overflow-y-auto" style={{ maxHeight: '560px' }}>
-                            {staff.map((member, i) => (
-                                <div key={i} className="group p-6 bg-slate-50/50 dark:bg-slate-900/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 hover:shadow-2xl hover:shadow-slate-100 transition-all duration-500 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-600 opacity-0 group-hover:opacity-10 rounded-full -mr-10 -mt-10 transition-all duration-700 group-hover:scale-150" />
-                                    <div className="relative space-y-4">
-                                        <div className="flex justify-between items-start">
-                                            <div className="w-16 h-16 bg-white dark:bg-slate-700 rounded-2xl flex items-center justify-center shadow-sm border border-slate-50 dark:border-slate-600 text-2xl font-black text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
-                                                {member.name.charAt(0)}
+
+                        {/* ── 1. LIST VIEW (Default) ── */}
+                        {rosterViewMode === 'list' && (
+                            <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700/80">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200/80 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            <th className="px-6 py-4">Staff Member</th>
+                                            <th className="px-6 py-4">Role & Designation</th>
+                                            <th className="px-6 py-4">Directory Contact</th>
+                                            <th className="px-6 py-4">Terms & Status</th>
+                                            <th className="px-6 py-4">Basic Compensation</th>
+                                            <th className="px-6 py-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 bg-white dark:bg-slate-800">
+                                        {paginatedStaff.map((member, i) => {
+                                            const salary = getStaffSalary(member);
+                                            const terms = getStaffTerms(member);
+                                            const idCode = getStaffIdCode(member);
+                                            const currency = institution?.currency || 'KES';
+
+                                            return (
+                                                <tr key={member.id || i} className="hover:bg-slate-50/70 dark:hover:bg-slate-750 transition-colors group">
+                                                    {/* Member Info */}
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-black text-sm shadow-sm shrink-0">
+                                                                {member.name.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight truncate group-hover:text-indigo-600 transition-colors">
+                                                                    {member.name}
+                                                                </p>
+                                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                                    <span className="text-[9px] font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.2 rounded">
+                                                                        {idCode}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Role */}
+                                                    <td className="px-6 py-4">
+                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${
+                                                            member.role === 'teacher' || member.role === 'lecturer'
+                                                                ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                                                                : member.role === 'doctor' || member.role === 'nurse'
+                                                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                                                                : member.role === 'finance' || member.role === 'finance_officer'
+                                                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                                                                : 'bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600'
+                                                        }`}>
+                                                            {formatRoleDisplayName(member.role as any, institution)}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Contact */}
+                                                    <td className="px-6 py-4">
+                                                        <div className="space-y-1">
+                                                            {member.email && (
+                                                                <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                                                    <EnvelopeIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                                    <span className="truncate max-w-[180px]">{member.email}</span>
+                                                                </div>
+                                                            )}
+                                                            {member.phoneNumber && (
+                                                                <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                                                                    <PhoneIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                                    <span>{member.phoneNumber}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Terms & Status */}
+                                                    <td className="px-6 py-4">
+                                                        <div className="space-y-1">
+                                                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 block">
+                                                                {terms}
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                                                                <ShieldCheckIcon className="w-3 h-3" />
+                                                                Active & Verified
+                                                            </span>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Salary */}
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-xs font-black text-slate-900 dark:text-white">
+                                                            {salary > 0 ? `${currency} ${salary.toLocaleString()}` : <span className="text-slate-400 font-normal italic">Unset</span>}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Actions */}
+                                                    <td className="px-6 py-4 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                onClick={() => handleOpenEditStaff(member)}
+                                                                className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border border-indigo-200 dark:border-indigo-800"
+                                                                title="Edit HR File"
+                                                            >
+                                                                <PencilIcon className="w-3 h-3" />
+                                                                <span>Edit File</span>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedStaffId(member.id);
+                                                                    setActiveTab('payroll');
+                                                                }}
+                                                                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                                                                title="View Pay History"
+                                                            >
+                                                                <BanknotesIcon className="w-3 h-3" />
+                                                                <span>Payroll</span>
+                                                            </button>
+                                                            {onDeleteUser && (
+                                                                <button
+                                                                    onClick={() => handleDeleteStaff(member)}
+                                                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-all"
+                                                                    title="Remove Personnel"
+                                                                >
+                                                                    <TrashIcon className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+
+                                        {paginatedStaff.length === 0 && (
+                                            <tr>
+                                                <td colSpan={6} className="px-6 py-16 text-center text-slate-400 font-bold uppercase text-xs tracking-widest">
+                                                    No staff personnel found matching the query.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {/* ── 2. GRID CARDS VIEW ── */}
+                        {rosterViewMode === 'grid' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {paginatedStaff.map((member, i) => {
+                                    const salary = getStaffSalary(member);
+                                    const idCode = getStaffIdCode(member);
+                                    const currency = institution?.currency || 'KES';
+
+                                    return (
+                                        <div key={member.id || i} className="group p-6 bg-slate-50/60 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 hover:shadow-xl transition-all duration-300 relative space-y-4">
+                                            <div className="flex justify-between items-start">
+                                                <div className="w-14 h-14 bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-md">
+                                                    {member.name.charAt(0).toUpperCase()}
+                                                </div>
+                                                <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">
+                                                    {idCode}
+                                                </span>
                                             </div>
-                                            <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 bg-white dark:bg-slate-700 rounded-full border border-slate-100 dark:border-slate-600 text-slate-400">Verified</span>
+                                            <div>
+                                                <h4 className="text-base font-black text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors">{member.name}</h4>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                                                    {formatRoleDisplayName(member.role as any, institution)}
+                                                </p>
+                                                <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mt-2 truncate">{member.email || member.phoneNumber}</p>
+                                                {salary > 0 && (
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white mt-1">
+                                                        Salary: {currency} {salary.toLocaleString()}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                                                <button
+                                                    onClick={() => handleOpenEditStaff(member)}
+                                                    className="flex-1 py-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center justify-center gap-1"
+                                                >
+                                                    <PencilIcon className="w-3 h-3" />
+                                                    <span>Edit File</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedStaffId(member.id);
+                                                        setActiveTab('payroll');
+                                                    }}
+                                                    className="flex-1 py-2.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-1"
+                                                >
+                                                    <BanknotesIcon className="w-3 h-3" />
+                                                    <span>Pay History</span>
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h4 className="text-lg font-black text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors">{member.name}</h4>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formatRoleDisplayName(member.role as any, institution)} • {member.email || member.phoneNumber}</p>
-                                        </div>
-                                        <div className="flex gap-2 pt-2">
-                                            <button
-                                                onClick={() => handleOpenEditStaff(member)}
-                                                className="flex-1 py-3 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center justify-center gap-1"
-                                            >
-                                                Edit HR File & Details
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedStaffId(member.id);
-                                                    setActiveTab('payroll');
-                                                }}
-                                                className="flex-1 py-3 bg-white dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-605 transition-all"
-                                            >
-                                                Pay History
-                                            </button>
-                                        </div>
+                                    );
+                                })}
+
+                                {paginatedStaff.length === 0 && (
+                                    <div className="col-span-full py-16 text-center text-slate-400 font-bold uppercase text-xs tracking-widest">
+                                        No staff personnel found matching the query.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ── PAGINATION CONTROLS ── */}
+                        {filteredStaff.length > 0 && (
+                            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                                <div className="flex items-center gap-3 text-xs font-bold text-slate-500 dark:text-slate-400">
+                                    <span>
+                                        Showing {Math.min((rosterCurrentPage - 1) * rosterItemsPerPage + 1, filteredStaff.length)} to {Math.min(rosterCurrentPage * rosterItemsPerPage, filteredStaff.length)} of {filteredStaff.length} personnel
+                                    </span>
+                                    <span className="text-slate-300 dark:text-slate-600">•</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span>Per page:</span>
+                                        <select
+                                            value={rosterItemsPerPage}
+                                            onChange={e => {
+                                                setRosterItemsPerPage(Number(e.target.value));
+                                                setRosterCurrentPage(1);
+                                            }}
+                                            className="px-2 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 outline-none"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
+
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setRosterCurrentPage(prev => Math.max(1, prev - 1))}
+                                        disabled={rosterCurrentPage === 1}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                                    >
+                                        Previous
+                                    </button>
+
+                                    {Array.from({ length: totalRosterPages }, (_, idx) => idx + 1)
+                                        .filter(p => p === 1 || p === totalRosterPages || Math.abs(p - rosterCurrentPage) <= 1)
+                                        .map((p, idx, arr) => {
+                                            const prevP = arr[idx - 1];
+                                            return (
+                                                <React.Fragment key={p}>
+                                                    {prevP && p - prevP > 1 && (
+                                                        <span className="px-2 text-slate-400">...</span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => setRosterCurrentPage(p)}
+                                                        className={`w-8 h-8 rounded-lg text-xs font-black transition-all ${
+                                                            rosterCurrentPage === p
+                                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                                : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                        }`}
+                                                    >
+                                                        {p}
+                                                    </button>
+                                                </React.Fragment>
+                                            );
+                                        })}
+
+                                    <button
+                                        onClick={() => setRosterCurrentPage(prev => Math.min(totalRosterPages, prev + 1))}
+                                        disabled={rosterCurrentPage === totalRosterPages}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
