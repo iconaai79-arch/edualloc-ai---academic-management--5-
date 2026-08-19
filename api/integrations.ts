@@ -563,7 +563,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json({ success: true, message: 'Email sent successfully.', messageId: info.messageId });
             } catch (e: any) {
                 console.error("[Email Gateway] SMTP send error:", e);
-                return res.status(200).json({ success: false, message: `SMTP Gateway error: ${e.message || 'Connection failed'}` });
+                let helpfulMsg = `SMTP Gateway error: ${e.message || 'Connection failed'}`;
+                if (e.responseCode === 535 || (e.message && e.message.includes('535'))) {
+                    helpfulMsg = `SMTP Authentication Failed (535): Invalid username or password. If using Gmail/Google Workspace, you must use a 16-character App Password (not your regular password). If using cPanel/Webmail, ensure the username is your full email address.`;
+                }
+                return res.status(200).json({ success: false, message: helpfulMsg, error: e.message, code: e.code });
             }
         }
 
