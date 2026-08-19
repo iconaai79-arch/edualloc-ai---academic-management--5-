@@ -58,6 +58,7 @@ import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
 import { EyeIcon } from './icons/EyeIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { CommandLineIcon } from './icons/CommandLineIcon';
+import { StudentSubscriptionPlanManager } from './common/StudentSubscriptionPlanManager';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { CurrencyIcon } from './icons/CurrencyIcon';
 import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
@@ -580,7 +581,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (view === 'showroom' || params.get('showroom')) return 'auto_marketplace';
         return 'dashboard';
     });
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'grouped' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile' | 'invoices' | 'constituencies'>('list');
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'grouped' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile' | 'invoices' | 'constituencies' | 'student_packages'>('list');
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry' | 'calendar' | 'timetable' | 'discipline' | 'insights' | 'reports'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
@@ -2371,7 +2372,25 @@ Please change it after login.`;
                             >
                                 Constituencies
                             </button>
+                            <button
+                                onClick={() => setInstitutionsSubTab('student_packages')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${institutionsSubTab === 'student_packages' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                🎓 Student Packages
+                            </button>
                         </div>
+
+                        {institutionsSubTab === 'student_packages' && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in">
+                                <StudentSubscriptionPlanManager
+                                    isSuperAdmin={true}
+                                    currentUser={currentUser}
+                                    users={users}
+                                    companyDetails={companyDetails}
+                                    moduleContext="superadmin"
+                                />
+                            </div>
+                        )}
 
                         {institutionsSubTab === 'invoices' && (
                             <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in">

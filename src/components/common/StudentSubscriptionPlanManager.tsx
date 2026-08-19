@@ -1,23 +1,22 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Institution, User, Course } from '../../types';
+import type { Institution, User, Course, CompanyDetails } from '../../types';
 import { apiService } from '../../services/apiService';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
-import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { TrashIcon } from '../icons/TrashIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { XIcon } from '../icons/XIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
-import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
+import { PayNowModal } from '../PayNowModal';
 
 export interface StudentSubscriptionPlan {
     id: string;
     name: string;
     description: string;
     billingCycle: 'per_term' | 'per_year' | 'monthly';
-    amount: number;
+    amount: number; // Rate per student
     smsAllocatedPerStudent: number;
     smsUsageType: 'academic_results_only' | 'finance_receipts_only' | 'all';
     features: string[];
@@ -46,70 +45,79 @@ interface StudentSubscriptionPlanManagerProps {
     currentUser?: User | null;
     users?: User[];
     courses?: Course[];
-    moduleContext?: 'academics' | 'finance';
+    companyDetails?: CompanyDetails;
+    moduleContext?: 'academics' | 'finance' | 'superadmin';
+    isSuperAdmin?: boolean;
 }
+
+const GLOBAL_DEFAULT_PLANS: StudentSubscriptionPlan[] = [
+    {
+        id: 'plan_basic_term',
+        name: 'Basic Academic Plan (Per Term)',
+        description: 'Covers termly CBC/8-4-4 academic records, report cards, and student attendance tracking.',
+        billingCycle: 'per_term',
+        amount: 150,
+        smsAllocatedPerStudent: 10,
+        smsUsageType: 'academic_results_only',
+        features: ['Report Cards & Transcripts', 'Attendance Tracking', 'Basic Subject Mark Entry', '10 Academic Results SMS / Student'],
+        applicableClasses: ['All Classes'],
+        isActive: true,
+        institutionId: 'SYSTEM'
+    },
+    {
+        id: 'plan_pro_term',
+        name: 'Pro Exam & Broadsheet Suite (Per Term)',
+        description: 'Includes automated conflict-free timetable, exam broadsheets, SpeechBuddy AI, and parent SMS alerts.',
+        billingCycle: 'per_term',
+        amount: 350,
+        smsAllocatedPerStudent: 15,
+        smsUsageType: 'all',
+        features: ['All Basic Features', 'Exam Units & Broadsheets', 'SpeechBuddy AI Access', '15 Parent Results & Fee SMS / Student'],
+        applicableClasses: ['All Classes'],
+        isActive: true,
+        institutionId: 'SYSTEM'
+    },
+    {
+        id: 'plan_enterprise_year',
+        name: 'Annual All-Access Student Pass (Per Year)',
+        description: 'Full-year unlimited access across Academics, Exams, SpeechBuddy AI, and automated fee receipts.',
+        billingCycle: 'per_year',
+        amount: 1000,
+        smsAllocatedPerStudent: 30,
+        smsUsageType: 'all',
+        features: ['Full Year Unlimited Access', 'AI Revision Marketplace', 'Automated Receipts', '30 Results & Finance SMS / Student'],
+        applicableClasses: ['All Classes'],
+        isActive: true,
+        institutionId: 'SYSTEM'
+    }
+];
 
 export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanManagerProps> = ({
     currentInstitution,
     currentUser,
     users = [],
-    courses = [],
-    moduleContext = 'academics'
+    companyDetails,
+    moduleContext = 'academics',
+    isSuperAdmin = false
 }) => {
-    const instId = currentInstitution?.id || 'default_inst';
+    const isSuperAdminMode = isSuperAdmin || currentUser?.role === 'super_admin';
+    const instId = isSuperAdminMode ? 'SYSTEM' : (currentInstitution?.id || 'default_inst');
 
-    // Seed Subscription Plans
-    const defaultPlans: StudentSubscriptionPlan[] = [
-        {
-            id: 'plan_basic_term',
-            name: 'Basic Academic Plan (Per Term)',
-            description: 'Covers termly CBC/8-4-4 academic records, report cards, and student attendance tracking.',
-            billingCycle: 'per_term',
-            amount: 150,
-            smsAllocatedPerStudent: 10,
-            smsUsageType: 'academic_results_only',
-            features: ['Report Cards & Transcripts', 'Attendance Tracking', 'Basic Subject Mark Entry', '10 Academic Results SMS / Student'],
-            applicableClasses: ['All Classes'],
-            isActive: true,
-            institutionId: instId
-        },
-        {
-            id: 'plan_pro_term',
-            name: 'Pro Exam & Broadsheet Suite (Per Term)',
-            description: 'Includes automated conflict-free timetable, exam broadsheets, SpeechBuddy AI, and parent SMS alerts.',
-            billingCycle: 'per_term',
-            amount: 350,
-            smsAllocatedPerStudent: 15,
-            smsUsageType: 'all',
-            features: ['All Basic Features', 'Exam Units & Broadsheets', 'SpeechBuddy AI Access', '15 Parent Results & Fee SMS / Student'],
-            applicableClasses: ['All Classes'],
-            isActive: true,
-            institutionId: instId
-        },
-        {
-            id: 'plan_enterprise_year',
-            name: 'Annual All-Access Student Pass (Per Year)',
-            description: 'Full-year unlimited access across Academics, Exams, SpeechBuddy AI, and M-Pesa automated fee receipts.',
-            billingCycle: 'per_year',
-            amount: 1000,
-            smsAllocatedPerStudent: 30,
-            smsUsageType: 'all',
-            features: ['Full Year Unlimited Access', 'AI Revision Marketplace', 'Automated M-Pesa Receipts', '30 Results & Finance SMS / Student'],
-            applicableClasses: ['All Classes'],
-            isActive: true,
-            institutionId: instId
-        }
-    ];
-
+    // Global & Tenant Plans State
     const [plans, setPlans] = useState<StudentSubscriptionPlan[]>(() => {
         try {
-            const saved = localStorage.getItem(`eduai_student_sub_plans_${instId}`);
-            if (saved) {
-                const parsed = JSON.parse(saved);
+            const savedGlobal = localStorage.getItem('eduai_global_student_sub_plans');
+            if (savedGlobal) {
+                const parsed = JSON.parse(savedGlobal);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+            const savedTenant = localStorage.getItem(`eduai_student_sub_plans_${instId}`);
+            if (savedTenant) {
+                const parsed = JSON.parse(savedTenant);
                 if (Array.isArray(parsed) && parsed.length > 0) return parsed;
             }
         } catch (e) { }
-        return defaultPlans;
+        return GLOBAL_DEFAULT_PLANS;
     });
 
     const [subscriptions, setSubscriptions] = useState<StudentSubscriptionRecord[]>(() => {
@@ -123,16 +131,18 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         return [];
     });
 
-    // Sync with DB
+    // Load from DB
     useEffect(() => {
-        if (currentInstitution?.id) {
-            apiService.fetchModuleRecords<StudentSubscriptionPlan>('student_subscription_plans', currentInstitution.id)
-                .then(records => {
-                    if (records && Array.isArray(records) && records.length > 0) {
-                        setPlans(records);
-                    }
-                }).catch(() => { });
+        // Fetch global plans
+        apiService.fetchModuleRecords<StudentSubscriptionPlan>('student_subscription_plans', 'SYSTEM')
+            .then(records => {
+                if (records && Array.isArray(records) && records.length > 0) {
+                    setPlans(records);
+                    try { localStorage.setItem('eduai_global_student_sub_plans', JSON.stringify(records)); } catch (e) { }
+                }
+            }).catch(() => { });
 
+        if (!isSuperAdminMode && currentInstitution?.id) {
             apiService.fetchModuleRecords<StudentSubscriptionRecord>('student_subscriptions', currentInstitution.id)
                 .then(records => {
                     if (records && Array.isArray(records) && records.length > 0) {
@@ -140,28 +150,50 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                     }
                 }).catch(() => { });
         }
-    }, [currentInstitution]);
+    }, [isSuperAdminMode, currentInstitution]);
 
     const [activeTab, setActiveTab] = useState<'plans' | 'roster'>('plans');
-    const [searchQuery, setSearchQuery] = useState('');
     const [isAddPlanModalOpen, setIsAddPlanModalOpen] = useState(false);
+    const [editingPlan, setEditingPlan] = useState<StudentSubscriptionPlan | null>(null);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [isCalculatorModalOpen, setIsCalculatorModalOpen] = useState(false);
+    const [isPayNowModalOpen, setIsPayNowModalOpen] = useState(false);
 
-    // New Plan Form State
+    // Form State for Super Admin Plan Creation/Editing
     const [newPlanName, setNewPlanName] = useState('');
     const [newPlanDesc, setNewPlanDesc] = useState('');
     const [newPlanCycle, setNewPlanCycle] = useState<'per_term' | 'per_year' | 'monthly'>('per_term');
     const [newPlanAmount, setNewPlanAmount] = useState<number>(150);
     const [newPlanSms, setNewPlanSms] = useState<number>(10);
     const [newPlanSmsType, setNewPlanSmsType] = useState<'academic_results_only' | 'finance_receipts_only' | 'all'>('academic_results_only');
+    const [newPlanFeatures, setNewPlanFeatures] = useState<string>('Report Cards & Transcripts\nAttendance Tracking\nBasic Subject Mark Entry');
 
-    // Assign Student State
-    const [assignStudentId, setAssignStudentId] = useState('');
-    const [assignPlanId, setAssignPlanId] = useState(plans[0]?.id || '');
-
+    // Tenant Selection & Calculation State
     const studentsList = useMemo(() => {
         return users.filter(u => u.role === 'student');
     }, [users]);
+
+    const [selectedPackageId, setSelectedPackageId] = useState<string>(plans[0]?.id || 'plan_basic_term');
+    const [customStudentCount, setCustomStudentCount] = useState<number>(studentsList.length || 100);
+
+    useEffect(() => {
+        if (studentsList.length > 0) {
+            setCustomStudentCount(studentsList.length);
+        }
+    }, [studentsList.length]);
+
+    const selectedPackage = useMemo(() => {
+        return plans.find(p => p.id === selectedPackageId) || plans[0] || GLOBAL_DEFAULT_PLANS[0];
+    }, [plans, selectedPackageId]);
+
+    // Live Auto-Calculation
+    const autoCalculatedTotal = useMemo(() => {
+        return (customStudentCount || 0) * (selectedPackage?.amount || 0);
+    }, [customStudentCount, selectedPackage]);
+
+    const autoAllocatedSmsPool = useMemo(() => {
+        return (customStudentCount || 0) * (selectedPackage?.smsAllocatedPerStudent || 10);
+    }, [customStudentCount, selectedPackage]);
 
     // Financial & SMS Metrics
     const totalTermRevenue = useMemo(() => {
@@ -180,191 +212,217 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         }, 0);
     }, [subscriptions, plans]);
 
-    // Save New Plan
+    // Super Admin: Save / Edit Global Plan
     const handleSavePlan = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newPlanName.trim()) {
-            alert('Please enter a plan name.');
+            alert('Please enter a package name.');
             return;
         }
 
-        const newPlan: StudentSubscriptionPlan = {
-            id: `plan_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        const featureArray = newPlanFeatures
+            .split('\n')
+            .map(f => f.trim())
+            .filter(Boolean);
+
+        const planData: StudentSubscriptionPlan = {
+            id: editingPlan?.id || `plan_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
             name: newPlanName.trim(),
-            description: newPlanDesc.trim() || 'Standard student subscription plan.',
+            description: newPlanDesc.trim() || 'Global student subscription package.',
             billingCycle: newPlanCycle,
-            amount: newPlanAmount,
-            smsAllocatedPerStudent: newPlanSms,
+            amount: Number(newPlanAmount) || 0,
+            smsAllocatedPerStudent: Number(newPlanSms) || 0,
             smsUsageType: newPlanSmsType,
-            features: [
-                'Report Cards & Academic Records',
-                'Attendance Tracking',
-                `${newPlanSms} ${newPlanSmsType === 'academic_results_only' ? 'Academic Results' : newPlanSmsType === 'finance_receipts_only' ? 'Finance Receipts' : 'Results & Billing'} SMS / Student`
-            ],
+            features: featureArray.length > 0 ? featureArray : ['Academic Records Access', 'Student Attendance Tracking'],
             applicableClasses: ['All Classes'],
             isActive: true,
-            institutionId: currentInstitution?.id
+            institutionId: 'SYSTEM'
         };
 
-        const updated = [...plans, newPlan];
+        const updated = editingPlan
+            ? plans.map(p => p.id === editingPlan.id ? planData : p)
+            : [...plans, planData];
+
         setPlans(updated);
         try {
+            localStorage.setItem('eduai_global_student_sub_plans', JSON.stringify(updated));
             localStorage.setItem(`eduai_student_sub_plans_${instId}`, JSON.stringify(updated));
         } catch (e) { }
 
-        if (currentInstitution?.id) {
-            await apiService.saveModuleRecord('student_subscription_plans', newPlan).catch(() => { });
-        }
+        await apiService.saveModuleRecord('student_subscription_plans', planData).catch(() => { });
 
+        setEditingPlan(null);
         setNewPlanName('');
         setNewPlanDesc('');
         setIsAddPlanModalOpen(false);
     };
 
-    // Assign Plan to Student
-    const handleAssignPlan = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const studentObj = studentsList.find(s => s.id === assignStudentId);
-        const planObj = plans.find(p => p.id === assignPlanId);
-
-        if (!studentObj || !planObj) {
-            alert('Please select both a student and a valid subscription plan.');
-            return;
-        }
-
-        const now = new Date();
-        const expiry = new Date();
-        if (planObj.billingCycle === 'per_term') expiry.setMonth(now.getMonth() + 4);
-        else if (planObj.billingCycle === 'per_year') expiry.setFullYear(now.getFullYear() + 1);
-        else expiry.setMonth(now.getMonth() + 1);
-
-        const newSub: StudentSubscriptionRecord = {
-            id: `sub_rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-            studentId: studentObj.id,
-            studentName: studentObj.name,
-            className: (studentObj as any).studentClass || (studentObj as any).classLevel || 'Form 3',
-            planId: planObj.id,
-            planName: planObj.name,
-            billingCycle: planObj.billingCycle,
-            amount: planObj.amount,
-            status: 'active',
-            startDate: now.toISOString().split('T')[0],
-            expiryDate: expiry.toISOString().split('T')[0],
-            institutionId: currentInstitution?.id
-        };
-
-        const updated = [newSub, ...subscriptions.filter(s => s.studentId !== studentObj.id)];
-        setSubscriptions(updated);
-        try {
-            localStorage.setItem(`eduai_student_subscriptions_${instId}`, JSON.stringify(updated));
-        } catch (e) { }
-
-        if (currentInstitution?.id) {
-            await apiService.saveModuleRecord('student_subscriptions', newSub).catch(() => { });
-        }
-
-        setIsAssignModalOpen(false);
+    const handleEditPlan = (plan: StudentSubscriptionPlan) => {
+        setEditingPlan(plan);
+        setNewPlanName(plan.name);
+        setNewPlanDesc(plan.description);
+        setNewPlanCycle(plan.billingCycle);
+        setNewPlanAmount(plan.amount);
+        setNewPlanSms(plan.smsAllocatedPerStudent);
+        setNewPlanSmsType(plan.smsUsageType);
+        setNewPlanFeatures(plan.features.join('\n'));
+        setIsAddPlanModalOpen(true);
     };
 
     const handleDeletePlan = async (planId: string) => {
-        if (!window.confirm('Are you sure you want to delete this subscription plan?')) return;
+        if (!window.confirm('Are you sure you want to delete this global subscription package?')) return;
         const updated = plans.filter(p => p.id !== planId);
         setPlans(updated);
         try {
+            localStorage.setItem('eduai_global_student_sub_plans', JSON.stringify(updated));
             localStorage.setItem(`eduai_student_sub_plans_${instId}`, JSON.stringify(updated));
         } catch (e) { }
-        if (currentInstitution?.id) {
-            await apiService.deleteModuleRecord('student_subscription_plans', planId).catch(() => { });
+        await apiService.deleteModuleRecord('student_subscription_plans', planId).catch(() => { });
+    };
+
+    // Bulk Subscribe & Activate Package for Tenant Students
+    const handleApplyPlanToAllStudents = async () => {
+        if (!currentInstitution?.id) return;
+        if (!window.confirm(`Activate ${selectedPackage.name} for all ${studentsList.length} enrolled students?`)) return;
+
+        const now = new Date();
+        const expiry = new Date();
+        if (selectedPackage.billingCycle === 'per_term') expiry.setMonth(now.getMonth() + 4);
+        else if (selectedPackage.billingCycle === 'per_year') expiry.setFullYear(now.getFullYear() + 1);
+        else expiry.setMonth(now.getMonth() + 1);
+
+        const newRecords: StudentSubscriptionRecord[] = studentsList.map(student => ({
+            id: `sub_${student.id}_${Date.now()}`,
+            studentId: student.id,
+            studentName: student.name,
+            className: (student as any).studentClass || (student as any).classLevel || 'Standard Class',
+            planId: selectedPackage.id,
+            planName: selectedPackage.name,
+            billingCycle: selectedPackage.billingCycle,
+            amount: selectedPackage.amount,
+            status: 'active',
+            startDate: now.toISOString().split('T')[0],
+            expiryDate: expiry.toISOString().split('T')[0],
+            institutionId: currentInstitution.id
+        }));
+
+        setSubscriptions(newRecords);
+        try {
+            localStorage.setItem(`eduai_student_subscriptions_${instId}`, JSON.stringify(newRecords));
+        } catch (e) { }
+
+        for (const record of newRecords) {
+            await apiService.saveModuleRecord('student_subscriptions', record).catch(() => { });
         }
+
+        setIsCalculatorModalOpen(false);
+        alert(`Successfully assigned ${selectedPackage.name} to ${newRecords.length} learners!`);
     };
 
     return (
         <div className="space-y-6 animate-fade-in p-2 md:p-6">
             {/* Header Banner */}
-            <div className="bg-gradient-to-r from-emerald-900 via-teal-950 to-indigo-950 text-white rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-emerald-950 text-white rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div className="space-y-2 max-w-2xl">
                     <span className="bg-emerald-400/20 text-emerald-300 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-emerald-400/30 flex items-center gap-1.5 w-fit">
-                        <CreditCardIcon className="w-3.5 h-3.5" /> Student Subscription & Billing Engine ({moduleContext.toUpperCase()})
+                        <CreditCardIcon className="w-3.5 h-3.5" />
+                        {isSuperAdminMode ? 'SUPER ADMIN GLOBAL PACKAGES CONTROL' : `STUDENT SUBSCRIPTION & BILLING (${moduleContext.toUpperCase()})`}
                     </span>
                     <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white">
-                        Student Subscription Plans
+                        {isSuperAdminMode ? 'Global Student Subscription Packages' : 'Student Subscription Plans & Billing'}
                     </h2>
-                    <p className="text-xs text-emerald-100/80 leading-relaxed">
-                        Configure per-term or per-year student pricing tiers, assign plans to learners, and track automated subscription revenue.
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                        {isSuperAdminMode
+                            ? 'Centrally configure pricing per student, termly/annual billing cycles, and SMS pool allocations for all tenant institutions.'
+                            : 'Choose your institutional package. Total billing is automatically calculated based on your total enrolled student count.'}
                     </p>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                    <button
-                        onClick={() => setIsAddPlanModalOpen(true)}
-                        className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg transition-all flex items-center gap-1.5"
-                    >
-                        <PlusIcon className="w-4 h-4" /> Create New Plan
-                    </button>
-                    <button
-                        onClick={() => setIsAssignModalOpen(true)}
-                        className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg transition-all flex items-center gap-1.5"
-                    >
-                        <UserGroupIcon className="w-4 h-4" /> Assign Student Plan
-                    </button>
+                    {isSuperAdminMode ? (
+                        <button
+                            onClick={() => {
+                                setEditingPlan(null);
+                                setNewPlanName('');
+                                setNewPlanDesc('');
+                                setNewPlanAmount(150);
+                                setNewPlanSms(10);
+                                setNewPlanFeatures('Report Cards & Transcripts\nAttendance Tracking\nBasic Subject Mark Entry');
+                                setIsAddPlanModalOpen(true);
+                            }}
+                            className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                            <PlusIcon className="w-4 h-4" /> Create Global Package
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => setIsCalculatorModalOpen(true)}
+                            className="px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 cursor-pointer scale-105"
+                        >
+                            <SparklesIcon className="w-4 h-4" /> Choose Package & Auto-Calculate Bill
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Quick Financial & SMS Summary */}
+            {/* Metrics Dashboard */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Active Student Subscriptions</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Total Enrolled Learners</span>
                     <span className="text-2xl font-black text-slate-900 dark:text-white mt-1 block">
+                        {studentsList.length} Learners
+                    </span>
+                    <span className="text-[9px] text-indigo-500 font-bold uppercase block mt-0.5">Active in System</span>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 block">Active Package Subscribers</span>
+                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
                         {subscriptions.filter(s => s.status === 'active').length} Learners
                     </span>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Assigned Active Plans</span>
                 </div>
 
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 block">Est. Termly Subscription Revenue</span>
-                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">Est. Termly Revenue</span>
+                    <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1 block">
                         KES {totalTermRevenue.toLocaleString()} / Term
                     </span>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Per-Term Subscriptions</span>
                 </div>
 
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">Est. Annual Subscription Revenue</span>
-                    <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1 block">
-                        KES {totalYearRevenue.toLocaleString()} / Year
-                    </span>
-                </div>
-
-                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 block">Allocated School SMS Pool</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 block">School SMS Pool Quota</span>
                     <span className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 block">
                         {totalAllocatedSms.toLocaleString()} SMS
                     </span>
-                    <span className="text-[9px] text-slate-400 block mt-0.5">Academic Results & Receipts</span>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Allocated Across Enrolled Learners</span>
                 </div>
             </div>
 
-            {/* Tab Navigation */}
+            {/* Navigation Tabs */}
             <div className="flex border-b border-slate-200 dark:border-slate-700 gap-6 text-xs font-black uppercase tracking-wider">
                 <button
                     onClick={() => setActiveTab('plans')}
-                    className={`pb-3 transition-colors ${activeTab === 'plans' ? 'border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`pb-3 transition-colors cursor-pointer ${activeTab === 'plans' ? 'border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:text-slate-600'}`}
                 >
-                    📋 Subscription Tiers ({plans.length})
+                    📋 Subscription Packages ({plans.length})
                 </button>
                 <button
                     onClick={() => setActiveTab('roster')}
-                    className={`pb-3 transition-colors ${activeTab === 'roster' ? 'border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`pb-3 transition-colors cursor-pointer ${activeTab === 'roster' ? 'border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:text-slate-600'}`}
                 >
-                    🎓 Enrolled Student Roster ({subscriptions.length})
+                    🎓 Enrolled Learner Roster ({subscriptions.length})
                 </button>
             </div>
 
-            {/* PLANS GRID */}
+            {/* PACKAGES SHOWCASE */}
             {activeTab === 'plans' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {plans.map(plan => (
                         <div
                             key={plan.id}
-                            className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-md hover:shadow-xl transition-all flex flex-col justify-between space-y-4 relative"
+                            className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200/80 dark:border-slate-700 shadow-md hover:shadow-xl transition-all flex flex-col justify-between space-y-4 relative group"
                         >
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center">
@@ -376,25 +434,37 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                         {plan.billingCycle === 'per_term' ? 'Per Term' : plan.billingCycle === 'per_year' ? 'Per Year' : 'Monthly'}
                                     </span>
 
-                                    <button onClick={() => handleDeletePlan(plan.id)} className="text-slate-400 hover:text-rose-600">
-                                        <TrashIcon className="w-4 h-4" />
-                                    </button>
+                                    {isSuperAdminMode && (
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => handleEditPlan(plan)} className="text-slate-400 hover:text-indigo-600 cursor-pointer">
+                                                <PencilIcon className="w-4 h-4" />
+                                            </button>
+                                            <button onClick={() => handleDeletePlan(plan.id)} className="text-slate-400 hover:text-rose-600 cursor-pointer">
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <h3 className="text-base font-black text-slate-900 dark:text-white">{plan.name}</h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{plan.description}</p>
 
-                                <div className="py-2">
-                                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                                        KES {plan.amount}
-                                    </span>
-                                    <span className="text-[10px] text-slate-400 font-mono ml-1">
-                                        / {plan.billingCycle === 'per_term' ? 'term' : plan.billingCycle === 'per_year' ? 'year' : 'month'}
+                                <div className="py-2 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                                            KES {plan.amount.toLocaleString()}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-mono">
+                                            / student / {plan.billingCycle === 'per_term' ? 'term' : plan.billingCycle === 'per_year' ? 'year' : 'month'}
+                                        </span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block mt-1">
+                                        ⚡ Includes {plan.smsAllocatedPerStudent} SMS / Student
                                     </span>
                                 </div>
 
                                 <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-700">
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Included Features:</span>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Included Perks:</span>
                                     {plan.features.map((feat, idx) => (
                                         <div key={idx} className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium">
                                             <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
@@ -403,35 +473,49 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                     ))}
                                 </div>
                             </div>
+
+                            {!isSuperAdminMode && (
+                                <button
+                                    onClick={() => {
+                                        setSelectedPackageId(plan.id);
+                                        setIsCalculatorModalOpen(true);
+                                    }}
+                                    className="w-full py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-emerald-600 dark:hover:bg-emerald-400 font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm cursor-pointer"
+                                >
+                                    Select & Calculate Total
+                                </button>
+                            )}
                         </div>
                     ))}
                 </div>
             )}
 
-            {/* ROSTER TABLE */}
+            {/* ENROLLED ROSTER TABLE */}
             {activeTab === 'roster' && (
                 <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
                     {subscriptions.length === 0 ? (
-                        <div className="p-12 text-center text-slate-400 space-y-2">
+                        <div className="p-12 text-center text-slate-400 space-y-3">
                             <UserGroupIcon className="w-12 h-12 mx-auto opacity-30" />
-                            <p className="text-xs font-bold uppercase tracking-wider">No student subscriptions assigned yet.</p>
-                            <button
-                                onClick={() => setIsAssignModalOpen(true)}
-                                className="px-4 py-2 bg-emerald-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md"
-                            >
-                                + Assign First Student
-                            </button>
+                            <p className="text-xs font-bold uppercase tracking-wider">No active student subscriptions found for this school.</p>
+                            {!isSuperAdminMode && (
+                                <button
+                                    onClick={() => setIsCalculatorModalOpen(true)}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer"
+                                >
+                                    ⚡ Choose Package & Enroll Students
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse text-xs">
                                 <thead>
                                     <tr className="bg-slate-50 dark:bg-slate-900/60 text-slate-400 font-black uppercase tracking-widest text-[10px] border-b border-slate-100 dark:border-slate-700">
-                                        <th className="p-4">Student</th>
+                                        <th className="p-4">Learner Name</th>
                                         <th className="p-4">Class</th>
-                                        <th className="p-4">Plan Name</th>
+                                        <th className="p-4">Package Assigned</th>
                                         <th className="p-4">Cycle</th>
-                                        <th className="p-4">Amount</th>
+                                        <th className="p-4">Rate / Student</th>
                                         <th className="p-4">Expiry Date</th>
                                         <th className="p-4">Status</th>
                                     </tr>
@@ -440,11 +524,11 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                     {subscriptions.map(sub => (
                                         <tr key={sub.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
                                             <td className="p-4 font-black text-slate-900 dark:text-white">{sub.studentName}</td>
-                                            <td className="p-4 font-mono">{sub.className}</td>
-                                            <td className="p-4 font-bold">{sub.planName}</td>
+                                            <td className="p-4 font-mono text-slate-500">{sub.className}</td>
+                                            <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{sub.planName}</td>
                                             <td className="p-4 uppercase font-mono text-[10px]">{sub.billingCycle.replace('_', ' ')}</td>
                                             <td className="p-4 font-black text-emerald-600 dark:text-emerald-400">KES {sub.amount}</td>
-                                            <td className="p-4 font-mono">{sub.expiryDate}</td>
+                                            <td className="p-4 font-mono text-slate-500">{sub.expiryDate}</td>
                                             <td className="p-4">
                                                 <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 rounded-full text-[10px] font-black uppercase">
                                                     {sub.status}
@@ -459,15 +543,145 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                 </div>
             )}
 
-            {/* CREATE PLAN MODAL */}
-            {isAddPlanModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 w-full max-w-md p-6 space-y-6 animate-fade-in">
+            {/* TENANT AUTO-CALCULATOR MODAL */}
+            {isCalculatorModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl p-6 sm:p-8 space-y-6 animate-fade-in max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4">
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                                    Instant Billing Engine
+                                </span>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                    Student Subscription Package Chooser
+                                </h3>
+                            </div>
+                            <button onClick={() => setIsCalculatorModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Step 1: Select Package */}
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                1. Select Subscription Tier
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {plans.map(p => (
+                                    <div
+                                        key={p.id}
+                                        onClick={() => setSelectedPackageId(p.id)}
+                                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-2 ${
+                                            selectedPackageId === p.id
+                                                ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 shadow-md'
+                                                : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <div>
+                                            <span className="text-xs font-black text-slate-900 dark:text-white block">{p.name}</span>
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
+                                                {p.billingCycle.replace('_', ' ')}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                                KES {p.amount}
+                                            </span>
+                                            <span className="text-[9px] text-slate-400 block font-medium">per student</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Step 2: Enrolled Student Count Verification */}
+                        <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                            <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    2. Confirm Enrolled Student Count
+                                </label>
+                                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-full">
+                                    Auto-Detected: {studentsList.length} Learners
+                                </span>
+                            </div>
+                            <input
+                                type="number"
+                                min={1}
+                                value={customStudentCount}
+                                onChange={e => setCustomStudentCount(Math.max(1, Number(e.target.value)))}
+                                className="w-full bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-base font-black text-slate-900 dark:text-white focus:border-emerald-500 outline-none"
+                            />
+                        </div>
+
+                        {/* Step 3: Live Auto-Calculation Breakdown Card */}
+                        <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-3xl space-y-4 shadow-xl">
+                            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                <div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Selected Package</span>
+                                    <h4 className="text-sm font-black text-white uppercase">{selectedPackage.name}</h4>
+                                </div>
+                                <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-xl text-xs font-mono font-bold">
+                                    KES {selectedPackage.amount} × {customStudentCount}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                                <div>
+                                    <span className="text-[9px] text-slate-400 uppercase block">Rate / Student</span>
+                                    <span className="font-bold text-white">KES {selectedPackage.amount}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] text-slate-400 uppercase block">Total Students</span>
+                                    <span className="font-bold text-white">{customStudentCount} Learners</span>
+                                </div>
+                                <div>
+                                    <span className="text-[9px] text-slate-400 uppercase block">Allocated SMS Pool</span>
+                                    <span className="font-bold text-amber-400">{autoAllocatedSmsPool.toLocaleString()} SMS</span>
+                                </div>
+                            </div>
+
+                            <div className="pt-3 border-t border-white/10 flex justify-between items-center">
+                                <div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Total Auto-Calculated Amount</span>
+                                    <span className="text-2xl font-black text-emerald-400">
+                                        KES {autoCalculatedTotal.toLocaleString()}
+                                    </span>
+                                </div>
+                                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
+                                    {selectedPackage.billingCycle.replace('_', ' ')}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                            <button
+                                onClick={() => setIsPayNowModalOpen(true)}
+                                className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <CreditCardIcon className="w-5 h-5" /> Pay KES {autoCalculatedTotal.toLocaleString()} Now (M-Pesa / Bank)
+                            </button>
+
+                            <button
+                                onClick={handleApplyPlanToAllStudents}
+                                className="px-5 py-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 font-black text-xs uppercase tracking-wider rounded-2xl transition-all cursor-pointer"
+                            >
+                                Assign To Learners Only
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* SUPER ADMIN CREATE / EDIT GLOBAL PLAN MODAL */}
+            {isAddPlanModalOpen && isSuperAdminMode && (
+                <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 w-full max-w-lg p-6 space-y-6 animate-fade-in max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-4">
                             <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">
-                                Create Student Subscription Plan
+                                {editingPlan ? 'Edit Global Subscription Package' : 'Create Global Subscription Package'}
                             </h3>
-                            <button onClick={() => setIsAddPlanModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                            <button onClick={() => setIsAddPlanModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                                 <XIcon className="w-5 h-5" />
                             </button>
                         </div>
@@ -475,27 +689,27 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                         <form onSubmit={handleSavePlan} className="space-y-4">
                             <div>
                                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                    Plan Name *
+                                    Package Name *
                                 </label>
                                 <input
                                     type="text"
                                     value={newPlanName}
                                     onChange={e => setNewPlanName(e.target.value)}
-                                    placeholder="e.g. Standard Academic Plan (Per Term)"
-                                    className="form-input text-xs font-bold"
+                                    placeholder="e.g. Pro Exam & Broadsheet Suite (Per Term)"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
                                     required
                                 />
                             </div>
 
                             <div>
                                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                    Description
+                                    Package Description
                                 </label>
                                 <textarea
                                     value={newPlanDesc}
                                     onChange={e => setNewPlanDesc(e.target.value)}
-                                    placeholder="Summary of modules and features included..."
-                                    className="form-input text-xs font-medium"
+                                    placeholder="Summary of modules, AI capabilities, and features included..."
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
                                     rows={2}
                                 />
                             </div>
@@ -508,7 +722,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                     <select
                                         value={newPlanCycle}
                                         onChange={e => setNewPlanCycle(e.target.value as any)}
-                                        className="form-select text-xs font-bold"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
                                     >
                                         <option value="per_term">Per Term</option>
                                         <option value="per_year">Per Year</option>
@@ -518,13 +732,13 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
 
                                 <div>
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                        Amount (KES)
+                                        Rate Per Student (KES) *
                                     </label>
                                     <input
                                         type="number"
                                         value={newPlanAmount}
                                         onChange={e => setNewPlanAmount(Number(e.target.value))}
-                                        className="form-input text-xs font-black text-emerald-600"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-black text-emerald-600 focus:border-emerald-500 outline-none"
                                         required
                                     />
                                 </div>
@@ -539,8 +753,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                         type="number"
                                         value={newPlanSms}
                                         onChange={e => setNewPlanSms(Number(e.target.value))}
-                                        placeholder="e.g. 10"
-                                        className="form-input text-xs font-black text-amber-600"
+                                        placeholder="e.g. 15"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-black text-amber-600 focus:border-amber-500 outline-none"
                                         required
                                     />
                                 </div>
@@ -552,7 +766,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                     <select
                                         value={newPlanSmsType}
                                         onChange={e => setNewPlanSmsType(e.target.value as any)}
-                                        className="form-select text-xs font-bold"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
                                     >
                                         <option value="academic_results_only">Academic Results Only</option>
                                         <option value="finance_receipts_only">Finance Receipts Only</option>
@@ -561,77 +775,53 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                 </div>
                             </div>
 
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                    Included Features (One per line)
+                                </label>
+                                <textarea
+                                    value={newPlanFeatures}
+                                    onChange={e => setNewPlanFeatures(e.target.value)}
+                                    placeholder="Enter features, one per line..."
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
+                                    rows={3}
+                                />
+                            </div>
+
                             <button
                                 type="submit"
-                                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg transition-all"
+                                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg transition-all cursor-pointer"
                             >
-                                Save Subscription Plan
+                                {editingPlan ? 'Update Global Package' : 'Save Global Package'}
                             </button>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* ASSIGN STUDENT MODAL */}
-            {isAssignModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 w-full max-w-md p-6 space-y-6 animate-fade-in">
-                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-4">
-                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">
-                                Assign Plan to Student
-                            </h3>
-                            <button onClick={() => setIsAssignModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                                <XIcon className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleAssignPlan} className="space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                    Select Student *
-                                </label>
-                                <select
-                                    value={assignStudentId}
-                                    onChange={e => setAssignStudentId(e.target.value)}
-                                    className="form-select text-xs font-bold"
-                                    required
-                                >
-                                    <option value="">Choose learner...</option>
-                                    {studentsList.map(s => (
-                                        <option key={s.id} value={s.id}>
-                                            {s.name} ({(s as any).studentClass || (s as any).classLevel || 'Class'})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                    Select Subscription Plan *
-                                </label>
-                                <select
-                                    value={assignPlanId}
-                                    onChange={e => setAssignPlanId(e.target.value)}
-                                    className="form-select text-xs font-bold text-emerald-600"
-                                    required
-                                >
-                                    {plans.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.name} — KES {p.amount} ({p.billingCycle.replace('_', ' ')})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <button
-                                type="submit"
-                                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg transition-all"
-                            >
-                                Confirm Student Subscription
-                            </button>
-                        </form>
-                    </div>
-                </div>
+            {/* DIRECT CHECKOUT MODAL */}
+            {isPayNowModalOpen && currentInstitution && (
+                <PayNowModal
+                    isOpen={isPayNowModalOpen}
+                    onClose={() => setIsPayNowModalOpen(false)}
+                    institutionId={currentInstitution.id}
+                    institutionName={currentInstitution.name}
+                    forceAmount={autoCalculatedTotal}
+                    forcedItems={[{
+                        description: `${selectedPackage.name} for ${customStudentCount} Students (${selectedPackage.billingCycle.replace('_', ' ')})`,
+                        quantity: customStudentCount,
+                        unitPrice: selectedPackage.amount,
+                        amount: autoCalculatedTotal
+                    }]}
+                    mpesaConfig={currentInstitution.mpesaConfig || companyDetails?.mpesaConfig!}
+                    airtelMoneyConfig={currentInstitution.airtelMoneyConfig || (companyDetails as any)?.airtelMoneyConfig}
+                    intasendConfig={currentInstitution.intasendConfig || (companyDetails as any)?.intasendConfig}
+                    ncbaConfig={currentInstitution.ncbaConfig || companyDetails?.ncbaConfig}
+                    onSuccess={() => {
+                        handleApplyPlanToAllStudents();
+                        setIsPayNowModalOpen(false);
+                    }}
+                />
             )}
         </div>
     );
