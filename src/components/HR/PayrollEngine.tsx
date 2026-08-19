@@ -6,6 +6,10 @@ import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { FingerPrintIcon } from '../icons/FingerPrintIcon';
 import { ChevronDownIcon } from '../icons/ChevronDownIcon';
 import { XIcon } from '../icons/XIcon';
+import { 
+    generateBulkStaffPayslipsPdf, 
+    generateStaffPayslipPdf 
+} from '../../services/pdfService';
 
 interface PayrollEngineProps {
     staff: User[];
@@ -122,6 +126,10 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
     const [editStatus, setEditStatus] = useState<string>('paid');
     const [localRecords, setLocalRecords] = useState<PayrollRecord[]>(payrollRecords);
 
+    // Bulk & Single Payslip Preview State
+    const [pdfPreviewModal, setPdfPreviewModal] = useState<{ url: string; title: string } | null>(null);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
     const [designerConfig, setDesignerConfig] = useState(() => {
         try {
             const stored = localStorage.getItem('eduai_payslip_template_config');
@@ -231,6 +239,119 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         setEditingRecord(null);
     };
 
+    const handleGenerateBulkPayslipsPdf = async () => {
+        setIsGeneratingPdf(true);
+        try {
+            const currentMonthRecords = localRecords.filter(r => r.month === selectedMonth);
+            let items: Array<{ staff: User; record: PayrollRecord }> = [];
+
+            if (currentMonthRecords.length > 0) {
+                for (const rec of currentMonthRecords) {
+                    const member = staff.find(s => s.id === rec.staffId);
+                    if (member) {
+                        items.push({ staff: member, record: rec });
+                    }
+                }
+            }
+
+            if (items.length === 0) {
+                items = activeStaffCalculations.map(c => {
+                    const member = staff.find(s => s.id === c.staffId) || { id: c.staffId, name: c.name, role: c.role } as User;
+                    const allowances = [{ name: 'House Allowance', amount: c.houseAllowance }];
+                    const deductions = [
+                        { name: 'NSSF Pension', amount: Math.round(c.payroll.nssf) },
+                        { name: 'SHIF Medical', amount: Math.round(c.payroll.shif) },
+                        { name: 'Housing Levy (AHL)', amount: Math.round(c.payroll.housingLevy) },
+                        { name: 'PAYE Tax', amount: Math.round(c.payroll.netPaye) }
+                    ];
+                    if (c.payroll.biometricDeduction > 0) {
+                        deductions.push({ name: 'Biometric Absence Penalty', amount: Math.round(c.payroll.biometricDeduction) });
+                    }
+                    const syntheticRecord: PayrollRecord = {
+                        id: `pay_${Date.now()}_${c.staffId}`,
+                        institutionId: institution.id,
+                        staffId: c.staffId,
+                        staffName: c.name,
+                        month: selectedMonth,
+                        basicSalary: c.basicSalary,
+                        allowances,
+                        deductions,
+                        netSalary: Math.round(c.payroll.netSalary * 100) / 100,
+                        status: 'paid',
+                        recordedBy: 'Kenyan Payroll Engine',
+                        paymentDate: new Date().toISOString()
+                    };
+                    return { staff: member, record: syntheticRecord };
+                });
+            }
+
+            if (items.length === 0) {
+                alert('No staff members available to generate payslips.');
+                return;
+            }
+
+            const dataUri = await generateBulkStaffPayslipsPdf(items, institution, designerConfig);
+            setPdfPreviewModal({
+                url: dataUri,
+                title: `Bulk Payslips - ${selectedMonth} (${items.length} Staff)`
+            });
+        } catch (error: any) {
+            console.error(error);
+            alert('Failed to generate bulk payslips: ' + (error?.message || error));
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
+    const handleGenerateSinglePayslipPdf = async (staffId: string) => {
+        setIsGeneratingPdf(true);
+        try {
+            const member = staff.find(s => s.id === staffId);
+            if (!member) return;
+
+            let record = localRecords.find(r => r.staffId === staffId && r.month === selectedMonth);
+            if (!record) {
+                const calc = activeStaffCalculations.find(c => c.staffId === staffId);
+                if (!calc) return;
+                const allowances = [{ name: 'House Allowance', amount: calc.houseAllowance }];
+                const deductions = [
+                    { name: 'NSSF Pension', amount: Math.round(calc.payroll.nssf) },
+                    { name: 'SHIF Medical', amount: Math.round(calc.payroll.shif) },
+                    { name: 'Housing Levy (AHL)', amount: Math.round(calc.payroll.housingLevy) },
+                    { name: 'PAYE Tax', amount: Math.round(calc.payroll.netPaye) }
+                ];
+                if (calc.payroll.biometricDeduction > 0) {
+                    deductions.push({ name: 'Biometric Absence Penalty', amount: Math.round(calc.payroll.biometricDeduction) });
+                }
+                record = {
+                    id: `pay_${Date.now()}_${calc.staffId}`,
+                    institutionId: institution.id,
+                    staffId: calc.staffId,
+                    staffName: calc.name,
+                    month: selectedMonth,
+                    basicSalary: calc.basicSalary,
+                    allowances,
+                    deductions,
+                    netSalary: Math.round(calc.payroll.netSalary * 100) / 100,
+                    status: 'paid',
+                    recordedBy: 'Kenyan Payroll Engine',
+                    paymentDate: new Date().toISOString()
+                };
+            }
+
+            const dataUri = await generateStaffPayslipPdf(member, record, institution, designerConfig);
+            setPdfPreviewModal({
+                url: dataUri,
+                title: `Payslip - ${member.name} (${selectedMonth})`
+            });
+        } catch (error: any) {
+            console.error(error);
+            alert('Failed to generate payslip: ' + (error?.message || error));
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
     const toggleRow = (staffId: string) => setExpandedStaffId(expandedStaffId === staffId ? null : staffId);
 
     return (
@@ -257,7 +378,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                         </div>
                     </div>
                 </div>
-                <div className="relative flex flex-col items-stretch md:items-end gap-4 w-full md:w-auto">
+                <div className="relative flex flex-col items-stretch md:items-end gap-3 w-full md:w-auto">
                     <select
                         value={selectedMonth}
                         onChange={(e) => setSelectedMonth(e.target.value)}
@@ -265,14 +386,25 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                     >
                         {MONTH_OPTIONS.map(m => <option key={m}>{m}</option>)}
                     </select>
-                    <button
-                        onClick={handleRunPayroll}
-                        disabled={isProcessing || staff.length === 0}
-                        className="flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                        <CalculatorIcon className="w-5 h-5" />
-                        Execute Payroll Run
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={handleGenerateBulkPayslipsPdf}
+                            disabled={isGeneratingPdf || staff.length === 0}
+                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50"
+                            title="Generate All Payslips as a single multi-page PDF"
+                        >
+                            <DocumentTextIcon className="w-4 h-4" />
+                            <span>{isGeneratingPdf ? 'Generating...' : `Bulk Slips (${staff.length})`}</span>
+                        </button>
+                        <button
+                            onClick={handleRunPayroll}
+                            disabled={isProcessing || staff.length === 0}
+                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            <CalculatorIcon className="w-4 h-4" />
+                            <span>Run Payroll</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -361,6 +493,13 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                                 </td>
                                                 <td className="px-3 py-4 text-center">
                                                     <div className="flex items-center justify-center gap-1">
+                                                        <button 
+                                                            onClick={() => handleGenerateSinglePayslipPdf(calc.staffId)} 
+                                                            title="Generate Individual Payslip" 
+                                                            className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-all"
+                                                        >
+                                                            <DocumentTextIcon className="w-4 h-4" />
+                                                        </button>
                                                         <button onClick={() => toggleRow(calc.staffId)} title="Details" className={`p-1.5 hover:bg-slate-100 rounded-lg transition-all ${isExpanded ? 'rotate-180 text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}>
                                                             <ChevronDownIcon className="w-4 h-4" />
                                                         </button>
@@ -538,6 +677,57 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                 <button type="button" onClick={() => setShowDesignerModal(false)} className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-300">Cancel</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Payslip & Bulk Payslip PDF Preview Modal */}
+            {pdfPreviewModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-150 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="px-8 py-5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-md font-black text-slate-800 uppercase tracking-wider">{pdfPreviewModal.title}</h3>
+                                <p className="text-[10px] font-semibold text-slate-400">Official Payslip Document • Kenyan Statutory Compliant</p>
+                            </div>
+                            <button 
+                                onClick={() => setPdfPreviewModal(null)} 
+                                className="p-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-xl transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* PDF Frame */}
+                        <div className="flex-1 p-6 bg-slate-100">
+                            <iframe 
+                                src={pdfPreviewModal.url} 
+                                className="w-full h-[65vh] rounded-2xl border border-slate-200 shadow-inner bg-white" 
+                                title="Payslip Preview"
+                            />
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                            <button 
+                                onClick={() => {
+                                    const link = document.createElement('a');
+                                    link.href = pdfPreviewModal.url;
+                                    link.download = `${pdfPreviewModal.title.replace(/\s+/g, '_')}.pdf`;
+                                    link.click();
+                                }}
+                                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md"
+                            >
+                                Download PDF
+                            </button>
+                            <button 
+                                onClick={() => setPdfPreviewModal(null)} 
+                                className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-300"
+                            >
+                                Close Preview
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

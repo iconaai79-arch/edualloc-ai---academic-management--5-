@@ -25,6 +25,7 @@ import { BiometricAttendanceDashboard } from './BiometricAttendanceDashboard';
 import { apiService } from '../../services/apiService';
 import { 
     generateStaffPayslipPdf, 
+    generateBulkStaffPayslipsPdf,
     generateStaffP9Pdf, 
     generateStatutoryDeductionsPdf,
     downloadBankAdvicePdf
@@ -362,6 +363,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
     const [selectedP9StaffId, setSelectedP9StaffId] = useState('');
     const [selectedYear, setSelectedYear] = useState('2026');
     const [selectedStatutoryMonth, setSelectedStatutoryMonth] = useState('January 2026');
+    const [payslipGenMode, setPayslipGenMode] = useState<'bulk' | 'single'>('bulk');
+    const [selectedPayslipRole, setSelectedPayslipRole] = useState('all');
+    const [isGeneratingBulkSlips, setIsGeneratingBulkSlips] = useState(false);
     
     // Preview State
     const [selectedReportUrl, setSelectedReportUrl] = useState<string | null>(null);
@@ -437,10 +441,35 @@ export const HRManager: React.FC<HRManagerProps> = ({
         if (!member) return;
 
         // Try to find the matching processed payroll record
-        const record = payrollRecords.find(r => r.staffId === selectedStaffId && r.month === selectedMonth);
+        let record = payrollRecords.find(r => r.staffId === selectedStaffId && r.month === selectedMonth);
         if (!record) {
-            alert(`No payroll record found for ${member.name} in ${selectedMonth}. Please process payroll first.`);
-            return;
+            // Fallback generation on-the-fly
+            const salary = getStaffSalary(member);
+            const houseAllowance = Math.round(salary * 0.15);
+            const nssf = salary > 0 ? Math.min(salary, 9000) * 0.06 + Math.max(0, Math.min(salary, 108000) - 9000) * 0.06 : 0;
+            const shif = salary > 0 ? Math.max(300, salary * 0.0275) : 0;
+            const housingLevy = salary * 0.015;
+            const deductions = [
+                { name: 'NSSF Pension', amount: Math.round(nssf) },
+                { name: 'SHIF Medical', amount: Math.round(shif) },
+                { name: 'Housing Levy (AHL)', amount: Math.round(housingLevy) },
+                { name: 'PAYE Tax', amount: Math.round(Math.max(0, salary * 0.1 - 2400)) }
+            ];
+            const totalDeds = deductions.reduce((a, b) => a + b.amount, 0);
+            record = {
+                id: `pay_${Date.now()}_${member.id}`,
+                institutionId: institution.id,
+                staffId: member.id,
+                staffName: member.name,
+                month: selectedMonth,
+                basicSalary: salary,
+                allowances: [{ name: 'House Allowance', amount: houseAllowance }],
+                deductions,
+                netSalary: Math.max(0, salary + houseAllowance - totalDeds),
+                status: 'paid',
+                recordedBy: 'HR System',
+                paymentDate: new Date().toISOString()
+            };
         }
 
         try {
@@ -460,6 +489,81 @@ export const HRManager: React.FC<HRManagerProps> = ({
         } catch (e) {
             console.error(e);
             alert('Failed to generate payslip.');
+        }
+    };
+
+    const handleGenerateBulkPayslips = async () => {
+        setIsGeneratingBulkSlips(true);
+        try {
+            const monthRecords = payrollRecords.filter(r => r.month === selectedMonth);
+            let items: Array<{ staff: User; record: PayrollRecord }> = [];
+
+            if (monthRecords.length > 0) {
+                for (const rec of monthRecords) {
+                    const member = staff.find(s => s.id === rec.staffId);
+                    if (member) {
+                        if (selectedPayslipRole === 'all' || member.role === selectedPayslipRole) {
+                            items.push({ staff: member, record: rec });
+                        }
+                    }
+                }
+            }
+
+            if (items.length === 0) {
+                const targetStaff = staff.filter(s => selectedPayslipRole === 'all' || s.role === selectedPayslipRole);
+                if (targetStaff.length === 0) {
+                    alert(`No staff found matching designation "${selectedPayslipRole}".`);
+                    return;
+                }
+                items = targetStaff.map(s => {
+                    const salary = getStaffSalary(s);
+                    const houseAllowance = Math.round(salary * 0.15);
+                    const nssf = salary > 0 ? Math.min(salary, 9000) * 0.06 + Math.max(0, Math.min(salary, 108000) - 9000) * 0.06 : 0;
+                    const shif = salary > 0 ? Math.max(300, salary * 0.0275) : 0;
+                    const housingLevy = salary * 0.015;
+                    const deductions = [
+                        { name: 'NSSF Pension', amount: Math.round(nssf) },
+                        { name: 'SHIF Medical', amount: Math.round(shif) },
+                        { name: 'Housing Levy (AHL)', amount: Math.round(housingLevy) },
+                        { name: 'PAYE Tax', amount: Math.round(Math.max(0, salary * 0.1 - 2400)) }
+                    ];
+                    const totalDeds = deductions.reduce((a, b) => a + b.amount, 0);
+                    const netSalary = Math.max(0, salary + houseAllowance - totalDeds);
+
+                    const syntheticRecord: PayrollRecord = {
+                        id: `pay_${Date.now()}_${s.id}`,
+                        institutionId: institution.id,
+                        staffId: s.id,
+                        staffName: s.name,
+                        month: selectedMonth,
+                        basicSalary: salary,
+                        allowances: [{ name: 'House Allowance', amount: houseAllowance }],
+                        deductions,
+                        netSalary,
+                        status: 'paid',
+                        recordedBy: 'HR System',
+                        paymentDate: new Date().toISOString()
+                    };
+                    return { staff: s, record: syntheticRecord };
+                });
+            }
+
+            let templateConfig = undefined;
+            try {
+                const stored = localStorage.getItem('eduai_payslip_template_config');
+                if (stored) templateConfig = JSON.parse(stored);
+            } catch (e) {
+                console.error('[HRManager] Error loading template config:', e);
+            }
+
+            const dataUri = await generateBulkStaffPayslipsPdf(items, institution, templateConfig, footerImageUrl);
+            setPreviewTitle(`Bulk Payslips - ${selectedMonth} (${items.length} Staff)`);
+            setSelectedReportUrl(dataUri);
+        } catch (e: any) {
+            console.error(e);
+            alert('Failed to generate bulk payslips: ' + (e?.message || e));
+        } finally {
+            setIsGeneratingBulkSlips(false);
         }
     };
 
@@ -972,29 +1076,82 @@ export const HRManager: React.FC<HRManagerProps> = ({
 
                 {activeTab === 'reports' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 animate-in fade-in duration-500">
-                        {/* Payslip Card */}
+                        {/* Payslip Card with Bulk Generator */}
                         <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-between space-y-6">
                             <div>
-                                <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-2xl w-fit mb-4">
-                                    <DocumentTextIcon className="w-6 h-6" />
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-2xl w-fit">
+                                        <DocumentTextIcon className="w-6 h-6" />
+                                    </div>
+                                    <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-200 dark:border-indigo-800">
+                                        {payslipGenMode === 'bulk' ? 'Bulk Mode' : 'Single Mode'}
+                                    </span>
                                 </div>
                                 <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white">Staff Payslips</h3>
-                                <p className="text-xs text-slate-400 mt-2">Generate official monthly payslips detailing base pay, custom allowances, standard statutory deductions, and biometric penalties.</p>
+                                <p className="text-xs text-slate-400 mt-2">Generate official monthly payslips for single employees or bundle all staff in a unified printable PDF document.</p>
                                 
-                                <div className="mt-6 space-y-4">
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Select Employee</label>
-                                        <select 
-                                            value={selectedStaffId} 
-                                            onChange={e => setSelectedStaffId(e.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-750 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        >
-                                            <option value="">-- Choose Staff --</option>
-                                            {staff.map(s => (
-                                                <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                {/* Mode Switcher */}
+                                <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-xl mt-4 border border-slate-200 dark:border-slate-700">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPayslipGenMode('bulk')}
+                                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                            payslipGenMode === 'bulk'
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        📦 Bulk All Staff
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPayslipGenMode('single')}
+                                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                            payslipGenMode === 'single'
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        👤 Single Staff
+                                    </button>
+                                </div>
+
+                                <div className="mt-4 space-y-3">
+                                    {payslipGenMode === 'single' ? (
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Select Employee</label>
+                                            <select 
+                                                value={selectedStaffId} 
+                                                onChange={e => setSelectedStaffId(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-750 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            >
+                                                <option value="">-- Choose Staff --</option>
+                                                {staff.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Department / Designation</label>
+                                            <select 
+                                                value={selectedPayslipRole} 
+                                                onChange={e => setSelectedPayslipRole(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-750 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            >
+                                                <option value="all">All Departments ({staff.length} staff)</option>
+                                                {staffRoleOptions.map(opt => {
+                                                    const count = staff.filter(s => s.role === opt.value).length;
+                                                    return (
+                                                        <option key={opt.value} value={opt.value}>
+                                                            {opt.label} ({count})
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+                                    )}
+
                                     <div>
                                         <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Select Month</label>
                                         <select 
@@ -1018,12 +1175,23 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                     </div>
                                 </div>
                             </div>
-                            <button 
-                                onClick={handleGeneratePayslip}
-                                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
-                            >
-                                Generate Payslip
-                            </button>
+
+                            {payslipGenMode === 'bulk' ? (
+                                <button 
+                                    onClick={handleGenerateBulkPayslips}
+                                    disabled={isGeneratingBulkSlips || staff.length === 0}
+                                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    <span>{isGeneratingBulkSlips ? 'Generating Document...' : `⚡ Generate Bulk Payslips (${selectedPayslipRole === 'all' ? staff.length : staff.filter(s => s.role === selectedPayslipRole).length})`}</span>
+                                </button>
+                            ) : (
+                                <button 
+                                    onClick={handleGeneratePayslip}
+                                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
+                                >
+                                    Generate Individual Payslip
+                                </button>
+                            )}
                         </div>
 
                         {/* P9 Card */}

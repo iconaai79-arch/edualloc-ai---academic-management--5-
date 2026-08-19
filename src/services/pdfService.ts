@@ -8844,6 +8844,137 @@ export const generateStaffPayslipPdf = async (
 };
 
 /**
+ * Generates a consolidated Bulk Payslip PDF containing individual payslips for all provided staff members.
+ */
+export const generateBulkStaffPayslipsPdf = async (
+    items: Array<{ staff: User; record: PayrollRecord }>,
+    institution: Institution,
+    letterheadConfig?: any,
+    footerImageUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let primaryRGB = [79, 70, 229]; // default indigo-600
+    if (letterheadConfig?.primaryColor) {
+        try {
+            const hex = letterheadConfig.primaryColor.replace('#', '');
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+                primaryRGB = [r, g, b];
+            }
+        } catch (e) {
+            console.error('[pdfService] Error parsing primary color:', e);
+        }
+    }
+
+    const footerText = letterheadConfig?.footerMessage || `${institution.name} — Confidential Payslip`;
+
+    items.forEach((item, index) => {
+        if (index > 0) {
+            doc.addPage();
+        }
+
+        const { staff, record } = item;
+        let yPos = setupPdfHeader(doc, headerImg);
+
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.text("OFFICIAL PAYSLIP", 14, yPos);
+        yPos += 10;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Earnings Month: ${record.month}`, 14, yPos);
+        doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth - 60, yPos);
+        yPos += 12;
+
+        // Staff Details Card
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(14, yPos, pageWidth - 28, 30, 3, 3, 'F');
+        
+        let detailsY = yPos + 8;
+        doc.setFont('helvetica', 'bold');
+        doc.text("EMPLOYEE INFORMATION", 20, detailsY);
+        detailsY += 8;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Name: ${staff.name || record.staffName || 'N/A'}`, 20, detailsY);
+        doc.text(`ID: ${(staff.staffId || staff.id).substring(0, 16)}`, pageWidth / 2, detailsY);
+        detailsY += 6;
+        doc.text(`Role/Title: ${staff.role || 'Staff Member'}`, 20, detailsY);
+        doc.text(`Email: ${staff.email || staff.phoneNumber || 'N/A'}`, pageWidth / 2, detailsY);
+        yPos += 38;
+
+        const basicSalary = record.basicSalary || (record as any).basicPay || 0;
+        const netSalary = record.netSalary || (record as any).netPay || 0;
+
+        const allowancesList = Array.isArray(record.allowances) ? record.allowances : [];
+        const totalAllowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+
+        const deductionsList = Array.isArray(record.deductions) ? record.deductions : [];
+        const totalDeductions = deductionsList.reduce((acc: number, d: any) => acc + (d.amount || 0), 0);
+
+        const head = [['Description', 'Earnings (KES)', 'Deductions (KES)']];
+        const body: any[] = [
+            ['Basic Salary', basicSalary.toLocaleString(), '-'],
+        ];
+
+        allowancesList.forEach((a: any) => {
+            body.push([a.name, a.amount.toLocaleString(), '-']);
+        });
+
+        deductionsList.forEach((d: any) => {
+            body.push([d.name, '-', d.amount.toLocaleString()]);
+        });
+
+        body.push([
+            'TOTALS',
+            (basicSalary + totalAllowances).toLocaleString(),
+            totalDeductions.toLocaleString()
+        ]);
+
+        body.push([
+            'NET PAYABLE',
+            { content: `KES ${netSalary.toLocaleString()}`, styles: { fontStyle: 'bold', fillColor: [240, 249, 255] } },
+            '-'
+        ]);
+
+        doc.autoTable({
+            startY: yPos,
+            head: head,
+            body: body,
+            theme: 'striped',
+            headStyles: { fillColor: primaryRGB },
+            styles: { fontSize: 9 }
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 25;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.text("---------------------------------", 14, yPos);
+        doc.text(letterheadConfig?.signerName || "Authorized Signature", 14, yPos + 5);
+        if (letterheadConfig?.signerTitle) {
+            doc.text(letterheadConfig.signerTitle, 14, yPos + 10);
+        }
+
+        doc.text("---------------------------------", pageWidth / 2, yPos);
+        doc.text("Employee Signature & Date", pageWidth / 2, yPos + 5);
+
+        setupPdfFooter(doc, footerImg, footerText);
+    });
+
+    return doc.output('datauristring');
+};
+
+/**
  * Generates a Kenyan standard P9 Tax Deduction Certificate PDF.
  */
 export const generateStaffP9Pdf = async (
