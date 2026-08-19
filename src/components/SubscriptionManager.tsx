@@ -7,6 +7,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
 import { apiService } from '../services/apiService';
+import { billingService } from '../services/billingService';
 
 interface SubscriptionManagerProps {
     institution: Institution;
@@ -192,13 +193,34 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
         return false;
     }, [institution]);
 
-    const handlePayNow = (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]): Promise<TransactionStatus> => {
-        return onAddTransaction({
+    const handlePayNow = async (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]): Promise<TransactionStatus> => {
+        const result = await onAddTransaction({
             ...paymentData,
             institutionId: institution.id,
             provider: 'mpesa',
             paymentMethod: 'stk_push'
         }, items);
+
+        if (result === 'completed') {
+            const billingRes = await billingService.processSuccessfulPaymentAndAutoEmail({
+                institution,
+                companyDetails,
+                amount: paymentData.amount,
+                phoneNumber: paymentData.phoneNumber,
+                payerName: paymentData.payerName || institution.name,
+                payerEmail: institution.email,
+                items,
+                packageName: 'Institutional Enterprise Plan',
+                billingCycle: 'yearly',
+                studentCount: activeStudents
+            });
+            if (billingRes.receiptPdfUri) {
+                billingService.downloadPdfUri(billingRes.receiptPdfUri, `Receipt_${billingRes.receipt.receiptNumber}.pdf`);
+            }
+            if (onRefreshData) onRefreshData();
+        }
+
+        return result;
     };
 
     const handleExtensionRequestSubmit = (e: React.FormEvent) => {

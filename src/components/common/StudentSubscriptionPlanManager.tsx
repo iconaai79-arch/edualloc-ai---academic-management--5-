@@ -10,6 +10,7 @@ import { XIcon } from '../icons/XIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
 import { PayNowModal } from '../PayNowModal';
+import { billingService } from '../../services/billingService';
 
 export interface StudentSubscriptionPlan {
     id: string;
@@ -283,7 +284,6 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
     // Bulk Subscribe & Activate Package for Tenant Students
     const handleApplyPlanToAllStudents = async () => {
         if (!currentInstitution?.id) return;
-        if (!window.confirm(`Activate ${selectedPackage.name} for all ${studentsList.length} enrolled students?`)) return;
 
         const now = new Date();
         const expiry = new Date();
@@ -316,7 +316,45 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         }
 
         setIsCalculatorModalOpen(false);
-        alert(`Successfully assigned ${selectedPackage.name} to ${newRecords.length} learners!`);
+    };
+
+    // Automated Post-Payment Execution: Invoice + Receipt + PDF Download + Auto Email
+    const handlePaymentSuccess = async () => {
+        if (!currentInstitution) return;
+
+        // 1. Process Invoice, Receipt, PDF generation & Auto Emailing
+        const result = await billingService.processSuccessfulPaymentAndAutoEmail({
+            institution: currentInstitution,
+            companyDetails,
+            amount: autoCalculatedTotal,
+            phoneNumber: (currentUser as any)?.phoneNumber || currentInstitution.phoneNumber || '',
+            payerName: currentUser?.name || currentInstitution.name,
+            payerEmail: currentUser?.email || currentInstitution.email,
+            transactionId: `TXN_${Date.now()}`,
+            provider: 'mpesa',
+            items: [{
+                description: `${selectedPackage.name} for ${customStudentCount} Students (${selectedPackage.billingCycle.replace('_', ' ')})`,
+                quantity: customStudentCount,
+                unitPrice: selectedPackage.amount,
+                amount: autoCalculatedTotal
+            }],
+            packageName: selectedPackage.name,
+            billingCycle: selectedPackage.billingCycle,
+            studentCount: customStudentCount,
+            smsAllocated: autoAllocatedSmsPool
+        });
+
+        // 2. Assign plan to all active students in roster
+        await handleApplyPlanToAllStudents();
+
+        // 3. Auto-download PDF Receipt for the client
+        if (result.receiptPdfUri) {
+            billingService.downloadPdfUri(result.receiptPdfUri, `Receipt_${result.receipt.receiptNumber}.pdf`);
+        }
+
+        setIsPayNowModalOpen(false);
+        setIsCalculatorModalOpen(false);
+        alert(`Payment successful! Official Receipt ${result.receipt.receiptNumber} and Invoice generated. PDF downloaded and confirmation emailed to ${currentUser?.email || currentInstitution.email || 'client'}.`);
     };
 
     return (
@@ -818,8 +856,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                     intasendConfig={currentInstitution.intasendConfig || (companyDetails as any)?.intasendConfig}
                     ncbaConfig={currentInstitution.ncbaConfig || companyDetails?.ncbaConfig}
                     onSuccess={() => {
-                        handleApplyPlanToAllStudents();
-                        setIsPayNowModalOpen(false);
+                        handlePaymentSuccess();
                     }}
                 />
             )}
