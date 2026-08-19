@@ -27,6 +27,8 @@ import {
     generateStaffPayslipPdf, 
     generateBulkStaffPayslipsPdf,
     generateStaffP9Pdf, 
+    generateBulkStaffP9Pdf,
+    downloadBulkP9Csv,
     generateStatutoryDeductionsPdf,
     generateBulkStatutoryReportPdf,
     downloadStatutoryCsv,
@@ -365,6 +367,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
     const [selectedMonth, setSelectedMonth] = useState('January 2026');
     const [selectedP9StaffId, setSelectedP9StaffId] = useState('');
     const [selectedYear, setSelectedYear] = useState('2026');
+    const [p9GenMode, setP9GenMode] = useState<'bulk' | 'single'>('bulk');
+    const [selectedP9Role, setSelectedP9Role] = useState('all');
+    const [isGeneratingBulkP9, setIsGeneratingBulkP9] = useState(false);
     const [selectedStatutoryMonth, setSelectedStatutoryMonth] = useState('January 2026');
     const [selectedStatutoryType, setSelectedStatutoryType] = useState<StatutoryReportType>('consolidated');
     const [selectedStatutoryRole, setSelectedStatutoryRole] = useState('all');
@@ -582,7 +587,45 @@ export const HRManager: React.FC<HRManagerProps> = ({
         if (!member) return;
 
         // Filter records for the selected year
-        const yearRecords = payrollRecords.filter(r => r.staffId === selectedP9StaffId && r.month.endsWith(selectedYear));
+        let yearRecords = payrollRecords.filter(r => r.staffId === selectedP9StaffId && r.month.endsWith(selectedYear));
+        if (yearRecords.length === 0) {
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const basic = getStaffBasicSalary(member);
+            const gross = basic > 0 ? basic : 50000;
+            const nssf = Math.min(gross, 9000) * 0.06 + Math.max(0, Math.min(gross, 108000) - 9000) * 0.06;
+            const shif = Math.max(300, gross * 0.0275);
+            const housingLevy = gross * 0.015;
+            const allowable = nssf + shif + housingLevy;
+            const taxable = Math.max(0, gross - allowable);
+            let grossPaye = 0, rem = taxable;
+            const b1 = Math.min(rem, 24000); grossPaye += b1 * 0.10; rem -= b1;
+            if (rem > 0) { const b = Math.min(rem, 8333); grossPaye += b * 0.25; rem -= b; }
+            if (rem > 0) { const b = Math.min(rem, 467667); grossPaye += b * 0.30; rem -= b; }
+            if (rem > 0) { const b = Math.min(rem, 300000); grossPaye += b * 0.325; rem -= b; }
+            if (rem > 0) grossPaye += rem * 0.35;
+            const paye = Math.max(0, grossPaye - (gross > 0 ? 2400 : 0));
+            const net = gross - allowable - paye;
+
+            yearRecords = months.map(mName => ({
+                id: `p9_${member.id}_${mName}_${selectedYear}`,
+                institutionId: institution.id,
+                staffId: member.id,
+                staffName: member.name,
+                month: `${mName} ${selectedYear}`,
+                basicSalary: basic,
+                allowances: [],
+                deductions: [
+                    { name: 'NSSF', amount: Math.round(nssf) },
+                    { name: 'SHIF', amount: Math.round(shif) },
+                    { name: 'Housing Levy', amount: Math.round(housingLevy) },
+                    { name: 'PAYE', amount: Math.round(paye) }
+                ],
+                netSalary: Math.round(net),
+                status: 'paid',
+                recordedBy: 'P9 Generator Engine',
+                paymentDate: new Date().toISOString()
+            } as PayrollRecord));
+        }
         
         try {
             const dataUri = await generateStaffP9Pdf(member, yearRecords, selectedYear, institution);
@@ -592,6 +635,128 @@ export const HRManager: React.FC<HRManagerProps> = ({
             console.error(e);
             alert('Failed to generate P9 card.');
         }
+    };
+
+    const handleGenerateBulkP9 = async () => {
+        setIsGeneratingBulkP9(true);
+        try {
+            const roleFilteredStaff = selectedP9Role === 'all'
+                ? staff
+                : staff.filter(s => s.role === selectedP9Role);
+
+            if (roleFilteredStaff.length === 0) {
+                alert('No staff members found matching the selected department/role.');
+                return;
+            }
+
+            const items = roleFilteredStaff.map(member => {
+                let yearRecords = payrollRecords.filter(r => r.staffId === member.id && r.month.endsWith(selectedYear));
+                if (yearRecords.length === 0) {
+                    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                    const basic = getStaffBasicSalary(member);
+                    const gross = basic > 0 ? basic : 50000;
+                    const nssf = Math.min(gross, 9000) * 0.06 + Math.max(0, Math.min(gross, 108000) - 9000) * 0.06;
+                    const shif = Math.max(300, gross * 0.0275);
+                    const housingLevy = gross * 0.015;
+                    const allowable = nssf + shif + housingLevy;
+                    const taxable = Math.max(0, gross - allowable);
+                    let grossPaye = 0, rem = taxable;
+                    const b1 = Math.min(rem, 24000); grossPaye += b1 * 0.10; rem -= b1;
+                    if (rem > 0) { const b = Math.min(rem, 8333); grossPaye += b * 0.25; rem -= b; }
+                    if (rem > 0) { const b = Math.min(rem, 467667); grossPaye += b * 0.30; rem -= b; }
+                    if (rem > 0) { const b = Math.min(rem, 300000); grossPaye += b * 0.325; rem -= b; }
+                    if (rem > 0) grossPaye += rem * 0.35;
+                    const paye = Math.max(0, grossPaye - (gross > 0 ? 2400 : 0));
+                    const net = gross - allowable - paye;
+
+                    yearRecords = months.map(mName => ({
+                        id: `p9_${member.id}_${mName}_${selectedYear}`,
+                        institutionId: institution.id,
+                        staffId: member.id,
+                        staffName: member.name,
+                        month: `${mName} ${selectedYear}`,
+                        basicSalary: basic,
+                        allowances: [],
+                        deductions: [
+                            { name: 'NSSF', amount: Math.round(nssf) },
+                            { name: 'SHIF', amount: Math.round(shif) },
+                            { name: 'Housing Levy', amount: Math.round(housingLevy) },
+                            { name: 'PAYE', amount: Math.round(paye) }
+                        ],
+                        netSalary: Math.round(net),
+                        status: 'paid',
+                        recordedBy: 'P9 Generator Engine',
+                        paymentDate: new Date().toISOString()
+                    } as PayrollRecord));
+                }
+                return { staff: member, records: yearRecords };
+            });
+
+            const dataUri = await generateBulkStaffP9Pdf(items, selectedYear, institution);
+            setPreviewTitle(`Bulk P9 Tax Certificates - ${selectedYear} (${items.length} Staff)`);
+            setSelectedReportUrl(dataUri);
+        } catch (e: any) {
+            console.error(e);
+            alert('Failed to generate bulk P9 certificates: ' + (e?.message || e));
+        } finally {
+            setIsGeneratingBulkP9(false);
+        }
+    };
+
+    const handleExportBulkP9Csv = () => {
+        const roleFilteredStaff = selectedP9Role === 'all'
+            ? staff
+            : staff.filter(s => s.role === selectedP9Role);
+
+        if (roleFilteredStaff.length === 0) {
+            alert('No staff members found matching the selected department/role.');
+            return;
+        }
+
+        const items = roleFilteredStaff.map(member => {
+            let yearRecords = payrollRecords.filter(r => r.staffId === member.id && r.month.endsWith(selectedYear));
+            if (yearRecords.length === 0) {
+                const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                const basic = getStaffBasicSalary(member);
+                const gross = basic > 0 ? basic : 50000;
+                const nssf = Math.min(gross, 9000) * 0.06 + Math.max(0, Math.min(gross, 108000) - 9000) * 0.06;
+                const shif = Math.max(300, gross * 0.0275);
+                const housingLevy = gross * 0.015;
+                const allowable = nssf + shif + housingLevy;
+                const taxable = Math.max(0, gross - allowable);
+                let grossPaye = 0, rem = taxable;
+                const b1 = Math.min(rem, 24000); grossPaye += b1 * 0.10; rem -= b1;
+                if (rem > 0) { const b = Math.min(rem, 8333); grossPaye += b * 0.25; rem -= b; }
+                if (rem > 0) { const b = Math.min(rem, 467667); grossPaye += b * 0.30; rem -= b; }
+                if (rem > 0) { const b = Math.min(rem, 300000); grossPaye += b * 0.325; rem -= b; }
+                if (rem > 0) grossPaye += rem * 0.35;
+                const paye = Math.max(0, grossPaye - (gross > 0 ? 2400 : 0));
+                const net = gross - allowable - paye;
+
+                yearRecords = months.map(mName => ({
+                    id: `p9_${member.id}_${mName}_${selectedYear}`,
+                    institutionId: institution.id,
+                    staffId: member.id,
+                    staffName: member.name,
+                    month: `${mName} ${selectedYear}`,
+                    basicSalary: basic,
+                    allowances: [],
+                    deductions: [
+                        { name: 'NSSF', amount: Math.round(nssf) },
+                        { name: 'SHIF', amount: Math.round(shif) },
+                        { name: 'Housing Levy', amount: Math.round(housingLevy) },
+                        { name: 'PAYE', amount: Math.round(paye) }
+                    ],
+                    netSalary: Math.round(net),
+                    status: 'paid',
+                    recordedBy: 'P9 Generator Engine',
+                    paymentDate: new Date().toISOString()
+                } as PayrollRecord));
+            }
+            return { staff: member, records: yearRecords };
+        });
+
+        downloadBulkP9Csv(items, selectedYear, institution.name);
     };
 
     const handleGenerateStatutoryDeductions = async () => {
@@ -1331,49 +1496,124 @@ export const HRManager: React.FC<HRManagerProps> = ({
                             )}
                         </div>
 
-                        {/* P9 Card */}
+                        {/* P9 Tax Deduction Card with Bulk Generator */}
                         <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-between space-y-6">
                             <div>
-                                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-2xl w-fit mb-4">
-                                    <DocumentTextIcon className="w-6 h-6" />
-                                </div>
-                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white">P9 Tax Deduction Card</h3>
-                                <p className="text-xs text-slate-400 mt-2">Generate standard yearly P9 tax certificates required by employees for filing annual KRA income tax returns.</p>
-                                
-                                <div className="mt-6 space-y-4">
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Select Employee</label>
-                                        <select 
-                                            value={selectedP9StaffId} 
-                                            onChange={e => setSelectedP9StaffId(e.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-750 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        >
-                                            <option value="">-- Choose Staff --</option>
-                                            {staff.map(s => (
-                                                <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
-                                            ))}
-                                        </select>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-2xl w-fit">
+                                        <DocumentTextIcon className="w-6 h-6" />
                                     </div>
+                                    <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-800">
+                                        {p9GenMode === 'bulk' ? 'Bulk Mode' : 'Single Mode'}
+                                    </span>
+                                </div>
+                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white">P9 Tax Deduction Cards</h3>
+                                <p className="text-xs text-slate-400 mt-2">Generate official annual P9 tax certificates required by employees for filing annual KRA income tax returns.</p>
+                                
+                                {/* Mode Switcher */}
+                                <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-xl mt-4 border border-slate-200 dark:border-slate-700">
+                                    <button
+                                        type="button"
+                                        onClick={() => setP9GenMode('bulk')}
+                                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                            p9GenMode === 'bulk'
+                                                ? 'bg-emerald-600 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        📦 Bulk All Staff
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setP9GenMode('single')}
+                                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                            p9GenMode === 'single'
+                                                ? 'bg-emerald-600 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        👤 Single Staff
+                                    </button>
+                                </div>
+
+                                <div className="mt-4 space-y-3">
+                                    {p9GenMode === 'single' ? (
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Select Employee</label>
+                                            <select 
+                                                value={selectedP9StaffId} 
+                                                onChange={e => setSelectedP9StaffId(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-750 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                            >
+                                                <option value="">-- Choose Staff --</option>
+                                                {staff.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Department / Designation</label>
+                                            <select 
+                                                value={selectedP9Role} 
+                                                onChange={e => setSelectedP9Role(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-750 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                            >
+                                                <option value="all">All Departments ({staff.length} staff)</option>
+                                                {staffRoleOptions.map(opt => {
+                                                    const count = staff.filter(s => s.role === opt.value).length;
+                                                    return (
+                                                        <option key={opt.value} value={opt.value}>
+                                                            {opt.label} ({count})
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+                                    )}
+
                                     <div>
-                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Select Year</label>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Tax Year</label>
                                         <select 
                                             value={selectedYear} 
                                             onChange={e => setSelectedYear(e.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-750 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-750 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                         >
                                             <option value="2026">2026</option>
                                             <option value="2025">2025</option>
                                             <option value="2024">2024</option>
+                                            <option value="2023">2023</option>
                                         </select>
                                     </div>
                                 </div>
                             </div>
-                            <button 
-                                onClick={handleGenerateP9}
-                                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
-                            >
-                                Generate P9 Certificate
-                            </button>
+
+                            {p9GenMode === 'bulk' ? (
+                                <div className="space-y-2 pt-2">
+                                    <button 
+                                        onClick={handleGenerateBulkP9}
+                                        disabled={isGeneratingBulkP9 || staff.length === 0}
+                                        className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        <span>{isGeneratingBulkP9 ? 'Generating Document...' : `⚡ Generate Bulk P9 Certificates (${selectedP9Role === 'all' ? staff.length : staff.filter(s => s.role === selectedP9Role).length})`}</span>
+                                    </button>
+                                    <button 
+                                        onClick={handleExportBulkP9Csv}
+                                        disabled={staff.length === 0}
+                                        type="button"
+                                        className="w-full py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-600"
+                                    >
+                                        <span>📥 Export P9 Tax Summary CSV</span>
+                                    </button>
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={handleGenerateP9}
+                                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
+                                >
+                                    Generate Individual P9 Certificate
+                                </button>
+                            )}
                         </div>
 
                         {/* Bulk Statutory Deductions & Remittances Card */}

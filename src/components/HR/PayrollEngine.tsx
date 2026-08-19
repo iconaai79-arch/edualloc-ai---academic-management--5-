@@ -9,6 +9,8 @@ import { XIcon } from '../icons/XIcon';
 import { 
     generateBulkStaffPayslipsPdf, 
     generateStaffPayslipPdf,
+    generateBulkStaffP9Pdf,
+    generateStaffP9Pdf,
     generateBulkStatutoryReportPdf,
     downloadStatutoryCsv,
     type StatutoryReportType
@@ -460,6 +462,133 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         );
     };
 
+    const handleGenerateEngineBulkP9 = async () => {
+        setIsGeneratingPdf(true);
+        try {
+            const yearStr = selectedMonth.split(' ')[1] || new Date().getFullYear().toString();
+            const items = staff.map(member => {
+                let yearRecords = localRecords.filter(r => r.staffId === member.id && r.month.endsWith(yearStr));
+                if (yearRecords.length === 0) {
+                    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                    const calc = activeStaffCalculations.find(c => c.staffId === member.id);
+                    const basic = calc ? calc.basicSalary : getStaffBasicSalary(member);
+                    const gross = basic > 0 ? basic : 50000;
+                    const nssf = Math.min(gross, 9000) * 0.06 + Math.max(0, Math.min(gross, 108000) - 9000) * 0.06;
+                    const shif = Math.max(300, gross * 0.0275);
+                    const housingLevy = gross * 0.015;
+                    const allowable = nssf + shif + housingLevy;
+                    const taxable = Math.max(0, gross - allowable);
+                    let grossPaye = 0, rem = taxable;
+                    const b1 = Math.min(rem, 24000); grossPaye += b1 * 0.10; rem -= b1;
+                    if (rem > 0) { const b = Math.min(rem, 8333); grossPaye += b * 0.25; rem -= b; }
+                    if (rem > 0) { const b = Math.min(rem, 467667); grossPaye += b * 0.30; rem -= b; }
+                    if (rem > 0) { const b = Math.min(rem, 300000); grossPaye += b * 0.325; rem -= b; }
+                    if (rem > 0) grossPaye += rem * 0.35;
+                    const paye = Math.max(0, grossPaye - (gross > 0 ? 2400 : 0));
+                    const net = gross - allowable - paye;
+
+                    yearRecords = months.map(mName => ({
+                        id: `p9_${member.id}_${mName}_${yearStr}`,
+                        institutionId: institution.id,
+                        staffId: member.id,
+                        staffName: member.name,
+                        month: `${mName} ${yearStr}`,
+                        basicSalary: basic,
+                        allowances: [],
+                        deductions: [
+                            { name: 'NSSF', amount: Math.round(nssf) },
+                            { name: 'SHIF', amount: Math.round(shif) },
+                            { name: 'Housing Levy', amount: Math.round(housingLevy) },
+                            { name: 'PAYE', amount: Math.round(paye) }
+                        ],
+                        netSalary: Math.round(net),
+                        status: 'paid',
+                        recordedBy: 'Kenyan Payroll Engine',
+                        paymentDate: new Date().toISOString()
+                    } as PayrollRecord));
+                }
+                return { staff: member, records: yearRecords };
+            });
+
+            if (items.length === 0) {
+                alert('No staff members available for P9 generation.');
+                return;
+            }
+
+            const dataUri = await generateBulkStaffP9Pdf(items, yearStr, institution, designerConfig);
+            setPdfPreviewModal({
+                url: dataUri,
+                title: `Bulk P9 Tax Deduction Certificates - ${yearStr} (${items.length} Staff)`
+            });
+        } catch (error: any) {
+            console.error(error);
+            alert('Failed to generate bulk P9 certificates: ' + (error?.message || error));
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
+    const handleGenerateEngineSingleP9 = async (staffId: string) => {
+        setIsGeneratingPdf(true);
+        try {
+            const member = staff.find(s => s.id === staffId);
+            if (!member) return;
+
+            const yearStr = selectedMonth.split(' ')[1] || new Date().getFullYear().toString();
+            let yearRecords = localRecords.filter(r => r.staffId === staffId && r.month.endsWith(yearStr));
+            if (yearRecords.length === 0) {
+                const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                const calc = activeStaffCalculations.find(c => c.staffId === member.id);
+                const basic = calc ? calc.basicSalary : getStaffBasicSalary(member);
+                const gross = basic > 0 ? basic : 50000;
+                const nssf = Math.min(gross, 9000) * 0.06 + Math.max(0, Math.min(gross, 108000) - 9000) * 0.06;
+                const shif = Math.max(300, gross * 0.0275);
+                const housingLevy = gross * 0.015;
+                const allowable = nssf + shif + housingLevy;
+                const taxable = Math.max(0, gross - allowable);
+                let grossPaye = 0, rem = taxable;
+                const b1 = Math.min(rem, 24000); grossPaye += b1 * 0.10; rem -= b1;
+                if (rem > 0) { const b = Math.min(rem, 8333); grossPaye += b * 0.25; rem -= b; }
+                if (rem > 0) { const b = Math.min(rem, 467667); grossPaye += b * 0.30; rem -= b; }
+                if (rem > 0) { const b = Math.min(rem, 300000); grossPaye += b * 0.325; rem -= b; }
+                if (rem > 0) grossPaye += rem * 0.35;
+                const paye = Math.max(0, grossPaye - (gross > 0 ? 2400 : 0));
+                const net = gross - allowable - paye;
+
+                yearRecords = months.map(mName => ({
+                    id: `p9_${member.id}_${mName}_${yearStr}`,
+                    institutionId: institution.id,
+                    staffId: member.id,
+                    staffName: member.name,
+                    month: `${mName} ${yearStr}`,
+                    basicSalary: basic,
+                    allowances: [],
+                    deductions: [
+                        { name: 'NSSF', amount: Math.round(nssf) },
+                        { name: 'SHIF', amount: Math.round(shif) },
+                        { name: 'Housing Levy', amount: Math.round(housingLevy) },
+                        { name: 'PAYE', amount: Math.round(paye) }
+                    ],
+                    netSalary: Math.round(net),
+                    status: 'paid',
+                    recordedBy: 'Kenyan Payroll Engine',
+                    paymentDate: new Date().toISOString()
+                } as PayrollRecord));
+            }
+
+            const dataUri = await generateStaffP9Pdf(member, yearRecords, yearStr, institution, designerConfig);
+            setPdfPreviewModal({
+                url: dataUri,
+                title: `P9 Tax Certificate - ${member.name} (${yearStr})`
+            });
+        } catch (error: any) {
+            console.error(error);
+            alert('Failed to generate P9 certificate: ' + (error?.message || error));
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
     const toggleRow = (staffId: string) => setExpandedStaffId(expandedStaffId === staffId ? null : staffId);
 
     return (
@@ -498,11 +627,20 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                         <button
                             onClick={handleGenerateBulkPayslipsPdf}
                             disabled={isGeneratingPdf || staff.length === 0}
-                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50"
+                            className="flex items-center justify-center gap-2 px-5 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50"
                             title="Generate All Payslips as a single multi-page PDF"
                         >
                             <DocumentTextIcon className="w-4 h-4" />
-                            <span>{isGeneratingPdf ? 'Generating...' : `Bulk Slips (${staff.length})`}</span>
+                            <span>Bulk Slips ({staff.length})</span>
+                        </button>
+                        <button
+                            onClick={handleGenerateEngineBulkP9}
+                            disabled={isGeneratingPdf || staff.length === 0}
+                            className="flex items-center justify-center gap-2 px-5 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-amber-500/20 transition-all active:scale-95 disabled:opacity-50"
+                            title="Generate Consolidated P9 Tax Certificates for All Staff"
+                        >
+                            <DocumentTextIcon className="w-4 h-4" />
+                            <span>Bulk P9 ({staff.length})</span>
                         </button>
                         <button
                             onClick={handleRunPayroll}
@@ -607,6 +745,13 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                                             className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-all"
                                                         >
                                                             <DocumentTextIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleGenerateEngineSingleP9(calc.staffId)} 
+                                                            title="Generate P9 Tax Certificate" 
+                                                            className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-all"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                                         </button>
                                                         <button onClick={() => toggleRow(calc.staffId)} title="Details" className={`p-1.5 hover:bg-slate-100 rounded-lg transition-all ${isExpanded ? 'rotate-180 text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}>
                                                             <ChevronDownIcon className="w-4 h-4" />

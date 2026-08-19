@@ -9135,6 +9135,277 @@ export const generateStaffP9Pdf = async (
 };
 
 /**
+ * Generates a consolidated multi-page P9 Tax Certificate PDF for all employees.
+ */
+export const generateBulkStaffP9Pdf = async (
+    items: Array<{ staff: User; records: PayrollRecord[] }>,
+    year: string,
+    institution: Institution,
+    letterheadConfig?: LetterheadConfig,
+    footerImageUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF('l', 'mm', 'a4'); // landscape
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    items.forEach((item, index) => {
+        if (index > 0) {
+            doc.addPage('a4', 'l');
+        }
+
+        const { staff, records } = item;
+        let yPos = setupPdfHeader(doc, headerImg);
+
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text("KENYA REVENUE AUTHORITY — P9 TAX CERTIFICATE", 14, yPos);
+        yPos += 7;
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Tax Year: ${year}`, 14, yPos);
+        doc.text(`Employer: ${institution.name}`, pageWidth / 2, yPos);
+        yPos += 8;
+
+        let m = staff?.metadata || {};
+        if (typeof m === 'string') {
+            try { m = JSON.parse(m); } catch (e) { m = {}; }
+        }
+        const kraPin = m.kraPin || (staff as any)?.kraPin || 'A000000000X';
+        const nationalId = m.nationalId || (staff as any)?.nationalId || staff.id.substring(0, 8);
+
+        // Staff Details Card
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(14, yPos, pageWidth - 28, 20, 2, 2, 'F');
+
+        let detailsY = yPos + 6;
+        doc.setFont('helvetica', 'bold');
+        doc.text("EMPLOYEE TAXPAYER DETAILS", 20, detailsY);
+        detailsY += 7;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Name: ${staff.name || 'N/A'}`, 20, detailsY);
+        doc.text(`KRA PIN: ${kraPin}`, pageWidth / 3, detailsY);
+        doc.text(`National ID: ${nationalId}`, (pageWidth / 3) * 1.8, detailsY);
+        doc.text(`Designation: ${staff.role || 'Staff'}`, (pageWidth / 3) * 2.4, detailsY);
+        yPos += 26;
+
+        const head = [[
+            'Month', 'Basic Pay', 'Allowances', 'Gross Pay', 
+            'NSSF', 'SHIF', 'Housing Levy', 
+            'Taxable Income', 'PAYE Charged', 'Relief', 'Net PAYE'
+        ]];
+
+        const body = months.map(mName => {
+            const rec = records.find((r: PayrollRecord) => r.month.startsWith(mName));
+            if (!rec) {
+                return [mName, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'];
+            }
+
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const gross = basic + allowances;
+
+            const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+            const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
+            const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
+            const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
+            const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
+
+            const allowableDeductions = nssf + shif + housingLevy;
+            const taxableIncome = Math.max(0, gross - allowableDeductions);
+            const personalRelief = gross > 0 ? 2400 : 0;
+            const grossPaye = paye + personalRelief;
+
+            return [
+                mName,
+                Math.round(basic).toLocaleString(),
+                Math.round(allowances).toLocaleString(),
+                Math.round(gross).toLocaleString(),
+                Math.round(nssf).toLocaleString(),
+                Math.round(shif).toLocaleString(),
+                Math.round(housingLevy).toLocaleString(),
+                Math.round(taxableIncome).toLocaleString(),
+                Math.round(grossPaye).toLocaleString(),
+                Math.round(personalRelief).toLocaleString(),
+                Math.round(paye).toLocaleString()
+            ];
+        });
+
+        let totBasic = 0, totAllowances = 0, totGross = 0, totNssf = 0, totShif = 0, totLevy = 0, totTaxable = 0, totGrossPaye = 0, totRelief = 0, totNetPaye = 0;
+        records.forEach((rec: PayrollRecord) => {
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const gross = basic + allowances;
+
+            const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+            const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
+            const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
+            const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
+            const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
+
+            const allowableDeductions = nssf + shif + housingLevy;
+            const taxable = Math.max(0, gross - allowableDeductions);
+            const relief = gross > 0 ? 2400 : 0;
+            const grossPaye = paye + relief;
+
+            totBasic += basic;
+            totAllowances += allowances;
+            totGross += gross;
+            totNssf += nssf;
+            totShif += shif;
+            totLevy += housingLevy;
+            totTaxable += taxable;
+            totGrossPaye += grossPaye;
+            totRelief += relief;
+            totNetPaye += paye;
+        });
+
+        body.push([
+            'TOTALS',
+            Math.round(totBasic).toLocaleString(),
+            Math.round(totAllowances).toLocaleString(),
+            Math.round(totGross).toLocaleString(),
+            Math.round(totNssf).toLocaleString(),
+            Math.round(totShif).toLocaleString(),
+            Math.round(totLevy).toLocaleString(),
+            Math.round(totTaxable).toLocaleString(),
+            Math.round(totGrossPaye).toLocaleString(),
+            Math.round(totRelief).toLocaleString(),
+            Math.round(totNetPaye).toLocaleString()
+        ]);
+
+        doc.autoTable({
+            startY: yPos,
+            head,
+            body,
+            theme: 'grid',
+            headStyles: { fillColor: [45, 55, 72] },
+            styles: { fontSize: 7.5 },
+            columnStyles: {
+                0: { fontStyle: 'bold' }
+            }
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+        doc.setFontSize(8);
+        doc.text("I certify that this table contains correct details of earnings and deductions relative to the Kenya Revenue Authority.", 14, yPos);
+        doc.text("Employer Signature & Stamp: ________________________", 14, yPos + 6);
+
+        setupPdfFooter(doc, footerImg, `${institution.name} — P9 Tax Certificate (${staff.name})`);
+    });
+
+    return doc.output('datauristring');
+};
+
+/**
+ * Downloads consolidated P9 annual summary CSV
+ */
+export const downloadBulkP9Csv = (
+    items: Array<{ staff: User; records: PayrollRecord[] }>,
+    year: string,
+    institutionName: string = 'Institution'
+) => {
+    const headers = [
+        'Tax Year',
+        'Staff Name',
+        'KRA PIN',
+        'National ID',
+        'Designation',
+        'Annual Basic Pay (KES)',
+        'Annual Allowances (KES)',
+        'Annual Gross Pay (KES)',
+        'Annual NSSF (KES)',
+        'Annual SHIF (KES)',
+        'Annual Housing Levy (KES)',
+        'Annual Taxable Income (KES)',
+        'Annual Gross Tax (KES)',
+        'Annual Personal Relief (KES)',
+        'Annual Net PAYE (KES)'
+    ];
+
+    const rows = items.map(({ staff, records }) => {
+        let m = staff?.metadata || {};
+        if (typeof m === 'string') {
+            try { m = JSON.parse(m); } catch (e) { m = {}; }
+        }
+        const kraPin = m.kraPin || (staff as any)?.kraPin || 'A000000000X';
+        const nationalId = m.nationalId || (staff as any)?.nationalId || staff.id.substring(0, 8);
+
+        let totBasic = 0, totAllowances = 0, totGross = 0, totNssf = 0, totShif = 0, totLevy = 0, totTaxable = 0, totGrossPaye = 0, totRelief = 0, totNetPaye = 0;
+        records.forEach(rec => {
+            const basic = rec.basicSalary || rec.basicPay || 0;
+            const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+            const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+            const gross = basic + allowances;
+            const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+            const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
+            const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
+            const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
+            const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
+
+            const allowable = nssf + shif + housingLevy;
+            const taxable = Math.max(0, gross - allowable);
+            const relief = gross > 0 ? 2400 : 0;
+            const grossPaye = paye + relief;
+
+            totBasic += basic;
+            totAllowances += allowances;
+            totGross += gross;
+            totNssf += nssf;
+            totShif += shif;
+            totLevy += housingLevy;
+            totTaxable += taxable;
+            totGrossPaye += grossPaye;
+            totRelief += relief;
+            totNetPaye += paye;
+        });
+
+        return [
+            year,
+            staff.name || 'Staff Member',
+            kraPin,
+            nationalId,
+            staff.role || 'Staff',
+            String(Math.round(totBasic)),
+            String(Math.round(totAllowances)),
+            String(Math.round(totGross)),
+            String(Math.round(totNssf)),
+            String(Math.round(totShif)),
+            String(Math.round(totLevy)),
+            String(Math.round(totTaxable)),
+            String(Math.round(totGrossPaye)),
+            String(Math.round(totRelief)),
+            String(Math.round(totNetPaye))
+        ];
+    });
+
+    const csvContent = [
+        headers.join(','),
+        ...rows.map(r => r.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${institutionName.replace(/\s+/g, '_')}_Bulk_P9_Tax_Summary_${year}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+};
+
+/**
  * Generates a monthly Statutory Deductions compliance report PDF.
  */
 export type StatutoryReportType = 'consolidated' | 'nssf' | 'shif' | 'housing_levy' | 'paye';
