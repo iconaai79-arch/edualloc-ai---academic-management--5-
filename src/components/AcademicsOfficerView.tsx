@@ -286,7 +286,6 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
         { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
         { id: 'lessons', label: 'Lessons & Allocations', icon: RectangleStackIcon },
-        { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
         { id: 'discipline', label: 'Discipline', icon: ShieldExclamationIcon },
         { id: 'tools', label: 'Tools', icon: WrenchIcon },
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
