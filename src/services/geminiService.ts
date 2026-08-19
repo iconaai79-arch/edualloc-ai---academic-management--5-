@@ -5,20 +5,22 @@ import type { User, Subject, AllocationRequest, Room, TimetableEntry, TimetableS
 import { apiService } from './apiService';
 
 
-const PRO_LOGICAL_CORE = 'gemini-1.5-pro';
-const STANDARD_LOGICAL_CORE = 'gemini-1.5-flash';
+const PRO_LOGICAL_CORE = 'gemini-2.0-flash';
+const STANDARD_LOGICAL_CORE = 'gemini-2.0-flash';
 
 /**
- * High-Authority Sanitizer: Ensures no technical version numbers (1.5, 1.0, etc.)
- * ever leak into the UI. Rebrands all engine-specific errors to Gemini 3.0 Pro.
+ * High-Authority Sanitizer: Ensures no technical version numbers
+ * ever leak into the UI. Rebrands all engine-specific errors to Gemini.
  */
 const sanitizeAiError = (error: any): Error => {
     let msg = error.message || String(error);
 
     // Scrub internal versioning and paths from technical chatter
-    msg = msg.replace(/gemini-1\.5-pro/gi, 'Gemini 3.0 Pro');
-    msg = msg.replace(/gemini-1\.5-flash/gi, 'Gemini 3.0 Flash');
-    msg = msg.replace(/gemini-1\.0-pro/gi, 'Gemini 3.0 Pro');
+    msg = msg.replace(/gemini-2\.0-flash/gi, 'Gemini Flash');
+    msg = msg.replace(/gemini-2\.5-flash/gi, 'Gemini Flash');
+    msg = msg.replace(/gemini-1\.5-pro/gi, 'Gemini Pro');
+    msg = msg.replace(/gemini-1\.5-flash/gi, 'Gemini Flash');
+    msg = msg.replace(/gemini-1\.0-pro/gi, 'Gemini Pro');
     msg = msg.replace(/models\//gi, '');
     msg = msg.replace(/v1beta/gi, 'Core Engine');
 

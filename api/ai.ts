@@ -309,11 +309,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
-            // Fallback to Gemini 1.5 Flash Vision
+            // Fallback to Gemini Latest Vision (gemini-2.0-flash)
             if (geminiApiKey) {
                 try {
                     const genAI = new GoogleGenerativeAI(geminiApiKey);
-                    const geminiVisionModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+                    const geminiVisionModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
                     const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
                     const result = await geminiVisionModel.generateContent([
                         visionPrompt,
@@ -380,8 +380,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (primaryProvider === 'gemini' && geminiApiKey) {
             try {
                 const genAI = new GoogleGenerativeAI(geminiApiKey);
-                const primaryModel = requestedModel === 'gemini-pro' ? 'gemini-1.5-flash' : (requestedModel || 'gemini-1.5-flash');
-                const fallbackModels = [primaryModel, 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'].filter((v, i, a) => a.indexOf(v) === i);
+                const primaryModel = requestedModel === 'gemini-pro' ? 'gemini-2.0-flash' : (requestedModel || 'gemini-2.0-flash');
+                const fallbackModels = [primaryModel, 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash', 'gemini-1.5-pro'].filter((v, i, a) => a.indexOf(v) === i);
 
                 for (const targetModel of fallbackModels) {
                     try {

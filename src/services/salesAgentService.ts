@@ -290,7 +290,7 @@ export async function querySalesAgent(
                 message: userMessage,
                 prompt: userMessage,
                 history: formattedHistory,
-                model: 'gemini-1.5-flash',
+                model: 'gemini-2.0-flash',
                 temperature: 0.7,
                 maxOutputTokens: 1024
             })
@@ -338,7 +338,7 @@ export async function querySalesAgent(
         if (envGeminiKey) {
             try {
                 const genAI = new GoogleGenerativeAI(envGeminiKey);
-                const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+                const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
                 const chat = model.startChat({
                     history: formattedHistory
                 });
