@@ -560,7 +560,7 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                 </div>
             </footer>
 
-            {/* AI Admissions & Support Assistant */}
+            {/* AI Admissions & Campus Support Assistant */}
             {school && (
                 <AiSalesAgentWidget
                     institution={school}
@@ -571,8 +571,8 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                         duration: (c as any).duration || 'Termly',
                         description: c.code ? `Course Code: ${c.code}` : undefined
                     }))}
-                    agentName={`${school.name} Admissions AI`}
-                    welcomeMessage={`Welcome to ${school.name}! 👋 I can help you with admissions, course requirements, fee structures, or campus inquiries. How may I assist you?`}
+                    agentName={`${school.name} Admissions & Helpdesk`}
+                    welcomeMessage={`Welcome to ${school.name}! 👋 I am your campus AI guide. I can help you with student enrollment, course curricula, fee schedules, term dates, and institutional textbook & uniform issuance guidelines. How may I assist you today?`}
                     contactPhone={school.phoneNumber}
                     contactEmail={school.email}
                     onBookService={() => {
