@@ -149,6 +149,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         activeSemester,
         courseSizes = new Map(),
         examTimetableSettings,
+        timetableSettings,
         buildings = [],
         onExamTimetableGenerated,
         getSubjectById,
@@ -171,6 +172,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         onAccessAlumnaPortal = () => {}, 
         schoolRegistry = [], 
         onTimetableGenerated = async () => {},
+        onAssociateSubjectToCourseLevel,
+        onDisassociateSubjectFromCourseLevel,
         academicLevels = [],
         allocations = []
     } = props;
