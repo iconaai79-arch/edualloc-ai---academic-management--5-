@@ -81,30 +81,45 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         }
     };
 
+    const norm = (s: any) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+
     // Robust student / member placement resolver
     const getMemberDetails = (user?: User | null) => {
         if (!user) return { admissionNumber: 'No ID', gradeLevel: '', stream: '', classDisplay: '' };
         
+        const userNorm = norm(user.name);
         const en = enrollments.find(e => 
             (e.userId && e.userId === user.id) || 
             (e.user_id && e.user_id === user.id) || 
             (e.student_id && e.student_id === user.id) || 
             (e.id && e.id === user.id) ||
+            (userNorm && norm(e.fullName || e.name || e.metadata?.fullName || e.metadata?.studentName || '') === userNorm) ||
             (e.admissionNumber && user.admissionNumber && String(e.admissionNumber).trim().toLowerCase() === String(user.admissionNumber).trim().toLowerCase())
         );
 
         const userCourse = (courses || []).find(c => c.id === user.courseId || c.id === (user as any).course_id || c.id === en?.courseId || c.id === en?.course_id);
         const userLevel = userCourse?.levels?.find((l: any) => l.id === user.courseLevelId || l.id === (user as any).course_level_id || l.id === en?.courseLevelId || l.id === en?.course_level_id);
 
-        const adm = en?.admissionNumber || 
-                    en?.admission_number || 
-                    en?.admNo || 
-                    user.admissionNumber || 
-                    (user as any).admission_number || 
-                    (user as any).admNumber || 
-                    user.staffId || 
-                    (user as any).studentId || 
-                    'No ID';
+        let adm = en?.admissionNumber || 
+                  en?.admission_number || 
+                  en?.admNo || 
+                  en?.metadata?.admissionNumber ||
+                  en?.metadata?.admission_number ||
+                  en?.metadata?.admNo ||
+                  en?.metadata?.studentAdmNo ||
+                  user.admissionNumber || 
+                  (user as any).admission_number || 
+                  (user as any).admNumber || 
+                  (user as any).adm_number || 
+                  (user as any).admNo || 
+                  user.staffId || 
+                  (user as any).studentId ||
+                  user.metadata?.admissionNumber ||
+                  user.metadata?.admNo;
+
+        if (!adm || adm === 'No ID' || adm === 'No ADM' || !String(adm).trim()) {
+            adm = `ADM-${(user.id || '').replace(/^usr_|^enr_/, '').slice(-4).toUpperCase()}`;
+        }
 
         const gradeLevel = (
             en?.metadata?.gradeLevel || 

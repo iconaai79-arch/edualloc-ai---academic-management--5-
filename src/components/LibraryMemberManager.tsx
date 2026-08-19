@@ -79,29 +79,61 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
         }
     };
 
+    // Helper to normalize strings for comparison
+    const norm = (s: any) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+
     // Resolved list of all student users mapped with enrollment & course/stream metadata
     const studentUserList = useMemo(() => {
         const studentUsers = users.filter(u => u.role === 'student');
+        const matchedEnrollmentIds = new Set<string>();
 
-        return studentUsers.map(user => {
-            const enrollment = enrollments.find(e => 
-                (e.userId && e.userId === user.id) || 
-                (e.user_id && e.user_id === user.id) || 
-                (e.student_id && e.student_id === user.id)
-            );
-            const userCourse = courses.find(c => c.id === user.courseId || c.id === (user as any).course_id);
-            const userLevel = userCourse?.levels?.find((l: any) => l.id === user.courseLevelId || l.id === (user as any).course_level_id);
+        const mappedFromUsers = studentUsers.map((user, idx) => {
+            const userNormName = norm(user.name);
 
-            const adm = enrollment?.admissionNumber || 
-                        enrollment?.admission_number || 
-                        enrollment?.admNo || 
-                        user.admissionNumber || 
-                        (user as any).admission_number || 
-                        (user as any).admNumber || 
-                        (user as any).adm_number || 
-                        user.staffId || 
-                        (user as any).studentId || 
-                        'No ADM';
+            // Match enrollment by ID, then name, then admission number, then contact
+            const enrollment = enrollments.find(e => {
+                const eNormName = norm(e.fullName || e.name || e.metadata?.fullName || e.metadata?.studentName || '');
+                const idMatch = (e.userId && e.userId === user.id) || 
+                                (e.user_id && e.user_id === user.id) || 
+                                (e.student_id && e.student_id === user.id) ||
+                                (e.id && e.id === user.id);
+                const nameMatch = userNormName && eNormName && (userNormName === eNormName || userNormName.includes(eNormName) || eNormName.includes(userNormName));
+                const admMatch = user.admissionNumber && (e.admissionNumber === user.admissionNumber || e.admNo === user.admissionNumber);
+                const phoneMatch = user.phoneNumber && (e.phoneNumber === user.phoneNumber || e.metadata?.parentPhone === user.phoneNumber);
+
+                return idMatch || nameMatch || admMatch || phoneMatch;
+            });
+
+            if (enrollment) {
+                matchedEnrollmentIds.add(enrollment.id);
+            }
+
+            const userCourse = courses.find(c => c.id === user.courseId || c.id === (user as any).course_id || c.id === enrollment?.courseId);
+            const userLevel = userCourse?.levels?.find((l: any) => l.id === user.courseLevelId || l.id === (user as any).course_level_id || l.id === enrollment?.courseLevelId);
+
+            // Extract Admission Number with all possible fallbacks
+            let adm = enrollment?.admissionNumber || 
+                      enrollment?.admission_number || 
+                      enrollment?.admNo || 
+                      enrollment?.metadata?.admissionNumber ||
+                      enrollment?.metadata?.admission_number ||
+                      enrollment?.metadata?.admNo ||
+                      enrollment?.metadata?.studentAdmNo ||
+                      user.admissionNumber || 
+                      (user as any).admission_number || 
+                      (user as any).admNumber || 
+                      (user as any).adm_number || 
+                      (user as any).admNo || 
+                      user.staffId || 
+                      (user as any).studentId ||
+                      user.metadata?.admissionNumber ||
+                      user.metadata?.admNo ||
+                      user.metadata?.studentId;
+
+            if (!adm || adm === 'No ADM' || adm === 'No ID' || !String(adm).trim()) {
+                const rawId = (user.id || '').replace(/^usr_|^enr_/, '');
+                adm = rawId.length >= 4 ? `ADM-${rawId.slice(-4).toUpperCase()}` : `ADM-${String(idx + 1).padStart(4, '0')}`;
+            }
 
             const gradeLevel = (
                 enrollment?.metadata?.gradeLevel || 
@@ -115,7 +147,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 user.metadata?.gradeLevel || 
                 userCourse?.name || 
                 ''
-            ).trim();
+            ).toString().trim();
 
             const stream = (
                 enrollment?.metadata?.stream || 
@@ -127,18 +159,50 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 user.metadata?.stream || 
                 userLevel?.name || 
                 ''
-            ).trim();
+            ).toString().trim();
 
             return {
                 ...user,
                 role: 'student' as const,
-                admissionNumber: adm,
-                admission_number: adm,
+                admissionNumber: String(adm),
+                admission_number: String(adm),
                 gradeLevel,
                 stream
             };
         });
-    }, [users, enrollments, courses]);
+
+        // Also incorporate any students present in enrollments who may not be in users table
+        const extraFromEnrollments = enrollments
+            .filter(e => !matchedEnrollmentIds.has(e.id))
+            .map((e) => {
+                const name = e.fullName || e.name || e.metadata?.fullName || e.metadata?.studentName || `Student ${e.admissionNumber || e.id.slice(-4)}`;
+                let adm = e.admissionNumber || 
+                          e.admission_number || 
+                          e.admNo || 
+                          e.metadata?.admissionNumber || 
+                          e.metadata?.admNo || 
+                          e.metadata?.studentAdmNo || 
+                          `ADM-${(e.id || '').replace(/^enr_/, '').slice(-4).toUpperCase()}`;
+
+                const gradeLevel = (e.metadata?.gradeLevel || e.gradeLevel || e.classLevel || (e as any).studentClass || '').toString().trim();
+                const stream = (e.metadata?.stream || e.stream || e.streamName || '').toString().trim();
+
+                return {
+                    id: e.userId || e.user_id || e.student_id || e.id,
+                    name,
+                    email: e.email || `student_${e.id}@eduai.local`,
+                    role: 'student' as const,
+                    institutionId: institutionId,
+                    createdAt: e.createdAt || new Date().toISOString(),
+                    admissionNumber: String(adm),
+                    admission_number: String(adm),
+                    gradeLevel,
+                    stream
+                } as User & { admissionNumber: string; gradeLevel: string; stream: string };
+            });
+
+        return [...mappedFromUsers, ...extraFromEnrollments];
+    }, [users, enrollments, courses, institutionId]);
 
     const classOptions = useMemo(() => {
         const rawGrades: string[] = [];

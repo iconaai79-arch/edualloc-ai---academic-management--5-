@@ -554,14 +554,34 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         }
     };
 
+    const norm = (s: any) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+
     const getUserObject = (id: string) => {
         let u = users.find(user => user.id === id || user.staffId === id || user.admissionNumber === id || (user as any).admission_number === id);
         if (!u) {
-            const en = enrollments.find(e => e.id === id || e.userId === id || e.user_id === id || e.student_id === id || e.admissionNumber === id);
+            const en = enrollments.find(e => 
+                e.id === id || 
+                e.userId === id || 
+                e.user_id === id || 
+                e.student_id === id || 
+                e.admissionNumber === id ||
+                (e.name && norm(e.name) === norm(id)) ||
+                (e.fullName && norm(e.fullName) === norm(id))
+            );
             if (en) {
-                u = users.find(user => user.id === en.userId || user.id === en.user_id || user.id === en.student_id);
-                if (!u && en.name) {
-                    return { name: en.name, admissionNumber: en.admissionNumber || en.admNo || '', role: 'student' } as any;
+                u = users.find(user => 
+                    user.id === en.userId || 
+                    user.id === en.user_id || 
+                    user.id === en.student_id ||
+                    norm(user.name) === norm(en.fullName || en.name || '')
+                );
+                if (!u) {
+                    return {
+                        id: en.userId || en.id,
+                        name: en.fullName || en.name || 'Student Member',
+                        admissionNumber: en.admissionNumber || en.admission_number || en.admNo || `ADM-${(en.id || '').replace(/^enr_/, '').slice(-4).toUpperCase()}`,
+                        role: 'student'
+                    } as any;
                 }
             }
         }
@@ -576,9 +596,18 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const getUserStaffId = (id: string) => {
         const u = getUserObject(id);
         if (!u) return 'N/A';
-        const enrollment = enrollments.find(e => e.userId === u.id || e.user_id === u.id || e.student_id === u.id || e.id === id);
-        const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo) : '';
-        const idCode = admissionNo || u.admissionNumber || (u as any).admission_number || u.staffId || (u as any).studentId || (u as any).admNo || 'N/A';
+        const enrollment = enrollments.find(e => 
+            e.userId === u.id || 
+            e.user_id === u.id || 
+            e.student_id === u.id || 
+            e.id === id ||
+            norm(e.fullName || e.name) === norm(u.name)
+        );
+        const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo || enrollment.metadata?.admissionNumber) : '';
+        let idCode = admissionNo || u.admissionNumber || (u as any).admission_number || u.staffId || (u as any).studentId || (u as any).admNo;
+        if (!idCode || idCode === 'N/A' || idCode === 'No ADM') {
+            idCode = `ADM-${(u.id || '').replace(/^usr_|^enr_/, '').slice(-4).toUpperCase()}`;
+        }
         const classStr = getStudentClassString(u as User, enrollment);
         return idCode + (classStr ? ` • ${classStr}` : '');
     };
