@@ -291,16 +291,10 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const horizontalTabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
-        { id: 'tools', label: 'Tools', icon: WrenchIcon },
-        { id: 'exam_units', label: 'Exam Units', icon: BookOpenIcon },
-        { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CommandLineIcon },
-        { id: 'timetable', label: 'Timetable', icon: CalendarDaysIcon },
-        { id: 'attendance', label: 'Attendance', icon: CheckCircleIcon },
         { id: 'students', label: 'Students Registry', icon: UserPlusIcon },
         { id: 'teachers', label: 'Teachers Registry', icon: UserGroupIcon },
         { id: 'lessons', label: 'Lessons & Allocations', icon: RectangleStackIcon },
         { id: 'reports', label: 'Intelligence Hub', icon: ChartBarIcon },
-        { id: 'discipline', label: 'Discipline', icon: ShieldExclamationIcon },
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
     ] as const;
 
