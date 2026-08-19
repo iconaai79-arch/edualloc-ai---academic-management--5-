@@ -453,10 +453,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // --- If both providers failed or keys missing ---
+        let userFriendlyMsg = "Unable to process AI request. Please check that a valid GEMINI_API_KEY or OPENAI_API_KEY is configured.";
+        if (lastErrorMsg.includes('CONSUMER_SUSPENDED') || lastErrorMsg.includes('suspended') || lastErrorMsg.includes('Permission denied: Consumer')) {
+            userFriendlyMsg = "Google Gemini API Key has been suspended by Google Cloud. Please create a new free API key at https://aistudio.google.com/app/apikey and update GEMINI_API_KEY in your settings / environment variables.";
+        }
+
         return res.status(500).json({
             error: "AI_PROCESSING_FAILED",
             details: lastErrorMsg || "All available AI engines encountered a problem.",
-            message: "Unable to process AI request. Please check that a valid GEMINI_API_KEY or OPENAI_API_KEY is configured in Settings.",
+            message: userFriendlyMsg,
             providersChecked: { gemini: Boolean(geminiApiKey), openai: Boolean(openAiApiKey) }
         });
 
