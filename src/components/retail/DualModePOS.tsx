@@ -300,8 +300,40 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
 
     const fetchCustomers = async () => {
         try {
-            const data = await apiService.fetchModuleRecords<RetailCustomer>('retail_customers', institutionId);
-            setAllCustomers(data || []);
+            const [retailData, usersData] = await Promise.all([
+                apiService.fetchModuleRecords<RetailCustomer>('retail_customers', institutionId),
+                apiService.fetchUsers ? apiService.fetchUsers(institutionId) : Promise.resolve([])
+            ]);
+
+            const customersFromUsers: RetailCustomer[] = (usersData || [])
+                .filter((u: any) => {
+                    const r = (u.role || '').toLowerCase();
+                    const roles = (Array.isArray(u.roles) ? u.roles : []).map((x: any) => String(x).toLowerCase());
+                    return r === 'customer' || r === 'lead' || roles.includes('customer') || roles.includes('lead');
+                })
+                .map((u: any) => ({
+                    id: u.id,
+                    institutionId: u.institutionId || institutionId,
+                    name: u.name || u.fullName || u.full_name || u.customerName || (u.email ? u.email.split('@')[0] : 'Customer'),
+                    phoneNumber: u.phoneNumber || u.phone_number || u.phone || '',
+                    email: u.email || '',
+                    totalSpent: u.totalSpent || 0,
+                    loyaltyPoints: u.loyaltyPoints || 0,
+                    createdAt: u.createdAt || new Date().toISOString()
+                }));
+
+            const combinedMap = new Map<string, RetailCustomer>();
+            (retailData || []).forEach(c => {
+                const cleanName = c.name || (c as any).fullName || (c as any).full_name || (c as any).customerName || 'Customer';
+                const key = c.id || c.phoneNumber || cleanName;
+                if (key) combinedMap.set(key, { ...c, name: cleanName });
+            });
+            customersFromUsers.forEach(c => {
+                const key = c.id || c.phoneNumber || c.name;
+                if (key && !combinedMap.has(key)) combinedMap.set(key, c);
+            });
+
+            setAllCustomers(Array.from(combinedMap.values()));
         } catch (err) {
             console.error("Fetch customers error:", err);
         }
@@ -1551,29 +1583,35 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                     {customerSearch && (
                                                         <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 max-h-48 overflow-y-auto z-50 p-2 space-y-1">
                                                             {allCustomers
-                                                                .filter(c =>
-                                                                    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-                                                                    (c.phoneNumber && c.phoneNumber.includes(customerSearch))
-                                                                )
-                                                                .map(c => (
-                                                                    <button
-                                                                        key={c.id}
-                                                                        onClick={() => {
-                                                                            setSelectedCustomer(c);
-                                                                            setCustomerInfo({ name: c.name, phone: c.phoneNumber || '', email: c.email || '' });
-                                                                            setCustomerSearch('');
-                                                                        }}
-                                                                        className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors flex justify-between items-center"
-                                                                    >
-                                                                        <div>
-                                                                            <p className="text-xs font-black uppercase text-slate-900 dark:text-white">{c.name}</p>
-                                                                            <p className="text-[10px] text-slate-400 font-bold">{c.phoneNumber || 'No Phone'}</p>
-                                                                        </div>
-                                                                        <div className="text-right">
-                                                                            <p className="text-[10px] font-black text-indigo-600">{c.loyaltyPoints} PTS</p>
-                                                                        </div>
-                                                                    </button>
-                                                                ))
+                                                                .filter(c => {
+                                                                    const cName = (c.name || (c as any).fullName || (c as any).full_name || (c as any).customerName || '').toLowerCase();
+                                                                    const cPhone = (c.phoneNumber || (c as any).phone_number || (c as any).phone || '');
+                                                                    const q = customerSearch.toLowerCase();
+                                                                    return cName.includes(q) || cPhone.includes(q);
+                                                                })
+                                                                .map(c => {
+                                                                    const resolvedName = c.name || (c as any).fullName || (c as any).full_name || (c as any).customerName || 'Customer';
+                                                                    const resolvedPhone = c.phoneNumber || (c as any).phone_number || (c as any).phone || '';
+                                                                     return (
+                                                                         <button
+                                                                             key={c.id}
+                                                                             onClick={() => {
+                                                                                 setSelectedCustomer(c);
+                                                                                 setCustomerInfo({ name: resolvedName, phone: resolvedPhone, email: c.email || '' });
+                                                                                 setCustomerSearch('');
+                                                                             }}
+                                                                             className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors flex justify-between items-center"
+                                                                         >
+                                                                             <div>
+                                                                                 <p className="text-xs font-black uppercase text-slate-900 dark:text-white">{resolvedName}</p>
+                                                                                 <p className="text-[10px] text-slate-400 font-bold">{resolvedPhone || 'No Phone'}</p>
+                                                                             </div>
+                                                                             <div className="text-right">
+                                                                                 <p className="text-[10px] font-black text-indigo-600">{c.loyaltyPoints || 0} PTS</p>
+                                                                             </div>
+                                                                         </button>
+                                                                     );
+                                                                 })
                                                             }
                                                             <button
                                                                 onClick={() => setCustomerSearch('')}

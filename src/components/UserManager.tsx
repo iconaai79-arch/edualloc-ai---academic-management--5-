@@ -1012,7 +1012,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
     const resetForm = () => {
-        const defaultRoleVal = defaultRole || (isDS ? 'driving_instructor' : (isCoop ? 'cooperative_manager' : (isAutoMarket ? 'sales' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher')))));
+        const defaultRoleVal = activeTab === 'customer' 
+            ? 'customer' 
+            : (defaultRole || (isDS ? 'driving_instructor' : (isCoop ? 'cooperative_manager' : (isAutoMarket ? 'sales' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher'))))));
         setName(''); setEmail(''); setPhone(''); setStaffId('');
         setGender('Male'); setRole(defaultRoleVal as Role); setRoles([defaultRoleVal as Role]); setDepartmentId('');
         setCourseId(''); setCourseLevelId(''); setDriverType('staff');
@@ -1076,37 +1078,44 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                 }
 
                 const instName = institutionMap.get(u.institutionId) || '';
+                const nameVal = (u.name || (u as any).fullName || (u as any).full_name || (u as any).customerName || (u as any).customer_name || '').toLowerCase();
+                const roleVal = (u.role || '').toLowerCase();
+                const phoneVal = (u.phoneNumber || (u as any).phone_number || (u as any).phone || '').toLowerCase();
 
                 return (
-                    (u.name || '').toLowerCase().includes(q) ||
+                    nameVal.includes(q) ||
                     (u.email || '').toLowerCase().includes(q) ||
-                    (u.phoneNumber || '').toLowerCase().includes(q) ||
-                    ((u as any).phone || '').toLowerCase().includes(q) ||
+                    phoneVal.includes(q) ||
                     (u.staffId || '').toLowerCase().includes(q) ||
-                    (u.role || '').toLowerCase().includes(q) ||
+                    roleVal.includes(q) ||
                     instName.toLowerCase().includes(q)
                 );
             });
         } else {
             list = (users || []).filter(u => {
                 if (!u || isSuperAdminUser(u)) return false;
+                const roleVal = (u.role || '').toLowerCase();
+                const rolesArr = (Array.isArray(u.roles) ? u.roles : []).map(r => String(r).toLowerCase());
+
                 if (activeTab === 'staff') {
-                    const baseFilter = u.role !== 'student' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead' && u.role !== 'visitor';
+                    const isCust = roleVal === 'customer' || roleVal === 'lead' || rolesArr.includes('customer') || rolesArr.includes('lead');
+                    const isStud = roleVal === 'student' || roleVal === 'member' || roleVal === 'church_member';
+                    const baseFilter = !isCust && !isStud && roleVal !== 'parent' && roleVal !== 'visitor';
                     if (targetIsPm && !isSuperAdmin) {
                         const pmStaffRoles = ['property_admin', 'admin', 'finance', 'finance_officer', 'security', 'reception', 'caretaker', 'driver'];
                         const instId = currentInstitution?.id || currentUser?.institutionId;
-                        return pmStaffRoles.includes(u.role)
+                        return pmStaffRoles.includes(roleVal)
                             && (!instId || u.institutionId === instId);
                     }
                     return baseFilter;
                 }
                 if (activeTab === 'customer') {
-                    return u.role === 'customer' || u.role === 'lead';
+                    return roleVal === 'customer' || roleVal === 'lead' || rolesArr.includes('customer') || rolesArr.includes('lead');
                 }
                 if (activeTab === 'visitors') {
-                    return u.role === 'visitor';
+                    return roleVal === 'visitor';
                 }
-                return u.role === 'student' || u.role === 'member' || u.role === 'church_member';
+                return roleVal === 'student' || roleVal === 'member' || roleVal === 'church_member';
             });
 
             if (isSuperAdmin && institutionFilter !== 'all') {
@@ -1227,13 +1236,20 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             }
         }
 
+        const trimmedName = name.trim();
         const userData: any = {
-            name,
+            name: trimmedName,
+            full_name: trimmedName,
+            fullName: trimmedName,
+            customer_name: trimmedName,
+            customerName: trimmedName,
             email: finalEmail,
-            phoneNumber: phone,
-            staffId,
+            phoneNumber: phone.trim(),
+            phone_number: phone.trim(),
+            phone: phone.trim(),
+            staffId: staffId.trim(),
             gender,
-            role: activeTab === 'staff' ? roles[0] : (activeTab === 'customer' ? roles[0] || 'customer' : 'student'),
+            role: activeTab === 'staff' ? roles[0] : (activeTab === 'customer' ? (roles[0] || 'customer') : 'student'),
             roles: activeTab === 'staff' ? roles : (activeTab === 'customer' ? (roles.length > 0 ? roles : ['customer']) : ['student']),
             institutionId: finalInstitutionId,
             countyId: finalCountyId,
@@ -1741,7 +1757,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             {filteredUsers.map(u => (
                                 <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                                     <td className="px-6 py-4">
-                                        <div className="text-sm font-medium text-slate-900 dark:text-white">{u.name}</div>
+                                        <div className="text-sm font-medium text-slate-900 dark:text-white">
+                                            {u.name || (u as any).fullName || (u as any).full_name || (u as any).customerName || (u as any).customer_name || (u.email ? u.email.split('@')[0] : 'Unnamed User')}
+                                        </div>
                                         <div className="text-xs text-slate-500 dark:text-slate-400">{u.email}</div>
                                         {u.staffId && <div className="text-[10px] font-mono text-slate-400">ID: {u.staffId}</div>}
                                     </td>
