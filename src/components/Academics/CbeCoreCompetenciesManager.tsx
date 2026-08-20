@@ -10,6 +10,8 @@ import {
     Zap, Smile, Compass, Check
 } from 'lucide-react';
 
+import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
+
 export interface CbeCoreCompetenciesManagerProps {
     currentInstitution?: Institution | null;
     users?: User[]; // Contains students & teachers
@@ -49,24 +51,24 @@ export const CBE_CORE_COMPETENCIES = [
         description: 'Demonstrates national pride, respects diversity, obeys rules, and actively participates in community service.'
     },
     {
+        id: 'comp_learn',
+        name: 'Learning to Learn',
+        icon: '📚',
+        color: 'from-cyan-500 to-blue-600',
+        description: 'Reflects on personal learning progress, manages study time, and seeks help proactively.'
+    },
+    {
         id: 'comp_digi',
         name: 'Digital Literacy',
         icon: '💻',
-        color: 'from-cyan-500 to-blue-600',
-        description: 'Navigates digital learning devices safely, searches for educational content, and creates simple media.'
-    },
-    {
-        id: 'comp_lear',
-        name: 'Learning to Learn',
-        icon: '📚',
-        color: 'from-pink-500 to-rose-600',
-        description: 'Shows curiosity, sets personal learning goals, reflects on feedback, and pursues independent study.'
+        color: 'from-sky-500 to-indigo-600',
+        description: 'Uses digital devices safely, navigates educational apps, and practices responsible online citizenship.'
     },
     {
         id: 'comp_self',
-        name: 'Self-Efficacy & Confidence',
-        icon: '👤',
-        color: 'from-emerald-600 to-green-700',
+        name: 'Self-Efficacy',
+        icon: '🌟',
+        color: 'from-rose-500 to-pink-600',
         description: 'Believes in personal capabilities, shows resilience facing setbacks, and takes initiative confidently.'
     }
 ];
@@ -92,8 +94,84 @@ export const CbeCoreCompetenciesManager: React.FC<CbeCoreCompetenciesManagerProp
 }) => {
     const instId = currentInstitution?.id || 'default_inst';
 
+    // Hydrated real students list from database
+    const [fetchedStudents, setFetchedStudents] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            Promise.all([
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
+            ]).then(([enrRecords, stRecords, userRecords]) => {
+                const userById = new Map<string, any>();
+                [...(stRecords || []), ...(userRecords || []), ...(users || [])].forEach(u => {
+                    if (u?.id) userById.set(u.id, u);
+                    if (u?.userId) userById.set(u.userId, u);
+                });
+
+                const list: any[] = [];
+                const seenIds = new Set<string>();
+
+                (enrRecords || []).forEach((enr: any) => {
+                    if (!enr) return;
+                    const linkedUser = (enr.userId ? userById.get(enr.userId) : null) || (enr.user_id ? userById.get(enr.user_id) : null);
+                    const resolvedName =
+                        (linkedUser?.name && !linkedUser.name.toLowerCase().startsWith('student ') ? linkedUser.name : null) ||
+                        enr.metadata?.studentName ||
+                        enr.metadata?.name ||
+                        enr.metadata?.fullName ||
+                        linkedUser?.name ||
+                        enr.name ||
+                        '';
+                    const resolvedAdm = resolveRealStudentAdmNo(enr, undefined, [...(stRecords || []), ...(userRecords || []), ...(users || [])]) ||
+                        resolveRealStudentAdmNo(linkedUser, undefined);
+                    const resolvedClass =
+                        enr.metadata?.gradeLevel || enr.metadata?.studentClass || enr.metadata?.class ||
+                        linkedUser?.studentClass || linkedUser?.classLevel || linkedUser?.grade ||
+                        enr.studentClass || enr.gradeLevel || enr.grade || '';
+
+                    const idKey = enr.userId || enr.id;
+                    if (idKey && !seenIds.has(idKey)) {
+                        seenIds.add(idKey);
+                        list.push({
+                            ...enr,
+                            id: idKey,
+                            name: resolvedName,
+                            admissionNumber: resolvedAdm !== 'N/A' ? resolvedAdm : enr.admissionNumber,
+                            studentClass: resolvedClass,
+                            role: 'student'
+                        });
+                    }
+                });
+
+                // Also include user records with role=student
+                [...(stRecords || []), ...(userRecords || []), ...(users || [])].forEach(u => {
+                    if (u && u.role === 'student') {
+                        const idKey = u.id;
+                        if (idKey && !seenIds.has(idKey)) {
+                            seenIds.add(idKey);
+                            const adm = resolveRealStudentAdmNo(u, undefined, enrRecords);
+                            list.push({
+                                ...u,
+                                admissionNumber: adm !== 'N/A' ? adm : u.admissionNumber
+                            });
+                        }
+                    }
+                });
+
+                if (list.length > 0) {
+                    setFetchedStudents(list);
+                }
+            }).catch(() => { });
+        }
+    }, [currentInstitution, users]);
+
     // Extract all student records
-    const allStudents = useMemo(() => (users || []).filter(u => u && u.role === 'student'), [users]);
+    const allStudents = useMemo(() => {
+        if (fetchedStudents.length > 0) return fetchedStudents;
+        return (users || []).filter(u => u && u.role === 'student');
+    }, [users, fetchedStudents]);
 
     // Extract available classes
     const classList = useMemo(() => {
@@ -104,7 +182,10 @@ export const CbeCoreCompetenciesManager: React.FC<CbeCoreCompetenciesManagerProp
             });
         });
         allStudents.forEach(s => {
-            if (s.studentClass) set.add(s.studentClass);
+            const cl = s.studentClass || (s as any).classLevel || (s as any).class_name || (s as any).className || (s as any).class || s.metadata?.studentClass;
+            if (cl && typeof cl === 'string' && !cl.startsWith('lvl_') && !cl.startsWith('c_')) {
+                set.add(cl.trim());
+            }
         });
         if (set.size === 0) {
             set.add('Grade 1 Alpha');
@@ -123,13 +204,16 @@ export const CbeCoreCompetenciesManager: React.FC<CbeCoreCompetenciesManagerProp
 
     // Filtered Students for selected class
     const classStudents = useMemo(() => {
-        return allStudents.filter(s => {
-            const matchesClass = !selectedClass || s.studentClass === selectedClass || selectedClass.includes(s.studentClass || '');
+        return allStudents.filter((s, idx) => {
+            const stClass = (s.studentClass || (s as any).classLevel || (s as any).class_name || (s as any).className || (s as any).class || s.metadata?.studentClass || '').toLowerCase().trim();
+            const selClean = (selectedClass || '').toLowerCase().trim();
+            const matchesClass = !selClean || selClean === 'all' || stClass.includes(selClean) || selClean.includes(stClass) || allStudents.length <= 10;
             const q = searchQuery.toLowerCase();
-            const matchesQuery = !q || s.name.toLowerCase().includes(q) || (s.admissionNumber || '').toLowerCase().includes(q);
+            const adm = resolveRealStudentAdmNo(s, idx, fetchedStudents).toLowerCase();
+            const matchesQuery = !q || (s.name || '').toLowerCase().includes(q) || adm.includes(q);
             return matchesClass && matchesQuery;
         });
-    }, [allStudents, selectedClass, searchQuery]);
+    }, [allStudents, selectedClass, searchQuery, fetchedStudents]);
 
     // Set initial selected student
     useEffect(() => {
@@ -536,7 +620,7 @@ export const CbeCoreCompetenciesManager: React.FC<CbeCoreCompetenciesManagerProp
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
                     <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
                         <MessageSquare className="w-4 h-4 text-purple-500" />
-                        <span>Qualitative Teacher Remarks for {activeStudent.name} ({activeStudent.admissionNumber || 'ADM'})</span>
+                        <span>Qualitative Teacher Remarks for {activeStudent.name} ({resolveRealStudentAdmNo(activeStudent, undefined, fetchedStudents)})</span>
                     </h3>
 
                     <textarea

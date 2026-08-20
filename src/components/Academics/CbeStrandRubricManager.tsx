@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 
+import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
+
 export interface CbeStrandRubricManagerProps {
     currentInstitution?: Institution | null;
     subjects?: Subject[];
@@ -39,8 +41,8 @@ const PRESET_CBE_STRANDS: Record<string, CbeStrand[]> = {
             name: 'GEOMETRY & MEASUREMENT',
             code: 'STR-2.0',
             subStrands: [
-                { id: 'sub_math_2_1', name: '2D Shapes & 3D Objects', learningOutcomes: ['Identifies circles, squares, rectangles & triangles', 'Sorts 3D shapes according to surfaces'] },
-                { id: 'sub_math_2_2', name: 'Measurement of Length, Mass & Capacity', learningOutcomes: ['Measures length using non-standard & standard units', 'Compares mass of everyday objects'] }
+                { id: 'sub_math_2_1', name: 'Length, Mass & Capacity Measurement', learningOutcomes: ['Measures length using standard meters', 'Estimates weight in kilograms'] },
+                { id: 'sub_math_2_2', name: 'Money, Shopping & Currency Exchange', learningOutcomes: ['Calculates total bill in Kenya Shillings', 'Gives correct change in school store scenarios'] }
             ]
         }
     ],
@@ -89,8 +91,84 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
 }) => {
     const instId = currentInstitution?.id || 'default_inst';
 
+    // Hydrated real students list from database
+    const [fetchedStudents, setFetchedStudents] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            Promise.all([
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
+            ]).then(([enrRecords, stRecords, userRecords]) => {
+                const userById = new Map<string, any>();
+                [...(stRecords || []), ...(userRecords || []), ...(users || [])].forEach(u => {
+                    if (u?.id) userById.set(u.id, u);
+                    if (u?.userId) userById.set(u.userId, u);
+                });
+
+                const list: any[] = [];
+                const seenIds = new Set<string>();
+
+                (enrRecords || []).forEach((enr: any) => {
+                    if (!enr) return;
+                    const linkedUser = (enr.userId ? userById.get(enr.userId) : null) || (enr.user_id ? userById.get(enr.user_id) : null);
+                    const resolvedName =
+                        (linkedUser?.name && !linkedUser.name.toLowerCase().startsWith('student ') ? linkedUser.name : null) ||
+                        enr.metadata?.studentName ||
+                        enr.metadata?.name ||
+                        enr.metadata?.fullName ||
+                        linkedUser?.name ||
+                        enr.name ||
+                        '';
+                    const resolvedAdm = resolveRealStudentAdmNo(enr, undefined, [...(stRecords || []), ...(userRecords || []), ...(users || [])]) ||
+                        resolveRealStudentAdmNo(linkedUser, undefined);
+                    const resolvedClass =
+                        enr.metadata?.gradeLevel || enr.metadata?.studentClass || enr.metadata?.class ||
+                        linkedUser?.studentClass || linkedUser?.classLevel || linkedUser?.grade ||
+                        enr.studentClass || enr.gradeLevel || enr.grade || '';
+
+                    const idKey = enr.userId || enr.id;
+                    if (idKey && !seenIds.has(idKey)) {
+                        seenIds.add(idKey);
+                        list.push({
+                            ...enr,
+                            id: idKey,
+                            name: resolvedName,
+                            admissionNumber: resolvedAdm !== 'N/A' ? resolvedAdm : enr.admissionNumber,
+                            studentClass: resolvedClass,
+                            role: 'student'
+                        });
+                    }
+                });
+
+                // Also include user records with role=student
+                [...(stRecords || []), ...(userRecords || []), ...(users || [])].forEach(u => {
+                    if (u && u.role === 'student') {
+                        const idKey = u.id;
+                        if (idKey && !seenIds.has(idKey)) {
+                            seenIds.add(idKey);
+                            const adm = resolveRealStudentAdmNo(u, undefined, enrRecords);
+                            list.push({
+                                ...u,
+                                admissionNumber: adm !== 'N/A' ? adm : u.admissionNumber
+                            });
+                        }
+                    }
+                });
+
+                if (list.length > 0) {
+                    setFetchedStudents(list);
+                }
+            }).catch(() => { });
+        }
+    }, [currentInstitution, users]);
+
     // 1. Class & Subject Selection State
-    const allStudents = useMemo(() => (users || []).filter(u => u && u.role === 'student'), [users]);
+    const allStudents = useMemo(() => {
+        if (fetchedStudents.length > 0) return fetchedStudents;
+        return (users || []).filter(u => u && u.role === 'student');
+    }, [users, fetchedStudents]);
     const allTeachers = useMemo(() => (users || []).filter(u => u && (u.role === 'teacher' || u.role === 'lecturer' || u.role === 'class_supervisor')), [users]);
 
     // Extract available classes
@@ -123,15 +201,16 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
 
     // Filtered Students for selected class
     const classStudents = useMemo(() => {
-        return allStudents.filter(s => {
+        return allStudents.filter((s, idx) => {
             const stClass = (s.studentClass || (s as any).classLevel || (s as any).class_name || (s as any).className || (s as any).class || s.metadata?.studentClass || '').toLowerCase().trim();
             const selClean = (selectedClass || '').toLowerCase().trim();
             const matchesClass = !selClean || selClean === 'all' || stClass.includes(selClean) || selClean.includes(stClass) || allStudents.length <= 10;
             const q = searchQuery.toLowerCase();
-            const matchesQuery = !q || s.name.toLowerCase().includes(q) || (s.admissionNumber || s.admission_number || '').toLowerCase().includes(q);
+            const adm = resolveRealStudentAdmNo(s, idx, fetchedStudents).toLowerCase();
+            const matchesQuery = !q || (s.name || '').toLowerCase().includes(q) || adm.includes(q);
             return matchesClass && matchesQuery;
         });
-    }, [allStudents, selectedClass, searchQuery]);
+    }, [allStudents, selectedClass, searchQuery, fetchedStudents]);
 
     // Active Subject object
     const selectedSubject = useMemo(() => {
@@ -534,8 +613,8 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
                                             <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white">
                                                 {student.name}
                                             </td>
-                                            <td className="py-3.5 px-4 font-mono text-xs text-slate-500">
-                                                {student.admissionNumber || student.admission_number || `ADM-${1000 + idx}`}
+                                            <td className="py-3.5 px-4 font-mono text-xs text-slate-500 font-bold">
+                                                {resolveRealStudentAdmNo(student, idx, fetchedStudents)}
                                             </td>
                                             <td className="py-3.5 px-4">
                                                 {/* 4-Level CBE Rubric Radio Pills */}

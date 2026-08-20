@@ -12,6 +12,7 @@ import { XIcon } from '../icons/XIcon';
 import { DownloadIcon as ArrowDownTrayIcon } from '../icons/DownloadIcon';
 import { apiService } from '../../services/apiService';
 import { escapeHtml } from '../../utils/securityUtils';
+import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
 
 interface BoardingHouseholdBalanceManagerProps {
     currentUser: User;
@@ -142,7 +143,7 @@ export const BoardingHouseholdBalanceManager: React.FC<BoardingHouseholdBalanceM
             return {
                 id: studentId,
                 name: s.name || 'Unnamed Student',
-                admissionNumber: s.admissionNumber || s.admNo || s.staffId || `ADM-${1000 + idx}`,
+                admissionNumber: resolveRealStudentAdmNo(s, idx, students),
                 className: s.className || s.grade || `Form ${1 + (idx % 4)}`,
                 gender: s.gender || (idx % 2 === 0 ? 'Boys' : 'Girls'),
                 houseName,
