@@ -866,9 +866,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                         onChange={e => setNewPlanCycle(e.target.value as any)}
                                         className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="per_term">Per Term</option>
-                                        <option value="per_year">Per Year</option>
-                                        <option value="monthly">Monthly</option>
+                                        <option value="per_term">Per Term (Termly Plan)</option>
+                                        <option value="per_year">Per Year (Annual Plan)</option>
                                     </select>
                                 </div>
 

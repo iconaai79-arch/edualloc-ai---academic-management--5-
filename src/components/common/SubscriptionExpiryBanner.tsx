@@ -107,6 +107,18 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
         };
     }, [institution, smsBalanceOverride]);
 
+    const isEducation = useMemo(() => {
+        if (!institution) return true;
+        const type = institution.institutionType;
+        if (!type || type === 'Education' || type === 'University' || type === 'Secondary' || type === 'Primary' || type === 'ECDE') return true;
+        if (subscriptionLabel?.toLowerCase().includes('student')) return true;
+        return false;
+    }, [institution, subscriptionLabel]);
+
+    const effectiveSubLabel = isEducation ? (subscriptionLabel || 'Student Subscription') : (subscriptionLabel || 'Plan Expiry');
+    const effectiveRenewBtn = isEducation ? (renewButtonText || 'Student Subscriptions') : (renewButtonText || 'Renew Subscription');
+    const effectiveTitle = isEducation ? 'Student Subscriptions Active' : (customTitle || (expiryInfo.isTrial ? 'Trial Ending' : (subscriptionLabel ? `${subscriptionLabel}` : 'Plan Expiration')));
+
     const handleRenewClick = () => {
         if (onRenew) {
             onRenew();
@@ -132,7 +144,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
             >
                 <div className="flex items-center gap-1.5">
                     <ClockIcon className="w-3.5 h-3.5 animate-pulse text-amber-400" />
-                    <span>Status: {expiryInfo.daysLeft}d left</span>
+                    <span>{isEducation ? 'Student Sub:' : 'Status:'} {expiryInfo.daysLeft}d left</span>
                 </div>
                 <span className="text-cyan-400 font-mono">{smsInfo.formattedBalance} SMS</span>
             </button>
@@ -153,7 +165,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                             ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-amber-900/50 border border-amber-400/40'
                             : 'bg-gradient-to-br from-indigo-600 to-blue-700 text-white shadow-indigo-900/50 border border-indigo-400/40'
                     }`}
-                    title={`${subscriptionLabel || 'Subscription'}: ${expiryInfo.daysLeft} days left`}
+                    title={`${effectiveSubLabel}: ${expiryInfo.daysLeft} days left`}
                 >
                     <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-slate-900 animate-ping" />
                     <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-slate-900" />
@@ -185,15 +197,15 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
 
                     <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-400 font-medium">{subscriptionLabel || 'Subscription'}:</span>
+                            <span className="text-slate-400 font-medium">{effectiveSubLabel}:</span>
                             <span className="font-black text-amber-400">{expiryInfo.daysLeft} Days Left ({expiryInfo.formattedDate})</span>
                         </div>
                         <button
                             onClick={handleRenewClick}
-                            className="w-full py-1.5 px-3 bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-xl shadow transition-all flex items-center justify-center gap-1.5"
+                            className="w-full py-1.5 px-3 bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-xl shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                             <CreditCardIcon className="w-3.5 h-3.5" />
-                            <span>{renewButtonText || 'Renew Subscription'}</span>
+                            <span>{effectiveRenewBtn}</span>
                         </button>
                     </div>
 
@@ -204,7 +216,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                         </div>
                         <button
                             onClick={handleSmsTopUpClick}
-                            className="w-full py-1.5 px-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-black text-[10px] uppercase tracking-wider rounded-xl shadow transition-all flex items-center justify-center gap-1.5"
+                            className="w-full py-1.5 px-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-black text-[10px] uppercase tracking-wider rounded-xl shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                             <PlusIcon className="w-3.5 h-3.5" />
                             <span>Top Up SMS Balance</span>
@@ -275,7 +287,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                             }`}
                         >
                             <ClockIcon className="w-3 h-3 text-amber-400" />
-                            <span>{subscriptionLabel ? `${subscriptionLabel} Expiry` : 'Plan Expiry'}</span>
+                            <span>{isEducation ? 'Student Sub' : (subscriptionLabel ? `${subscriptionLabel} Expiry` : 'Plan Expiry')}</span>
                         </button>
                         <button
                             onClick={() => setActiveTab('sms')}
@@ -305,7 +317,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                         <div className="flex items-center justify-between">
                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-200 flex items-center gap-1">
                                 <ClockIcon className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                                {customTitle || (expiryInfo.isTrial ? 'Trial Ending' : (subscriptionLabel ? `${subscriptionLabel}` : 'Plan Expiration'))}
+                                {effectiveTitle}
                             </span>
                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shadow-sm ${themeStyles.badgeBg}`}>
                                 {expiryInfo.daysLeft} Days Left
@@ -314,10 +326,10 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
 
                         <div className="flex items-baseline justify-between">
                             <h4 className="text-xs font-bold text-white tracking-tight">
-                                Expires: <span className={`font-black ${themeStyles.textHighlight}`}>{expiryInfo.formattedDate}</span>
+                                {isEducation ? 'Term Expiry: ' : 'Expires: '}<span className={`font-black ${themeStyles.textHighlight}`}>{expiryInfo.formattedDate}</span>
                             </h4>
                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                {expiryInfo.progressPercentage}% Elapsed
+                                {isEducation ? 'Termly License' : `${expiryInfo.progressPercentage}% Elapsed`}
                             </span>
                         </div>
 
@@ -330,10 +342,10 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
 
                         <button
                             onClick={handleRenewClick}
-                            className={`w-full mt-1 py-2 px-3 font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 group/btn ${themeStyles.btnBg}`}
+                            className={`w-full mt-1 py-2 px-3 font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 group/btn cursor-pointer ${themeStyles.btnBg}`}
                         >
                             <CreditCardIcon className="w-3.5 h-3.5 shrink-0 transition-transform group-hover/btn:scale-110" />
-                            <span>{renewButtonText || 'Renew Subscription'}</span>
+                            <span>{effectiveRenewBtn}</span>
                             <ArrowRightIcon className="w-3.5 h-3.5 shrink-0 transition-transform group-hover/btn:translate-x-1" />
                         </button>
                     </div>

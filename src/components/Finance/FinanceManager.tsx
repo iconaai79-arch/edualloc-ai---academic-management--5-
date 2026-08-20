@@ -6025,8 +6025,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 <SubscriptionExpiryBanner
                     institution={props.institution}
                     isCollapsed={!isSidebarOpen}
-                    subscriptionLabel="Student Subscription"
-                    renewButtonText="Student Subscription"
+                    subscriptionLabel="Student Subscriptions"
+                    renewButtonText="Student Subscriptions"
                     onRenew={() => setActiveTab('student_subscriptions')}
                 />
 

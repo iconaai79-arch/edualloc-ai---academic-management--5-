@@ -323,8 +323,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 <SubscriptionExpiryBanner
                     institution={currentInstitution}
                     isCollapsed={!isSidebarOpen}
-                    subscriptionLabel="Student Subscription"
-                    renewButtonText="Student Subscription"
+                    subscriptionLabel="Student Subscriptions"
+                    renewButtonText="Student Subscriptions"
                     onRenew={() => setActiveTab('student_subscriptions')}
                 />
 

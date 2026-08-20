@@ -301,7 +301,27 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                             />
                         </div>
 
-                        {selectedPlan !== 'forced' && (
+                        {forcedItems && forcedItems.length > 0 ? (
+                            <div className="p-4 bg-gradient-to-br from-indigo-50 via-sky-50 to-emerald-50 dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-800/60 rounded-2xl space-y-2 text-left shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                                        🎓 Student Subscription Package
+                                    </span>
+                                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-indigo-600 text-white shadow-sm">
+                                        {forcedItems[0].quantity} Students
+                                    </span>
+                                </div>
+                                <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">
+                                    {forcedItems[0].description}
+                                </p>
+                                <div className="flex items-center justify-between pt-2 border-t border-indigo-200/60 dark:border-indigo-900/50 text-xs">
+                                    <span className="text-slate-500 dark:text-slate-400 font-bold">KES {forcedItems[0].unitPrice?.toLocaleString()} / student</span>
+                                    <span className="font-black text-indigo-600 dark:text-indigo-400 text-sm">
+                                        Total: KES {forcedItems[0].amount?.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        ) : selectedPlan !== 'forced' ? (
                             <div>
                                 <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2.5 ml-1">Select Plan</label>
                                 <div className="grid grid-cols-3 gap-3">
@@ -322,7 +342,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                                     </label>
                                 </div>
                             </div>
-                        )}
+                        ) : null}
                     </div>
                 </div>
 
