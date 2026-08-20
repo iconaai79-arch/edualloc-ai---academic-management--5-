@@ -71,9 +71,11 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     const contentWidth = pageWidth - (margin * 2);
     const totalPages = 6;
 
-    const institutionName = (data.institution?.name || 'ACADEMIC MANAGEMENT SYSTEM').toUpperCase();
-    const examTitle = data.selectedExam.title || 'ACADEMIC EXAM OVERVIEW';
-    const cohortStr = `${data.selectedYearGroup} (${data.selectedStream === 'all' ? 'All Streams' : `${data.selectedStream} Stream`})`;
+    const institutionName = String(data.institution?.name || 'ACADEMIC MANAGEMENT SYSTEM').toUpperCase();
+    const examTitle = String(data.selectedExam?.title || 'ACADEMIC EXAM OVERVIEW');
+    const selectedYearGroup = String(data.selectedYearGroup || 'Cohort');
+    const selectedStream = String(data.selectedStream || 'all');
+    const cohortStr = `${selectedYearGroup} (${selectedStream === 'all' ? 'All Streams' : `${selectedStream} Stream`})`;
 
     const drawRunningHeader = (d: jsPDF, pageNum: number) => {
         if (pageNum === 1) return;
@@ -127,7 +129,7 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setFontSize(8.5);
     doc.setTextColor(51, 65, 85);
     doc.text(`Class: ${cohortStr}  |  Exam: ${examTitle}`, margin, 28);
-    doc.text(`Term: ${data.selectedExam.term || 'TERM 1'} ${data.selectedExam.year || '2026'}  |  Total Candidates: ${data.totalCandidates}`, margin, 32.5);
+    doc.text(`Term: ${data.selectedExam?.term || 'TERM 1'} ${data.selectedExam?.year || '2026'}  |  Total Candidates: ${data.totalCandidates || 0}`, margin, 32.5);
 
     // Confidential Badge
     doc.setFillColor(15, 23, 42);
@@ -157,11 +159,14 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     const cardY = 45;
     const cardH = 22;
 
+    const perfSum = data.performanceSummary || { testedCount: 0, meanScore: 0, meanGrade: 'N/A', meanPoints: 0 };
+    const perfDelta = data.performanceDelta || { formatted: '+0.0%', prevTitle: 'Previous Exam', isPositive: true };
+
     const cards = [
-        { title: 'STUDENTS ENROLLED', val: `${data.performanceSummary.testedCount}`, sub: 'Active Sitting', color: [15, 23, 42] },
-        { title: 'MEAN SCORE', val: `${data.performanceSummary.meanScore.toFixed(1)}% (${data.performanceSummary.meanGrade})`, sub: 'Average Score', color: [79, 70, 229] },
-        { title: 'MEAN POINTS', val: `${data.performanceSummary.meanPoints.toFixed(2)} pts`, sub: 'Grade Points', color: [15, 23, 42] },
-        { title: 'PERF. INCREASE', val: `${data.performanceDelta.formatted}`, sub: `Vs ${data.performanceDelta.prevTitle}`, color: data.performanceDelta.isPositive ? [16, 185, 129] : [225, 29, 72] }
+        { title: 'STUDENTS ENROLLED', val: `${perfSum.testedCount ?? 0}`, sub: 'Active Sitting', color: [15, 23, 42] },
+        { title: 'MEAN SCORE', val: `${(perfSum.meanScore ?? 0).toFixed(1)}% (${perfSum.meanGrade || 'N/A'})`, sub: 'Average Score', color: [79, 70, 229] },
+        { title: 'MEAN POINTS', val: `${(perfSum.meanPoints ?? 0).toFixed(2)} pts`, sub: 'Grade Points', color: [15, 23, 42] },
+        { title: 'PERF. INCREASE', val: `${perfDelta.formatted || '+0.0%'}`, sub: `Vs ${perfDelta.prevTitle || 'Previous'}`, color: perfDelta.isPositive ? [16, 185, 129] : [225, 29, 72] }
     ];
 
     cards.forEach((c, idx) => {
@@ -193,21 +198,21 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(15, 23, 42);
     doc.text('2. TOP 10 OVERALL STUDENTS (COHORT MERIT LIST)', margin, 74);
 
-    const top10Rows = data.top10Students.map(st => [
-        st.rank,
-        st.student?.admissionNo || st.student?.id || '-',
-        (st.student?.name || '-').toUpperCase(),
-        st.student?.studentClass || data.selectedYearGroup,
+    const top10Rows = (data.top10Students || []).map(st => [
+        st.rank ?? '-',
+        st.student?.admissionNo || st.student?.id || (st as any).admNo || '-',
+        String(st.student?.name || (st as any).name || (st as any).studentName || '-').toUpperCase(),
+        st.student?.studentClass || selectedYearGroup,
         st.totalMarks > 0 ? st.totalMarks : '-',
-        `${st.meanScore.toFixed(1)}%`,
-        st.grade
+        `${(st.meanScore ?? 0).toFixed(1)}%`,
+        st.grade || '-'
     ]);
 
     autoTable(doc, {
         startY: 77,
         margin: { left: margin, right: margin },
         head: [['Rank', 'Adm No', 'Student Name', 'Class / Stream', 'Total Marks', 'Mean Score', 'Grade']],
-        body: top10Rows,
+        body: top10Rows.length > 0 ? top10Rows : [['1', '-', 'NO RECORDS', selectedYearGroup, '-', '0.0%', '-']],
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7.5, halign: 'left' },
         styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
@@ -237,21 +242,21 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(15, 23, 42);
     doc.text('3. BOTTOM 10 OVERALL STUDENTS (TARGET SUPPORT GROUP)', margin, currY);
 
-    const bottom10Rows = data.bottom10Students.map(st => [
-        st.rank,
-        st.student?.admissionNo || st.student?.id || '-',
-        (st.student?.name || '-').toUpperCase(),
-        st.student?.studentClass || data.selectedYearGroup,
+    const bottom10Rows = (data.bottom10Students || []).map(st => [
+        st.rank ?? '-',
+        st.student?.admissionNo || st.student?.id || (st as any).admNo || '-',
+        String(st.student?.name || (st as any).name || (st as any).studentName || '-').toUpperCase(),
+        st.student?.studentClass || selectedYearGroup,
         st.totalMarks > 0 ? st.totalMarks : '-',
-        `${st.meanScore.toFixed(1)}%`,
-        st.grade
+        `${(st.meanScore ?? 0).toFixed(1)}%`,
+        st.grade || '-'
     ]);
 
     autoTable(doc, {
         startY: currY + 2.5,
         margin: { left: margin, right: margin },
         head: [['Rank', 'Adm No', 'Student Name', 'Class / Stream', 'Total Marks', 'Mean Score', 'Grade']],
-        body: bottom10Rows,
+        body: bottom10Rows.length > 0 ? bottom10Rows : [['-', '-', 'NO RECORDS', selectedYearGroup, '-', '0.0%', '-']],
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7 },
         styles: { fontSize: 7, cellPadding: 1.5, textColor: [30, 41, 59] },
@@ -273,20 +278,20 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(15, 23, 42);
     doc.text('4. TOP STUDENT PER CLASS STREAM', margin, currY);
 
-    const champRows = data.streamChampions.map(c => [
-        c.rank,
-        c.stream,
-        c.admNo,
-        c.studentName.toUpperCase(),
-        `${c.meanScore}%`,
-        c.grade
+    const champRows = (data.streamChampions || []).map(c => [
+        c.rank ?? 1,
+        c.stream || selectedYearGroup,
+        c.admNo || '-',
+        String(c.studentName || (c as any).name || '-').toUpperCase(),
+        `${c.meanScore ?? 0}%`,
+        c.grade || '-'
     ]);
 
     autoTable(doc, {
         startY: currY + 2.5,
         margin: { left: margin, right: margin },
         head: [['Rank', 'Class / Stream', 'Adm No', 'Student Name', 'Mean Score', 'Grade']],
-        body: champRows,
+        body: champRows.length > 0 ? champRows : [['1', selectedYearGroup, '-', 'NO RECORDS', '0.0%', '-']],
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7 },
         styles: { fontSize: 7, cellPadding: 1.5, textColor: [30, 41, 59] },
@@ -307,21 +312,21 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(6, 95, 70);
     doc.text('5. MOST IMPROVED STUDENTS', margin, currY);
 
-    const improvedRows = data.mostImproved.slice(0, 6).map((st, idx) => [
+    const improvedRows = (data.mostImproved || []).slice(0, 6).map((st, idx) => [
         st.rank || idx + 1,
-        st.admNo,
-        st.name.toUpperCase(),
-        st.stream,
-        st.prevMarks,
-        st.meanMarks,
-        `+${st.percentDiff}%`
+        st.admNo || '-',
+        String(st.name || (st as any).studentName || '-').toUpperCase(),
+        st.stream || selectedYearGroup,
+        st.prevMarks ?? 0,
+        st.meanMarks ?? 0,
+        `+${st.percentDiff || '0'}%`
     ]);
 
     autoTable(doc, {
         startY: currY + 2.5,
         margin: { left: margin, right: margin },
         head: [['#', 'Adm No', 'Student Name', 'Class / Stream', 'Prior Marks', 'Current Marks', 'Deviation']],
-        body: improvedRows,
+        body: improvedRows.length > 0 ? improvedRows : [['-', '-', 'NO RECORDS', selectedYearGroup, '-', '-', '-']],
         theme: 'grid',
         headStyles: { fillColor: [6, 95, 70], textColor: 255, fontStyle: 'bold', fontSize: 7 },
         styles: { fontSize: 7, cellPadding: 1.5, textColor: [30, 41, 59] },
@@ -343,21 +348,21 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(159, 18, 57);
     doc.text('6. MOST DROPPING STUDENTS (REMEDIAL CANDIDATES)', margin, currY);
 
-    const dropRows = data.mostDropping.slice(0, 6).map((st, idx) => [
+    const dropRows = (data.mostDropping || []).slice(0, 6).map((st, idx) => [
         st.rank || idx + 1,
-        st.admNo,
-        st.name.toUpperCase(),
-        st.stream,
-        st.prevMarks,
-        st.meanMarks,
-        `${st.percentDiff}%`
+        st.admNo || '-',
+        String(st.name || (st as any).studentName || '-').toUpperCase(),
+        st.stream || selectedYearGroup,
+        st.prevMarks ?? 0,
+        st.meanMarks ?? 0,
+        `${st.percentDiff || '0'}%`
     ]);
 
     autoTable(doc, {
         startY: currY + 2.5,
         margin: { left: margin, right: margin },
         head: [['#', 'Adm No', 'Student Name', 'Class / Stream', 'Prior Marks', 'Current Marks', 'Deviation']],
-        body: dropRows,
+        body: dropRows.length > 0 ? dropRows : [['-', '-', 'NO RECORDS', selectedYearGroup, '-', '-', '-']],
         theme: 'grid',
         headStyles: { fillColor: [159, 18, 57], textColor: 255, fontStyle: 'bold', fontSize: 7 },
         styles: { fontSize: 7, cellPadding: 1.5, textColor: [30, 41, 59] },
@@ -386,20 +391,20 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(15, 23, 42);
     doc.text('7. SUBJECT PERFORMANCE RANKING', margin, currY);
 
-    const subjRankRows = data.subjectRankings.map(sr => [
-        sr.rank,
-        (sr.subject?.name || '-').toUpperCase(),
-        sr.subject?.code || '-',
-        sr.entry,
-        sr.meanScoreFormatted,
-        sr.grade
+    const subjRankRows = (data.subjectRankings || []).map(sr => [
+        sr.rank ?? '-',
+        String(sr.subject?.name || (sr.subject as any)?.title || (sr as any).name || '-').toUpperCase(),
+        sr.subject?.code || (sr as any).code || '-',
+        sr.entry ?? 0,
+        sr.meanScoreFormatted || '0.0%',
+        sr.grade || '-'
     ]);
 
     autoTable(doc, {
         startY: currY + 2.5,
         margin: { left: margin, right: margin },
         head: [['Rank', 'Subject Name', 'Code', 'Entry', 'Mean Marks', 'Grade']],
-        body: subjRankRows,
+        body: subjRankRows.length > 0 ? subjRankRows : [['1', 'NO SUBJECTS ALLOCATED', '-', '0', '0.0%', '-']],
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7 },
         styles: { fontSize: 7, cellPadding: 1.5, textColor: [30, 41, 59] },
@@ -420,23 +425,23 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(15, 23, 42);
     doc.text('8. CLASS PERFORMANCE COMPARISON WITH PREVIOUS EXAMS', margin, currY);
 
-    const s8Series = data.classPreviousExamsComparison.examSeries || [];
+    const s8Series = data.classPreviousExamsComparison?.examSeries || [];
     const s8Headers = ['Class / Stream', ...s8Series.map(s => s.title)];
-    const s8Rows = (data.classPreviousExamsComparison.rows || []).map(r => [
-        r.stream.toUpperCase(),
+    const s8Rows = (data.classPreviousExamsComparison?.rows || []).map(r => [
+        String(r.stream || selectedYearGroup).toUpperCase(),
         ...s8Series.map(s => (r.scores?.[s.id] || 0).toFixed(4))
     ]);
 
     const s8AvgRow = [
         'AVERAGE',
-        ...s8Series.map(s => (data.classPreviousExamsComparison.averages?.[s.id] || 0).toFixed(4))
+        ...s8Series.map(s => (data.classPreviousExamsComparison?.averages?.[s.id] || 0).toFixed(4))
     ];
 
     autoTable(doc, {
         startY: currY + 2.5,
         margin: { left: margin, right: margin },
         head: [s8Headers],
-        body: [...s8Rows, s8AvgRow],
+        body: s8Rows.length > 0 ? [...s8Rows, s8AvgRow] : [[selectedYearGroup, '—'], ['AVERAGE', '—']],
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center' },
         styles: { fontSize: 7, cellPadding: 1.8, textColor: [30, 41, 59], halign: 'center' },
@@ -458,9 +463,9 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(15, 23, 42);
-    doc.text(`9. OVERALL GRADES DISTRIBUTION (TOTAL ENROLLED: ${data.overallGradesDistributionData.total})`, margin, currY);
+    doc.text(`9. OVERALL GRADES DISTRIBUTION (TOTAL ENROLLED: ${data.overallGradesDistributionData?.total || 0})`, margin, currY);
 
-    const s9Rows = (data.overallGradesDistributionData.rows || []).map(r => [
+    const s9Rows = (data.overallGradesDistributionData?.rows || []).map(r => [
         r.grade,
         r.count,
         `${r.percent}%`
@@ -496,26 +501,26 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(15, 23, 42);
     doc.text('10. OVERALL COHORT GRADES DISTRIBUTION', margin, currY);
 
-    const expGrades = data.gradesDistributionPerClassData.expectedGrades || [];
+    const expGrades = data.gradesDistributionPerClassData?.expectedGrades || ['EE', 'ME', 'AE', 'BE'];
     const s10Headers = ['Class', ...expGrades, 'Entry', 'Mean Marks', 'Grade'];
 
-    const s10Rows = (data.gradesDistributionPerClassData.rows || []).map(r => [
-        r.className.toUpperCase(),
+    const s10Rows = (data.gradesDistributionPerClassData?.rows || []).map(r => [
+        String(r.className || selectedYearGroup).toUpperCase(),
         ...expGrades.map(g => r.counts?.[g] ?? 0),
-        r.entry,
-        r.meanMarks.toFixed(2),
-        r.grade
+        r.entry ?? 0,
+        (r.meanMarks ?? 0).toFixed(2),
+        r.grade || '-'
     ]);
 
-    const s10TotalRow = data.gradesDistributionPerClassData.totalRow ? [
+    const s10TotalRow = data.gradesDistributionPerClassData?.totalRow ? [
         'TOTAL',
         ...expGrades.map(g => data.gradesDistributionPerClassData.totalRow.counts?.[g] ?? 0),
-        data.gradesDistributionPerClassData.totalRow.entry,
+        data.gradesDistributionPerClassData.totalRow.entry ?? 0,
         data.gradesDistributionPerClassData.totalRow.meanMarks?.toFixed(2) || '0.00',
         data.gradesDistributionPerClassData.totalRow.grade || '-'
     ] : null;
 
-    const s10PercentRow = data.gradesDistributionPerClassData.percentRow ? [
+    const s10PercentRow = data.gradesDistributionPerClassData?.percentRow ? [
         'PERCENTAGE',
         ...expGrades.map(g => data.gradesDistributionPerClassData.percentRow.counts?.[g] ?? '0%'),
         '', '', ''
@@ -529,7 +534,7 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
         startY: currY + 2.5,
         margin: { left: margin, right: margin },
         head: [s10Headers],
-        body: fullS10Body,
+        body: fullS10Body.length > 0 ? fullS10Body : [[selectedYearGroup, ...expGrades.map(() => 0), 0, '0.00', '-']],
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center' },
         styles: { fontSize: 7, cellPadding: 1.5, textColor: [30, 41, 59], halign: 'center' },
@@ -554,9 +559,9 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(15, 23, 42);
     doc.text('11. GRADES DISTRIBUTION COMPARISON WITH OTHER PREVIOUS EXAMS', margin, currY);
 
-    const s11Series = data.gradesDistributionVsPreviousExamsData.examSeries || [];
+    const s11Series = data.gradesDistributionVsPreviousExamsData?.examSeries || [];
     const s11Headers = ['Grade', ...s11Series.map(s => s.title)];
-    const s11Rows = (data.gradesDistributionVsPreviousExamsData.rows || []).map(r => [
+    const s11Rows = (data.gradesDistributionVsPreviousExamsData?.rows || []).map(r => [
         r.grade,
         ...s11Series.map(s => r.counts?.[s.id] ?? 0)
     ]);
@@ -589,22 +594,22 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(15, 23, 42);
     doc.text('12. SUBJECT PERFORMANCE PER CLASS', margin, currY);
 
-    const s12Subjects = data.subjectPerformancePerClassData.subjects || [];
+    const s12Subjects = data.subjectPerformancePerClassData?.subjects || [];
     const s12Headers = ['Class', ...s12Subjects.map(s => s.code)];
 
-    const s12Rows = (data.subjectPerformancePerClassData.classRows || []).map(cr => [
-        cr.className.toUpperCase(),
+    const s12Rows = (data.subjectPerformancePerClassData?.classRows || []).map(cr => [
+        String(cr.className || selectedYearGroup).toUpperCase(),
         ...s12Subjects.map(s => {
             const res = cr.subjectScores?.[s.code];
-            return res ? `${res.meanMarks.toFixed(2)} ${res.grade}` : '—';
+            return res ? `${(res.meanMarks ?? 0).toFixed(2)} ${res.grade || ''}` : '—';
         })
     ]);
 
     const s12MGradeRow = [
         'M.GRADE',
         ...s12Subjects.map(s => {
-            const res = data.subjectPerformancePerClassData.mGradeSummary?.[s.code];
-            return res ? `${res.meanMarks.toFixed(2)} ${res.grade}` : '—';
+            const res = data.subjectPerformancePerClassData?.mGradeSummary?.[s.code];
+            return res ? `${(res.meanMarks ?? 0).toFixed(2)} ${res.grade || ''}` : '—';
         })
     ];
 
@@ -612,7 +617,7 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
         startY: currY + 2.5,
         margin: { left: margin, right: margin },
         head: [s12Headers],
-        body: [...s12Rows, s12MGradeRow],
+        body: s12Rows.length > 0 ? [...s12Rows, s12MGradeRow] : [[selectedYearGroup, ...s12Subjects.map(() => '—')]],
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center' },
         styles: { fontSize: 6.5, cellPadding: 1.5, textColor: [30, 41, 59], halign: 'center' },
@@ -636,11 +641,11 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(15, 23, 42);
     doc.text('13. GRADES DISTRIBUTION PER SUBJECT', margin, currY);
 
-    const s13ExpectedGrades = data.gradesDistributionPerSubjectData.expectedGrades || [];
+    const s13ExpectedGrades = data.gradesDistributionPerSubjectData?.expectedGrades || ['EE', 'ME', 'AE', 'BE'];
     const s13Headers = ['Subject Name', 'Code', ...s13ExpectedGrades];
-    const s13Rows = (data.gradesDistributionPerSubjectData.subjectsData || []).map(sd => [
-        sd.name.toUpperCase(),
-        sd.code,
+    const s13Rows = (data.gradesDistributionPerSubjectData?.subjectsData || []).map(sd => [
+        String(sd.name || '-').toUpperCase(),
+        sd.code || '-',
         ...s13ExpectedGrades.map(g => sd.counts?.[g] ?? 0)
     ]);
 
@@ -648,7 +653,7 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
         startY: currY + 2.5,
         margin: { left: margin, right: margin },
         head: [s13Headers],
-        body: s13Rows,
+        body: s13Rows.length > 0 ? s13Rows : [['NO SUBJECTS ALLOCATED', '-', ...s13ExpectedGrades.map(() => 0)]],
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center' },
         styles: { fontSize: 6.5, cellPadding: 1.5, textColor: [30, 41, 59], halign: 'center' },
@@ -666,11 +671,11 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setTextColor(15, 23, 42);
     doc.text('14. SUBJECT PERFORMANCE COMPARISON WITH OTHER PREVIOUS EXAMS', margin, currY);
 
-    const s14Series = data.subjectPerformanceComparisonVsPreviousData.examSeries || [];
+    const s14Series = data.subjectPerformanceComparisonVsPreviousData?.examSeries || [];
     const s14Headers = ['Subject Name', 'Code', ...s14Series.map(s => s.title)];
-    const s14Rows = (data.subjectPerformanceComparisonVsPreviousData.rows || []).map(r => [
-        r.name.toUpperCase(),
-        r.code,
+    const s14Rows = (data.subjectPerformanceComparisonVsPreviousData?.rows || []).map(r => [
+        String(r.name || '-').toUpperCase(),
+        r.code || '-',
         ...s14Series.map(s => {
             const val = r.scores?.[s.id] || 0;
             return val > 0 ? val.toFixed(4) : '—';
@@ -681,7 +686,7 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
         startY: currY + 2.5,
         margin: { left: margin, right: margin },
         head: [s14Headers],
-        body: s14Rows,
+        body: s14Rows.length > 0 ? s14Rows : [['NO SUBJECTS ALLOCATED', '-', ...s14Series.map(() => '—')]],
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center' },
         styles: { fontSize: 6.5, cellPadding: 1.5, textColor: [30, 41, 59], halign: 'center' },
@@ -704,12 +709,12 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(6, 95, 70);
-    doc.text(`15. IMPROVEMENT PER GRADE (TOTAL: ${data.improvementDistribution.total})`, margin, currY);
+    doc.text(`15. IMPROVEMENT PER GRADE (TOTAL: ${data.improvementDistribution?.total || 0})`, margin, currY);
 
-    const impRows = (data.improvementDistribution.slices || []).map(sl => [
-        sl.label,
-        sl.count,
-        `${sl.percent}%`
+    const impRows = (data.improvementDistribution?.slices || []).map(sl => [
+        sl.label || '-',
+        sl.count ?? 0,
+        `${sl.percent ?? 0}%`
     ]);
 
     autoTable(doc, {
@@ -728,12 +733,12 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(159, 18, 57);
-    doc.text(`16. DROP PER GRADE (TOTAL: ${data.dropDistribution.total})`, pageWidth / 2 + 3, currY);
+    doc.text(`16. DROP PER GRADE (TOTAL: ${data.dropDistribution?.total || 0})`, pageWidth / 2 + 3, currY);
 
-    const dropTableRows = (data.dropDistribution.slices || []).map(sl => [
-        sl.label,
-        sl.count,
-        `${sl.percent}%`
+    const dropTableRows = (data.dropDistribution?.slices || []).map(sl => [
+        sl.label || '-',
+        sl.count ?? 0,
+        `${sl.percent ?? 0}%`
     ]);
 
     autoTable(doc, {
@@ -838,9 +843,9 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     drawRunningFooter(doc, 6);
 
     // Save File
-    const sanitizedTitle = (data.selectedExam.title || 'Exam_Overview')
+    const sanitizedTitle = String(data.selectedExam?.title || 'Exam_Overview')
         .replace(/[^a-zA-Z0-9_-]/g, '_');
-    const sanitizedClass = (data.selectedYearGroup || 'Class')
+    const sanitizedClass = String(data.selectedYearGroup || 'Class')
         .replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileName = `${sanitizedClass}_${sanitizedTitle}_Academic_Overview_Report.pdf`;
 
