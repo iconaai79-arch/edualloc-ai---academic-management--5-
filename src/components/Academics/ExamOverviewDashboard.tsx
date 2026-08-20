@@ -436,6 +436,65 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         }
     };
 
+    // Active subjects for selected class & exam (strictly filtered by class allocation and deduplicated)
+    const activeClassSubjects = useMemo(() => {
+        const rawCandidates = subjects.length > 0 ? subjects : [
+            { id: '1', name: 'Mathematics', code: 'MATH' },
+            { id: '2', name: 'English', code: 'ENG' },
+            { id: '3', name: 'Kiswahili', code: 'KISW' },
+            { id: '4', name: 'Biology', code: 'BIO' },
+            { id: '5', name: 'Chemistry', code: 'CHEM' },
+            { id: '6', name: 'Physics', code: 'PHYS' },
+        ];
+
+        const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
+        const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
+
+        let allocatedSubjectIdentifiers: string[] | null = null;
+        if (yGrpClean && yGrpClean !== 'all') {
+            const matchedKey = Object.keys(classAllocationsStore || {}).find(k => {
+                const kClean = k.toLowerCase().trim();
+                const kNorm = kClean.replace(/[^a-z0-9]/g, '');
+                return kClean === yGrpClean || kNorm === yGrpNorm || (kNorm.length > 2 && yGrpNorm.includes(kNorm)) || (yGrpNorm.length > 2 && kNorm.includes(yGrpNorm));
+            });
+            if (matchedKey && Array.isArray(classAllocationsStore[matchedKey]) && classAllocationsStore[matchedKey].length > 0) {
+                allocatedSubjectIdentifiers = classAllocationsStore[matchedKey];
+            }
+        }
+
+        const filteredList: typeof rawCandidates = [];
+        const seenCodes = new Set<string>();
+
+        rawCandidates.forEach(sub => {
+            const sCode = (sub.code || '').toUpperCase().trim();
+            const sName = (sub.name || (sub as any).title || '').trim();
+            const subId = (sub.id || '').trim();
+            const normName = sName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const normCode = sCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            if (allocatedSubjectIdentifiers && allocatedSubjectIdentifiers.length > 0) {
+                const isAllocated = allocatedSubjectIdentifiers.some(allocId => {
+                    const aClean = String(allocId).toLowerCase().trim();
+                    const aNorm = aClean.replace(/[^a-z0-9]/g, '');
+                    return aClean === subId.toLowerCase() ||
+                           aClean === sName.toLowerCase() ||
+                           aClean === sCode.toLowerCase() ||
+                           (aNorm.length >= 3 && normName.includes(aNorm)) ||
+                           (normName.length >= 3 && aNorm.includes(normName));
+                });
+                if (!isAllocated) return;
+            }
+
+            const dedupKey = normCode || normName;
+            if (dedupKey && !seenCodes.has(dedupKey)) {
+                seenCodes.add(dedupKey);
+                filteredList.push(sub);
+            }
+        });
+
+        return filteredList.length > 0 ? filteredList : rawCandidates;
+    }, [subjects, selectedYearGroup, classAllocationsStore]);
+
     // Active Filtered Students with Real Calculated Scores & Ranks
     const studentPerformanceData = useMemo(() => {
         const yearGrpClean = (selectedYearGroup || '').toLowerCase().trim();
@@ -466,25 +525,56 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 let validCount = 0;
                 const subjectScores: Record<string, number> = {};
 
-                Object.entries(stRow).forEach(([k, val]) => {
-                    if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'total', 'mean', 'meanScore', 'average'].includes(k)) return;
-                    if (typeof val === 'number' && !isNaN(val) && val >= 0) {
-                        totalMarks += val;
-                        validCount++;
+                // Strictly iterate against allocated subjects for this class
+                const targetSubjects = activeClassSubjects.length > 0 ? activeClassSubjects : subjects;
 
-                        const matchedSub = subjects.find(s => isSubjectKeyMatch(k, s));
-                        if (matchedSub) {
-                            subjectScores[matchedSub.code] = val;
-                            subjectScores[matchedSub.name] = val;
-                            subjectScores[matchedSub.id] = val;
-                        } else {
-                            const cleanKey = k.replace(/^subj_/, '').replace(/_p\d+$/, '').replace(/_/g, ' ').toUpperCase();
-                            subjectScores[cleanKey] = val;
+                targetSubjects.forEach(sub => {
+                    let sc = 0;
+                    let hasMark = false;
+
+                    Object.entries(stRow).forEach(([k, val]) => {
+                        if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'total', 'mean', 'meanScore', 'average'].includes(k)) return;
+                        if (val === null || val === undefined || val === '' || isNaN(val as any)) return;
+
+                        const numVal = typeof val === 'number' ? val : parseFloat(String(val));
+                        if (!isNaN(numVal) && isSubjectKeyMatch(k, sub)) {
+                            sc += numVal;
+                            hasMark = true;
                         }
+                    });
+
+                    if (hasMark) {
+                        subjectScores[sub.code] = sc;
+                        subjectScores[sub.name] = sc;
+                        subjectScores[sub.id] = sc;
+                        totalMarks += sc;
+                        validCount++;
                     }
                 });
 
-                const meanScore = validCount > 0 ? parseFloat((totalMarks / validCount).toFixed(1)) : 0;
+                // Fallback if key names differ but marks exist
+                if (validCount === 0) {
+                    Object.entries(stRow).forEach(([k, val]) => {
+                        if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'total', 'mean', 'meanScore', 'average'].includes(k)) return;
+                        const numVal = typeof val === 'number' ? val : parseFloat(String(val));
+                        if (!isNaN(numVal) && numVal > 0) {
+                            totalMarks += numVal;
+                            validCount++;
+                        }
+                    });
+                }
+
+                if (totalMarks === 0 && stRow.total && !isNaN(Number(stRow.total))) {
+                    totalMarks = Number(stRow.total);
+                    validCount = targetSubjects.length || 4;
+                }
+
+                const divisor = validCount > 0 ? validCount : (targetSubjects.length || 4);
+                let meanScore = parseFloat((totalMarks / Math.max(1, divisor)).toFixed(1));
+                if (meanScore > 100) {
+                    meanScore = parseFloat((meanScore / Math.max(1, targetSubjects.length || 4)).toFixed(1));
+                }
+
                 const { grade, points } = getGradeInfo(meanScore);
 
                 return {
@@ -728,64 +818,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         };
     }, [studentPerformanceData]);
 
-    // Active subjects for selected class & exam (strictly filtered by class allocation and deduplicated)
-    const activeClassSubjects = useMemo(() => {
-        const rawCandidates = subjects.length > 0 ? subjects : [
-            { id: '1', name: 'Mathematics', code: 'MATH' },
-            { id: '2', name: 'English', code: 'ENG' },
-            { id: '3', name: 'Kiswahili', code: 'KISW' },
-            { id: '4', name: 'Biology', code: 'BIO' },
-            { id: '5', name: 'Chemistry', code: 'CHEM' },
-            { id: '6', name: 'Physics', code: 'PHYS' },
-        ];
 
-        const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
-        const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
-
-        let allocatedSubjectIdentifiers: string[] | null = null;
-        if (yGrpClean && yGrpClean !== 'all') {
-            const matchedKey = Object.keys(classAllocationsStore || {}).find(k => {
-                const kClean = k.toLowerCase().trim();
-                const kNorm = kClean.replace(/[^a-z0-9]/g, '');
-                return kClean === yGrpClean || kNorm === yGrpNorm || (kNorm.length > 2 && yGrpNorm.includes(kNorm)) || (yGrpNorm.length > 2 && kNorm.includes(yGrpNorm));
-            });
-            if (matchedKey && Array.isArray(classAllocationsStore[matchedKey]) && classAllocationsStore[matchedKey].length > 0) {
-                allocatedSubjectIdentifiers = classAllocationsStore[matchedKey];
-            }
-        }
-
-        const filteredList: typeof rawCandidates = [];
-        const seenCodes = new Set<string>();
-
-        rawCandidates.forEach(sub => {
-            const sCode = (sub.code || '').toUpperCase().trim();
-            const sName = (sub.name || (sub as any).title || '').trim();
-            const subId = (sub.id || '').trim();
-            const normName = sName.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const normCode = sCode.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-            if (allocatedSubjectIdentifiers && allocatedSubjectIdentifiers.length > 0) {
-                const isAllocated = allocatedSubjectIdentifiers.some(allocId => {
-                    const aClean = String(allocId).toLowerCase().trim();
-                    const aNorm = aClean.replace(/[^a-z0-9]/g, '');
-                    return aClean === subId.toLowerCase() ||
-                           aClean === sName.toLowerCase() ||
-                           aClean === sCode.toLowerCase() ||
-                           (aNorm.length >= 3 && normName.includes(aNorm)) ||
-                           (normName.length >= 3 && aNorm.includes(normName));
-                });
-                if (!isAllocated) return;
-            }
-
-            const dedupKey = normCode || normName;
-            if (dedupKey && !seenCodes.has(dedupKey)) {
-                seenCodes.add(dedupKey);
-                filteredList.push(sub);
-            }
-        });
-
-        return filteredList.length > 0 ? filteredList : rawCandidates;
-    }, [subjects, selectedYearGroup, classAllocationsStore]);
 
     // Subject Performance Ranking
     const subjectRankings = useMemo(() => {
@@ -1755,7 +1788,15 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                                                 {row.totalMarks > 0 ? row.totalMarks : `${row.meanScore}%`}
                                                             </td>
                                                             <td className="py-3.5 px-4 text-center">
-                                                                <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-black rounded-lg text-xs">
+                                                                <span className={`px-2.5 py-1 font-black rounded-lg text-xs ${
+                                                                    ['EE', 'A', 'A-'].includes(row.grade)
+                                                                        ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                                                                        : ['ME', 'B+', 'B', 'B-'].includes(row.grade)
+                                                                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                                                        : ['AE', 'C+', 'C', 'C-'].includes(row.grade)
+                                                                        ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                                                        : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                                                }`}>
                                                                     {row.grade}
                                                                 </span>
                                                             </td>
