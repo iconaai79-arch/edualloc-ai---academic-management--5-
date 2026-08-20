@@ -6001,15 +6001,15 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-200">
-                                            {mostImprovedStudents.slice(0, 8).map((st, idx) => (
-                                                <tr key={st.student?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                                    <td className="p-2 border border-slate-200 text-center font-bold">{idx + 1}</td>
-                                                    <td className="p-2 border border-slate-200 font-mono">{st.student?.admissionNo || st.student?.id}</td>
-                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{st.student?.name}</td>
-                                                    <td className="p-2 border border-slate-200">{st.student?.studentClass || selectedYearGroup}</td>
-                                                    <td className="p-2 border border-slate-200 text-center">{st.previousMean.toFixed(1)}%</td>
-                                                    <td className="p-2 border border-slate-200 text-center font-bold text-slate-900">{st.currentMean.toFixed(1)}%</td>
-                                                    <td className="p-2 border border-slate-200 text-center font-black text-emerald-700">+{st.change.toFixed(1)}%</td>
+                                            {mostImproved.slice(0, 8).map((st, idx) => (
+                                                <tr key={st.admNo || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{st.rank || idx + 1}</td>
+                                                    <td className="p-2 border border-slate-200 font-mono">{st.admNo}</td>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{st.name}</td>
+                                                    <td className="p-2 border border-slate-200">{st.stream}</td>
+                                                    <td className="p-2 border border-slate-200 text-center">{st.prevMarks}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold text-slate-900">{st.meanMarks}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-black text-emerald-700">+{st.percentDiff}%</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -6035,15 +6035,15 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-200">
-                                            {mostDroppingStudents.slice(0, 8).map((st, idx) => (
-                                                <tr key={st.student?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                                    <td className="p-2 border border-slate-200 text-center font-bold">{idx + 1}</td>
-                                                    <td className="p-2 border border-slate-200 font-mono">{st.student?.admissionNo || st.student?.id}</td>
-                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{st.student?.name}</td>
-                                                    <td className="p-2 border border-slate-200">{st.student?.studentClass || selectedYearGroup}</td>
-                                                    <td className="p-2 border border-slate-200 text-center">{st.previousMean.toFixed(1)}%</td>
-                                                    <td className="p-2 border border-slate-200 text-center font-bold text-slate-900">{st.currentMean.toFixed(1)}%</td>
-                                                    <td className="p-2 border border-slate-200 text-center font-black text-rose-700">{st.change.toFixed(1)}%</td>
+                                            {mostDropping.slice(0, 8).map((st, idx) => (
+                                                <tr key={st.admNo || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{st.rank || idx + 1}</td>
+                                                    <td className="p-2 border border-slate-200 font-mono">{st.admNo}</td>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{st.name}</td>
+                                                    <td className="p-2 border border-slate-200">{st.stream}</td>
+                                                    <td className="p-2 border border-slate-200 text-center">{st.prevMarks}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold text-slate-900">{st.meanMarks}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-black text-rose-700">{st.percentDiff}%</td>
                                                 </tr>
                                             ))}
                                         </tbody>
