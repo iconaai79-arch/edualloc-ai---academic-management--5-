@@ -28,6 +28,9 @@ export interface DemoRequest {
     quoteItems?: InvoiceItem[];
     payments?: any[];
     quoteUrl?: string;
+    conversationTranscript?: Array<{ role: 'user' | 'model' | 'assistant'; text: string; timestamp?: string }> | string;
+    source?: string;
+    notes?: string;
 }
 
 export interface MarketingProspect {

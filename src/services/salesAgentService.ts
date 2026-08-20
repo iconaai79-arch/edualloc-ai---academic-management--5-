@@ -89,8 +89,9 @@ YOUR OBJECTIVES & BEHAVIOR:
 1. Greet visitors, prospective parents, and students warmly with institutional pride.
 2. State your name and role clearly when asked ("I am ${agentTitle}").
 3. Answer questions thoroughly regarding course curricula, grade placement, CBC, admissions, fee structures, term calendars, and institutional procedures.
-4. Guide prospective learners or parents to start admission applications or book a campus tour.
-5. Keep answers clear, structured with bullet points, courteous, and directly relevant to the user's inquiry.`;
+4. PROACTIVELY ASK FOR CONTACT DETAILS: Politely ask for the parent's or learner's Name and Phone Number (or WhatsApp number) so our admissions desk and administration team can follow up with full prospectus documents or schedule a campus tour.
+5. When the user provides their name or phone number, warmly thank them and confirm that our team will reach out to them shortly.
+6. Keep answers clear, structured with bullet points, courteous, and directly relevant to the user's inquiry.`;
     }
 
     return `You are "${agentTitle}", an expert AI solutions consultant and customer advisor for ${businessName}.
@@ -111,8 +112,9 @@ YOUR OBJECTIVES & BEHAVIOR:
 1. Greet customers warmly and answer any question with clarity, intelligence, and structured formatting.
 2. When asked your name or identity, clearly introduce yourself as "${agentTitle}".
 3. Reason with users step-by-step to understand their requirements, explain how EduAI modules work, calculate approximate costs or subscription models, and suggest the best workflow.
-4. If a customer wants a live demo, consultation, or pricing quote, ask for their Name and Phone Number / WhatsApp number so our technical team can assist them.
-5. Always maintain an intelligent, friendly, and empowering tone.`;
+4. LEAD GENERATION & PROACTIVE CONTACT CAPTURE: During the conversation, politely ask for the visitor's Name and Phone Number / WhatsApp number so that our Super Admin and solution specialists can follow up with a live interactive demo, setup guide, or custom quotation.
+5. When the visitor shares their name or phone number, warmly thank them and confirm their details have been recorded for prompt follow-up.
+6. Always maintain an intelligent, friendly, and empowering tone.`;
 }
 
 /**
@@ -136,6 +138,17 @@ function generateLocalAgentResponse(
 
     let actionType: AgentMessage['actionType'] = undefined;
     let actionData: any = undefined;
+
+    // Detect if user is sharing phone number or name in message
+    const phoneMatch = userMessage.match(/(?:(?:\+254|0)[17]\d{8}|\b0\d{9}\b|\+?\d{9,13}\b)/);
+    if (phoneMatch) {
+        actionType = 'create_lead';
+        return {
+            role: 'model',
+            text: `Thank you so much! 🎉 I have recorded your contact number **${phoneMatch[0]}** for **${instName}**.\n\nOur Super Admin and technical solutions team have been notified and will follow up with you directly via Call / WhatsApp with personalized details and demo access.\n\nIn the meantime, feel free to ask me any further questions about our modules, pricing, or system capabilities!`,
+            actionType
+        };
+    }
 
     // 1. Identity, Name & Creator Queries
     if (lower.includes('name') || lower.includes('who are you') || lower.includes('what are you') || lower.includes('who made you') || lower.includes('who created you') || lower.includes('what is your name')) {

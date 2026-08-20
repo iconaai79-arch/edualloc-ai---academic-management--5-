@@ -20,6 +20,8 @@ import { XIcon } from './icons/XIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { PencilIcon } from './icons/PencilIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
 
 import { downloadQuotePdf, generateQuotePdfDataUri } from '../services/pdfService';
 import { sendEmailNotification } from '../services/emailService';
@@ -47,6 +49,8 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
     const [statusFilter, setStatusFilter] = useState<DemoRequest['status'] | 'all'>('all');
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [expandedIds, setExpandedIds] = useState<string[]>([]);
+    const [notesMap, setNotesMap] = useState<Record<string, string>>({});
+    const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
 
     // Quote Modal states
     const [selectedRequestForQuote, setSelectedRequestForQuote] = useState<DemoRequest | null>(null);
@@ -75,7 +79,25 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
 
     useEffect(() => {
         setLocalRequests(requests);
+        const map: Record<string, string> = {};
+        requests.forEach(r => {
+            if (r.notes) map[r.id] = r.notes;
+        });
+        setNotesMap(map);
     }, [requests]);
+
+    const handleSaveNotes = async (id: string) => {
+        try {
+            setSavingNoteId(id);
+            const noteText = notesMap[id] || '';
+            await apiService.saveModuleRecord('demo_requests', { id, notes: noteText });
+            setLocalRequests(prev => prev.map(r => r.id === id ? { ...r, notes: noteText } : r));
+        } catch (e) {
+            console.error('Failed to save follow-up notes:', e);
+        } finally {
+            setSavingNoteId(null);
+        }
+    };
 
     // Initialize Quote items when quote request modal opens
     useEffect(() => {
@@ -577,135 +599,266 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                                         </td>
                                     </tr>
 
-                                    {/* Expandable row */}
-                                    {expandedIds.includes(req.id) && (
-                                        <tr className="bg-slate-50/50 dark:bg-slate-900/20 border-b border-gray-100 dark:border-gray-700 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            <td></td>
-                                            <td colSpan={5} className="px-6 py-4">
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    {/* Quote Section */}
-                                                    <div className="bg-white dark:bg-gray-800/80 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                                                        <div className="flex justify-between items-center mb-3">
-                                                            <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                                <DocumentTextIcon className="w-5 h-5 text-indigo-500" />
-                                                                Quotation Details
-                                                            </h4>
-                                                            {req.quoteAmount && (
-                                                                <button 
-                                                                    onClick={() => handleOpenQuoteModal(req)}
-                                                                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm"
-                                                                    title="Edit Quotation"
-                                                                >
-                                                                    <PencilIcon className="w-3.5 h-3.5" /> Edit Quotation
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                        {req.quoteAmount ? (
-                                                            <div className="space-y-4">
-                                                                <div className="flex justify-between items-center text-sm bg-indigo-50/50 dark:bg-indigo-950/20 p-2.5 rounded-lg border border-indigo-100/50 dark:border-indigo-900/30">
-                                                                    <span className="text-gray-500 dark:text-gray-400 font-semibold">Total Quotation Value:</span>
-                                                                    <span className="font-extrabold text-indigo-700 dark:text-indigo-400 text-base">KES {req.quoteAmount.toLocaleString()}</span>
-                                                                </div>
-                                                                {req.quoteUrl && (
-                                                                    <div className="flex justify-between items-center text-sm">
-                                                                        <span className="text-gray-500 dark:text-gray-400 text-xs">Cloud Hosted Backup:</span>
-                                                                        <a 
-                                                                            href={req.quoteUrl} 
-                                                                            target="_blank" 
-                                                                            rel="noopener noreferrer" 
-                                                                            className="text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-semibold text-xs bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1 rounded border border-indigo-100 dark:border-indigo-800"
-                                                                        >
-                                                                            <DocumentArrowDownIcon className="w-3.5 h-3.5" /> Open Quote Document
-                                                                        </a>
-                                                                    </div>
-                                                                )}
-                                                                <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-                                                                    <div className="flex justify-between items-center mb-2">
-                                                                        <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">Quote Line Items:</span>
-                                                                        <button
-                                                                            onClick={() => handleOpenQuoteModal(req)}
-                                                                            className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                                                                        >
-                                                                            Edit Items & Pricing
-                                                                        </button>
-                                                                    </div>
-                                                                    <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
-                                                                        {req.quoteItems?.map((item, idx) => (
-                                                                            <div key={idx} className="flex justify-between items-start text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/30 p-2 rounded border border-gray-100/50 dark:border-gray-800/30">
-                                                                                <div className="font-medium mr-4">{item.description} <span className="text-[10px] text-gray-400 font-bold ml-1">x{item.quantity}</span></div>
-                                                                                <div className="font-bold text-gray-800 dark:text-white shrink-0">KES {item.amount.toLocaleString()}</div>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="text-center py-6">
-                                                                <p className="text-sm text-gray-400 dark:text-gray-500">No quotation has been sent to this prospect yet.</p>
-                                                                <button 
-                                                                    onClick={() => handleOpenQuoteModal(req)}
-                                                                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm text-xs font-semibold"
-                                                                >
-                                                                    <DocumentTextIcon className="w-3.5 h-3.5" /> Generate Quotation
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                     {/* Expandable row */}
+                                     {expandedIds.includes(req.id) && (
+                                         <tr className="bg-slate-50/70 dark:bg-slate-900/40 border-b border-gray-100 dark:border-gray-700 animate-in fade-in slide-in-from-top-2 duration-200">
+                                             <td></td>
+                                             <td colSpan={5} className="px-6 py-5 space-y-6">
+                                                 {/* Top Action & Direct Communication Bar */}
+                                                 <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                                                     <div className="flex flex-wrap items-center gap-2">
+                                                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Quick Actions:</span>
+                                                         {req.phone && req.phone !== 'Pending in chat' && (
+                                                             <>
+                                                                 <a
+                                                                     href={`tel:${req.phone.replace(/[^0-9+]/g, '')}`}
+                                                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-bold transition-all border border-emerald-200 dark:border-emerald-800"
+                                                                 >
+                                                                     <PhoneIcon className="w-3.5 h-3.5" /> Call {req.phone}
+                                                                 </a>
+                                                                 <a
+                                                                     href={`https://wa.me/${req.phone.replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(req.name)},%20thank%20you%20for%20inquiring%20about%20EduAI%20Cloud%20ERP%20solutions.%20How%20can%20we%20assist%20you%20today?`}
+                                                                     target="_blank"
+                                                                     rel="noopener noreferrer"
+                                                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                                                                 >
+                                                                     <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" /> WhatsApp Prospect
+                                                                 </a>
+                                                             </>
+                                                         )}
+                                                         {req.email && req.email !== 'visitor@eduai.showcase' && (
+                                                             <a
+                                                                 href={`mailto:${req.email}?subject=EduAI%20Platform%20Consultation%20Follow-up&body=Dear%20${encodeURIComponent(req.name)},%0A%0AThank%20you%20for%20your%20interest%20in%20EduAI.`}
+                                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 rounded-lg text-xs font-bold transition-all border border-sky-200 dark:border-sky-800"
+                                                             >
+                                                                 <EnvelopeIcon className="w-3.5 h-3.5" /> Email
+                                                             </a>
+                                                         )}
+                                                     </div>
+                                                     <div className="flex items-center gap-2">
+                                                         <span className="text-[11px] font-semibold text-gray-400">Channel / Origin:</span>
+                                                         <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                                             {req.source || 'AI Showcase Solutions Advisor'}
+                                                         </span>
+                                                     </div>
+                                                 </div>
 
-                                                    {/* Payments Section */}
-                                                    <div className="bg-white dark:bg-gray-800/80 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                                                        <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                                            <CreditCardIcon className="w-5 h-5 text-green-500" />
-                                                            Onboarding Payments Log
-                                                        </h4>
-                                                        {req.payments && req.payments.length > 0 ? (
-                                                            <div className="space-y-4">
-                                                                <div className="max-h-44 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700 pr-1">
-                                                                    {req.payments.map((p: any, idx: number) => (
-                                                                        <div key={idx} className="py-2 flex justify-between items-start text-xs">
-                                                                            <div>
-                                                                                <div className="font-semibold text-gray-800 dark:text-gray-200 capitalize flex items-center gap-1.5">
-                                                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                                                                    {p.paymentMethod.replace('_', ' ')}: {p.reference || 'Ref N/A'}
-                                                                                </div>
-                                                                                <div className="text-gray-400 dark:text-gray-500 text-[10px] mt-0.5 flex items-center gap-1">
-                                                                                    <span>{new Date(p.paymentDate).toLocaleDateString()}</span>
-                                                                                    {p.remarks && <span className="italic">• "{p.remarks}"</span>}
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="font-bold text-green-600 dark:text-green-400">KES {p.amount.toLocaleString()}</div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
+                                                 {/* Main Two-Column Layout */}
+                                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                     {/* Column 1: AI Chat Conversation Transcript */}
+                                                     <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
+                                                         <div className="flex justify-between items-center mb-3">
+                                                             <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                                 <SparklesIcon className="w-4 h-4 text-purple-500" />
+                                                                 AI Conversation History & Chat Transcript
+                                                             </h4>
+                                                             <span className="text-[10px] font-bold text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                                                                 Live Transcript
+                                                             </span>
+                                                         </div>
 
-                                                                <div className="border-t border-gray-100 dark:border-gray-700 pt-3 flex justify-between items-center text-sm font-bold bg-green-50/30 dark:bg-green-950/10 p-2.5 rounded-lg border border-green-100/50 dark:border-green-900/20">
-                                                                    <span className="text-gray-500 dark:text-gray-400">Total Collected Amount:</span>
-                                                                    <span className="text-green-700 dark:text-green-400 text-base">
-                                                                        KES {req.payments.reduce((sum: number, p: any) => sum + p.amount, 0).toLocaleString()} 
-                                                                        {req.quoteAmount ? ` / ${req.quoteAmount.toLocaleString()}` : ''}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="text-center py-6">
-                                                                <p className="text-sm text-gray-400 dark:text-gray-500">No payment records exist for this prospect.</p>
-                                                                {req.quoteAmount ? (
-                                                                    <button 
-                                                                        onClick={() => setSelectedRequestForPayment(req)}
-                                                                        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm text-xs font-semibold"
-                                                                    >
-                                                                        <CreditCardIcon className="w-3.5 h-3.5" /> Record Client Payment
-                                                                    </button>
-                                                                ) : (
-                                                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 italic">Please generate a quote before posting payments.</p>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
+                                                         {/* Chat Bubbles Container */}
+                                                         {(() => {
+                                                             let transcriptList: Array<{ role: string; text: string; timestamp?: string }> = [];
+                                                             if (Array.isArray(req.conversationTranscript)) {
+                                                                 transcriptList = req.conversationTranscript;
+                                                             } else if (typeof req.conversationTranscript === 'string' && req.conversationTranscript.trim()) {
+                                                                 try {
+                                                                     transcriptList = JSON.parse(req.conversationTranscript);
+                                                                 } catch {
+                                                                     transcriptList = [{ role: 'user', text: req.conversationTranscript }];
+                                                                 }
+                                                             }
+
+                                                             if (transcriptList.length === 0 && req.message) {
+                                                                 transcriptList = [{ role: 'user', text: req.message }];
+                                                             }
+
+                                                             return transcriptList.length > 0 ? (
+                                                                 <div className="space-y-3 max-h-[320px] overflow-y-auto pr-2 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-gray-100 dark:border-gray-800">
+                                                                     {transcriptList.map((item, tIdx) => {
+                                                                         const isUser = item.role === 'user';
+                                                                         return (
+                                                                             <div key={tIdx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1`}>
+                                                                                 <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-bold px-1">
+                                                                                     <span>{isUser ? `👤 ${req.name || 'Prospect'}` : '✨ AI Solutions Advisor'}</span>
+                                                                                     {item.timestamp && (
+                                                                                         <span>• {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                                     )}
+                                                                                 </div>
+                                                                                 <div
+                                                                                     className={`p-3 rounded-2xl max-w-[90%] text-xs leading-relaxed ${
+                                                                                         isUser
+                                                                                             ? 'bg-indigo-600 text-white rounded-br-none font-medium'
+                                                                                             : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 rounded-bl-none shadow-xs font-normal'
+                                                                                     }`}
+                                                                                 >
+                                                                                     {item.text.split('\n').map((line, lIdx) => (
+                                                                                         <p key={lIdx} className={lIdx > 0 ? 'mt-1' : ''}>{line}</p>
+                                                                                     ))}
+                                                                                 </div>
+                                                                             </div>
+                                                                         );
+                                                                     })}
+                                                                 </div>
+                                                             ) : (
+                                                                 <div className="py-8 text-center bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-800">
+                                                                     <p className="text-xs text-gray-400">No chat transcript available for this inquiry.</p>
+                                                                 </div>
+                                                             );
+                                                         })()}
+
+                                                         {/* Super Admin Internal Follow-up Notes */}
+                                                         <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                                                             <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center justify-between">
+                                                                 <span>📝 Super Admin Follow-Up & Call Notes:</span>
+                                                                 <span className="text-[10px] font-normal text-gray-400">Saved to CRM record</span>
+                                                             </label>
+                                                             <div className="flex gap-2">
+                                                                 <textarea
+                                                                     value={notesMap[req.id] || ''}
+                                                                     onChange={e => setNotesMap(prev => ({ ...prev, [req.id]: e.target.value }))}
+                                                                     placeholder="Record follow-up details (e.g., Called John — confirmed demo for Thursday 10 AM, interested in CBC School + SACCO module)..."
+                                                                     rows={2}
+                                                                     className="flex-1 text-xs p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white resize-none"
+                                                                 />
+                                                                 <button
+                                                                     onClick={() => handleSaveNotes(req.id)}
+                                                                     disabled={savingNoteId === req.id}
+                                                                     className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-sm self-end"
+                                                                 >
+                                                                     {savingNoteId === req.id ? 'Saving...' : 'Save Note'}
+                                                                 </button>
+                                                             </div>
+                                                         </div>
+                                                     </div>
+
+                                                     {/* Column 2: Quotations & Payments */}
+                                                     <div className="space-y-6">
+                                                         {/* Quote Section */}
+                                                         <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                                             <div className="flex justify-between items-center mb-3">
+                                                                 <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                                     <DocumentTextIcon className="w-5 h-5 text-indigo-500" />
+                                                                     Quotation Details
+                                                                 </h4>
+                                                                 {req.quoteAmount ? (
+                                                                     <button 
+                                                                         onClick={() => handleOpenQuoteModal(req)}
+                                                                         className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+                                                                         title="Edit Quotation"
+                                                                     >
+                                                                         <PencilIcon className="w-3.5 h-3.5" /> Edit Quotation
+                                                                     </button>
+                                                                 ) : null}
+                                                             </div>
+                                                             {req.quoteAmount ? (
+                                                                 <div className="space-y-4">
+                                                                     <div className="flex justify-between items-center text-sm bg-indigo-50/50 dark:bg-indigo-950/20 p-2.5 rounded-lg border border-indigo-100/50 dark:border-indigo-900/30">
+                                                                         <span className="text-gray-500 dark:text-gray-400 font-semibold">Total Quotation Value:</span>
+                                                                         <span className="font-extrabold text-indigo-700 dark:text-indigo-400 text-base">KES {req.quoteAmount.toLocaleString()}</span>
+                                                                     </div>
+                                                                     {req.quoteUrl && (
+                                                                         <div className="flex justify-between items-center text-sm">
+                                                                             <span className="text-gray-500 dark:text-gray-400 text-xs">Cloud Hosted Backup:</span>
+                                                                             <a 
+                                                                                 href={req.quoteUrl} 
+                                                                                 target="_blank" 
+                                                                                 rel="noopener noreferrer" 
+                                                                                 className="text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-semibold text-xs bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1 rounded border border-indigo-100 dark:border-indigo-800"
+                                                                             >
+                                                                                 <DocumentArrowDownIcon className="w-3.5 h-3.5" /> Open Quote Document
+                                                                             </a>
+                                                                         </div>
+                                                                     )}
+                                                                     <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                                                                         <div className="flex justify-between items-center mb-2">
+                                                                             <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">Quote Line Items:</span>
+                                                                             <button
+                                                                                 onClick={() => handleOpenQuoteModal(req)}
+                                                                                 className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                                                                             >
+                                                                                 Edit Items & Pricing
+                                                                             </button>
+                                                                         </div>
+                                                                         <div className="max-h-36 overflow-y-auto space-y-2 pr-1">
+                                                                             {req.quoteItems?.map((item, idx) => (
+                                                                                 <div key={idx} className="flex justify-between items-start text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/30 p-2 rounded border border-gray-100/50 dark:border-gray-800/30">
+                                                                                     <div className="font-medium mr-4">{item.description} <span className="text-[10px] text-gray-400 font-bold ml-1">x{item.quantity}</span></div>
+                                                                                     <div className="font-bold text-gray-800 dark:text-white shrink-0">KES {item.amount.toLocaleString()}</div>
+                                                                                 </div>
+                                                                             ))}
+                                                                         </div>
+                                                                     </div>
+                                                                 </div>
+                                                             ) : (
+                                                                 <div className="text-center py-5">
+                                                                     <p className="text-xs text-gray-400 dark:text-gray-500">No quotation has been sent to this prospect yet.</p>
+                                                                     <button 
+                                                                         onClick={() => handleOpenQuoteModal(req)}
+                                                                         className="mt-2.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm text-xs font-semibold"
+                                                                     >
+                                                                         <DocumentTextIcon className="w-3.5 h-3.5" /> Generate Quotation
+                                                                     </button>
+                                                                 </div>
+                                                             )}
+                                                         </div>
+
+                                                         {/* Payments Section */}
+                                                         <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                                             <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                                                 <CreditCardIcon className="w-5 h-5 text-green-500" />
+                                                                 Onboarding Payments Log
+                                                             </h4>
+                                                             {req.payments && req.payments.length > 0 ? (
+                                                                 <div className="space-y-4">
+                                                                     <div className="max-h-36 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700 pr-1">
+                                                                         {req.payments.map((p: any, idx: number) => (
+                                                                             <div key={idx} className="py-2 flex justify-between items-start text-xs">
+                                                                                 <div>
+                                                                                     <div className="font-semibold text-gray-800 dark:text-gray-200 capitalize flex items-center gap-1.5">
+                                                                                         <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                                                                         {p.paymentMethod.replace('_', ' ')}: {p.reference || 'Ref N/A'}
+                                                                                     </div>
+                                                                                     <div className="text-gray-400 dark:text-gray-500 text-[10px] mt-0.5 flex items-center gap-1">
+                                                                                         <span>{new Date(p.paymentDate).toLocaleDateString()}</span>
+                                                                                         {p.remarks && <span className="italic">• "{p.remarks}"</span>}
+                                                                                     </div>
+                                                                                 </div>
+                                                                                 <div className="font-bold text-green-600 dark:text-green-400">KES {p.amount.toLocaleString()}</div>
+                                                                             </div>
+                                                                         ))}
+                                                                     </div>
+
+                                                                     <div className="border-t border-gray-100 dark:border-gray-700 pt-3 flex justify-between items-center text-sm font-bold bg-green-50/30 dark:bg-green-950/10 p-2.5 rounded-lg border border-green-100/50 dark:border-green-900/20">
+                                                                         <span className="text-gray-500 dark:text-gray-400">Total Collected:</span>
+                                                                         <span className="text-green-700 dark:text-green-400 text-base">
+                                                                             KES {req.payments.reduce((sum: number, p: any) => sum + p.amount, 0).toLocaleString()} 
+                                                                             {req.quoteAmount ? ` / ${req.quoteAmount.toLocaleString()}` : ''}
+                                                                         </span>
+                                                                     </div>
+                                                                 </div>
+                                                             ) : (
+                                                                 <div className="text-center py-5">
+                                                                     <p className="text-xs text-gray-400 dark:text-gray-500">No payment records exist for this prospect.</p>
+                                                                     {req.quoteAmount ? (
+                                                                         <button 
+                                                                             onClick={() => setSelectedRequestForPayment(req)}
+                                                                             className="mt-2.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm text-xs font-semibold"
+                                                                         >
+                                                                             <CreditCardIcon className="w-3.5 h-3.5" /> Record Client Payment
+                                                                         </button>
+                                                                     ) : (
+                                                                         <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1 italic">Please generate a quote before posting payments.</p>
+                                                                     )}
+                                                                 </div>
+                                                             )}
+                                                         </div>
+                                                     </div>
+                                                 </div>
+                                             </td>
+                                         </tr>
+                                     )}
                                 </React.Fragment>
                             ))}
                             {filteredRequests.length === 0 && (

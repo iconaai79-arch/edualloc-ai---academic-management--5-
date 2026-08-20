@@ -59,6 +59,13 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
     const [leadPhone, setLeadPhone] = useState('');
     const [leadSaved, setLeadSaved] = useState(false);
 
+    // Persistent conversation session state
+    const sessionIdRef = useRef<string>(`ai_lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`);
+    const sessionStartTimeRef = useRef<string>(new Date().toISOString());
+    const leadContactNotifiedRef = useRef<boolean>(false);
+    const currentNameRef = useRef<string>('');
+    const currentPhoneRef = useRef<string>('');
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const currency = institution?.currency || 'KES';
@@ -90,9 +97,81 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
         whatsappNumber: whatsappNumber || institution.phone
     };
 
+    /**
+     * Persists or updates the ongoing conversation in the demo_requests table
+     * so the Super Admin can review the full transcript and follow up.
+     */
+    const syncConversationToDatabase = async (currentMsgs: AgentMessage[], extractedName?: string, extractedPhone?: string) => {
+        try {
+            const nameToSave = extractedName || currentNameRef.current || leadName.trim() || 'Showcase Visitor';
+            const phoneToSave = extractedPhone || currentPhoneRef.current || leadPhone.trim() || 'Pending in chat';
+            const lastUserMsg = [...currentMsgs].reverse().find(m => m.role === 'user')?.text || 'Initiated chat session';
+
+            const record = {
+                id: sessionIdRef.current,
+                name: nameToSave,
+                phone: phoneToSave,
+                email: 'visitor@eduai.showcase',
+                institution: institution?.name || 'EduAI Global Cloud OS',
+                message: lastUserMsg,
+                conversationTranscript: currentMsgs.map(m => ({
+                    role: m.role,
+                    text: m.text,
+                    timestamp: new Date().toISOString()
+                })),
+                source: institution?.institutionType ? `${institution.institutionType} AI Advisor` : 'AI Showcase Solutions Advisor',
+                status: 'new',
+                requestedAt: sessionStartTimeRef.current,
+                createdAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('demo_requests', record);
+
+            // Notify Super Admin when contact details are provided for the first time
+            if (phoneToSave !== 'Pending in chat' && !leadContactNotifiedRef.current) {
+                leadContactNotifiedRef.current = true;
+                await apiService.notifySuperAdmins(
+                    `🔔 New AI Lead Captured: ${nameToSave} (Phone: ${phoneToSave}) chatting with ${agentName} on ${institution?.name || 'Showcase'}`,
+                    'guest_arrival'
+                ).catch(() => {});
+            }
+        } catch (err) {
+            console.warn('[AiSalesAgentWidget] Conversation sync warning:', err);
+        }
+    };
+
+    /**
+     * Auto-detects phone number and name in incoming user messages
+     */
+    const extractContactInfo = (text: string) => {
+        let foundPhone = '';
+        let foundName = '';
+
+        // Match phone: 0712345678, +254712345678, 0112345678, +2541...
+        const phoneMatch = text.match(/(?:(?:\+254|0)[17]\d{8}|\b0\d{9}\b|\+?\d{9,13}\b)/);
+        if (phoneMatch) {
+            foundPhone = phoneMatch[0];
+            currentPhoneRef.current = foundPhone;
+            setLeadPhone(foundPhone);
+            setLeadSaved(true);
+        }
+
+        // Match name: "my name is John", "i am Jane", "name: David"
+        const nameMatch = text.match(/(?:my name is|i am|name is|call me|name:?)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/i);
+        if (nameMatch && nameMatch[1]) {
+            foundName = nameMatch[1].trim();
+            currentNameRef.current = foundName;
+            setLeadName(foundName);
+        }
+
+        return { foundPhone, foundName };
+    };
+
     const handleSendMessage = async (textToSend?: string) => {
         const text = (textToSend || inputValue).trim();
         if (!text || isLoading) return;
+
+        const { foundPhone, foundName } = extractContactInfo(text);
 
         const newMessages: AgentMessage[] = [
             ...messages,
@@ -102,9 +181,16 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
         setInputValue('');
         setIsLoading(true);
 
+        // Sync user message to database immediately
+        syncConversationToDatabase(newMessages, foundName, foundPhone);
+
         const responseMsg = await querySalesAgent(newMessages, text, context);
-        setMessages(prev => [...prev, responseMsg]);
+        const finalMessages = [...newMessages, responseMsg];
+        setMessages(finalMessages);
         setIsLoading(false);
+
+        // Sync complete response to database
+        syncConversationToDatabase(finalMessages, foundName, foundPhone);
     };
 
     const handleLeadSubmit = async (e: React.FormEvent) => {
@@ -112,36 +198,22 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
         if (!leadPhone.trim()) return;
 
         try {
-            const leadData = {
-                name: leadName.trim() || 'Website Visitor',
-                phoneNumber: leadPhone.trim(),
-                role: 'lead',
-                institutionId: institution.id,
-                source: 'AI Sales Agent',
-                notes: `Inquiry via AI Sales Assistant on ${new Date().toLocaleDateString()}`,
-                createdAt: new Date().toISOString()
-            };
-
-            await apiService.saveModuleRecord('leads', leadData);
+            currentNameRef.current = leadName.trim();
+            currentPhoneRef.current = leadPhone.trim();
             setLeadSaved(true);
             setShowLeadForm(false);
-            setMessages(prev => [
-                ...prev,
-                {
-                    role: 'model',
-                    text: `Thank you, ${leadName || 'there'}! 🎉 Your request has been recorded. Our team will contact you at ${leadPhone} shortly.`
-                }
-            ]);
+
+            const ackMessage: AgentMessage = {
+                role: 'model',
+                text: `Thank you, ${leadName.trim() || 'there'}! 🎉 I have recorded your contact number **${leadPhone.trim()}**.\n\nOur Super Admin and specialist team will follow up with you promptly with full documentation and live access!`
+            };
+            const updated = [...messages, ackMessage];
+            setMessages(updated);
+
+            await syncConversationToDatabase(updated, leadName.trim(), leadPhone.trim());
         } catch (err) {
             console.error('Failed to log lead:', err);
             setShowLeadForm(false);
-            setMessages(prev => [
-                ...prev,
-                {
-                    role: 'model',
-                    text: `Thank you! We have noted your contact number ${leadPhone} and our team will get in touch with you.`
-                }
-            ]);
         }
     };
 
@@ -153,10 +225,10 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
         { label: '💰 Fee Schedules', query: 'Can you provide the fee structure and tuition costs?' },
         { label: '📍 Location & Visits', query: 'Where is the campus located and what are your visiting hours?' }
     ] : [
-        { label: '🔥 Popular Products', query: 'What are your most popular products and prices?' },
-        { label: '💼 Available Services', query: 'What services or packages do you offer?' },
-        { label: '📅 Book an Appointment', query: 'I would like to book a service or appointment.' },
-        { label: '📞 Contact Human Agent', query: 'Can I speak with a sales agent or get a callback?' }
+        { label: '🌟 Module Features', query: 'What modules and ERP systems are included in EduAI?' },
+        { label: '💼 Pricing & Packages', query: 'What are the pricing options and subscription packages?' },
+        { label: '📅 Book a Live Demo', query: 'I would like to schedule a live system demonstration.' },
+        { label: '📞 Contact Human Agent', query: 'Can I get a direct callback or speak with an advisor?' }
     ];
 
     return (
@@ -174,7 +246,7 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
                             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-white dark:border-slate-900 rounded-full"></span>
                         </div>
                         <span className="font-bold text-sm tracking-wide hidden sm:inline">
-                            {isSchool ? 'Ask Campus AI' : 'Ask Sales AI'}
+                            {isSchool ? 'Ask Campus AI' : 'Ask Solutions AI'}
                         </span>
                     </button>
                 </div>
@@ -182,7 +254,7 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
 
             {/* Expanded Chat Drawer */}
             {isOpen && (
-                <div className="bg-white dark:bg-slate-900 w-[92vw] sm:w-[400px] h-[580px] max-h-[85vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200/80 dark:border-slate-800 animate-fade-in-up">
+                <div className="bg-white dark:bg-slate-900 w-[92vw] sm:w-[420px] h-[600px] max-h-[85vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200/80 dark:border-slate-800 animate-fade-in-up">
                     {/* Drawer Header */}
                     <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 px-5 flex justify-between items-center border-b border-indigo-500/20">
                         <div className="flex items-center gap-3">
@@ -224,6 +296,63 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
                             </button>
                         </div>
                     </div>
+
+                    {/* Quick Callback / Leave Contact Strip */}
+                    {!leadSaved && (
+                        <div className="bg-emerald-50 dark:bg-emerald-950/40 border-b border-emerald-200 dark:border-emerald-800/40 px-4 py-2 flex items-center justify-between text-xs">
+                            <span className="text-emerald-800 dark:text-emerald-300 text-[11px] font-medium flex items-center gap-1.5">
+                                <PhoneIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                Want a direct callback or quote?
+                            </span>
+                            <button
+                                onClick={() => setShowLeadForm(prev => !prev)}
+                                className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/60 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                            >
+                                {showLeadForm ? 'Close' : 'Leave Details'}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Quick Inline Lead Form Dropdown */}
+                    {showLeadForm && !leadSaved && (
+                        <form onSubmit={handleLeadSubmit} className="p-3.5 bg-white dark:bg-slate-850 border-b border-emerald-500/20 shadow-md space-y-2 animate-in slide-in-from-top-2">
+                            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                                Leave your contact info for our Super Admin team to follow up:
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <input
+                                    type="text"
+                                    value={leadName}
+                                    onChange={e => setLeadName(e.target.value)}
+                                    placeholder="Your Name (e.g. John Doe)"
+                                    className="text-xs p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 outline-none focus:border-emerald-500 text-slate-900 dark:text-white"
+                                />
+                                <input
+                                    type="tel"
+                                    value={leadPhone}
+                                    onChange={e => setLeadPhone(e.target.value)}
+                                    placeholder="Phone / WhatsApp Number *"
+                                    required
+                                    className="text-xs p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 outline-none focus:border-emerald-500 text-slate-900 dark:text-white font-semibold"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-2 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLeadForm(false)}
+                                    className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow transition-colors"
+                                >
+                                    Save & Request Callback
+                                </button>
+                            </div>
+                        </form>
+                    )}
 
                     {/* Messages Body */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/70 dark:bg-slate-950/60 backdrop-blur-sm">
@@ -373,3 +502,4 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
         </div>
     );
 };
+
