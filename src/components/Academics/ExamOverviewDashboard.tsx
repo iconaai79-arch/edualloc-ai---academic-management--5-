@@ -177,13 +177,19 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         return false;
     };
 
-    // Combined dynamic exams list
+    // Combined dynamic exams list (STRICTLY PUBLISHED EXAMS ONLY)
     const allExamsList = useMemo(() => {
         const customConverted = savedExamUnits.map(ex => {
             const broadsheetRows = savedBroadsheets[ex.id];
             const realCount = Array.isArray(broadsheetRows) && broadsheetRows.length > 0
                 ? broadsheetRows.length
                 : (ex.studentsEnrolled || ex.studentCount || (activeStudents.length > 0 ? activeStudents.length : 1));
+
+            const isPub = ex.isPublished === true || 
+                          ex.published === true || 
+                          ex.status === 'published' || 
+                          ex.status === 'Published' ||
+                          ex.publishStatus === 'published';
 
             return {
                 id: ex.id,
@@ -192,8 +198,8 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 term: ex.term || ex.academicTerm || 'TERM 2',
                 type: ex.type || ex.examType || 'END TERM',
                 count: realCount,
-                status: ex.status || 'in_progress',
-                isPublished: ex.isPublished ?? ex.published ?? (ex.status === 'published'),
+                status: isPub ? 'published' : (ex.status || 'in_progress'),
+                isPublished: Boolean(isPub),
                 targetClasses: ex.targetClasses || ex.classes || []
             };
         });
@@ -204,6 +210,12 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 ? broadsheetRows.length
                 : (activeStudents.length > 0 ? activeStudents.length : 1);
 
+            const isPub = (a as any).isPublished === true || 
+                          (a as any).published === true || 
+                          (a as any).status === 'published' || 
+                          (a as any).status === 'Published' || 
+                          (a as any).publishStatus === 'published';
+
             return {
                 id: a.id,
                 title: a.title,
@@ -211,8 +223,8 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 term: a.type || 'TERM 2',
                 type: a.type || 'END TERM',
                 count: realCount,
-                status: (a as any).status || 'in_progress',
-                isPublished: (a as any).isPublished ?? (a as any).published ?? false,
+                status: isPub ? 'published' : ((a as any).status || 'in_progress'),
+                isPublished: Boolean(isPub),
                 targetClasses: (a as any).targetClasses || (a as any).classes || []
             };
         });
@@ -223,10 +235,19 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         combined.forEach(item => {
             if (item.id && !seen.has(item.id)) {
                 seen.add(item.id);
-                unique.push(item);
+                // STRICTLY INCLUDE ONLY PUBLISHED EXAMS ON OVERVIEW
+                if (item.isPublished || item.status === 'published') {
+                    unique.push(item);
+                }
             }
         });
 
+        // If there are saved exams or assessments in the system but none are published, return empty list
+        if (unique.length === 0 && (savedExamUnits.length > 0 || assessments.length > 0)) {
+            return [];
+        }
+
+        // Demo sample published exams fallback if system is entirely fresh/empty
         if (unique.length === 0) {
             return [
                 { id: 'exam_endterm_2', title: 'Endterm 2 Exam 2026', year: '2026', term: 'TERM 2', type: 'END TERM', count: activeStudents.length || 351, status: 'published', isPublished: true, targetClasses: [] },
@@ -1956,57 +1977,82 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             {/* COLUMN 2: EXAM HISTORY / ACADEMIC YEAR SELECTOR COLUMN */}
             <div className="w-full lg:w-64 shrink-0 space-y-3">
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 px-1">
-                        EXAM HISTORY & SESSIONS
+                    <div className="flex items-center justify-between mb-3 px-1">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            PUBLISHED EXAMS
+                        </span>
+                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full text-[9px] font-black uppercase">
+                            {allExamsList.length} Active
+                        </span>
                     </div>
 
                     <div className="space-y-2">
-                        {Object.entries(examHistoryByYear).map(([year, examsList]) => {
-                            const isExpanded = expandedYear === year;
-                            return (
-                                <div key={year} className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
-                                    <button
-                                        onClick={() => setExpandedYear(isExpanded ? '' : year)}
-                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 font-black text-xs text-indigo-600 dark:text-indigo-400 flex justify-between items-center"
-                                    >
-                                        <span>{year} ({examsList.length})</span>
-                                        <span>{isExpanded ? '▲' : '▼'}</span>
-                                    </button>
+                        {Object.entries(examHistoryByYear).length === 0 ? (
+                            <div className="p-4 text-center text-xs font-bold text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-2xl">
+                                No published exams found.
+                            </div>
+                        ) : (
+                            Object.entries(examHistoryByYear).map(([year, examsList]) => {
+                                const isExpanded = expandedYear === year;
+                                return (
+                                    <div key={year} className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                                        <button
+                                            onClick={() => setExpandedYear(isExpanded ? '' : year)}
+                                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 font-black text-xs text-indigo-600 dark:text-indigo-400 flex justify-between items-center"
+                                        >
+                                            <span>{year} ({examsList.length})</span>
+                                            <span>{isExpanded ? '▲' : '▼'}</span>
+                                        </button>
 
-                                    {isExpanded && (
-                                        <div className="p-1.5 space-y-1.5 bg-white dark:bg-slate-900">
-                                            {examsList.map(exam => {
-                                                const isSelected = selectedExamId === exam.id;
-                                                return (
-                                                    <button
-                                                        key={exam.id}
-                                                        onClick={() => setSelectedExamId(exam.id)}
-                                                        className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer border ${
-                                                            isSelected
-                                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md font-bold'
-                                                            : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 hover:border-indigo-200'
-                                                        }`}
-                                                    >
-                                                        <div className="text-xs font-black truncate">{exam.title}</div>
-                                                        <div className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-indigo-100' : 'text-slate-400'}`}>
-                                                            {exam.term} &bull; {exam.type} &bull; {exam.count} students
-                                                        </div>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                        {isExpanded && (
+                                            <div className="p-1.5 space-y-1.5 bg-white dark:bg-slate-900">
+                                                {examsList.map(exam => {
+                                                    const isSelected = selectedExamId === exam.id;
+                                                    return (
+                                                        <button
+                                                            key={exam.id}
+                                                            onClick={() => setSelectedExamId(exam.id)}
+                                                            className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer border ${
+                                                                isSelected
+                                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md font-bold'
+                                                                : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 hover:border-indigo-200'
+                                                            }`}
+                                                        >
+                                                            <div className="text-xs font-black truncate">{exam.title}</div>
+                                                            <div className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                                                {exam.term} &bull; {exam.type} &bull; {exam.count} students
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* COLUMN 3: MAIN DASHBOARD & 7 COLLAPSIBLE SECTIONS */}
+            {/* COLUMN 3: MAIN DASHBOARD & COLLAPSIBLE SECTIONS */}
             <div className="flex-1 w-full min-w-0 space-y-6">
-                {/* Main Header & Controls Bar */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm space-y-6">
+                {allExamsList.length === 0 ? (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-12 rounded-[2.5rem] shadow-sm text-center space-y-4">
+                        <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center mx-auto text-2xl font-black">
+                            🔒
+                        </div>
+                        <h3 className="text-lg font-black uppercase text-slate-900 dark:text-white">
+                            No Published Exams Available
+                        </h3>
+                        <p className="text-xs text-slate-500 max-w-md mx-auto">
+                            Only published exams appear on the Exam Overview dashboard. Please publish an exam unit in the Exam Management module to view cohort analytics, subject comparisons, and rankings.
+                        </p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Main Header & Controls Bar */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm space-y-6">
                     {/* Title & Filter Options */}
                     <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
                         <div>
@@ -5388,7 +5434,8 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                         </div>
                     )}
                 </div>
-
+                    </>
+                )}
             </div>
         </div>
     );
