@@ -203,8 +203,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
+        const isStudentsAlias = moduleName === 'students';
+        const isTeachersAlias = moduleName === 'teachers';
+        const targetDbTable = isStudentsAlias || isTeachersAlias ? 'users' : moduleName;
+
         if (req.method === 'GET') {
-            let q = supabase.from(moduleName).select(getStrParam(select) || '*');
+            let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
+            if (isStudentsAlias) {
+                q = q.eq('role', 'student');
+            } else if (isTeachersAlias) {
+                q = q.eq('role', 'teacher');
+            }
             
             // Apply tenancy filter
             // Skip tenancy filter for super admins, group admins, explicit institution queries, OR for public modules
@@ -377,7 +386,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(400).json({ success: false, error: 'bulk_delete requires a non-empty ids array' });
                 }
 
-                let q = supabase.from(moduleName).delete();
+                let q = supabase.from(targetDbTable).delete();
                 if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
                 else q = q.in('id', idsArray);
 
@@ -498,12 +507,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanInstitution) : cleanInstitution(currentPayload);
             }
+            if (isStudentsAlias) {
+                const setStudentRole = (r: any) => (r && typeof r === 'object' ? { ...r, role: r.role || 'student' } : r);
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(setStudentRole) : setStudentRole(currentPayload);
+            } else if (isTeachersAlias) {
+                const setTeacherRole = (r: any) => (r && typeof r === 'object' ? { ...r, role: r.role || 'teacher' } : r);
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(setTeacherRole) : setTeacherRole(currentPayload);
+            }
+
             let data: any = null;
             let error: any = null;
             let maxRetries = 5;
 
             while (maxRetries >= 0) {
-                const queryRes = await supabase.from(moduleName).upsert(currentPayload).select();
+                const queryRes = await supabase.from(targetDbTable).upsert(currentPayload).select();
                 data = queryRes.data;
                 error = queryRes.error;
 
@@ -651,7 +668,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 let patchRetries = 5;
 
                 while (patchRetries >= 0) {
-                    let q = supabase.from(moduleName).update(currentUpdateData);
+                    let q = supabase.from(targetDbTable).update(currentUpdateData);
                     
                     if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
                     else q = q.in('id', idsArray);
@@ -756,7 +773,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (idsArray.length === 0) return res.status(400).json({ success: false, error: 'ID required. Pass ids in request body or query string.', debugQuery: req.query });
 
-            let q = supabase.from(moduleName).delete();
+            let q = supabase.from(targetDbTable).delete();
             if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
             else q = q.in('id', idsArray);
 
