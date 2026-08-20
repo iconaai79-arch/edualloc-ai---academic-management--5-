@@ -69,10 +69,19 @@ export const isSubjectApplicableToClass = (
     }
 
     // 2. Pre-Primary (PP1, PP2, Playgroup, Nursery, KG)
-    const isPPSubject = code.endsWith('-PP') || name.includes('pre-primary') || desc.includes('pre-primary') || desc.includes('pp1') || desc.includes('pp2') || desc.includes('playgroup') || (name.includes('activities') && (name.includes('psychomotor') || desc.includes('pre-primary') || code.includes('PP')));
+    const isPPSubject =
+        code.endsWith('-PP') || code.includes('PP') ||
+        name.includes('pre-primary') || name.includes('pre primary') ||
+        desc.includes('pre-primary') || desc.includes('pre primary') ||
+        desc.includes('pp1') || desc.includes('pp2') || desc.includes('playgroup') ||
+        name.includes('activities') || name.includes('psychomotor') ||
+        name.includes('language') || name.includes('mathematical') || name.includes('math') ||
+        name.includes('environmental') || name.includes('religious') || name.includes('cre') ||
+        name.includes('ire') || name.includes('music') || name.includes('art') || name.includes('creative') ||
+        name.includes('literacy') || name.includes('reading') || name.includes('numeracy');
 
-    if (isPPSubject) return isPPClass;
-    if (isPPClass) return isPPSubject;
+    if (isPPSubject && isPPClass) return true;
+    if (isPPClass && !isSecondaryOnlySubject && !code.endsWith('-SEC') && !code.endsWith('-JSS')) return true;
 
     // 3. Lower Primary (Grade 1 - 3)
     const isLPSubject = code.endsWith('-LP') || desc.includes('lower primary') || desc.includes('grade 1-3') || desc.includes('grade 1 - 3') || (name.includes('activities') && !name.includes('pre-primary')) || name.includes('hygiene & nutrition') || name.includes('movement & creative');
