@@ -447,20 +447,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         }
     }, [currentInstitution]);
 
-    // Make sure all classes in classList have a ranking row
-    const rankingRows = useMemo(() => {
-        return classList.map(c => {
-            const existing = classRankingConfigs.find(r => r.classId === c.id);
-            if (existing) return existing;
-            return {
-                classId: c.id,
-                className: c.name,
-                enabled: true,
-                criteria: 'Points' as const,
-                rankingSubjectsCount: 7
-            };
-        });
-    }, [classList, classRankingConfigs]);
+
 
     const instId = currentInstitution?.id || 'default_inst';
 
@@ -645,7 +632,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     }, [classComments, activeCommentClassId, classList]);
 
     // Helper to get total paper count for a class
-    // Deduplicates subjects to ensure count matches actual unique subject papers (e.g. 11 instead of 44)
+    // Deduplicates subjects to ensure count matches actual unique subject papers
     const getClassPaperCount = (cId: string): number => {
         const conf = findClassConfig(cId);
         if (conf && conf.subjects && conf.subjects.length > 0) {
@@ -658,19 +645,49 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                     count += (s.papers && s.papers.length > 0 ? s.papers.length : 1);
                 }
             });
-            return count;
+            if (count > 0) return count;
         }
 
         const classObj = classList.find(c => c.id === cId);
-        if (!classObj) return 0;
+        if (!classObj) return 7;
         const applicable = getApplicableSubjectsForClass(classObj.name);
+        let count = 0;
         const seen = new Set<string>();
         applicable.forEach(s => {
             const norm = (s.name || s.code || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (norm) seen.add(norm);
+            if (norm && !seen.has(norm)) {
+                seen.add(norm);
+                count += ((s as any).papers && Array.isArray((s as any).papers) && (s as any).papers.length > 0 ? (s as any).papers.length : 1);
+            }
         });
-        return seen.size;
+        return count > 0 ? count : (applicable.length > 0 ? applicable.length : 7);
     };
+
+    // Make sure all classes in classList have a ranking row, with rankingSubjectsCount automatically defaulting to total paper count
+    const rankingRows = useMemo(() => {
+        return classList.map(c => {
+            const paperCount = Math.max(1, getClassPaperCount(c.id));
+            const existing = classRankingConfigs.find(r => r.classId === c.id || (r.className || '').toLowerCase().trim() === (c.name || '').toLowerCase().trim());
+
+            let count = paperCount;
+            if (existing && typeof existing.rankingSubjectsCount === 'number') {
+                if (existing.rankingSubjectsCount <= paperCount && existing.rankingSubjectsCount > 0) {
+                    count = existing.rankingSubjectsCount;
+                } else {
+                    count = paperCount;
+                }
+            }
+
+            return {
+                classId: c.id,
+                className: c.name,
+                enabled: existing ? existing.enabled : true,
+                criteria: existing?.criteria || ('Points' as const),
+                rankingSubjectsCount: count,
+                maxPapers: paperCount
+            };
+        });
+    }, [classList, classRankingConfigs, classConfigs, classAllocationsStore, subjects, courses, dbAllocations]);
 
     // Helper to get total teacher comment rules count for a class
     const getClassCommentCount = (cId: string): number => {
@@ -1057,10 +1074,11 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
     // Update Ranking Rule for a Class
     const handleUpdateRankingRule = (cId: string, cName: string, field: keyof ClassRankingConfig, value: any) => {
         setClassRankingConfigs(prev => {
-            const idx = prev.findIndex(r => r.classId === cId);
+            const idx = prev.findIndex(r => r.classId === cId || (r.className || '').toLowerCase().trim() === cName.toLowerCase().trim());
+            const paperCount = Math.max(1, getClassPaperCount(cId));
             if (idx >= 0) {
                 const updated = [...prev];
-                updated[idx] = { ...updated[idx], [field]: value };
+                updated[idx] = { ...updated[idx], classId: cId, className: cName, [field]: value };
                 return updated;
             } else {
                 const newRow: ClassRankingConfig = {
@@ -1068,7 +1086,7 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                     className: cName,
                     enabled: true,
                     criteria: 'Points',
-                    rankingSubjectsCount: 7,
+                    rankingSubjectsCount: paperCount,
                     [field]: value
                 };
                 return [...prev, newRow];
@@ -1504,12 +1522,14 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
                                         <td className="px-6 py-4">
                                             <div className="relative max-w-xs">
                                                 <select
-                                                    value={row.rankingSubjectsCount}
-                                                    onChange={e => handleUpdateRankingRule(row.classId, row.className, 'rankingSubjectsCount', parseInt(e.target.value) || 7)}
+                                                    value={Math.min(row.rankingSubjectsCount, row.maxPapers)}
+                                                    onChange={e => handleUpdateRankingRule(row.classId, row.className, 'rankingSubjectsCount', parseInt(e.target.value) || row.maxPapers)}
                                                     className="w-full h-10 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500"
                                                 >
-                                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map(num => (
-                                                        <option key={num} value={num}>{num}</option>
+                                                    {Array.from({ length: row.maxPapers }, (_, i) => i + 1).map(num => (
+                                                        <option key={num} value={num}>
+                                                            {num}{num === row.maxPapers ? ` (Max: ${row.maxPapers} Papers)` : ''}
+                                                        </option>
                                                     ))}
                                                 </select>
                                                 <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
