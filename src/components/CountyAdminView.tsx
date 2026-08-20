@@ -39,8 +39,13 @@ import { CountyInventoryRadar } from './CountyInventoryRadar';
 import { CountySchoolStockRadar } from './CountySchoolStockRadar';
 import { DigitalHandoverScannerModal } from './DigitalHandoverScannerModal';
 import { CountyWaybillModal } from './CountyWaybillModal';
-import { apiService } from '../services/apiService';
-import { getSubCountiesForCounty, getConstituenciesForCounty, getWardsForConstituency } from '../utils/kenyaAdminData';
+import { 
+    getSubCountiesForCounty, 
+    getConstituenciesForCounty, 
+    getWardsForConstituency,
+    KENYA_COUNTIES_LIST,
+    detectAdministrativeBoundary
+} from '../utils/kenyaAdminData';
 
 interface CountyAdminViewProps {
     currentUser?: User;
@@ -455,6 +460,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         institutionType: 'Education',
         category: 'General',
         institutionCode: '',
+        county: '',
+        countyId: '',
         subCounty: '',
         constituency: '',
         ward: '',
@@ -464,9 +471,20 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         address: ''
     });
 
+    const [isCustomCounty, setIsCustomCounty] = useState(false);
     const [isCustomSubCounty, setIsCustomSubCounty] = useState(false);
     const [isCustomConstituency, setIsCustomConstituency] = useState(false);
     const [isCustomWard, setIsCustomWard] = useState(false);
+
+    const availableCounties = useMemo(() => {
+        const set = new Set<string>(KENYA_COUNTIES_LIST);
+        counties?.forEach(c => { if (c.name) set.add(c.name); });
+        return Array.from(set);
+    }, [counties]);
+
+    const activeEditCounty = useMemo(() => {
+        return institutionEditForm.county || myCounty?.name || (counties && counties.length > 0 ? counties[0].name : 'Kiambu');
+    }, [institutionEditForm.county, myCounty?.name, counties]);
 
     const dynamicSubCounties = useMemo(() => {
         const list = new Set<string>();
@@ -487,20 +505,38 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     }, [myInstitutions]);
 
     const availableSubCounties = useMemo(() => {
-        return getSubCountiesForCounty(myCounty?.name, dynamicSubCounties);
-    }, [myCounty?.name, dynamicSubCounties]);
+        return getSubCountiesForCounty(activeEditCounty, dynamicSubCounties);
+    }, [activeEditCounty, dynamicSubCounties]);
 
     const availableConstituencies = useMemo(() => {
-        return getConstituenciesForCounty(myCounty?.name, dynamicConstituencies);
-    }, [myCounty?.name, dynamicConstituencies]);
+        return getConstituenciesForCounty(activeEditCounty, dynamicConstituencies);
+    }, [activeEditCounty, dynamicConstituencies]);
 
     const availableWardsForEdit = useMemo(() => {
         const filterRef = institutionEditForm.constituency || institutionEditForm.subCounty;
-        return getWardsForConstituency(myCounty?.name, filterRef, dynamicWards);
-    }, [myCounty?.name, institutionEditForm.constituency, institutionEditForm.subCounty, dynamicWards]);
+        return getWardsForConstituency(activeEditCounty, filterRef, dynamicWards);
+    }, [activeEditCounty, institutionEditForm.constituency, institutionEditForm.subCounty, dynamicWards]);
 
     const handleOpenEditInstitution = (inst: Institution) => {
         setEditingInstitution(inst);
+
+        // Auto-detect boundary from institution name or address if available
+        const detected = detectAdministrativeBoundary((inst.name || '') + ' ' + (inst.address || ''));
+
+        // Resolve County
+        const resolvedCounty = inst.county || 
+            (inst.countyId ? counties?.find(c => c.id === inst.countyId)?.name : '') ||
+            detected?.county || 
+            myCounty?.name || 
+            'Kiambu';
+
+        // Resolve Constituency, Sub-County, and Ward with smart fallback to detected boundaries
+        const resolvedConstituency = inst.constituency || detected?.constituency || '';
+        const resolvedSubCounty = inst.subCounty || detected?.subCounty || resolvedConstituency || '';
+        const resolvedWard = inst.ward || detected?.ward || '';
+
+        const matchingCountyObj = counties?.find(c => c.name.toLowerCase() === resolvedCounty.toLowerCase());
+
         setInstitutionEditForm({
             name: inst.name || '',
             email: inst.email || '',
@@ -508,14 +544,17 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
             institutionType: inst.institutionType || 'Education',
             category: inst.category || 'General',
             institutionCode: inst.institutionCode || '',
-            subCounty: inst.subCounty || '',
-            constituency: inst.constituency || '',
-            ward: inst.ward || '',
+            county: resolvedCounty,
+            countyId: inst.countyId || matchingCountyObj?.id || resolvedCounty,
+            subCounty: resolvedSubCounty,
+            constituency: resolvedConstituency,
+            ward: resolvedWard,
             status: (inst.status as any) || 'active',
             motto: inst.motto || '',
             website: inst.website || '',
             address: inst.address || ''
         });
+        setIsCustomCounty(false);
         setIsCustomSubCounty(false);
         setIsCustomConstituency(false);
         setIsCustomWard(false);
@@ -7510,145 +7549,244 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                         className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none"
                                     />
                                 </div>
+                                 {/* Auto-detected IEBC Boundary Banner */}
+                                 {(() => {
+                                     const detected = detectAdministrativeBoundary(institutionEditForm.name);
+                                     if (detected && (institutionEditForm.subCounty !== detected.subCounty || institutionEditForm.ward !== detected.ward || institutionEditForm.county !== detected.county)) {
+                                         return (
+                                             <div className="col-span-full p-3.5 bg-gradient-to-r from-indigo-50 via-sky-50 to-emerald-50 border border-indigo-200/80 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-sm">
+                                                 <div className="flex items-center gap-2.5 text-indigo-950 font-medium">
+                                                     <span className="text-lg">📍</span>
+                                                     <div>
+                                                         <span className="font-black text-[10px] uppercase tracking-wider text-indigo-600 block">IEBC Boundary Auto-Detected</span>
+                                                         <span>
+                                                             County: <strong className="text-slate-900">{detected.county}</strong> &bull; Constituency: <strong className="text-slate-900">{detected.constituency}</strong> &bull; Ward: <strong className="text-slate-900">{detected.ward}</strong>
+                                                         </span>
+                                                     </div>
+                                                 </div>
+                                                 <button
+                                                     type="button"
+                                                     onClick={() => {
+                                                         const matchingCountyObj = counties?.find(c => c.name.toLowerCase() === detected.county.toLowerCase());
+                                                         setInstitutionEditForm(prev => ({
+                                                             ...prev,
+                                                             county: detected.county,
+                                                             countyId: matchingCountyObj?.id || detected.county,
+                                                             constituency: detected.constituency,
+                                                             subCounty: detected.subCounty,
+                                                             ward: detected.ward
+                                                         }));
+                                                     }}
+                                                     className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] rounded-xl transition-all shadow hover:shadow-md flex items-center gap-1.5 whitespace-nowrap"
+                                                 >
+                                                     ⚡ Auto-Apply Boundary
+                                                 </button>
+                                             </div>
+                                         );
+                                     }
+                                     return null;
+                                 })()}
 
-                                <div>
-                                    <div className="flex items-center justify-between mb-1.5 ml-1">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                            Sub-County / Zone
-                                        </label>
-                                        {isCustomSubCounty && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsCustomSubCounty(false)}
-                                                className="text-[10px] font-bold text-indigo-600 hover:underline"
-                                            >
-                                                Select from List
-                                            </button>
-                                        )}
-                                    </div>
-                                    {!isCustomSubCounty ? (
-                                        <select
-                                            value={institutionEditForm.subCounty}
-                                            onChange={e => {
-                                                if (e.target.value === '__custom__') {
-                                                    setIsCustomSubCounty(true);
-                                                    setInstitutionEditForm({ ...institutionEditForm, subCounty: '' });
-                                                } else {
-                                                    setInstitutionEditForm({
-                                                        ...institutionEditForm,
-                                                        subCounty: e.target.value,
-                                                        constituency: institutionEditForm.constituency || e.target.value
-                                                    });
-                                                }
-                                            }}
-                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
-                                        >
-                                            <option value="">- Select Sub-County / Zone -</option>
-                                            {availableSubCounties.map(sub => (
-                                                <option key={sub} value={sub}>{sub}</option>
-                                            ))}
-                                            <option value="__custom__">➕ Enter Custom Sub-County...</option>
-                                        </select>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={institutionEditForm.subCounty}
-                                            onChange={e => setInstitutionEditForm({ ...institutionEditForm, subCounty: e.target.value })}
-                                            placeholder="Type custom Sub-County name..."
-                                            className="w-full px-4 py-3 rounded-2xl border border-indigo-400 focus:border-indigo-600 font-bold text-sm outline-none bg-indigo-50/20"
-                                        />
-                                    )}
-                                </div>
+                                 {/* County Selector */}
+                                 <div>
+                                     <div className="flex items-center justify-between mb-1.5 ml-1">
+                                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                             County / Region *
+                                         </label>
+                                         {isCustomCounty && (
+                                             <button
+                                                 type="button"
+                                                 onClick={() => setIsCustomCounty(false)}
+                                                 className="text-[10px] font-bold text-indigo-600 hover:underline"
+                                             >
+                                                 Select from 47 Counties
+                                             </button>
+                                         )}
+                                     </div>
+                                     {!isCustomCounty ? (
+                                         <select
+                                             value={institutionEditForm.county}
+                                             onChange={e => {
+                                                 if (e.target.value === '__custom__') {
+                                                     setIsCustomCounty(true);
+                                                     setInstitutionEditForm({ ...institutionEditForm, county: '', countyId: '', subCounty: '', constituency: '', ward: '' });
+                                                 } else {
+                                                     const chosenCounty = e.target.value;
+                                                     const matchingCountyObj = counties?.find(c => c.name.toLowerCase() === chosenCounty.toLowerCase());
+                                                     setInstitutionEditForm({
+                                                         ...institutionEditForm,
+                                                         county: chosenCounty,
+                                                         countyId: matchingCountyObj?.id || chosenCounty,
+                                                         subCounty: '',
+                                                         constituency: '',
+                                                         ward: ''
+                                                     });
+                                                 }
+                                             }}
+                                             className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                         >
+                                             <option value="">- Select County ({availableCounties.length} Counties) -</option>
+                                             {availableCounties.map(cnt => (
+                                                 <option key={cnt} value={cnt}>{cnt}</option>
+                                             ))}
+                                             <option value="__custom__">➕ Enter Custom County...</option>
+                                         </select>
+                                     ) : (
+                                         <input
+                                             type="text"
+                                             value={institutionEditForm.county}
+                                             onChange={e => setInstitutionEditForm({ ...institutionEditForm, county: e.target.value })}
+                                             placeholder="Type custom County name..."
+                                             className="w-full px-4 py-3 rounded-2xl border border-indigo-400 focus:border-indigo-600 font-bold text-sm outline-none bg-indigo-50/20"
+                                         />
+                                     )}
+                                 </div>
 
-                                <div>
-                                    <div className="flex items-center justify-between mb-1.5 ml-1">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                            Constituency
-                                        </label>
-                                        {isCustomConstituency && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsCustomConstituency(false)}
-                                                className="text-[10px] font-bold text-indigo-600 hover:underline"
-                                            >
-                                                Select from List
-                                            </button>
-                                        )}
-                                    </div>
-                                    {!isCustomConstituency ? (
-                                        <select
-                                            value={institutionEditForm.constituency}
-                                            onChange={e => {
-                                                if (e.target.value === '__custom__') {
-                                                    setIsCustomConstituency(true);
-                                                    setInstitutionEditForm({ ...institutionEditForm, constituency: '' });
-                                                } else {
-                                                    setInstitutionEditForm({ ...institutionEditForm, constituency: e.target.value });
-                                                }
-                                            }}
-                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
-                                        >
-                                            <option value="">- Select Constituency -</option>
-                                            {availableConstituencies.map(c => (
-                                                <option key={c} value={c}>{c}</option>
-                                            ))}
-                                            <option value="__custom__">➕ Enter Custom Constituency...</option>
-                                        </select>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={institutionEditForm.constituency}
-                                            onChange={e => setInstitutionEditForm({ ...institutionEditForm, constituency: e.target.value })}
-                                            placeholder="Type custom Constituency name..."
-                                            className="w-full px-4 py-3 rounded-2xl border border-indigo-400 focus:border-indigo-600 font-bold text-sm outline-none bg-indigo-50/20"
-                                        />
-                                    )}
-                                </div>
+                                 <div>
+                                     <div className="flex items-center justify-between mb-1.5 ml-1">
+                                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                             Sub-County / Zone
+                                         </label>
+                                         {isCustomSubCounty && (
+                                             <button
+                                                 type="button"
+                                                 onClick={() => setIsCustomSubCounty(false)}
+                                                 className="text-[10px] font-bold text-indigo-600 hover:underline"
+                                             >
+                                                 Select from List
+                                             </button>
+                                         )}
+                                     </div>
+                                     {!isCustomSubCounty ? (
+                                         <select
+                                             value={institutionEditForm.subCounty}
+                                             onChange={e => {
+                                                 if (e.target.value === '__custom__') {
+                                                     setIsCustomSubCounty(true);
+                                                     setInstitutionEditForm({ ...institutionEditForm, subCounty: '' });
+                                                 } else {
+                                                     const val = e.target.value;
+                                                     setInstitutionEditForm(prev => ({
+                                                         ...prev,
+                                                         subCounty: val,
+                                                         constituency: prev.constituency || val
+                                                     }));
+                                                 }
+                                             }}
+                                             className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                         >
+                                             <option value="">- Select Sub-County / Zone ({availableSubCounties.length} available) -</option>
+                                             {availableSubCounties.map(sub => (
+                                                 <option key={sub} value={sub}>{sub}</option>
+                                             ))}
+                                             <option value="__custom__">➕ Enter Custom Sub-County...</option>
+                                         </select>
+                                     ) : (
+                                         <input
+                                             type="text"
+                                             value={institutionEditForm.subCounty}
+                                             onChange={e => setInstitutionEditForm({ ...institutionEditForm, subCounty: e.target.value })}
+                                             placeholder="Type custom Sub-County name..."
+                                             className="w-full px-4 py-3 rounded-2xl border border-indigo-400 focus:border-indigo-600 font-bold text-sm outline-none bg-indigo-50/20"
+                                         />
+                                     )}
+                                 </div>
 
-                                <div>
-                                    <div className="flex items-center justify-between mb-1.5 ml-1">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                            Ward
-                                        </label>
-                                        {isCustomWard && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsCustomWard(false)}
-                                                className="text-[10px] font-bold text-indigo-600 hover:underline"
-                                            >
-                                                Select from List
-                                            </button>
-                                        )}
-                                    </div>
-                                    {!isCustomWard ? (
-                                        <select
-                                            value={institutionEditForm.ward}
-                                            onChange={e => {
-                                                if (e.target.value === '__custom__') {
-                                                    setIsCustomWard(true);
-                                                    setInstitutionEditForm({ ...institutionEditForm, ward: '' });
-                                                } else {
-                                                    setInstitutionEditForm({ ...institutionEditForm, ward: e.target.value });
-                                                }
-                                            }}
-                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
-                                        >
-                                            <option value="">- Select Ward -</option>
-                                            {availableWardsForEdit.map(w => (
-                                                <option key={w} value={w}>{w}</option>
-                                            ))}
-                                            <option value="__custom__">➕ Enter Custom Ward...</option>
-                                        </select>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={institutionEditForm.ward}
-                                            onChange={e => setInstitutionEditForm({ ...institutionEditForm, ward: e.target.value })}
-                                            placeholder="Type custom Ward name..."
-                                            className="w-full px-4 py-3 rounded-2xl border border-indigo-400 focus:border-indigo-600 font-bold text-sm outline-none bg-indigo-50/20"
-                                        />
-                                    )}
-                                </div>
+                                 <div>
+                                     <div className="flex items-center justify-between mb-1.5 ml-1">
+                                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                             Constituency
+                                         </label>
+                                         {isCustomConstituency && (
+                                             <button
+                                                 type="button"
+                                                 onClick={() => setIsCustomConstituency(false)}
+                                                 className="text-[10px] font-bold text-indigo-600 hover:underline"
+                                             >
+                                                 Select from List
+                                             </button>
+                                         )}
+                                     </div>
+                                     {!isCustomConstituency ? (
+                                         <select
+                                             value={institutionEditForm.constituency}
+                                             onChange={e => {
+                                                 if (e.target.value === '__custom__') {
+                                                     setIsCustomConstituency(true);
+                                                     setInstitutionEditForm({ ...institutionEditForm, constituency: '' });
+                                                 } else {
+                                                     const val = e.target.value;
+                                                     setInstitutionEditForm(prev => ({
+                                                         ...prev,
+                                                         constituency: val,
+                                                         subCounty: prev.subCounty || val,
+                                                         ward: '' // reset ward to allow clean selection from new constituency
+                                                     }));
+                                                 }
+                                             }}
+                                             className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                         >
+                                             <option value="">- Select Constituency ({availableConstituencies.length} available) -</option>
+                                             {availableConstituencies.map(c => (
+                                                 <option key={c} value={c}>{c}</option>
+                                             ))}
+                                             <option value="__custom__">➕ Enter Custom Constituency...</option>
+                                         </select>
+                                     ) : (
+                                         <input
+                                             type="text"
+                                             value={institutionEditForm.constituency}
+                                             onChange={e => setInstitutionEditForm({ ...institutionEditForm, constituency: e.target.value })}
+                                             placeholder="Type custom Constituency name..."
+                                             className="w-full px-4 py-3 rounded-2xl border border-indigo-400 focus:border-indigo-600 font-bold text-sm outline-none bg-indigo-50/20"
+                                         />
+                                     )}
+                                 </div>
+
+                                 <div>
+                                     <div className="flex items-center justify-between mb-1.5 ml-1">
+                                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                             Ward
+                                         </label>
+                                         {isCustomWard && (
+                                             <button
+                                                 type="button"
+                                                 onClick={() => setIsCustomWard(false)}
+                                                 className="text-[10px] font-bold text-indigo-600 hover:underline"
+                                             >
+                                                 Select from List
+                                             </button>
+                                         )}
+                                     </div>
+                                     {!isCustomWard ? (
+                                         <select
+                                             value={institutionEditForm.ward}
+                                             onChange={e => {
+                                                 if (e.target.value === '__custom__') {
+                                                     setIsCustomWard(true);
+                                                     setInstitutionEditForm({ ...institutionEditForm, ward: '' });
+                                                 } else {
+                                                     setInstitutionEditForm({ ...institutionEditForm, ward: e.target.value });
+                                                 }
+                                             }}
+                                             className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-600 font-bold text-sm outline-none bg-white"
+                                         >
+                                             <option value="">- Select Ward ({availableWardsForEdit.length} available) -</option>
+                                             {availableWardsForEdit.map(w => (
+                                                 <option key={w} value={w}>{w}</option>
+                                             ))}
+                                             <option value="__custom__">➕ Enter Custom Ward...</option>
+                                         </select>
+                                     ) : (
+                                         <input
+                                             type="text"
+                                             value={institutionEditForm.ward}
+                                             onChange={e => setInstitutionEditForm({ ...institutionEditForm, ward: e.target.value })}
+                                             placeholder="Type custom Ward name..."
+                                             className="w-full px-4 py-3 rounded-2xl border border-indigo-400 focus:border-indigo-600 font-bold text-sm outline-none bg-indigo-50/20"
+                                         />
+                                     )}
+                                 </div>
 
                                 <div>
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 ml-1">
