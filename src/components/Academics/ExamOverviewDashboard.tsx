@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
 import { apiService } from '../../services/apiService';
+import { generateExamOverviewPdf } from '../../utils/examOverviewPdfGenerator';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -2064,6 +2065,43 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         };
     }, [comparativeExamTrends]);
 
+    // Handle Full PDF Download matching On-Screen PDF Preview
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+    const handleDownloadPdf = async () => {
+        try {
+            setIsGeneratingPdf(true);
+            await generateExamOverviewPdf({
+                institution: currentInstitution,
+                selectedExam: selectedExamObj,
+                selectedYearGroup,
+                selectedStream,
+                totalCandidates: studentPerformanceData.length,
+                performanceSummary,
+                performanceDelta,
+                top10Students,
+                bottom10Students,
+                streamChampions,
+                mostImproved,
+                mostDropping,
+                subjectRankings,
+                classPreviousExamsComparison,
+                overallGradesDistributionData,
+                gradesDistributionPerClassData,
+                gradesDistributionVsPreviousExamsData,
+                subjectPerformancePerClassData,
+                gradesDistributionPerSubjectData,
+                subjectPerformanceComparisonVsPreviousData,
+                improvementDistribution,
+                dropDistribution
+            });
+        } catch (error) {
+            console.error("Failed to generate Exam Overview PDF:", error);
+            alert("An error occurred while generating the PDF document. Please try using 'Print PDF' instead.");
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
     // Left Navigation Items list
     const navItems = [
         { id: 'exam_overview', label: 'Exam overview', icon: BarChart3Icon },
@@ -2324,10 +2362,11 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                     <PrinterIcon className="w-4 h-4" /> Print
                                 </button>
                                 <button
-                                    onClick={() => alert("Downloading PDF Analysis Report...")}
-                                    className="btn-primary px-4 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 shadow-md shadow-indigo-100 cursor-pointer"
+                                    onClick={handleDownloadPdf}
+                                    disabled={isGeneratingPdf}
+                                    className="btn-primary px-4 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 shadow-md shadow-indigo-100 cursor-pointer disabled:opacity-50"
                                 >
-                                    <ArrowUpTrayIcon className="w-4 h-4" /> Download
+                                    <ArrowUpTrayIcon className="w-4 h-4" /> {isGeneratingPdf ? 'Generating...' : 'Download PDF'}
                                 </button>
                             </div>
                         </div>
@@ -5761,10 +5800,11 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                     <PrinterIcon className="w-4 h-4" /> Print / Save PDF
                                 </button>
                                 <button
-                                    onClick={() => window.print()}
-                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                                    onClick={handleDownloadPdf}
+                                    disabled={isGeneratingPdf}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                                 >
-                                    <ArrowUpTrayIcon className="w-4 h-4" /> Export PDF
+                                    <ArrowUpTrayIcon className="w-4 h-4" /> {isGeneratingPdf ? 'Generating...' : 'Download PDF'}
                                 </button>
                                 <button
                                     onClick={() => setIsPdfPreviewOpen(false)}
