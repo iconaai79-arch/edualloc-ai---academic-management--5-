@@ -454,7 +454,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         }
     }, [currentInstitution]);
 
-    // Helper to test if a student mark row key strictly belongs to a specific subject
+    // Helper to test if a student mark row key matches a specific subject
     const isSubjectKeyMatch = (k: string, sub: any): boolean => {
         if (!k || !sub) return false;
         const kNorm = k.toLowerCase().trim();
@@ -462,17 +462,49 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         const subCode = (sub.code || '').toLowerCase().trim();
         const subId = (sub.id || '').toLowerCase().trim();
 
-        if (kNorm === subId || kNorm === subCode) return true;
+        // Direct ID, Code, or exact Name match
+        if (kNorm === subId || kNorm === subCode || kNorm === subName) return true;
 
         const sClean = subName.replace(/[^a-z0-9]/g, '_');
         const sCompact = subName.replace(/[^a-z0-9]/g, '');
         const cCompact = subCode.replace(/[^a-z0-9]/g, '');
+        const kStripped = kNorm.replace(/^subj_/, '').replace(/_p\d+$/, '').replace(/[^a-z0-9]/g, '');
 
         if (kNorm === `subj_${sClean}_p1` || kNorm === `subj_${sClean}` || kNorm === sClean) return true;
         if (cCompact && (kNorm === `subj_${cCompact}_p1` || kNorm === `subj_${cCompact}` || kNorm === cCompact)) return true;
+        if (kStripped && (kStripped === sCompact || kStripped === cCompact)) return true;
 
-        const kStripped = kNorm.replace(/^subj_/, '').replace(/_p\d+$/, '').replace(/[^a-z0-9]/g, '');
-        if (kStripped && (kStripped === sCompact || (cCompact && kStripped === cCompact))) return true;
+        // Semantic Curriculum Root Matching:
+        // Kiswahili
+        if ((subCode.startsWith('kisw') || subName.includes('kisw')) && (kNorm.includes('kisw') || kNorm.includes('insha'))) return true;
+        // Hygiene / Nutrition
+        if ((subCode.startsWith('hyg') || subName.includes('hyg') || subName.includes('nutri')) && (kNorm.includes('hyg') || kNorm.includes('nutri') || kNorm.includes('health'))) return true;
+        // Environmental / Science
+        if ((subCode.startsWith('env') || subName.includes('env')) && (kNorm.includes('env') || kNorm.includes('environment'))) return true;
+        // Creative / Psychomotor / Art
+        if ((subCode.startsWith('creat') || subName.includes('creat') || subName.includes('art') || subName.includes('psycho')) && 
+            (kNorm.includes('creat') || kNorm.includes('art') || kNorm.includes('psycho') || kNorm.includes('music') || kNorm.includes('movement'))) return true;
+        // Mathematics
+        if ((subCode.startsWith('math') || subName.includes('math')) && (kNorm.includes('math') || kNorm.includes('numeracy'))) return true;
+        // English
+        if ((subCode.startsWith('eng') || subName.includes('eng')) && (kNorm.includes('eng') || kNorm.includes('literacy'))) return true;
+        // Religious Education (CRE / IRE / HRE)
+        if ((subCode.startsWith('cre') || subCode.startsWith('ire') || subCode.startsWith('hre') || subName.includes('religio')) && 
+            (kNorm.includes('cre') || kNorm.includes('ire') || kNorm.includes('hre') || kNorm.includes('religio'))) return true;
+        // Agriculture
+        if ((subCode.startsWith('agri') || subName.includes('agri')) && kNorm.includes('agri')) return true;
+        // Social Studies
+        if ((subCode.startsWith('soc') || subName.includes('social')) && (kNorm.includes('soc') || kNorm.includes('social'))) return true;
+        // Biology
+        if (subCode.startsWith('bio') && kNorm.includes('bio')) return true;
+        // Chemistry
+        if (subCode.startsWith('chem') && kNorm.includes('chem')) return true;
+        // Physics
+        if (subCode.startsWith('phy') && (kNorm.includes('phy') || kNorm.includes('physics'))) return true;
+
+        // Normalized word token match (tokens of length >= 4)
+        const subTokens = subName.split(/[^a-z0-9]/).filter(t => t.length >= 4 && !['lower', 'upper', 'primary', 'secondary', 'activities', 'activity'].includes(t));
+        if (subTokens.length > 0 && subTokens.some(tok => kNorm.includes(tok))) return true;
 
         return false;
     };
