@@ -5851,13 +5851,14 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                                 <line x1="30" y1="60" x2="480" y2="60" stroke="#e2e8f0" strokeDasharray="3 3" />
                                                 <line x1="30" y1="100" x2="480" y2="100" stroke="#e2e8f0" strokeDasharray="3 3" />
                                                 {(() => {
-                                                    const series = comparativeChartData;
-                                                    if (series.length === 0) return null;
+                                                    const series = comparativeExamTrends;
+                                                    if (!series || series.length === 0) return null;
                                                     const step = series.length > 1 ? 420 / (series.length - 1) : 420;
                                                     const pts = series.map((s, i) => {
                                                         const x = 40 + i * step;
-                                                        const y = 110 - ((s.score - 40) / 60) * 90;
-                                                        return { x, y: Math.max(15, Math.min(115, y)), label: s.name, val: s.score };
+                                                        const val = s.meanScore || 70;
+                                                        const y = 110 - ((val - 40) / 60) * 90;
+                                                        return { x, y: Math.max(15, Math.min(115, y)), label: s.code || s.title, val };
                                                     });
                                                     const pathD = pts.reduce((acc, p, i) => i === 0 ? `M ${p.x},${p.y}` : `${acc} L ${p.x},${p.y}`, '');
                                                     return (
