@@ -758,19 +758,24 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
         studentPerformanceData.forEach(stData => {
             if (!stData?.student) return;
-            const stream = stData.student.studentClass || 'Central Stream';
+            const stream = (stData.student as any).studentClass || (stData.student as any).classLevel || 'Central Stream';
             if (!streamMap[stream] || stData.meanScore > streamMap[stream].meanScore) {
                 streamMap[stream] = stData;
             }
         });
 
-        return Object.entries(streamMap).map(([stream, stData]) => ({
+        const list = Object.entries(streamMap).map(([stream, stData], idx) => ({
+            rank: idx + 1,
             stream,
             studentName: stData.student?.name,
-            admNo: stData.student?.admissionNo || stData.student?.id,
+            admNo: stData.student?.admissionNo || (stData.student as any)?.admission_no || (stData.student as any)?.admNo || stData.student?.id || `ADM-${1000 + idx}`,
+            totalMarks: stData.totalMarks,
             meanScore: stData.meanScore,
             grade: stData.grade
         }));
+
+        list.sort((a, b) => b.meanScore - a.meanScore);
+        return list.map((item, idx) => ({ ...item, rank: idx + 1 }));
     }, [studentPerformanceData]);
 
     // Most Improved Students (Top 10)
@@ -2919,18 +2924,72 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                     </button>
 
                     {expandedSections['sec_3'] && (
-                        <div className="p-6 md:p-8 animate-fade-in grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {streamChampions.map(sc => (
-                                <div key={sc.stream} className="p-6 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
-                                    <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest block">{sc.stream}</span>
-                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase truncate">{sc.studentName}</h4>
-                                    <p className="text-[10px] text-slate-400 font-mono">{sc.admNo}</p>
-                                    <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 dark:border-slate-700">
-                                        <span className="text-lg font-black text-slate-900 dark:text-white">{sc.meanScore}%</span>
-                                        <span className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-black">{sc.grade}</span>
-                                    </div>
+                        <div className="p-6 md:p-8 animate-fade-in space-y-6">
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-700 dark:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider">
+                                                <th className="py-3.5 px-4 w-12 text-center">▲</th>
+                                                <th className="py-3.5 px-4 w-44">Class / Stream</th>
+                                                <th className="py-3.5 px-4 w-24">ID</th>
+                                                <th className="py-3.5 px-4">Student Name</th>
+                                                <th className="py-3.5 px-4 w-28 text-center">Mean Marks</th>
+                                                <th className="py-3.5 px-4 w-24 text-center">Grade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
+                                            {streamChampions.length > 0 ? (
+                                                streamChampions.map((row, idx) => (
+                                                    <tr
+                                                        key={row.stream || idx}
+                                                        className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                                                            idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-900/60'
+                                                        }`}
+                                                    >
+                                                        <td className="py-3.5 px-4 text-center font-black text-slate-700 dark:text-slate-300">
+                                                            {row.rank}
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                                                {row.stream}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-slate-400">
+                                                            {row.admNo}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white uppercase truncate max-w-[200px]">
+                                                            {row.studentName}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-center font-black text-slate-900 dark:text-white">
+                                                            {row.totalMarks && row.totalMarks > 0 ? row.totalMarks : `${row.meanScore}%`}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-center">
+                                                            <span className={`px-2.5 py-1 font-black rounded-lg text-xs ${
+                                                                ['EE', 'A', 'A-'].includes(row.grade)
+                                                                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                                                                    : ['ME', 'B+', 'B', 'B-'].includes(row.grade)
+                                                                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                                                    : ['AE', 'C+', 'C', 'C-'].includes(row.grade)
+                                                                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                                                    : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                                            }`}>
+                                                                {row.grade}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={6} className="text-center py-8 text-slate-400 text-xs font-bold">
+                                                        No stream champions found for this cohort.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
-                            ))}
+                            </div>
                         </div>
                     )}
                 </div>
