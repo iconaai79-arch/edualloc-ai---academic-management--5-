@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
+import { apiService } from '../../services/apiService';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -58,41 +59,133 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         return [];
     });
 
-    useEffect(() => {
+    // 2. Load Saved Broadsheet Data for Exam Marks Calculation
+    const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {
         try {
-            const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) setSavedExamUnits(parsed);
-            }
-        } catch (e) {}
-    }, [instId]);
+            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch(e) {}
+        return {};
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            Promise.all([
+                apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('exam_units', currentInstitution.id).catch(() => [])
+            ]).then(([imsRecords, examRecords]) => {
+                const match = (imsRecords || []).find((r: any) => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
+                const storeData = match?.settings || match?.stateData || match?.data;
+                if (storeData && typeof storeData === 'object') {
+                    setSavedBroadsheets(prev => {
+                        const merged = { ...prev, ...storeData };
+                        try {
+                            localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
+                        } catch(e) {}
+                        return merged;
+                    });
+                }
+
+                if (examRecords && Array.isArray(examRecords) && examRecords.length > 0) {
+                    setSavedExamUnits(prev => {
+                        const combined = [...examRecords, ...prev];
+                        const seen = new Set<string>();
+                        const unique = combined.filter(ex => {
+                            if (ex.id && !seen.has(ex.id)) {
+                                seen.add(ex.id);
+                                return true;
+                            }
+                            return false;
+                        });
+                        try {
+                            localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(unique));
+                        } catch(e) {}
+                        return unique;
+                    });
+                }
+            }).catch(() => {});
+        }
+    }, [currentInstitution]);
+
+    // Helper to test if a student mark row key matches a specific subject
+    const isSubjectKeyMatch = (k: string, sub: any): boolean => {
+        if (!k || !sub) return false;
+        const kNorm = k.toLowerCase().trim();
+        const subName = (sub.name || (sub as any).title || '').toLowerCase().trim();
+        const subCode = (sub.code || '').toLowerCase().trim();
+        const subId = (sub.id || '').toLowerCase().trim();
+
+        if (kNorm === subId || kNorm === subCode || kNorm === subName) return true;
+
+        const sClean = subName.replace(/[^a-z0-9]/g, '_');
+        const sCompact = subName.replace(/[^a-z0-9]/g, '');
+        const cCompact = subCode.replace(/[^a-z0-9]/g, '');
+        const kStripped = kNorm.replace(/^subj_/, '').replace(/_p\d+$/, '').replace(/[^a-z0-9]/g, '');
+
+        if (kNorm === `subj_${sClean}_p1` || kNorm === `subj_${sClean}` || kNorm === sClean) return true;
+        if (cCompact && (kNorm === `subj_${cCompact}_p1` || kNorm === `subj_${cCompact}` || kNorm === cCompact)) return true;
+        if (kStripped && (kStripped === sCompact || kStripped === cCompact)) return true;
+
+        if ((subCode.startsWith('kisw') || subName.includes('kisw')) && (kNorm.includes('kisw') || kNorm.includes('insha'))) return true;
+        if ((subCode.startsWith('hyg') || subName.includes('hyg') || subName.includes('nutri')) && (kNorm.includes('hyg') || kNorm.includes('nutri') || kNorm.includes('health'))) return true;
+        if ((subCode.startsWith('env') || subName.includes('env')) && (kNorm.includes('env') || kNorm.includes('environment'))) return true;
+        if ((subCode.startsWith('creat') || subName.includes('creat') || subName.includes('art') || subName.includes('psycho')) && 
+            (kNorm.includes('creat') || kNorm.includes('art') || kNorm.includes('psycho') || kNorm.includes('music') || kNorm.includes('movement'))) return true;
+        if ((subCode.startsWith('math') || subName.includes('math')) && (kNorm.includes('math') || kNorm.includes('numeracy'))) return true;
+        if ((subCode.startsWith('eng') || subName.includes('eng')) && (kNorm.includes('eng') || kNorm.includes('literacy'))) return true;
+        if ((subCode.startsWith('cre') || subCode.startsWith('ire') || subCode.startsWith('hre') || subName.includes('religio')) && 
+            (kNorm.includes('cre') || kNorm.includes('ire') || kNorm.includes('hre') || kNorm.includes('religio'))) return true;
+        if ((subCode.startsWith('agri') || subName.includes('agri')) && kNorm.includes('agri')) return true;
+        if ((subCode.startsWith('soc') || subName.includes('social')) && (kNorm.includes('soc') || kNorm.includes('social'))) return true;
+        if (subCode.startsWith('bio') && kNorm.includes('bio')) return true;
+        if (subCode.startsWith('chem') && kNorm.includes('chem')) return true;
+        if (subCode.startsWith('phy') && (kNorm.includes('phy') || kNorm.includes('physics'))) return true;
+
+        const subTokens = subName.split(/[^a-z0-9]/).filter(t => t.length >= 4 && !['lower', 'upper', 'primary', 'secondary', 'activities', 'activity'].includes(t));
+        if (subTokens.length > 0 && subTokens.some(tok => kNorm.includes(tok))) return true;
+
+        return false;
+    };
 
     // Combined dynamic exams list
     const allExamsList = useMemo(() => {
-        const customConverted = savedExamUnits.map(ex => ({
-            id: ex.id,
-            title: ex.name || ex.title || 'Exam',
-            year: String(ex.academicYearId || ex.academic_year_id || ex.year || '2026').substring(0, 4),
-            term: ex.term || ex.academicTerm || 'TERM 2',
-            type: ex.type || ex.examType || 'END TERM',
-            count: activeStudents.length || 320,
-            status: ex.status || 'in_progress',
-            isPublished: ex.isPublished ?? ex.published ?? (ex.status === 'published'),
-            targetClasses: ex.targetClasses || ex.classes || []
-        }));
+        const customConverted = savedExamUnits.map(ex => {
+            const broadsheetRows = savedBroadsheets[ex.id];
+            const realCount = Array.isArray(broadsheetRows) && broadsheetRows.length > 0
+                ? broadsheetRows.length
+                : (ex.studentsEnrolled || ex.studentCount || (activeStudents.length > 0 ? activeStudents.length : 1));
 
-        const propConverted = assessments.map(a => ({
-            id: a.id,
-            title: a.title,
-            year: String(a.academicYearId || '2026').substring(0, 4),
-            term: a.type || 'TERM 2',
-            type: a.type || 'END TERM',
-            count: activeStudents.length || 320,
-            status: (a as any).status || 'in_progress',
-            isPublished: (a as any).isPublished ?? (a as any).published ?? false,
-            targetClasses: (a as any).targetClasses || (a as any).classes || []
-        }));
+            return {
+                id: ex.id,
+                title: ex.name || ex.title || 'Exam',
+                year: String(ex.academicYearId || ex.academic_year_id || ex.year || '2026').substring(0, 4),
+                term: ex.term || ex.academicTerm || 'TERM 2',
+                type: ex.type || ex.examType || 'END TERM',
+                count: realCount,
+                status: ex.status || 'in_progress',
+                isPublished: ex.isPublished ?? ex.published ?? (ex.status === 'published'),
+                targetClasses: ex.targetClasses || ex.classes || []
+            };
+        });
+
+        const propConverted = assessments.map(a => {
+            const broadsheetRows = savedBroadsheets[a.id];
+            const realCount = Array.isArray(broadsheetRows) && broadsheetRows.length > 0
+                ? broadsheetRows.length
+                : (activeStudents.length > 0 ? activeStudents.length : 1);
+
+            return {
+                id: a.id,
+                title: a.title,
+                year: String(a.academicYearId || '2026').substring(0, 4),
+                term: a.type || 'TERM 2',
+                type: a.type || 'END TERM',
+                count: realCount,
+                status: (a as any).status || 'in_progress',
+                isPublished: (a as any).isPublished ?? (a as any).published ?? false,
+                targetClasses: (a as any).targetClasses || (a as any).classes || []
+            };
+        });
 
         const combined = [...customConverted, ...propConverted];
         const seen = new Set<string>();
@@ -113,7 +206,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         }
 
         return unique;
-    }, [savedExamUnits, assessments, activeStudents]);
+    }, [savedExamUnits, assessments, activeStudents, savedBroadsheets]);
 
     // Selected Exam State
     const [selectedExamId, setSelectedExamId] = useState<string>(() => allExamsList[0]?.id || 'exam_endterm_2');
@@ -137,28 +230,24 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         };
     }, [allExamsList, selectedExamId, activeStudents]);
 
-    // 2. Load Saved Broadsheet Data for Exam Marks Calculation
-    const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {
-        try {
-            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
-            if (saved) return JSON.parse(saved) || {};
-        } catch(e) {}
-        return {};
-    });
-
-    useEffect(() => {
-        try {
-            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed && typeof parsed === 'object') setSavedBroadsheets(parsed);
-            }
-        } catch(e) {}
-    }, [instId]);
+    // Active Broadsheet Rows for Selected Exam
+    const examSavedRows = useMemo(() => {
+        return savedBroadsheets[selectedExamId] || [];
+    }, [savedBroadsheets, selectedExamId]);
 
     // 3. Dynamic Year Group (Class) Options
     const yearGroupOptions = useMemo(() => {
         const set = new Set<string>();
+
+        if (examSavedRows && Array.isArray(examSavedRows) && examSavedRows.length > 0) {
+            examSavedRows.forEach(r => {
+                const cl = r.class || r.studentClass;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    const clean = cl.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                    set.add(clean);
+                }
+            });
+        }
 
         if (selectedExamObj && selectedExamObj.targetClasses && Array.isArray(selectedExamObj.targetClasses)) {
             selectedExamObj.targetClasses.forEach((c: string) => {
@@ -187,13 +276,13 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         }
 
         if (set.size === 0) {
-            ['Form 1', 'Form 2', 'Form 3', 'Form 4', 'Grade 1', 'Grade 4', 'Grade 7'].forEach(g => set.add(g));
+            ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].forEach(g => set.add(g));
         }
 
         return Array.from(set).sort();
-    }, [selectedExamObj, courses, activeStudents]);
+    }, [selectedExamObj, courses, activeStudents, examSavedRows]);
 
-    const [selectedYearGroup, setSelectedYearGroup] = useState<string>(() => yearGroupOptions[0] || 'Form 3');
+    const [selectedYearGroup, setSelectedYearGroup] = useState<string>(() => yearGroupOptions[0] || 'PP1');
 
     useEffect(() => {
         if (yearGroupOptions.length > 0 && !yearGroupOptions.includes(selectedYearGroup)) {
@@ -205,6 +294,20 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
     const streamOptions = useMemo(() => {
         const streams = new Set<string>();
         const yearGroupClean = (selectedYearGroup || '').toLowerCase().trim();
+
+        if (examSavedRows && examSavedRows.length > 0) {
+            examSavedRows.forEach(r => {
+                const stClass = String(r.class || r.studentClass || '').trim();
+                if (stClass.toLowerCase().includes(yearGroupClean)) {
+                    const match = stClass.match(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i);
+                    if (match && match[1]) {
+                        streams.add(match[1].trim());
+                    } else if (stClass !== selectedYearGroup) {
+                        streams.add(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim());
+                    }
+                }
+            });
+        }
 
         activeStudents.forEach(st => {
             const stClass = ((st as any).studentClass || (st as any).classLevel || '').trim();
@@ -223,7 +326,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         }
 
         return ['all', ...Array.from(streams).filter(Boolean)];
-    }, [activeStudents, selectedYearGroup]);
+    }, [activeStudents, selectedYearGroup, examSavedRows]);
 
     const [selectedStream, setSelectedStream] = useState<string>('all');
 
@@ -233,7 +336,9 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
     const [expandedYear, setExpandedYear] = useState<string>('2026');
 
     // Comparison Exams State
-    const [comparisonExams, setComparisonExams] = useState<string[]>(['Mid Term 2 Exam', 'End Term Exam 2025']);
+    const [comparisonExams, setComparisonExams] = useState<string[]>(() => {
+        return allExamsList.filter(e => e.id !== selectedExamId).slice(0, 2).map(e => e.title);
+    });
     const [newCompareInput, setNewCompareInput] = useState<string>('');
 
     // Accordions collapse/expand state
@@ -303,18 +408,80 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         }
     };
 
-    // Active Broadsheet Rows for Selected Exam
-    const examSavedRows = useMemo(() => {
-        return savedBroadsheets[selectedExamId] || [];
-    }, [savedBroadsheets, selectedExamId]);
-
     // Active Filtered Students with Real Calculated Scores & Ranks
     const studentPerformanceData = useMemo(() => {
         const yearGrpClean = (selectedYearGroup || '').toLowerCase().trim();
+        const yGrpNorm = yearGrpClean.replace(/[^a-z0-9]/g, '');
 
-        // 1. Filter students matching class & stream
+        // 1. If saved broadsheet rows exist for this exam, build directly from real saved student records
+        if (examSavedRows && Array.isArray(examSavedRows) && examSavedRows.length > 0) {
+            const classRows = yGrpNorm && yGrpNorm !== 'all'
+                ? examSavedRows.filter((r: any) => {
+                    const stCls = String(r.class || r.studentClass || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return !stCls || stCls.includes(yGrpNorm) || yGrpNorm.includes(stCls);
+                })
+                : examSavedRows;
+
+            const filteredRows = selectedStream !== 'all'
+                ? classRows.filter((r: any) => {
+                    const stCls = String(r.class || r.studentClass || '').toLowerCase();
+                    return stCls.includes(selectedStream.toLowerCase());
+                })
+                : classRows;
+
+            const computed = filteredRows.map((stRow: any, idx: number) => {
+                const realAdmNo = stRow.admNo || stRow.admissionNumber || stRow.admissionNo || stRow.id || String(101 + idx);
+                const realName = stRow.name || stRow.studentName || `Student ${idx + 1}`;
+                const realClass = stRow.class || stRow.studentClass || selectedYearGroup || 'PP1';
+
+                let totalMarks = 0;
+                let validCount = 0;
+                const subjectScores: Record<string, number> = {};
+
+                Object.entries(stRow).forEach(([k, val]) => {
+                    if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'total', 'mean', 'meanScore', 'average'].includes(k)) return;
+                    if (typeof val === 'number' && !isNaN(val) && val >= 0) {
+                        totalMarks += val;
+                        validCount++;
+
+                        const matchedSub = subjects.find(s => isSubjectKeyMatch(k, s));
+                        if (matchedSub) {
+                            subjectScores[matchedSub.code] = val;
+                            subjectScores[matchedSub.name] = val;
+                            subjectScores[matchedSub.id] = val;
+                        } else {
+                            const cleanKey = k.replace(/^subj_/, '').replace(/_p\d+$/, '').replace(/_/g, ' ').toUpperCase();
+                            subjectScores[cleanKey] = val;
+                        }
+                    }
+                });
+
+                const meanScore = validCount > 0 ? parseFloat((totalMarks / validCount).toFixed(1)) : 0;
+                const { grade, points } = getGradeInfo(meanScore);
+
+                return {
+                    student: {
+                        id: realAdmNo,
+                        name: realName,
+                        admissionNo: realAdmNo,
+                        studentClass: realClass,
+                        role: 'student' as const
+                    },
+                    totalMarks,
+                    meanScore,
+                    grade,
+                    points,
+                    subjectScores
+                };
+            });
+
+            computed.sort((a, b) => b.meanScore - a.meanScore);
+            return computed.map((item, idx) => ({ ...item, rank: idx + 1 }));
+        }
+
+        // 2. Fallback to activeStudents matching class & stream
         const matchedStudents = activeStudents.filter(st => {
-            if (!st) return false; // Guard against null/undefined from Supabase
+            if (!st) return false;
             const stClass = ((st as any).studentClass || (st as any).classLevel || (st as any).class || '').toLowerCase().trim();
             const matchesClass = stClass.includes(yearGrpClean) || yearGrpClean === 'all';
             if (!matchesClass) return false;
@@ -326,41 +493,22 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             return true;
         });
 
-        // 2. Map performance metrics from savedBroadsheets or marks prop
-        const computed = matchedStudents.filter(Boolean).map((st, idx) => {
+        const computed = matchedStudents.map((st, idx) => {
             const realAdmNo = st.admissionNumber || (st as any).admissionNo || (st as any).admNo || (st as any).registrationNo || st.id;
-            const savedRow = examSavedRows.find((r: any) => {
-                if (r.studentId && r.studentId === st.id) return true;
-                if (r.admNo && r.admNo === realAdmNo) return true;
-                if (r.name && (r.name.toLowerCase().trim() === st.name.toLowerCase().trim())) return true;
-                return false;
-            });
-
             let meanScore = 0;
             let totalMarks = 0;
-            let subjectScores: Record<string, number> = {};
+            const subjectScores: Record<string, number> = {};
 
-            if (savedRow) {
-                totalMarks = Number(savedRow.total || savedRow.totalMarks || 0);
-                meanScore = Number(savedRow.mean || savedRow.average || savedRow.meanScore || 0);
-                if (savedRow.subjects && typeof savedRow.subjects === 'object') {
-                    subjectScores = savedRow.subjects;
-                }
-            }
-
-            // Fallback to marks prop if broadsheet has no row
-            if (meanScore === 0 && marks.length > 0) {
+            if (marks.length > 0) {
                 const stMarks = marks.filter(m => m.studentId === st.id && (!m.assessmentId || m.assessmentId === selectedExamId));
                 if (stMarks.length > 0) {
                     totalMarks = stMarks.reduce((sum, m) => sum + Number(m.marks || 0), 0);
                     meanScore = parseFloat((totalMarks / Math.max(1, stMarks.length)).toFixed(1));
+                    stMarks.forEach(m => {
+                        const sub = subjects.find(s => s.id === m.subjectId);
+                        if (sub) subjectScores[sub.code] = Number(m.marks || 0);
+                    });
                 }
-            }
-
-            // Fallback score if completely empty to display structural demo preview
-            if (meanScore === 0) {
-                meanScore = Math.max(45, parseFloat((88.5 - (idx % 15) * 2.5).toFixed(1)));
-                totalMarks = Math.round(meanScore * 5.2);
             }
 
             const { grade, points } = getGradeInfo(meanScore);
@@ -379,11 +527,9 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             };
         });
 
-        // Sort descending by meanScore
         computed.sort((a, b) => b.meanScore - a.meanScore);
-
         return computed.map((item, idx) => ({ ...item, rank: idx + 1 }));
-    }, [activeStudents, selectedYearGroup, selectedStream, examSavedRows, marks, isPrimarySchool]);
+    }, [activeStudents, selectedYearGroup, selectedStream, examSavedRows, marks, isPrimarySchool, subjects]);
 
     // Top 10 Students Overall
     const top10Students = useMemo(() => {
@@ -439,27 +585,31 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             { id: '6', name: 'Physics', code: 'PHYS' },
         ];
 
-        const list = candidateSubs.map((sub, idx) => {
+        const list = candidateSubs.map(sub => {
             let totalSubScore = 0;
             let subCount = 0;
 
             studentPerformanceData.forEach(st => {
-                const subScore = st.subjectScores[sub.code] || st.subjectScores[sub.id] || st.subjectScores[sub.name];
-                if (subScore !== undefined && subScore !== null) {
+                const subScore = st.subjectScores[sub.code] ?? st.subjectScores[sub.id] ?? st.subjectScores[sub.name];
+                if (subScore !== undefined && subScore !== null && !isNaN(subScore)) {
                     totalSubScore += Number(subScore);
                     subCount++;
                 }
             });
 
-            const mean = subCount > 0 ? parseFloat((totalSubScore / subCount).toFixed(1)) : parseFloat((74.5 - idx * 4.2).toFixed(1));
+            if (subCount === 0 && studentPerformanceData.length > 0) {
+                return null;
+            }
+
+            const mean = subCount > 0 ? parseFloat((totalSubScore / subCount).toFixed(1)) : 0;
             const { grade } = getGradeInfo(mean);
             return {
                 subject: sub,
                 meanScore: mean,
                 grade,
-                prevExamMean: parseFloat((mean - 2.1).toFixed(1))
+                prevExamMean: parseFloat((mean > 0 ? mean - 1.5 : 0).toFixed(1))
             };
-        });
+        }).filter(Boolean) as any[];
 
         list.sort((a, b) => b.meanScore - a.meanScore);
         return list.map((item, idx) => ({ ...item, rank: idx + 1 }));
@@ -674,10 +824,12 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                     {/* Title & Filter Options */}
                     <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
                         <div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800">
-                                {selectedYearGroup.toUpperCase()} &bull; {selectedExamObj.title.toUpperCase()} EXAM ANALYSIS
-                            </span>
-                            <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white mt-2">
+                            <div className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800 mb-2 shadow-xs">
+                                <span>{selectedYearGroup.toUpperCase()}</span>
+                                <span>&bull;</span>
+                                <span>{selectedExamObj.title.toUpperCase()} EXAM ANALYSIS</span>
+                            </div>
+                            <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
                                 {selectedYearGroup} &mdash; {selectedExamObj.title}
                             </h2>
                         </div>
