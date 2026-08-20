@@ -83,7 +83,14 @@ export const getStudentAdmNo = (st: any, idx: number = 0, realStudentsList?: any
 };
 
 // Top-level pure helper: calculate grade or rubric info
-export const getGradeInfo = (score: number, isPrimary?: boolean): { grade: string; points: number } => {
+export const getGradeInfo = (score: number, isPrimary?: boolean, customDefs?: any[]): { grade: string; points: number } => {
+    if (customDefs && Array.isArray(customDefs) && customDefs.length > 0) {
+        const sorted = [...customDefs].sort((a: any, b: any) => (b.minScore ?? 0) - (a.minScore ?? 0));
+        const matched = sorted.find((d: any) => score >= (d.minScore ?? 0));
+        if (matched && matched.grade) {
+            return { grade: matched.grade, points: matched.points ?? 0 };
+        }
+    }
     if (isPrimary) {
         if (score >= 80) return { grade: 'EE', points: 4.0 };
         if (score >= 65) return { grade: 'ME', points: 3.0 };

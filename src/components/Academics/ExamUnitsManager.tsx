@@ -1657,8 +1657,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         ];
     }, [testedPaperConfigs]);
 
-    // Dynamic Grade Calculator querying treeGradingNodes (Grading Systems)
-    const calculateGradeFromScore = useCallback((pctNum: number, clsName?: string) => {
+    // Dynamic Grade Calculator querying treeGradingNodes, custom grading systems, exam scales, and CBC/8-4-4 configs
+    const calculateGradeFromScore = useCallback((pctNum: number, clsName?: string, subName?: string) => {
+        if (pctNum === undefined || pctNum === null || isNaN(pctNum)) return '-';
+
         let treeNodes = (currentInstitution as any)?.treeGradingNodes || (currentInstitution as any)?.tree_grading_nodes;
         if (!treeNodes) {
             try {
@@ -1666,31 +1668,120 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 if (saved) treeNodes = JSON.parse(saved);
             } catch (e) { }
         }
+
         let scaleDefinitions: any[] | null = null;
 
+        const effectiveClass = (clsName && clsName !== 'all' ? clsName : (selectedClassFilter !== 'all' ? selectedClassFilter : (activeExamClasses[0] || ''))).toLowerCase().trim();
+        const effectiveSub = (subName && subName !== 'all' ? subName : (selectedSubjectFilter !== 'all' ? selectedSubjectFilter : '')).toLowerCase().trim();
+        const cleanC = effectiveClass.replace(/[^a-z0-9]/g, '_');
+        const cleanS = effectiveSub.replace(/[^a-z0-9]/g, '_');
+        const compactC = effectiveClass.replace(/[^a-z0-9]/g, '');
+        const compactS = effectiveSub.replace(/[^a-z0-9]/g, '');
+
+        // 1. Check treeGradingNodes (Subject Specific -> Class Overall -> Root Main)
         if (treeNodes && typeof treeNodes === 'object') {
-            const cleanC = (clsName || selectedClassFilter || '').toLowerCase().trim();
-            const classKey = `class_${cleanC.replace(/[^a-z0-9]/g, '_')}_overall`;
-            if (treeNodes[classKey]?.definitions?.length > 0) {
-                scaleDefinitions = treeNodes[classKey].definitions;
-            } else if (treeNodes['root_main']?.definitions?.length > 0) {
+            // 1a. Subject specific node in class (e.g. class_grade_4_sub_kiswahili_language_activities)
+            const subjectNodeKey = Object.keys(treeNodes).find(k => {
+                const kLower = k.toLowerCase();
+                if (!kLower.includes('_sub_')) return false;
+                const matchesClass = (cleanC && kLower.includes(cleanC)) || (compactC && kLower.replace(/[^a-z0-9]/g, '').includes(compactC));
+                const matchesSub = (cleanS && kLower.includes(cleanS)) || (compactS && kLower.replace(/[^a-z0-9]/g, '').includes(compactS));
+                return matchesClass && matchesSub;
+            });
+            if (subjectNodeKey && treeNodes[subjectNodeKey]?.definitions?.length > 0) {
+                scaleDefinitions = treeNodes[subjectNodeKey].definitions;
+            }
+
+            // 1b. Class overall node (e.g. class_grade_4_overall, class_grade4_overall)
+            if (!scaleDefinitions) {
+                const classNodeKey = Object.keys(treeNodes).find(k => {
+                    const kLower = k.toLowerCase();
+                    if (kLower.includes('_sub_')) return false;
+                    return kLower === `class_${cleanC}_overall` ||
+                           kLower === `${cleanC}_overall` ||
+                           (compactC && kLower.replace(/[^a-z0-9]/g, '') === `class${compactC}overall`) ||
+                           (compactC && kLower.replace(/[^a-z0-9]/g, '').includes(compactC));
+                });
+                if (classNodeKey && treeNodes[classNodeKey]?.definitions?.length > 0) {
+                    scaleDefinitions = treeNodes[classNodeKey].definitions;
+                }
+            }
+
+            // 1c. Exam assigned grading system name matching a node title or id
+            if (!scaleDefinitions && activeExam?.gradingSystem) {
+                const examSysNorm = String(activeExam.gradingSystem).toLowerCase().replace(/[^a-z0-9]/g, '');
+                const matchedNode = Object.values(treeNodes).find((n: any) => {
+                    const nIdNorm = (n.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const nTitleNorm = (n.title || n.label || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return nIdNorm === examSysNorm || nTitleNorm.includes(examSysNorm);
+                }) as any;
+                if (matchedNode?.definitions?.length > 0) {
+                    scaleDefinitions = matchedNode.definitions;
+                }
+            }
+
+            // 1d. Root Main node
+            if (!scaleDefinitions && treeNodes['root_main']?.definitions?.length > 0) {
                 scaleDefinitions = treeNodes['root_main'].definitions;
             }
         }
 
+        // 2. Check currentInstitution.gradingSystems array (Legacy / Standard Grading Manager)
+        if (!scaleDefinitions) {
+            const systems: any[] = (currentInstitution as any)?.gradingSystems || (currentInstitution as any)?.grading_systems || [];
+            if (Array.isArray(systems) && systems.length > 0) {
+                // Find by active exam gradingSystem or gradingSystemId
+                const examGId = activeExam?.gradingSystemId || activeExam?.grading_system_id || activeExam?.gradingSystem;
+                let matchedSys = systems.find(s => s.id === examGId || (s.name && s.name.toLowerCase() === String(examGId).toLowerCase()));
+
+                // Find by class targeting
+                if (!matchedSys && effectiveClass) {
+                    matchedSys = systems.find(s => {
+                        const targets = s.targetClasses || s.assignedClasses || s.classes || [];
+                        return Array.isArray(targets) && targets.some((t: string) => t.toLowerCase().trim() === effectiveClass || t.toLowerCase().replace(/[^a-z0-9]/g, '') === compactC);
+                    });
+                }
+
+                // Find by institution active grading system
+                if (!matchedSys) {
+                    const activeId = (currentInstitution as any)?.activeGradingSystemId;
+                    if (activeId) matchedSys = systems.find(s => s.id === activeId);
+                }
+
+                if (!matchedSys) matchedSys = systems[0];
+
+                if (matchedSys?.definitions && Array.isArray(matchedSys.definitions) && matchedSys.definitions.length > 0) {
+                    scaleDefinitions = matchedSys.definitions;
+                }
+            }
+        }
+
+        // 3. Check direct academicConfig / gradingSystem definitions
+        if (!scaleDefinitions) {
+            const directDefs = (currentInstitution as any)?.academicConfig?.gradingSystem || (currentInstitution as any)?.gradingSystem;
+            if (Array.isArray(directDefs) && directDefs.length > 0) {
+                scaleDefinitions = directDefs;
+            }
+        }
+
+        // Apply matched scale definitions
         if (scaleDefinitions && scaleDefinitions.length > 0) {
             const sorted = [...scaleDefinitions].sort((a: any, b: any) => (b.minScore ?? 0) - (a.minScore ?? 0));
             const matched = sorted.find((d: any) => pctNum >= (d.minScore ?? 0));
             if (matched && matched.grade) return matched.grade;
         }
 
-        const isCBEClass = /\b(grade|std|standard|pp1|pp2|playgroup|nursery)\b/i.test(clsName || selectedClassFilter || '');
-        if (isCBEClass || isPrimarySchool) {
-            return pctNum >= 80 ? 'EE' : pctNum >= 60 ? 'ME' : pctNum >= 40 ? 'AE' : 'BE';
+        // 4. Standard Kenya Curricula Fallback
+        const isCBE = isPrimarySchool ||
+            /\b(grade|std|standard|pp1|pp2|playgroup|nursery|cbc|cbe|lower|upper|class\s*[1-8])\b/i.test(effectiveClass) ||
+            /\b(activities|hygiene|environmental|movement|cbe|cbc|nutrition|cre|ire|indigenous|language\s*activities|mathematical\s*activities)\b/i.test(effectiveSub);
+
+        if (isCBE) {
+            return pctNum >= 80 ? 'EE' : pctNum >= 65 ? 'ME' : pctNum >= 50 ? 'AE' : 'BE';
         }
 
         return pctNum >= 80 ? 'A' : pctNum >= 75 ? 'A-' : pctNum >= 70 ? 'B+' : pctNum >= 65 ? 'B' : pctNum >= 60 ? 'B-' : pctNum >= 55 ? 'C+' : pctNum >= 50 ? 'C' : pctNum >= 45 ? 'C-' : pctNum >= 40 ? 'D+' : pctNum >= 35 ? 'D' : pctNum >= 30 ? 'D-' : 'E';
-    }, [currentInstitution, instId, selectedClassFilter, isPrimarySchool]);
+    }, [currentInstitution, instId, selectedClassFilter, selectedSubjectFilter, activeExamClasses, activeExam, isPrimarySchool]);
 
     // CSV / Excel Export Handler
     const handleExportBroadsheetCSV = useCallback(() => {
@@ -1740,7 +1831,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             const convertedPct = maxTotal > 0 ? ((rawTotal / maxTotal) * 100).toFixed(1) : '0.0';
             const pctNum = parseFloat(convertedPct);
-            const grade = calculateGradeFromScore(pctNum, st.class || selectedClassFilter);
+            const studentClass = st.class || (st as any).studentClass || (st as any).className || (selectedClassFilter !== 'all' ? selectedClassFilter : (activeExamClasses[0] || ''));
+            const grade = calculateGradeFromScore(pctNum, studentClass, isSingleSubject ? selectedSubjectFilter : undefined);
 
             rowVals.push(rawTotal, maxTotal, `${convertedPct}%`, grade);
             csvLines.push(rowVals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
@@ -3764,7 +3856,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                     const maxTotal = papers.reduce((sum: number, p: any) => sum + p.maxScore, 0);
                                                     const convertedPct = maxTotal > 0 ? ((rawTotal / maxTotal) * 100).toFixed(1) : '0.0';
                                                     const pctNum = parseFloat(convertedPct);
-                                                    const grade = calculateGradeFromScore(pctNum, selectedClassFilter);
+                                                    const studentClass = st.class || (st as any).studentClass || (st as any).className || (selectedClassFilter !== 'all' ? selectedClassFilter : (activeExamClasses[0] || ''));
+                                                    const grade = calculateGradeFromScore(pctNum, studentClass, selectedSubjectFilter);
 
                                                     return (
                                                         <tr key={st.admNo} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors">
