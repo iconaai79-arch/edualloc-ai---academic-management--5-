@@ -39,11 +39,17 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 }) => {
     const instId = currentInstitution?.id || 'default';
 
-    const isPrimarySchool = useMemo(() => {
+    const [selectedYearGroup, setSelectedYearGroup] = useState<string>('PP1');
+
+    const isPrimaryOrCBC = useMemo(() => {
+        const cls = (selectedYearGroup || '').toLowerCase();
+        if (/pp[1-3]|playgroup|nursery|kindergarten|grade\s*[1-9]|std\s*[1-8]|standard\s*[1-8]|cbc|cbe|lower\s*primary|upper\s*primary|junior\s*secondary/i.test(cls)) {
+            return true;
+        }
         const type = (currentInstitution?.institutionType || '').toLowerCase();
         const name = (currentInstitution?.name || '').toLowerCase();
-        return type === 'primary' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
-    }, [currentInstitution]);
+        return type === 'primary' || type === 'basic' || type === 'kindergarten' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
+    }, [currentInstitution, selectedYearGroup]);
 
     const activeStudents = useMemo(() => {
         if (students.length > 0) return students;
@@ -68,12 +74,22 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         return {};
     });
 
+    // 3. Load Class Subject Allocations Store
+    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch (e) { }
+        return (currentInstitution as any)?.classSubjectAllocations || (currentInstitution as any)?.class_subject_allocations || {};
+    });
+
     useEffect(() => {
         if (currentInstitution?.id) {
             Promise.all([
                 apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('exam_units', currentInstitution.id).catch(() => [])
-            ]).then(([imsRecords, examRecords]) => {
+                apiService.fetchModuleRecords<any>('exam_units', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id).catch(() => [])
+            ]).then(([imsRecords, examRecords, allocRecords]) => {
                 const match = (imsRecords || []).find((r: any) => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
                 const storeData = match?.settings || match?.stateData || match?.data;
                 if (storeData && typeof storeData === 'object') {
@@ -102,6 +118,20 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                         } catch(e) {}
                         return unique;
                     });
+                }
+
+                if (allocRecords && allocRecords.length > 0) {
+                    const allocMap: Record<string, string[]> = {};
+                    allocRecords.forEach((rec: any) => {
+                        const cName = rec.className || rec.class_name || rec.id;
+                        const subList = rec.subjects || rec.subject_ids || rec.allocated_subjects || [];
+                        if (cName && Array.isArray(subList)) {
+                            allocMap[cName] = subList;
+                        }
+                    });
+                    if (Object.keys(allocMap).length > 0) {
+                        setClassAllocationsStore(prev => ({ ...prev, ...allocMap }));
+                    }
                 }
             }).catch(() => {});
         }
@@ -282,8 +312,6 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         return Array.from(set).sort();
     }, [selectedExamObj, courses, activeStudents, examSavedRows]);
 
-    const [selectedYearGroup, setSelectedYearGroup] = useState<string>(() => yearGroupOptions[0] || 'PP1');
-
     useEffect(() => {
         if (yearGroupOptions.length > 0 && !yearGroupOptions.includes(selectedYearGroup)) {
             setSelectedYearGroup(yearGroupOptions[0]);
@@ -387,7 +415,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
     // Calculate score grade
     const getGradeInfo = (score: number) => {
-        if (isPrimarySchool) {
+        if (isPrimaryOrCBC) {
             if (score >= 80) return { grade: 'EE', points: 4.0, comment: 'Exceeding Expectations' };
             if (score >= 65) return { grade: 'ME', points: 3.0, comment: 'Meeting Expectations' };
             if (score >= 50) return { grade: 'AE', points: 2.0, comment: 'Approaching Expectations' };
@@ -529,7 +557,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
         computed.sort((a, b) => b.meanScore - a.meanScore);
         return computed.map((item, idx) => ({ ...item, rank: idx + 1 }));
-    }, [activeStudents, selectedYearGroup, selectedStream, examSavedRows, marks, isPrimarySchool, subjects]);
+    }, [activeStudents, selectedYearGroup, selectedStream, examSavedRows, marks, isPrimaryOrCBC, subjects]);
 
     // Top 10 Students Overall
     const top10Students = useMemo(() => {
@@ -574,9 +602,9 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         });
     }, [studentPerformanceData]);
 
-    // Subject Performance Ranking
-    const subjectRankings = useMemo(() => {
-        const candidateSubs = subjects.length > 0 ? subjects : [
+    // Active subjects for selected class & exam (strictly filtered by class allocation and deduplicated)
+    const activeClassSubjects = useMemo(() => {
+        const rawCandidates = subjects.length > 0 ? subjects : [
             { id: '1', name: 'Mathematics', code: 'MATH' },
             { id: '2', name: 'English', code: 'ENG' },
             { id: '3', name: 'Kiswahili', code: 'KISW' },
@@ -585,7 +613,57 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             { id: '6', name: 'Physics', code: 'PHYS' },
         ];
 
-        const list = candidateSubs.map(sub => {
+        const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
+        const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
+
+        let allocatedSubjectIdentifiers: string[] | null = null;
+        if (yGrpClean && yGrpClean !== 'all') {
+            const matchedKey = Object.keys(classAllocationsStore || {}).find(k => {
+                const kClean = k.toLowerCase().trim();
+                const kNorm = kClean.replace(/[^a-z0-9]/g, '');
+                return kClean === yGrpClean || kNorm === yGrpNorm || (kNorm.length > 2 && yGrpNorm.includes(kNorm)) || (yGrpNorm.length > 2 && kNorm.includes(yGrpNorm));
+            });
+            if (matchedKey && Array.isArray(classAllocationsStore[matchedKey]) && classAllocationsStore[matchedKey].length > 0) {
+                allocatedSubjectIdentifiers = classAllocationsStore[matchedKey];
+            }
+        }
+
+        const filteredList: typeof rawCandidates = [];
+        const seenCodes = new Set<string>();
+
+        rawCandidates.forEach(sub => {
+            const sCode = (sub.code || '').toUpperCase().trim();
+            const sName = (sub.name || (sub as any).title || '').trim();
+            const subId = (sub.id || '').trim();
+            const normName = sName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const normCode = sCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            if (allocatedSubjectIdentifiers && allocatedSubjectIdentifiers.length > 0) {
+                const isAllocated = allocatedSubjectIdentifiers.some(allocId => {
+                    const aClean = String(allocId).toLowerCase().trim();
+                    const aNorm = aClean.replace(/[^a-z0-9]/g, '');
+                    return aClean === subId.toLowerCase() ||
+                           aClean === sName.toLowerCase() ||
+                           aClean === sCode.toLowerCase() ||
+                           (aNorm.length >= 3 && normName.includes(aNorm)) ||
+                           (normName.length >= 3 && aNorm.includes(normName));
+                });
+                if (!isAllocated) return;
+            }
+
+            const dedupKey = normCode || normName;
+            if (dedupKey && !seenCodes.has(dedupKey)) {
+                seenCodes.add(dedupKey);
+                filteredList.push(sub);
+            }
+        });
+
+        return filteredList.length > 0 ? filteredList : rawCandidates;
+    }, [subjects, selectedYearGroup, classAllocationsStore]);
+
+    // Subject Performance Ranking
+    const subjectRankings = useMemo(() => {
+        const list = activeClassSubjects.map(sub => {
             let totalSubScore = 0;
             let subCount = 0;
 
@@ -613,7 +691,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
         list.sort((a, b) => b.meanScore - a.meanScore);
         return list.map((item, idx) => ({ ...item, rank: idx + 1 }));
-    }, [subjects, studentPerformanceData, isPrimarySchool]);
+    }, [activeClassSubjects, studentPerformanceData, isPrimaryOrCBC]);
 
     // Class / Stream Performance Ranking
     const classStreamRankings = useMemo(() => {
@@ -640,7 +718,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
         list.sort((a, b) => b.meanScore - a.meanScore);
         return list.map((item, idx) => ({ ...item, rank: idx + 1 }));
-    }, [studentPerformanceData, isPrimarySchool]);
+    }, [studentPerformanceData, isPrimaryOrCBC]);
 
     // Overall Summary Metrics
     const performanceSummary = useMemo(() => {
@@ -673,7 +751,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             lowestScore,
             topStudentName
         };
-    }, [studentPerformanceData, isPrimarySchool]);
+    }, [studentPerformanceData, isPrimaryOrCBC]);
 
     // Left Navigation Items list
     const navItems = [
