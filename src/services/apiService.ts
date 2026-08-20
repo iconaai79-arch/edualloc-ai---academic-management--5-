@@ -1532,6 +1532,21 @@ export const apiService = {
                 delete item.metadata;
             }
 
+            if (module === 'institution_module_states') {
+                const combinedData = item.data || item.state_data || item.stateData || item.settings || {};
+                item.data = typeof combinedData === 'object' ? combinedData : {};
+                item.status = item.status || 'active';
+                item.module_id = item.module_id || item.moduleId || (item.id ? item.id.split('_')[1] : 'general');
+                item.institution_id = item.institution_id || item.institutionId || 'default';
+                delete item.settings;
+                delete item.state_data;
+                delete item.stateData;
+                delete item.module_name;
+                delete item.moduleName;
+                delete item.moduleId;
+                delete item.institutionId;
+            }
+
             // Safety net for users table to strip non-existent top-level columns (e.g. parent_phone2) that cause PGRST204 PostgREST errors
             if (module === 'users') {
                 const parentPhone2Val = item.parent_phone2 || item.parentPhone2 || item.secondary_phone || item.secondaryPhone || item.guardian_phone2 || item.guardianPhone2;
