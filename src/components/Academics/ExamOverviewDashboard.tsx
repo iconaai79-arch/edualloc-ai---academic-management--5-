@@ -2935,6 +2935,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                             <thead>
                                                 <tr className="bg-slate-700 dark:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider">
                                                     <th className="py-3.5 px-4 w-12 text-center">▲</th>
+                                                    <th className="py-3.5 px-4 w-20">ID</th>
                                                     <th className="py-3.5 px-4">Name</th>
                                                     <th className="py-3.5 px-4 w-24">Class</th>
                                                     <th className="py-3.5 px-4 w-28 text-center">Mean Marks</th>
@@ -2952,6 +2953,9 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                                         >
                                                             <td className="py-3.5 px-4 text-center font-black text-slate-700 dark:text-slate-300">
                                                                 {row.rank}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-slate-400">
+                                                                {row.admNo}
                                                             </td>
                                                             <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white uppercase truncate max-w-[180px]">
                                                                 {row.name}
@@ -2974,7 +2978,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                                     ))
                                                 ) : (
                                                     <tr>
-                                                        <td colSpan={5} className="text-center py-8 text-slate-400 text-xs font-bold">
+                                                        <td colSpan={6} className="text-center py-8 text-slate-400 text-xs font-bold">
                                                             No student improvement records found for this cohort.
                                                         </td>
                                                     </tr>
@@ -5300,6 +5304,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                             <thead>
                                                 <tr className="bg-slate-700 dark:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider">
                                                     <th className="py-3.5 px-4 w-12 text-center">▼</th>
+                                                    <th className="py-3.5 px-4 w-20">ID</th>
                                                     <th className="py-3.5 px-4">Name</th>
                                                     <th className="py-3.5 px-4 w-24">Class</th>
                                                     <th className="py-3.5 px-4 w-28 text-center">Mean Marks</th>
@@ -5317,6 +5322,9 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                                         >
                                                             <td className="py-3.5 px-4 text-center font-black text-rose-600 dark:text-rose-400">
                                                                 {row.rank}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-slate-400">
+                                                                {row.admNo}
                                                             </td>
                                                             <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white uppercase truncate max-w-[180px]">
                                                                 {row.name}
@@ -5339,7 +5347,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                                     ))
                                                 ) : (
                                                     <tr>
-                                                        <td colSpan={5} className="text-center py-8 text-slate-400 text-xs font-bold">
+                                                        <td colSpan={6} className="text-center py-8 text-slate-400 text-xs font-bold">
                                                             No student decline records found for this cohort.
                                                         </td>
                                                     </tr>
