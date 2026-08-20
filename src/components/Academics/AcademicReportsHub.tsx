@@ -428,7 +428,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
     if (hasOwnDrawerNav) {
         return (
-            <div className="w-full text-left">
+            <div className="w-full text-left pt-3 md:pt-5">
                 {activeSubTab === 'exam_analysis' && (
                     <ExamOverviewDashboard
                         assessments={assessments}

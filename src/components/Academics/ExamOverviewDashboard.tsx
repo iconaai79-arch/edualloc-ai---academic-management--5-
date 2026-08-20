@@ -1912,11 +1912,11 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
     ];
 
     return (
-        <div className="flex flex-col lg:flex-row gap-6 w-full text-left animate-fade-in">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 w-full text-left animate-fade-in pt-4 md:pt-6 pb-12">
             {/* COLUMN 1: LEFT NAVIGATION DRAWER ("EXAM ANALYSIS") */}
             <div className={`transition-all duration-300 ${isLeftNavCollapsed ? 'w-full lg:w-16' : 'w-full lg:w-64'} shrink-0 space-y-4`}>
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm">
-                    <div className="flex items-center justify-between px-2 mb-3">
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm">
+                    <div className="flex items-center justify-between px-2 mb-4">
                         {!isLeftNavCollapsed && (
                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                                 EXAM ANALYSIS
@@ -1930,7 +1930,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                         </button>
                     </div>
 
-                    <nav className="space-y-1">
+                    <nav className="space-y-1.5">
                         {navItems.map(item => (
                             <button
                                 key={item.id}
@@ -1940,13 +1940,13 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                         onSelectReportTab(item.reportTab);
                                     }
                                 }}
-                                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                                     activeNavItem === item.id
                                     ? 'bg-indigo-600 text-white shadow-md font-black'
                                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900'
                                 }`}
                             >
-                                <div className="flex items-center gap-2.5 truncate">
+                                <div className="flex items-center gap-3 truncate">
                                     <item.icon className="w-4 h-4 shrink-0" />
                                     {!isLeftNavCollapsed && <span className="truncate">{item.label}</span>}
                                 </div>
@@ -1957,18 +1957,18 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
                     {!isLeftNavCollapsed && (
                         <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-                            <div className="flex items-center justify-between px-2 mb-2">
+                            <div className="flex items-center justify-between px-2 mb-3">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">OTHERS</span>
                                 <span className="text-[10px] font-bold text-slate-400">— COLLAPSE</span>
                             </div>
-                            <nav className="space-y-1">
+                            <nav className="space-y-1.5">
                                 {otherNavItems.map(item => (
                                     <button
                                         key={item.id}
                                         onClick={() => setActiveNavItem(item.id)}
-                                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-400"
+                                        className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-400"
                                     >
-                                        <div className="flex items-center gap-2.5 truncate">
+                                        <div className="flex items-center gap-3 truncate">
                                             <item.icon className="w-4 h-4 shrink-0" />
                                             <span>{item.label}</span>
                                         </div>
@@ -1983,8 +1983,8 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
             {/* COLUMN 2: EXAM HISTORY / ACADEMIC YEAR SELECTOR COLUMN */}
             <div className="w-full lg:w-64 shrink-0 space-y-3">
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm">
-                    <div className="flex items-center justify-between mb-3 px-1">
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-4 px-1">
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                             PUBLISHED EXAMS
                         </span>
